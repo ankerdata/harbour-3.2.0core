@@ -38,3 +38,7 @@ obj
 !lib/3rd
 !config/*.exe
 !/*.exe
+
+# VSCode files
+.vscode
+*.code-workspace
