@@ -1790,6 +1790,7 @@ static void SQL3TraceLog( void * sFile, const char * sTraceMsg )
    }
 }
 
+#ifdef SQLITE_OMIT_DEPRECATED
 HB_FUNC( SQLITE3_PROFILE )
 {
    HB_SQLITE3 * pHbSqlite3 = ( HB_SQLITE3 * ) hb_sqlite3_param( 1, HB_SQLITE3_DB, HB_TRUE );
@@ -1811,6 +1812,7 @@ HB_FUNC( SQLITE3_TRACE )
    else
       hb_errRT_BASE_SubstR( EG_ARG, 0, NULL, HB_ERR_FUNCNAME, HB_ERR_ARGS_BASEPARAMS );
 }
+#endif
 
 /**
    BLOB Import/export
