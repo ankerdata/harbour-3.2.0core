@@ -2252,10 +2252,15 @@ HB_FUNC( WIN_OLEAUTO___ONERROR )
          dispparam.rgdispidNamedArgs = &lPropPut;
          dispparam.cNamedArgs = 1;
 
+         /* 28/01/2024 Harbour News Group
          lOleError = HB_VTBL( pDisp )->Invoke( HB_THIS_( pDisp ) dispid, HB_ID_REF( IID_NULL ),
                                                LOCALE_USER_DEFAULT,
                                                DISPATCH_PROPERTYPUT, &dispparam,
-                                               NULL, &excep, &uiArgErr );
+                                               NULL, &excep, &uiArgErr );*/
+         lOleError = HB_VTBL( pDisp )->Invoke( HB_THIS_(pDisp) dispid, HB_ID_REF(IID_NULL),
+                                               LOCALE_USER_DEFAULT,
+                                               ( V_VT( &dispparam.rgvarg[ 0 ] ) == VT_DISPATCH) ? DISPATCH_PROPERTYPUTREF : DISPATCH_PROPERTYPUT,
+                                               &dispparam, NULL, &excep, &uiArgErr );
          FreeParams( &dispparam );
 
          /* assign method should return assigned value */
