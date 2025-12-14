@@ -38,6 +38,7 @@
         # Network and web
         enableCurl = false;       # libcurl for file transfer
         enableCups = false;       # CUPS printing (Linux only)
+        enableOpenSSL = false;    # OpenSSL cryptographic library
         
         # Databases
         enableMysql = false;      # MySQL database
@@ -81,8 +82,9 @@
             ++ pkgs.lib.optionals opts.enableCairo [ cairo ]
             ++ pkgs.lib.optionals opts.enableFreeImage [ freeimage ]
             ++ pkgs.lib.optionals opts.enableGd [ gd ]
-            ++ pkgs.lib.optionals opts.enableCurl [ curl ]
-            ++ pkgs.lib.optionals opts.enableCups [ cups ]
+          ++ pkgs.lib.optionals opts.enableCurl [ curl ]
+          ++ pkgs.lib.optionals opts.enableCups [ cups ]
+          ++ pkgs.lib.optionals opts.enableOpenSSL [ openssl ]
             ++ pkgs.lib.optionals opts.enableMysql [ mysql80 ]
             ++ pkgs.lib.optionals opts.enablePostgresql [ postgresql ]
             ++ pkgs.lib.optionals opts.enableFirebird [ firebird ]
