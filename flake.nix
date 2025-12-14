@@ -116,6 +116,9 @@
 
           buildInputs = optionalDeps;
 
+          # Enable parallel building to use multiple cores
+          enableParallelBuilding = true;
+
           # Harbour uses GNU Make and auto-detects platform
           # The build system will detect Linux and GCC automatically
           buildPhase = ''
