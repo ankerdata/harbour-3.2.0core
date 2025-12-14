@@ -57,7 +57,9 @@
       };
 
       # Function to build Harbour with custom options
-      mkHarbour = { pkgs, buildOpts ? { } }:
+      # This function is system-agnostic and can be called from user configs
+      # harbour-src is captured in the closure, so users don't need to pass it
+      mkHarbour = { pkgs, buildOpts ? { }, src ? harbour-src } @ args:
         let
           # Merge user options with defaults
           opts = defaultBuildOpts // buildOpts;
@@ -102,7 +104,7 @@
           pname = "harbour";
           version = "3.2.0";
 
-          src = harbour-src;
+          src = src;
 
           nativeBuildInputs = with pkgs; [
             gnumake
@@ -157,6 +159,7 @@
         };
       }) // {
       # Expose the library function and defaults for use in user configs
+      # This makes lib.mkHarbour and lib.defaultBuildOpts available
       lib = {
         inherit mkHarbour defaultBuildOpts;
       };
@@ -166,6 +169,7 @@
         harbour = mkHarbour {
           pkgs = final;
           buildOpts = { };
+          src = harbour-src;
         };
       };
     };
