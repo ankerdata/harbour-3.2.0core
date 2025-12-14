@@ -11,93 +11,94 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, harbour-src }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-        };
+    let
+      # Default build options
+      defaultBuildOpts = {
+        # Terminal libraries
+        enableNcurses = false;    # for gtcrs terminal library
+        enableSlang = false;      # for gtsln terminal library
+        enableX11 = false;         # for gtxwc terminal library
+        enableGpm = false;        # for console mouse support (gttrm, gtsln, gtcrs)
+        
+        # Core libraries (commonly used)
+        enablePcre = true;         # Perl Compatible Regular Expressions
+        enableZlib = true;        # compression library
+        enableBzip2 = false;      # bzip2 compression
+        enableSqlite3 = false;    # SQLite database
+        enableExpat = false;      # XML parser
+        
+        # Image libraries
+        enablePng = false;        # PNG image support
+        enableJpeg = false;       # JPEG image support
+        enableTiff = false;       # TIFF image support
+        enableCairo = false;      # Cairo graphics library
+        enableFreeImage = false;  # FreeImage library
+        enableGd = false;         # GD Graphics Library
+        
+        # Network and web
+        enableCurl = false;       # libcurl for file transfer
+        enableCups = false;       # CUPS printing (Linux only)
+        
+        # Databases
+        enableMysql = false;      # MySQL database
+        enablePostgresql = false; # PostgreSQL database
+        enableFirebird = false;   # Firebird SQL database
+        enableOdbc = false;       # ODBC database access
+        
+        # Build configuration
+        buildDebug = false;       # Create debug build (HB_BUILD_DEBUG)
+        buildOptim = true;        # Enable C compiler optimizations (HB_BUILD_OPTIM)
+        buildDyn = true;          # Create Harbour dynamic libraries (HB_BUILD_DYN)
+        buildContribDyn = true;   # Create contrib dynamic libraries (HB_BUILD_CONTRIB_DYN)
+        buildShared = true;       # Create Harbour executables in shared mode (HB_BUILD_SHARED)
+        buildStrip = "no";       # Strip symbols: all|bin|lib|no (HB_BUILD_STRIP)
+        buildNoGplLib = false;    # Disable GPL 3rd party code (HB_BUILD_NOGPLLIB)
+        build3rdExt = true;       # Enable autodetection of 3rd party components (HB_BUILD_3RDEXT)
+      };
 
-        # Build options - set to true to enable
-        buildOpts = {
-          # Terminal libraries
-          enableNcurses = false;    # for gtcrs terminal library
-          enableSlang = false;      # for gtsln terminal library
-          enableX11 = false;         # for gtxwc terminal library
-          enableGpm = false;        # for console mouse support (gttrm, gtsln, gtcrs)
+      # Function to build Harbour with custom options
+      mkHarbour = { pkgs, buildOpts ? { } }:
+        let
+          # Merge user options with defaults
+          opts = defaultBuildOpts // buildOpts;
           
-          # Core libraries (commonly used)
-          enablePcre = true;         # Perl Compatible Regular Expressions
-          enableZlib = true;        # compression library
-          enableBzip2 = false;      # bzip2 compression
-          enableSqlite3 = false;    # SQLite database
-          enableExpat = false;      # XML parser
-          
-          # Image libraries
-          enablePng = false;        # PNG image support
-          enableJpeg = false;       # JPEG image support
-          enableTiff = false;       # TIFF image support
-          enableCairo = false;      # Cairo graphics library
-          enableFreeImage = false;  # FreeImage library
-          enableGd = false;         # GD Graphics Library
-          
-          # Network and web
-          enableCurl = false;       # libcurl for file transfer
-          enableCups = false;       # CUPS printing (Linux only)
-          
-          # Databases
-          enableMysql = false;      # MySQL database
-          enablePostgresql = false; # PostgreSQL database
-          enableFirebird = false;   # Firebird SQL database
-          enableOdbc = false;       # ODBC database access
-          
-          # Build configuration
-          buildDebug = false;       # Create debug build (HB_BUILD_DEBUG)
-          buildOptim = true;        # Enable C compiler optimizations (HB_BUILD_OPTIM)
-          buildDyn = true;          # Create Harbour dynamic libraries (HB_BUILD_DYN)
-          buildContribDyn = true;   # Create contrib dynamic libraries (HB_BUILD_CONTRIB_DYN)
-          buildShared = true;       # Create Harbour executables in shared mode (HB_BUILD_SHARED)
-          buildStrip = "no";       # Strip symbols: all|bin|lib|no (HB_BUILD_STRIP)
-          buildNoGplLib = false;    # Disable GPL 3rd party code (HB_BUILD_NOGPLLIB)
-          build3rdExt = true;       # Enable autodetection of 3rd party components (HB_BUILD_3RDEXT)
-        };
+          # Collect optional dependencies based on build options
+          optionalDeps = with pkgs; [
+          ] ++ pkgs.lib.optionals opts.enableNcurses [ ncurses ]
+            ++ pkgs.lib.optionals opts.enableSlang [ slang ]
+            ++ pkgs.lib.optionals opts.enableX11 [ xorg.libX11 ]
+            ++ pkgs.lib.optionals opts.enableGpm [ gpm ]
+            ++ pkgs.lib.optionals opts.enablePcre [ pcre ]
+            ++ pkgs.lib.optionals opts.enableZlib [ zlib ]
+            ++ pkgs.lib.optionals opts.enableBzip2 [ bzip2 ]
+            ++ pkgs.lib.optionals opts.enableSqlite3 [ sqlite ]
+            ++ pkgs.lib.optionals opts.enableExpat [ expat ]
+            ++ pkgs.lib.optionals opts.enablePng [ libpng ]
+            ++ pkgs.lib.optionals opts.enableJpeg [ libjpeg_turbo ]
+            ++ pkgs.lib.optionals opts.enableTiff [ libtiff ]
+            ++ pkgs.lib.optionals opts.enableCairo [ cairo ]
+            ++ pkgs.lib.optionals opts.enableFreeImage [ freeimage ]
+            ++ pkgs.lib.optionals opts.enableGd [ gd ]
+            ++ pkgs.lib.optionals opts.enableCurl [ curl ]
+            ++ pkgs.lib.optionals opts.enableCups [ cups ]
+            ++ pkgs.lib.optionals opts.enableMysql [ mysql80 ]
+            ++ pkgs.lib.optionals opts.enablePostgresql [ postgresql ]
+            ++ pkgs.lib.optionals opts.enableFirebird [ firebird ]
+            ++ pkgs.lib.optionals opts.enableOdbc [ unixODBC ];
 
-        # Collect optional dependencies based on build options
-        optionalDeps = with pkgs; [
-        ] ++ pkgs.lib.optionals buildOpts.enableNcurses [ ncurses ]
-          ++ pkgs.lib.optionals buildOpts.enableSlang [ slang ]
-          ++ pkgs.lib.optionals buildOpts.enableX11 [ xorg.libX11 ]
-          ++ pkgs.lib.optionals buildOpts.enableGpm [ gpm ]
-          ++ pkgs.lib.optionals buildOpts.enablePcre [ pcre ]
-          ++ pkgs.lib.optionals buildOpts.enableZlib [ zlib ]
-          ++ pkgs.lib.optionals buildOpts.enableBzip2 [ bzip2 ]
-          ++ pkgs.lib.optionals buildOpts.enableSqlite3 [ sqlite ]
-          ++ pkgs.lib.optionals buildOpts.enableExpat [ expat ]
-          ++ pkgs.lib.optionals buildOpts.enablePng [ libpng ]
-          ++ pkgs.lib.optionals buildOpts.enableJpeg [ libjpeg_turbo ]
-          ++ pkgs.lib.optionals buildOpts.enableTiff [ libtiff ]
-          ++ pkgs.lib.optionals buildOpts.enableCairo [ cairo ]
-          ++ pkgs.lib.optionals buildOpts.enableFreeImage [ freeimage ]
-          ++ pkgs.lib.optionals buildOpts.enableGd [ gd ]
-          ++ pkgs.lib.optionals buildOpts.enableCurl [ curl ]
-          ++ pkgs.lib.optionals buildOpts.enableCups [ cups ]
-          ++ pkgs.lib.optionals buildOpts.enableMysql [ mysql80 ]
-          ++ pkgs.lib.optionals buildOpts.enablePostgresql [ postgresql ]
-          ++ pkgs.lib.optionals buildOpts.enableFirebird [ firebird ]
-          ++ pkgs.lib.optionals buildOpts.enableOdbc [ unixODBC ];
-
-        # Build environment variables from options
-        buildEnvVars = with buildOpts; ''
-          ${if buildDebug then "export HB_BUILD_DEBUG=yes" else ""}
-          ${if !buildOptim then "export HB_BUILD_OPTIM=no" else ""}
-          ${if !buildDyn then "export HB_BUILD_DYN=no" else ""}
-          ${if !buildContribDyn then "export HB_BUILD_CONTRIB_DYN=no" else ""}
-          ${if !buildShared then "export HB_BUILD_SHARED=no" else ""}
-          ${if buildStrip != "no" then "export HB_BUILD_STRIP=${buildStrip}" else ""}
-          ${if buildNoGplLib then "export HB_BUILD_NOGPLLIB=yes" else ""}
-          ${if !build3rdExt then "export HB_BUILD_3RDEXT=no" else ""}
-        '';
-
-        harbour = pkgs.stdenv.mkDerivation {
+          # Build environment variables from options
+          buildEnvVars = ''
+            ${if opts.buildDebug then "export HB_BUILD_DEBUG=yes" else ""}
+            ${if !opts.buildOptim then "export HB_BUILD_OPTIM=no" else ""}
+            ${if !opts.buildDyn then "export HB_BUILD_DYN=no" else ""}
+            ${if !opts.buildContribDyn then "export HB_BUILD_CONTRIB_DYN=no" else ""}
+            ${if !opts.buildShared then "export HB_BUILD_SHARED=no" else ""}
+            ${if opts.buildStrip != "no" then "export HB_BUILD_STRIP=${opts.buildStrip}" else ""}
+            ${if opts.buildNoGplLib then "export HB_BUILD_NOGPLLIB=yes" else ""}
+            ${if !opts.build3rdExt then "export HB_BUILD_3RDEXT=no" else ""}
+          '';
+        in
+        pkgs.stdenv.mkDerivation {
           pname = "harbour";
           version = "3.2.0";
 
@@ -134,6 +135,14 @@
             platforms = platforms.unix;
           };
         };
+    in
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+        };
+
+        harbour = mkHarbour { inherit pkgs; buildOpts = { }; };
       in
       {
         packages.default = harbour;
@@ -144,8 +153,21 @@
             gnumake
             gcc
             binutils
-          ] ++ optionalDeps;
+          ];
         };
-      });
+      }) // {
+      # Expose the library function and defaults for use in user configs
+      lib = {
+        inherit mkHarbour defaultBuildOpts;
+      };
+      
+      # Overlay for easy use in NixOS/Home Manager configs
+      overlays.default = final: prev: {
+        harbour = mkHarbour {
+          pkgs = final;
+          buildOpts = { };
+        };
+      };
+    };
 }
 
