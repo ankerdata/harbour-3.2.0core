@@ -458,7 +458,7 @@ static HB_ERRCODE sqlite3Open( SQLBASEAREAP pArea )
 #ifdef HB_SQLT3_MAP_DECLARED_EMULATED
             sqlite3DeclStru( st, uiIndex, &uiRetLen, NULL );
 #endif
-            dbFieldInfo.uiLen = ( HB_USHORT ) HB_MAX( nSize, uiRetLen );
+            dbFieldInfo.uiLen = ( HB_USHORT ) HB_MAX( nSize, ( HB_SIZE ) uiRetLen );
             pStr = ( char * ) hb_xgrab( ( HB_SIZE ) dbFieldInfo.uiLen + 1 );
             memset( pStr, ' ', dbFieldInfo.uiLen );
             hb_itemPutCLPtr( pItem, pStr, dbFieldInfo.uiLen );
@@ -593,6 +593,8 @@ static HB_ERRCODE sqlite3GoTo( SQLBASEAREAP pArea, HB_ULONG ulRecNo )
 #if HB_VMLONG_MAX > INT32_MAX && ! defined( HB_LONG_LONG_OFF )
                pItem = hb_itemPutNInt( NULL, sqlite3_column_int64( st, ui ) );
                break;
+#else
+               /* fallthrough */
 #endif
             case HB_FT_LONG:
                pItem = hb_itemPutNDDec( NULL, sqlite3_column_double( st, ui ), pField->uiDec );

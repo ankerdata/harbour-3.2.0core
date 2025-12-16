@@ -120,7 +120,12 @@
 
 #if defined( HB_OS_UNIX )
 #  define HB_HAS_UNIX
-#  if ! defined( __WATCOMC__ )
+#  if defined( __WATCOMC__ )
+#     if __WATCOMC__ >= 1300
+#        define HB_HAS_INET_ATON
+#        define HB_HAS_GETHOSTBYADDR
+#     endif
+#  else
 #     define HB_HAS_INET_ATON
 #     define HB_HAS_INET_PTON
 #     define HB_HAS_INET_NTOP
@@ -434,6 +439,15 @@ void hb_socketSetError( int err )
 int hb_socketInit( void ) { return -1; }
 
 void hb_socketCleanup( void ) { ; }
+
+HB_U16 hb_socketNToHS( HB_U16 netshort )
+{
+#if defined( HB_LITTLE_ENDIAN )
+   return HB_SWAP_UINT16( netshort );
+#else
+   return netshort;
+#endif
+}
 
 int hb_socketGetAddrFamily( const void * pSockAddr, unsigned len )
 {
@@ -2454,7 +2468,9 @@ int hb_socketShutdown( HB_SOCKET sd, int iMode )
       iMode = SO_SND_SHUTDOWN;
    else if( iMode == HB_SOCKET_SHUT_RDWR )
       iMode = SO_RCV_SHUTDOWN | SO_SND_SHUTDOWN;
-#elif defined( __WATCOMC__ )
+#elif defined( __WATCOMC__ ) && ( __WATCOMC__ <= 1290 )
+   /* In WATCOM < 2.0 SHUT_* values are undefined but
+      Harbour's HB_SOCKET_SHUT_* are equal expected values */
    if( iMode == HB_SOCKET_SHUT_RD ||
        iMode == HB_SOCKET_SHUT_WR ||
        iMode == HB_SOCKET_SHUT_RDWR )

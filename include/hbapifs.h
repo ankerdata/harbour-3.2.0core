@@ -415,6 +415,7 @@ extern HB_EXPORT HB_BOOL      hb_fileDelete     ( const char * pszFileName );
 extern HB_EXPORT HB_BOOL      hb_fileRename     ( const char * pszFileName, const char * pszNewName );
 extern HB_EXPORT HB_BOOL      hb_fileCopy       ( const char * pszSrcFile, const char * pszDstFile );
 extern HB_EXPORT HB_BOOL      hb_fileMove       ( const char * pszSrcFile, const char * pszDstFile );
+extern HB_EXPORT HB_BOOL      hb_fileCopyEx     ( const char * pszSource, const char * pszDest, HB_SIZE nBufSize, HB_BOOL fTime, PHB_ITEM pCallBack );
 
 extern HB_EXPORT HB_BOOL      hb_fileDirExists  ( const char * pszDirName );
 extern HB_EXPORT HB_BOOL      hb_fileDirMake    ( const char * pszDirName );
@@ -466,9 +467,11 @@ extern HB_EXPORT HB_BOOL      hb_fileIsLocalName( const char * pszFileName );
 extern HB_EXPORT HB_SIZE      hb_fileResult( HB_SIZE nSize );
 extern HB_EXPORT HB_BYTE *    hb_fileLoad( const char * pszFileName, HB_SIZE nMaxSize, HB_SIZE * pnSize );
 extern HB_EXPORT HB_BYTE *    hb_fileLoadData( PHB_FILE pFile, HB_SIZE nMaxSize, HB_SIZE * pnSize );
+extern HB_EXPORT HB_BOOL      hb_fileSave( const char * pszFileName, const void * buffer, HB_SIZE nSize );
 
 /* interface to PRG level hb_vf*() file pointer items */
 extern HB_EXPORT PHB_FILE     hb_fileParam( int iParam );
+extern HB_EXPORT PHB_FILE     hb_fileParamGet( int iParam );
 extern HB_EXPORT PHB_FILE     hb_fileItemGet( PHB_ITEM pItem );
 extern HB_EXPORT PHB_ITEM     hb_fileItemPut( PHB_ITEM pItem, PHB_FILE pFile );
 extern HB_EXPORT void         hb_fileItemClear( PHB_ITEM pItem );

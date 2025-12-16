@@ -51,9 +51,26 @@
 #include "hbapierr.h"
 #include "hbsocket.h"
 
+/* pacify OpenSSL 3.0 depreciated warnings until we update the code */
+#ifndef OPENSSL_API_COMPAT
+   #define OPENSSL_API_COMPAT 10100
+#endif
+
 #if defined( HB_OS_WIN )
    #if ! defined( HB_OPENSSL_STATIC )
       #define OPENSSL_OPT_WINDLL
+   #endif
+#endif
+
+/* following can be defined if MSYS/MinGW64 toolchain complains about lacking
+    '__int64' type inside OpenSSL project headers, also applink.c is not
+     needed on MinGW C runtime - therefore applink.c is not distributed there */
+#if defined( HB_OPENSSL_MSYS )
+   #ifdef __MINGW64__
+      #include <basetsd.h>
+   #endif
+   #if ! defined( HB_OPENSSL_NO_APPLINK )
+      #define HB_OPENSSL_NO_APPLINK
    #endif
 #endif
 
@@ -169,8 +186,10 @@
    declarations in OpenSSL prior 0.9.8 */
 #if OPENSSL_VERSION_NUMBER < 0x0090800fL
    #define HB_SSL_CONST
+   #define HB_SSL_CONST_BYTE( x )   ( ( unsigned char * ) ( x ) )
 #else
-   #define HB_SSL_CONST const
+   #define HB_SSL_CONST             const
+   #define HB_SSL_CONST_BYTE( x )   ( ( const unsigned char * ) ( x ) )
 #endif
 
 HB_EXTERN_BEGIN
@@ -208,16 +227,24 @@ extern SSL_SESSION *      hb_SSL_SESSION_par( int iParam );
 
 extern HB_BOOL            hb_X509_is( int iParam );
 extern X509 *             hb_X509_par( int iParam );
-extern void               hb_X509_ret( X509 * x509, HB_BOOL fRelease );
+extern void               hb_X509_ret( X509 * x509 );
+
+extern HB_BOOL            hb_RSA_is( int iParam );
+extern RSA *              hb_RSA_par( int iParam );
+extern void               hb_RSA_par_remove( int iParam );
+extern void               hb_RSA_ret( RSA * rsa );
 
 extern HB_BOOL            hb_EVP_MD_is( int iParam );
 extern const EVP_MD *     hb_EVP_MD_par( int iParam );
+extern int                hb_EVP_MD_ptr_to_id( const EVP_MD * p );
 
 extern HB_BOOL            hb_EVP_CIPHER_is( int iParam );
 extern const EVP_CIPHER * hb_EVP_CIPHER_par( int iParam );
 
 extern HB_BOOL            hb_EVP_PKEY_is( int iParam );
 extern EVP_PKEY *         hb_EVP_PKEY_par( int iParam );
+extern EVP_PKEY *         hb_EVP_PKEY_get( PHB_ITEM pItem );
+extern void               hb_EVP_PKEY_free( PHB_ITEM pItem );
 extern void               hb_EVP_PKEY_ret( EVP_PKEY * pkey );
 
 extern char *             hb_openssl_strdup( const char * pszText );
