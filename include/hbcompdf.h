@@ -74,13 +74,13 @@ struct _HB_HCLASS;    /* forward declaration */
 /* Declared Function/Method support structure */
 typedef struct _HB_HDECLARED
 {
-   const char *          szName;              /* the name of the symbol */
-   HB_BYTE               cType;
-   HB_USHORT             iParamCount;
-   HB_BYTE *             cParamTypes;
-   struct _HB_HCLASS * pClass;
-   struct _HB_HCLASS * ( * pParamClasses );
-   struct _HB_HDECLARED * pNext;               /* pointer to the next declared function */
+   const char *            szName;           /* the name of the symbol */
+   HB_BYTE                 cType;
+   HB_USHORT               iParamCount;
+   HB_BYTE *               cParamTypes;
+   struct _HB_HCLASS *     pClass;
+   struct _HB_HCLASS **    pParamClasses;
+   struct _HB_HDECLARED *  pNext;            /* pointer to the next declared function */
 } HB_HDECLARED, * PHB_HDECLARED;
 
 /* Declared Class support structure */
@@ -261,6 +261,7 @@ typedef enum
    HB_F_CTOD,
    HB_F_DATE,
    HB_F_DAY,
+   HB_F_DBSELECTAREA,
    HB_F_DELETED,
    HB_F_DEVPOS,
    HB_F_DOW,
@@ -329,6 +330,7 @@ typedef enum
    HB_F_BITTEST,
    HB_F_BITNOT,
    HB_F_ARRAYTOPARAMS,
+   HB_F_PISBYREF,
    HB_F_I18N_GETTEXT,
    HB_F_I18N_GETTEXT_STRICT,
    HB_F_I18N_GETTEXT_NOOP,
