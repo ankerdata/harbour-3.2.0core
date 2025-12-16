@@ -1,8 +1,7 @@
 name: vm2-ci
 
 on:
-  - push
-  - pull_request
+  workflow_dispatch:
 
 jobs:
   vm2-ci:

@@ -1,8 +1,7 @@
 name: vm1-ci
 
 on:
-  - push
-  - pull_request
+  workflow_dispatch:
 
 jobs:
   vm1-ci:
