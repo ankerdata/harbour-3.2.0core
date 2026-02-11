@@ -732,12 +732,14 @@ DYNAMIC hb_osError
 DYNAMIC hb_osFileMask
 DYNAMIC hb_osIs64bit
 DYNAMIC hb_osIsWin10
+DYNAMIC hb_osIsWin11
 DYNAMIC hb_osIsWin2K
 DYNAMIC hb_osIsWin7
 DYNAMIC hb_osIsWin8
 DYNAMIC hb_osIsWin81
 DYNAMIC hb_osIsWin9x
 DYNAMIC hb_osIsWinCE
+DYNAMIC hb_osIsWine
 DYNAMIC hb_osIsWinNT
 DYNAMIC hb_osIsWinVista
 DYNAMIC hb_osNewLine
@@ -921,6 +923,7 @@ DYNAMIC hb_UserName
 DYNAMIC hb_UStuff
 DYNAMIC hb_USubStr
 DYNAMIC hb_UTCOffset
+DYNAMIC hb_UTCToTS
 DYNAMIC hb_utf8Asc
 DYNAMIC hb_utf8At
 DYNAMIC hb_utf8Chr
@@ -945,6 +948,7 @@ DYNAMIC hb_vfClose
 DYNAMIC hb_vfCommit
 DYNAMIC hb_vfConfig
 DYNAMIC hb_vfCopyFile
+DYNAMIC hb_vfCopyFileEx
 DYNAMIC hb_vfDirectory
 DYNAMIC hb_vfDirBuild
 DYNAMIC hb_vfDirExists
@@ -971,6 +975,7 @@ DYNAMIC hb_vfRead
 DYNAMIC hb_vfReadAt
 DYNAMIC hb_vfReadLen
 DYNAMIC hb_vfRename
+DYNAMIC hb_vfSave
 DYNAMIC hb_vfSeek
 DYNAMIC hb_vfSize
 DYNAMIC hb_vfTempFile

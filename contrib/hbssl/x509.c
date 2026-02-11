@@ -60,7 +60,6 @@
 typedef struct
 {
    X509 *  pX509;
-   HB_BOOL fRelease;
 } HB_X509, * PHB_X509;
 
 static HB_GARBAGE_FUNC( X509_release )
@@ -71,8 +70,7 @@ static HB_GARBAGE_FUNC( X509_release )
    if( ph && ph->pX509 )
    {
       /* Destroy the object */
-      if( ph->fRelease )
-         X509_free( ( X509 * ) ph->pX509 );
+      X509_free( ( X509 * ) ph->pX509 );
 
       /* set pointer to NULL just in case */
       ph->pX509 = NULL;
@@ -87,7 +85,9 @@ static const HB_GC_FUNCS s_gcX509_funcs =
 
 HB_BOOL hb_X509_is( int iParam )
 {
-   return hb_parptrGC( &s_gcX509_funcs, iParam ) != NULL;
+   PHB_X509 ph = ( PHB_X509 ) hb_parptrGC( &s_gcX509_funcs, iParam );
+
+   return ph && ph->pX509;
 }
 
 X509 * hb_X509_par( int iParam )
@@ -97,14 +97,18 @@ X509 * hb_X509_par( int iParam )
    return ph ? ph->pX509 : NULL;
 }
 
-void hb_X509_ret( X509 * x509, HB_BOOL fRelease )
+void hb_X509_ret( X509 * x509 )
 {
-   PHB_X509 ph = ( PHB_X509 ) hb_gcAllocate( sizeof( HB_X509 ), &s_gcX509_funcs );
+   if( x509 )
+   {
+      PHB_X509 ph = ( PHB_X509 ) hb_gcAllocate( sizeof( HB_X509 ), &s_gcX509_funcs );
 
-   ph->pX509    = x509;
-   ph->fRelease = fRelease;
+      ph->pX509    = x509;
 
-   hb_retptrGC( ( void * ) ph );
+      hb_retptrGC( ( void * ) ph );
+   }
+   else
+      hb_ret();
 }
 
 HB_FUNC( X509_GET_SUBJECT_NAME )
@@ -149,6 +153,30 @@ HB_FUNC( X509_NAME_ONELINE )
 #endif
 }
 
+HB_FUNC( X509_GET_SERIALNUMBER )
+{
+   if( hb_X509_is( 1 ) )
+   {
+      X509 * x509 = hb_X509_par( 1 );
+
+      if( x509 )
+      {
+         ASN1_INTEGER * a = X509_get_serialNumber( x509 );
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+         int64_t r = 0;
+         if( ASN1_INTEGER_get_int64( &r, a ) > 0 )
+            hb_retnint( r );
+         else
+            hb_retni( -1 );
+#else
+         hb_retnint( ASN1_INTEGER_get( a ) );
+#endif
+      }
+   }
+   else
+      hb_errRT_BASE( EG_ARG, 2010, NULL, HB_ERR_FUNCNAME, HB_ERR_ARGS_BASEPARAMS );
+}
+
 HB_FUNC( X509_GET_PUBKEY )
 {
    if( hb_X509_is( 1 ) )
@@ -156,7 +184,7 @@ HB_FUNC( X509_GET_PUBKEY )
       X509 * x509 = hb_X509_par( 1 );
 
       if( x509 )
-         hb_retptr( X509_get_pubkey( x509 ) );
+         hb_EVP_PKEY_ret( X509_get_pubkey( x509 ) );
    }
    else
       hb_errRT_BASE( EG_ARG, 2010, NULL, HB_ERR_FUNCNAME, HB_ERR_ARGS_BASEPARAMS );

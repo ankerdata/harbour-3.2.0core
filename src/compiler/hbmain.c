@@ -117,8 +117,19 @@ int hb_compMainExt( int argc, const char * const argv[],
 
    if( szSource )
    {
+      const char * pszFileName = "{SOURCE}";
+      int i;
+      /* Look for file name if any */
+      for( i = 1; i < argc && ! HB_COMP_PARAM->fExit; i++ )
+      {
+         if( ! HB_ISOPTSEP( argv[ i ][ 0 ] ) )
+         {
+            pszFileName = argv[ i ];
+            break;
+         }
+      }
       iFileCount++;
-      iStatus = hb_compCompile( HB_COMP_PARAM, "{SOURCE}", szSource, iStartLine );
+      iStatus = hb_compCompile( HB_COMP_PARAM, pszFileName, szSource, iStartLine );
    }
    else
    {
@@ -2296,14 +2307,14 @@ static void hb_compAnnounce( HB_COMP_DECL, const char * szFunName )
    }
 }
 
-void hb_compFunctionMarkStatic( HB_COMP_DECL, const char * szFunName )
+void hb_compFunctionSetScope( HB_COMP_DECL, const char * szFunName, HB_SYMBOLSCOPE cScope )
 {
    PHB_HSYMBOL pSym = hb_compSymbolFind( HB_COMP_PARAM, szFunName, NULL, HB_SYM_FUNCNAME );
 
    if( pSym )
    {
       if( ( pSym->cScope & ( HB_FS_DEFERRED | HB_FS_LOCAL ) ) == 0 )
-         pSym->cScope |= HB_FS_STATIC | HB_FS_LOCAL;
+         pSym->cScope |= cScope;
    }
 }
 

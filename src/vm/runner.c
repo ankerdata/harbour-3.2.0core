@@ -473,10 +473,13 @@ static PHRB_BODY hb_hrbLoad( const char * szHrbBody, HB_SIZE nBodySize, HB_USHOR
 
             pDynSym = hb_dynsymFind( pSymRead[ ul ].szName );
 
-            if( pDynSym )
+            if( pDynSym && ( HB_VM_ISFUNC( pDynSym->pSymbol ) ||
+                ( pDynSym->pSymbol->scope.value & HB_FS_DEFERRED ) != 0 ) )
             {
                pSymRead[ ul ].value.pFunPtr = pDynSym->pSymbol->value.pFunPtr;
-               if( pDynSym->pSymbol->scope.value & HB_FS_PCODEFUNC )
+               if( pDynSym->pSymbol->scope.value & HB_FS_DEFERRED )
+                  pSymRead[ ul ].scope.value |= HB_FS_DEFERRED;
+               else if( pDynSym->pSymbol->scope.value & HB_FS_PCODEFUNC )
                {
                   pSymRead[ ul ].scope.value |= HB_FS_PCODEFUNC;
                }
@@ -492,7 +495,7 @@ static PHRB_BODY hb_hrbLoad( const char * szHrbBody, HB_SIZE nBodySize, HB_USHOR
                   hb_strncpy( szName, pSymRead[ ul ].szName, sizeof( szName ) - 1 );
                   hb_xfree( pSymRead );
                   hb_hrbUnLoad( pHrbBody );
-                  hb_errRT_BASE( EG_ARG, 6101, "Unknown or unregistered symbol", szName, 0 );
+                  hb_errRT_BASE( EG_ARG, 6101, "Unknown or unregistered function symbol", szName, 0 );
                   return NULL;
                }
             }
@@ -729,6 +732,10 @@ HB_FUNC( HB_HRBLOAD )
    if( HB_ISNUM( 1 ) )
    {
       usMode = ( HB_USHORT ) hb_parni( 1 );
+
+      if( usMode == HB_HRB_ARG_PRGNAME )
+         usMode += HB_HRB_BIND_DEFAULT;
+
       nParam++;
    }
 
@@ -740,7 +747,16 @@ HB_FUNC( HB_HRBLOAD )
       PHRB_BODY pHrbBody;
 
       if( hb_hrbCheckSig( fileOrBody, nLen ) != 0 )
-         pHrbBody = hb_hrbLoad( fileOrBody, nLen, usMode, NULL );
+      {
+         const char * szFileName = NULL;
+         if( ( usMode & HB_HRB_ARG_PRGNAME ) &&
+             hb_pcount() > nParam && HB_ISCHAR( nParam + 1 ) )
+         {
+            szFileName = hb_parc( nParam + 1 );
+            nParam++;
+         }
+         pHrbBody = hb_hrbLoad( fileOrBody, nLen, usMode, szFileName );
+      }
       else
          pHrbBody = hb_hrbLoadFromFile( fileOrBody, usMode );
 

@@ -66,7 +66,11 @@ static  HB_GT_FUNCS           SuperTable;
 #endif
 
 #ifdef HB_QT_NEEDLOCKS
-   static QMutex s_qMtx( QMutex::Recursive );
+#  if QT_VERSION >= 0x060000
+      static QRecursiveMutex s_qMtx;
+#  else
+      static QMutex s_qMtx( QMutex::Recursive );
+#  endif
 #  define HB_QTC_LOCK()       do { s_qMtx.lock()
 #  define HB_QTC_UNLOCK()     s_qMtx.unlock(); } while( 0 )
 #else
@@ -97,6 +101,8 @@ static void hb_gt_qtc_itemGetQString( PHB_ITEM pItem, QString * pqStr )
    {
 #if defined( HB_OS_WIN )
       * pqStr = QString::fromWCharArray( wStr, nSize );
+#elif QT_VERSION >= 0x060000
+      * pqStr = QString::fromUtf16( ( char16_t * ) wStr, nSize );
 #else
       * pqStr = QString::fromUtf16( wStr, nSize );
 #endif
@@ -1305,6 +1311,41 @@ static void hb_gt_qtc_resetBoxCharBitmaps( PHB_GTQTC pQTC )
       pQTC->boxIndex[ i ] = HB_BOXCH_TRANS_MAX;
 }
 
+static const char * hb_gt_qtc_findFont( void )
+{
+   const char * pszFontNames[] = { "Consolas",              /* MS-Windows */
+                                   "Lucida Console",        /* MS-Windows */
+                                   "Menlo",                 /* Darwin */
+                                   "Monaco",                /* Darwin */
+                                   "Droid Sans Mono",       /* Android */
+                                   "Monospace",             /* Linux */
+                                   "Inconsolata",           /* Linux */
+                                   "Liberation Mono",       /* Linux */
+                                   "Roboto Mono",           /* Google */
+                                   "Ubuntu Mono",           /* Linux */
+                                   "Ubuntu Sans Mono",      /* Linux */
+                                   "DejaVu Sans Mono",      /* Linux */
+                                   "Noto Mono",             /* Linux */
+                                   "Nimbus Mono PS",        /* Linux */
+                                   "Source Code Pro",       /* Adobe */
+                                   "FreeMono",
+                                   "Flexi IBM VGA True",
+                                   "Flexi IBM VGA False",
+                                   "Courier",
+                                   "Courier New",
+                                   "Courier 10 Pitch",
+                                   NULL }, ** pszFont;
+
+   for( pszFont = pszFontNames; *pszFont; ++pszFont )
+   {
+      QFontDatabase qFData;
+      if( qFData.isScalable( *pszFont ) && qFData.isFixedPitch( *pszFont ) )
+         return *pszFont;
+   }
+
+   return QTC_DEFAULT_FONT_NAME;
+}
+
 /* --- */
 
 static void hb_gt_qtc_free( PHB_GTQTC pQTC )
@@ -1372,7 +1413,7 @@ static PHB_GTQTC hb_gt_qtc_new( PHB_GT pGT )
    pQTC->fontWeight    = QTC_DEFAULT_FONT_WEIGHT;
    pQTC->fontAttribute = QTC_DEFAULT_FONT_ATTRIBUTE;
    pQTC->fontAscent    = 0;
-   pQTC->fontName      = new QString( QTC_DEFAULT_FONT_NAME );
+   pQTC->fontName      = new QString( hb_gt_qtc_findFont() );
    pQTC->cellY         = pQTC->fontHeight;
    pQTC->cellX         = pQTC->fontWidth == 0 ? pQTC->cellY / 2: pQTC->fontWidth;
    pQTC->iCloseMode    = 0;
@@ -1767,6 +1808,11 @@ static void hb_gt_qtc_Init( PHB_GT pGT, HB_FHANDLE hFilenoStdin, HB_FHANDLE hFil
 
    if( ! s_qtapp )
    {
+#if defined( HB_QTC_NO_HIGHDPI_SCALING ) && QT_VERSION >= 0x060000
+      qputenv( "QT_ENABLE_HIGHDPI_SCALING", "0" );
+#elif QT_VERSION >= 0x050E00 && ! defined( HB_OS_ANDROID )
+      QGuiApplication::setHighDpiScaleFactorRoundingPolicy( Qt::HighDpiScaleFactorRoundingPolicy::Round );
+#endif
       hb_gt_qtc_InitMT();
 
       s_qtapp = qApp;
@@ -1990,7 +2036,11 @@ static HB_BOOL hb_gt_qtc_mouse_ButtonState( PHB_GT pGT, int iButton )
       case 1:
          return ( QApplication::mouseButtons() & Qt::RightButton ) != 0;
       case 2:
+#if QT_VERSION >= 0x060000
+         return ( QApplication::mouseButtons() & Qt::MiddleButton ) != 0;
+#else
          return ( QApplication::mouseButtons() & Qt::MidButton ) != 0;
+#endif
    }
    return HB_FALSE;
 }
@@ -2140,11 +2190,41 @@ static HB_BOOL hb_gt_qtc_Info( PHB_GT pGT, int iType, PHB_GT_INFO pInfo )
 
       case HB_GTI_WINTITLE:
          pInfo->pResult = hb_gt_qtc_itemPutQString( pInfo->pResult, pQTC->wndTitle );
-         if( pInfo->pNewVal && HB_IS_STRING( pInfo->pNewVal ) )
+         if( pInfo->pNewVal )
          {
-            hb_gt_qtc_itemGetQString( pInfo->pNewVal, pQTC->wndTitle );
-            if( pQTC->qWnd )
-               pQTC->qWnd->setWindowTitle( *pQTC->wndTitle );
+            if( HB_IS_STRING( pInfo->pNewVal ) )
+            {
+               hb_gt_qtc_itemGetQString( pInfo->pNewVal, pQTC->wndTitle );
+               if( pQTC->qWnd )
+                  pQTC->qWnd->setWindowTitle( *pQTC->wndTitle );
+            }
+            else if( HB_IS_LOGICAL( pInfo->pNewVal ) )
+            {
+               pQTC->fNoFrame = hb_itemGetL( pInfo->pNewVal );
+               if( pQTC->qWnd )
+               {
+                  Qt::WindowFlags flags = Qt::CustomizeWindowHint;
+
+                  if( pQTC->fNoFrame )
+                  {
+                     hb_gt_qtc_setWindowFlags( pQTC, /*Qt::WindowTitleHint |
+                                                     Qt::WindowSystemMenuHint |*/
+                                                     Qt::WindowMinimizeButtonHint |
+                                                     Qt::WindowMaximizeButtonHint |
+                                                     Qt::WindowCloseButtonHint, HB_FALSE );
+                     flags |= Qt::FramelessWindowHint;
+                  }
+                  else
+                  {
+                     if( pQTC->iCloseMode < 2 )
+                        flags |= Qt::WindowCloseButtonHint;
+                     if( pQTC->fResizable )
+                        flags |= Qt::WindowMaximizeButtonHint;
+                     flags |= Qt::WindowMinimizeButtonHint;
+                  }
+                  hb_gt_qtc_setWindowFlags( pQTC, flags, pQTC->fNoFrame );
+               }
+            }
          }
          break;
 
@@ -2728,28 +2808,19 @@ static HB_BOOL hb_gt_FuncInit( PHB_GT_FUNCS pFuncTable )
    return HB_TRUE;
 }
 
-/* --- */
+#include "hbgtreg.h"
 
-static const HB_GT_INIT gtInit = { HB_GT_DRVNAME( HB_GT_NAME ),
-                                   hb_gt_FuncInit,
-                                   HB_GTSUPER,
-                                   HB_GTID_PTR };
-
-HB_GT_ANNOUNCE( HB_GT_NAME )
-
-HB_CALL_ON_STARTUP_BEGIN( _hb_startup_gt_Init_ )
-   hb_gtRegister( &gtInit );
-HB_CALL_ON_STARTUP_END( _hb_startup_gt_Init_ )
-
-#if defined( HB_PRAGMA_STARTUP )
-   #pragma startup _hb_startup_gt_Init_
-#elif defined( HB_MSC_STARTUP )
-   #if defined( HB_OS_WIN_64 )
-      #pragma section( HB_MSC_START_SEGMENT, long, read )
-   #endif
-   #pragma data_seg( HB_MSC_START_SEGMENT )
-   static HB_$INITSYM hb_vm_auto__hb_startup_gt_Init_ = _hb_startup_gt_Init_;
-   #pragma data_seg()
+/* small hack to easy detect QT version used to compile this GT driver */
+#if   QT_VERSION >= 0x070000
+   HB_FUNC( HB_GT_QTC7 ) {}
+#elif QT_VERSION >= 0x060000
+   HB_FUNC( HB_GT_QTC6 ) {}
+#elif QT_VERSION >= 0x050000
+   HB_FUNC( HB_GT_QTC5 ) {}
+#elif QT_VERSION >= 0x040000
+   HB_FUNC( HB_GT_QTC4 ) {}
+#elif QT_VERSION >= 0x030000
+   HB_FUNC( HB_GT_QTC3 ) {}
 #endif
 
 /* --- */
@@ -3236,7 +3307,10 @@ void QTConsole::mouseMoveEvent( QMouseEvent * evt )
          update( QRegion( rSel1 ).xored( QRegion( rSel2 ) ) );
    }
    else
-      hb_gt_qtc_setMouseKey( pQTC, evt->x(), evt->y(), 0, evt->modifiers() );
+   {
+      QPoint pos = evt->pos();
+      hb_gt_qtc_setMouseKey( pQTC, pos.x(), pos.y(), 0, evt->modifiers() );
+   }
 }
 
 void QTConsole::wheelEvent( QWheelEvent * evt )
@@ -3297,7 +3371,11 @@ void QTConsole::mouseDoubleClickEvent( QMouseEvent * evt )
          iKey = K_RDBLCLK;
          break;
 
+#if QT_VERSION >= 0x060000
+      case Qt::MiddleButton:
+#else
       case Qt::MidButton:
+#endif
          iKey = K_MDBLCLK;
          break;
 
@@ -3306,7 +3384,8 @@ void QTConsole::mouseDoubleClickEvent( QMouseEvent * evt )
          return;
    }
 
-   hb_gt_qtc_setMouseKey( pQTC, evt->x(), evt->y(), iKey, evt->modifiers() );
+   QPoint pos = evt->pos();
+   hb_gt_qtc_setMouseKey( pQTC, pos.x(), pos.y(), iKey, evt->modifiers() );
 }
 
 void QTConsole::mousePressEvent( QMouseEvent * evt )
@@ -3318,8 +3397,10 @@ void QTConsole::mousePressEvent( QMouseEvent * evt )
       case Qt::LeftButton:
          if( ! selectMode && ( evt->modifiers() & Qt::ShiftModifier ) )
          {
+            QPoint pos = evt->pos();
+
             selectMode = true;
-            selectRect.setCoords( evt->x(), evt->y(), evt->x(), evt->y() );
+            selectRect.setCoords( pos.x(), pos.y(), pos.x(), pos.y() );
             update( hb_gt_qtc_unmapRect( pQTC, hb_gt_qtc_mapRect( pQTC, image, selectRect ) ) );
             return;
          }
@@ -3330,7 +3411,11 @@ void QTConsole::mousePressEvent( QMouseEvent * evt )
          iKey = K_RBUTTONDOWN;
          break;
 
+#if QT_VERSION >= 0x060000
+      case Qt::MiddleButton:
+#else
       case Qt::MidButton:
+#endif
          iKey = K_MBUTTONDOWN;
          break;
 
@@ -3339,7 +3424,8 @@ void QTConsole::mousePressEvent( QMouseEvent * evt )
          return;
    }
 
-   hb_gt_qtc_setMouseKey( pQTC, evt->x(), evt->y(), iKey, evt->modifiers() );
+   QPoint pos = evt->pos();
+   hb_gt_qtc_setMouseKey( pQTC, pos.x(), pos.y(), iKey, evt->modifiers() );
 }
 
 void QTConsole::mouseReleaseEvent( QMouseEvent * evt )
@@ -3361,7 +3447,11 @@ void QTConsole::mouseReleaseEvent( QMouseEvent * evt )
          iKey = K_RBUTTONUP;
          break;
 
+#if QT_VERSION >= 0x060000
+      case Qt::MiddleButton:
+#else
       case Qt::MidButton:
+#endif
          iKey = K_MBUTTONUP;
          break;
 
@@ -3370,7 +3460,8 @@ void QTConsole::mouseReleaseEvent( QMouseEvent * evt )
          return;
    }
 
-   hb_gt_qtc_setMouseKey( pQTC, evt->x(), evt->y(), iKey, evt->modifiers() );
+   QPoint pos = evt->pos();
+   hb_gt_qtc_setMouseKey( pQTC, pos.x(), pos.y(), iKey, evt->modifiers() );
 }
 
 bool QTConsole::event( QEvent * evt )
@@ -3393,7 +3484,6 @@ bool QTConsole::event( QEvent * evt )
          case QEvent::MouseMove:
          case QEvent::FocusIn:
          case QEvent::FocusOut:
-         case QEvent::ChildRemoved:
          case QEvent::UpdateRequest:
             resizeMode = false;
             update();
@@ -3793,14 +3883,21 @@ QTCWindow::QTCWindow( PHB_GTQTC pQTC )
 {
    Qt::WindowFlags flags = ( windowFlags() & Qt::WindowType_Mask ) |
                            Qt::CustomizeWindowHint                 |
-                           Qt::WindowMinimizeButtonHint            |
-                           Qt::WindowSystemMenuHint                |
-                           Qt::WindowTitleHint                     |
                            Qt::Window;
-   if( pQTC->iCloseMode < 2 )
-      flags |= Qt::WindowCloseButtonHint;
-   if( pQTC->fResizable )
-      flags |= Qt::WindowMaximizeButtonHint;
+   if( pQTC->fNoFrame )
+   {
+      flags |= Qt::FramelessWindowHint;
+   }
+   else
+   {
+      if( pQTC->iCloseMode < 2 )
+         flags |= Qt::WindowCloseButtonHint;
+      if( pQTC->fResizable )
+         flags |= Qt::WindowMaximizeButtonHint;
+      flags |= Qt::WindowMinimizeButtonHint |
+               Qt::WindowSystemMenuHint |
+               Qt::WindowTitleHint;
+   }
 
    setWindowFlags( flags );
 
