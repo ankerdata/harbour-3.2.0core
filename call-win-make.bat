@@ -27,9 +27,7 @@ set HB_WITH_OPENSSL=%OPENSSL_PREFIX%\include
 
 set HB_STATIC_OPENSSL=yes
 set HB_STATIC_CURL=yes
-rem I think "win-make.exe clean install" will do the same
-rem win-make.exe clean
-win-make.exe
-win-make.exe install
+
+win-make.exe clean install
 
 endlocal
