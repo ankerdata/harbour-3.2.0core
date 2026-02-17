@@ -42,3 +42,4 @@ obj
 # VSCode files
 .vscode
 *.code-workspace
+build.log
