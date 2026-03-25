@@ -111,8 +111,12 @@
 
 HB_FUNC( SSL_INIT )
 {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+   OPENSSL_init_ssl( 0, NULL );
+#else
    SSL_library_init();
    SSL_load_error_strings();
+#endif
 }
 
 HB_FUNC( HB_SSL_APPLINK )

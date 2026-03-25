@@ -61,7 +61,9 @@ char * hb_openssl_strdup( const char * pszText )
 
 HB_FUNC( OPENSSL_ADD_ALL_ALGORITHMS )
 {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
    OpenSSL_add_all_algorithms();
+#endif
 }
 
 HB_FUNC( EVP_CLEANUP )
