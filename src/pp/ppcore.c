@@ -885,6 +885,8 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
    PHB_PP_TOKEN * pInLinePtr, * pEolTokenPtr;
    char * pBuffer;
    HB_BOOL fDump = HB_FALSE;
+   HB_BOOL fCollectComment = HB_FALSE;
+   HB_SIZE nCommentSpaces = 0;
    int iLines = 0, iStartLine;
 
    pInLinePtr = pEolTokenPtr = NULL;
@@ -961,6 +963,22 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
 #endif
                      pState->nSpacesMin = 1;
                      ++n;
+                     if( fCollectComment )
+                     {
+                        hb_membufAddCh( pState->pStreamBuffer, '*' );
+                        hb_membufAddCh( pState->pStreamBuffer, '/' );
+                        pState->nSpaces = nCommentSpaces;
+                        hb_pp_tokenAddNext( pState,
+                           hb_membufPtr( pState->pStreamBuffer ),
+                           hb_membufLen( pState->pStreamBuffer ),
+                           HB_PP_TOKEN_COMMENT );
+                        hb_membufFlush( pState->pStreamBuffer );
+                        fCollectComment = HB_FALSE;
+                     }
+                  }
+                  else if( fCollectComment )
+                  {
+                     hb_membufAddCh( pState->pStreamBuffer, ch );
                   }
                }
             }
@@ -1258,11 +1276,19 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
          }
          else if( ( ch == '/' || ch == '&' ) && nLen > 1 && pBuffer[ 1 ] == ch )
          {
+            if( pState->fComments )
+            {
+               hb_pp_tokenAddNext( pState, pBuffer, nLen, HB_PP_TOKEN_COMMENT );
+            }
             /* strip the rest of line with // or && comment */
             n = nLen;
          }
          else if( ch == '*' && pState->pFile->iTokens == 0 )
          {
+            if( pState->fComments )
+            {
+               hb_pp_tokenAddNext( pState, pBuffer, nLen, HB_PP_TOKEN_COMMENT );
+            }
             /* strip the rest of line with * comment */
             n = nLen;
          }
@@ -1276,6 +1302,17 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
             if( pState->fCanNextLine )
                hb_pp_tokenAddCmdSep( pState );
 #endif
+            if( pState->fComments )
+            {
+               fCollectComment = HB_TRUE;
+               nCommentSpaces = pState->nSpaces;
+               if( pState->pStreamBuffer )
+                  hb_membufFlush( pState->pStreamBuffer );
+               else
+                  pState->pStreamBuffer = hb_membufNew();
+               hb_membufAddCh( pState->pStreamBuffer, '/' );
+               hb_membufAddCh( pState->pStreamBuffer, '*' );
+            }
             pState->iStreamDump = HB_PP_STREAM_COMMENT;
             n += 2;
          }
@@ -1318,6 +1355,10 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
 #endif
                 n == 4 && hb_strnicmp( "NOTE", pBuffer, 4 ) == 0 )
             {
+               if( pState->fComments )
+               {
+                  hb_pp_tokenAddNext( pState, pBuffer, nLen, HB_PP_TOKEN_COMMENT );
+               }
                /* strip the rest of line */
                n = nLen;
             }
@@ -1491,6 +1532,10 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
          nLen -= n;
          n = 0;
       }
+
+      /* append newline to collected multiline comment text */
+      if( fCollectComment && pState->iStreamDump == HB_PP_STREAM_COMMENT )
+         hb_membufAddCh( pState->pStreamBuffer, '\n' );
 
       if( pEolTokenPtr &&
           ( pEolTokenPtr != pState->pNextTokenPtr ||
@@ -1694,6 +1739,14 @@ static int hb_pp_tokenStr( PHB_PP_TOKEN pToken, PHB_MEM_BUFFER pBuffer,
          hb_membufAddData( pBuffer, pToken->value, pToken->len );
          hb_membufAddCh( pBuffer, '"' );
       }
+   }
+   else if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_COMMENT )
+   {
+      HB_SIZE nn;
+      for( nn = 0; nn < pToken->len; nn++ )
+         if( pToken->value[ nn ] == '\n' )
+            ++iLines;
+      hb_membufAddData( pBuffer, pToken->value, pToken->len );
    }
    else
    {
@@ -3721,6 +3774,18 @@ static HB_BOOL hb_pp_tokenSkipExp( PHB_PP_TOKEN * pTokenPtr, PHB_PP_TOKEN pStop,
             pToken = pPrev;
       }
 
+      /* skip inline block comments transparently in expressions,
+         but stop at end-of-line comments (// && * NOTE) */
+      if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_COMMENT )
+      {
+         if( pToken->len >= 4 && pToken->value[ 0 ] == '/' && pToken->value[ 1 ] == '*' )
+         {
+            pToken = pToken->pNext;
+            continue;
+         }
+         break;
+      }
+
       if( mode == HB_PP_CMP_ADDR ? pToken == pStop :
                                    HB_PP_TOKEN_ISEOC( pToken ) )
       {
@@ -3819,6 +3884,15 @@ static HB_BOOL hb_pp_tokenMatch( PHB_PP_TOKEN pMatch, PHB_PP_TOKEN * pTokenPtr,
 {
    HB_BOOL fMatch = HB_FALSE;
    HB_USHORT type;
+
+   /* skip inline block comment tokens in input */
+   while( *pTokenPtr &&
+          HB_PP_TOKEN_TYPE( ( *pTokenPtr )->type ) == HB_PP_TOKEN_COMMENT &&
+          ( *pTokenPtr )->len >= 4 &&
+          ( *pTokenPtr )->value[ 0 ] == '/' && ( *pTokenPtr )->value[ 1 ] == '*' )
+      *pTokenPtr = ( *pTokenPtr )->pNext;
+   if( HB_PP_TOKEN_ISEOS( *pTokenPtr ) )
+      return HB_FALSE;
 
    type = HB_PP_TOKEN_TYPE( pMatch->type );
    if( type == HB_PP_MMARKER_REGULAR )
@@ -4060,7 +4134,13 @@ static HB_BOOL hb_pp_patternCmp( PHB_PP_RULE pRule, PHB_PP_TOKEN pToken,
    if( hb_pp_patternMatch( pRule->pMatch, &pToken, NULL,
                            HB_PP_CMP_MODE( pRule->mode ), NULL ) )
    {
-      if( ! fCommand || HB_PP_TOKEN_ISEOC( pToken ) )
+      PHB_PP_TOKEN pEnd = pToken;
+
+      /* skip trailing comment tokens before checking for end-of-command */
+      while( pEnd && HB_PP_TOKEN_TYPE( pEnd->type ) == HB_PP_TOKEN_COMMENT )
+         pEnd = pEnd->pNext;
+
+      if( ! fCommand || HB_PP_TOKEN_ISEOC( pEnd ) )
       {
          if( hb_pp_patternMatch( pRule->pMatch, &pFirst, NULL,
                                  HB_PP_CMP_MODE( pRule->mode ), pRule ) )
@@ -4624,6 +4704,13 @@ static HB_BOOL hb_pp_processCommand( PHB_PP_STATE pState, PHB_PP_TOKEN * pFirstP
    PHB_PP_RULE pRule;
    HB_BOOL fSubst = HB_FALSE, fRepeat = HB_TRUE;
    int iCycle = 0;
+
+   /* skip leading inline block comments */
+   while( ! HB_PP_TOKEN_ISEOC( *pFirstPtr ) &&
+          HB_PP_TOKEN_TYPE( ( *pFirstPtr )->type ) == HB_PP_TOKEN_COMMENT &&
+          ( *pFirstPtr )->len >= 4 &&
+          ( *pFirstPtr )->value[ 0 ] == '/' && ( *pFirstPtr )->value[ 1 ] == '*' )
+      pFirstPtr = &( *pFirstPtr )->pNext;
 
    while( fRepeat && ! HB_PP_TOKEN_ISEOC( *pFirstPtr ) &&
           ( pState->pMap[ HB_PP_HASHID( *pFirstPtr ) ] & HB_PP_COMMAND ) )
@@ -5590,6 +5677,11 @@ void hb_pp_setIncFunc( PHB_PP_STATE pState, PHB_PP_INC_FUNC pIncFunc )
    pState->pIncFunc = pIncFunc;
 }
 
+void hb_pp_setComments( PHB_PP_STATE pState, HB_BOOL fComments )
+{
+   pState->fComments = fComments;
+}
+
 /*
  * reset PP context, used for multiple .prg file compilation
  * with DO ... or *.clp files
@@ -5601,6 +5693,7 @@ void hb_pp_reset( PHB_PP_STATE pState )
    pState->iLineTot      = 0;
    pState->fEscStr       = HB_FALSE;
    pState->fMultiLineStr = HB_FALSE;
+   pState->fComments     = HB_FALSE;
    pState->fTracePragmas = HB_FALSE;
    pState->fQuiet        = pState->fQuietSet;
    pState->iMaxCycles    = pState->iMaxCyclesSet;

@@ -155,6 +155,7 @@ typedef HB_PP_MSG_FUNC_( ( * PHB_PP_MSG_FUNC ) );
 #define HB_PP_TOKEN_EOL          31   /* "\n" */
 #define HB_PP_TOKEN_HASH         32   /* "#" */
 #define HB_PP_TOKEN_DIRECTIVE    33   /* direct # directive first token */
+#define HB_PP_TOKEN_COMMENT      35   /* comment token (preserved with -k) */
 
 /* constant values */
 #define HB_PP_TOKEN_STRING       41
@@ -591,6 +592,7 @@ typedef struct
    HB_BOOL   fGauge;                /* do not show line counter gauge */
    HB_BOOL   fEscStr;               /* use \ in strings as escape character */
    HB_BOOL   fMultiLineStr;         /* allow to define multiline [] and e"" strings using ; as line concatenator */
+   HB_BOOL   fComments;             /* keep comments in preprocessed output */
    HB_BOOL   fError;                /* indicates error in last operation */
    int       iErrors;               /* number of error during preprocessing */
    int       iCondCompile;          /* current conditional compilation flag, when not 0 disable preprocessing and output */
@@ -659,6 +661,7 @@ extern HB_EXPORT void    hb_pp_readRules( PHB_PP_STATE pState, const char * szRu
 extern HB_EXPORT void    hb_pp_setStdRules( PHB_PP_STATE pState );
 extern HB_EXPORT void    hb_pp_setStdBase( PHB_PP_STATE pState );
 extern HB_EXPORT void    hb_pp_setStream( PHB_PP_STATE pState, int iMode );
+extern HB_EXPORT void    hb_pp_setComments( PHB_PP_STATE pState, HB_BOOL fComments );
 extern HB_EXPORT void    hb_pp_addSearchPath( PHB_PP_STATE pState, const char * szPath, HB_BOOL fReplace );
 extern HB_EXPORT HB_BOOL hb_pp_inBuffer( PHB_PP_STATE pState, const char * szFileName, const char * pBuffer, HB_SIZE nLen, int iStartLine );
 extern HB_EXPORT HB_BOOL hb_pp_inFile( PHB_PP_STATE pState, const char * szFileName, HB_BOOL fSearchPath, FILE * file_in, HB_BOOL fError );

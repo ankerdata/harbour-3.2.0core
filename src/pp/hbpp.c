@@ -655,6 +655,7 @@ static void hb_pp_usage( char * szName )
            "          -c[<file>]    \tlook for ChangeLog file\n"
            "          -o<file>      \tcreates .c file with PP rules\n"
            "          -v<file>      \tcreates .h file with version information\n"
+           "          -k            \tkeep comments in preprocessed output\n"
            "          -w            \twrite preprocessed (.ppo) file\n"
            "          -q[012]       \tdisable information messages\n" );
    printf( "\n"
@@ -665,7 +666,7 @@ int main( int argc, char * argv[] )
 {
    char * szFile = NULL, * szRuleFile = NULL, * szVerFile = NULL;
    char * szStdCh = NULL, * szLogFile = NULL, * szInclude;
-   HB_BOOL fWrite = HB_FALSE, fChgLog = HB_FALSE;
+   HB_BOOL fWrite = HB_FALSE, fChgLog = HB_FALSE, fComments = HB_FALSE;
    char * szChangeLogID = NULL, * szLastEntry = NULL;
    int iResult = 0, iQuiet = 0, i;
    HB_MAXINT nRevID = 0;
@@ -719,6 +720,14 @@ int main( int argc, char * argv[] )
                      szPPRuleFuncName = argv[ i ] + 2;
                   else
                      szPPRuleFuncName = NULL;
+                  break;
+
+               case 'k':
+               case 'K':
+                  if( ! argv[ i ][ 2 ] )
+                     fComments = HB_TRUE;
+                  else
+                     szFile = NULL;
                   break;
 
                case 'w':
@@ -789,6 +798,9 @@ int main( int argc, char * argv[] )
          fWrite = HB_TRUE;
 
       hb_pp_init( pState, iQuiet != 0, HB_TRUE, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL );
+
+      if( fComments )
+         hb_pp_setComments( pState, HB_TRUE );
 
       szInclude = hb_getenv( "INCLUDE" );
       if( szInclude )
