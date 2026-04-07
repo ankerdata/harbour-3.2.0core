@@ -22,4 +22,9 @@ FUNCTION Main()
 
    x := x /* inline block comment */ + 1
 
+   ? "x=" + Str( x )
+   ? "y=" + Str( y )
+   ? "z=" + Str( z )
+   ? "cResult=" + cResult
+
 RETURN cResult

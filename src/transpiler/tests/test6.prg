@@ -1,6 +1,12 @@
 #include "hbclass.ch"
 
-CLASS Person INHERIT HBObject
+CLASS Inherited
+
+   CLASSDATA nVersion INIT 1.0
+
+ENDCLASS
+
+CLASS Person INHERIT Inherited
 
    DATA nAge      AS NUMERIC  INIT 0
    DATA cName     AS STRING   INIT ""
@@ -45,5 +51,8 @@ FUNCTION Main()
    LOCAL oPerson := Person():New()
 
    oPerson:SetAge( 25 )
+
+   ? "nAge=" + Str( oPerson:nAge )
+   ? "FullName=" + oPerson:FullName
 
 RETURN oPerson:FullName

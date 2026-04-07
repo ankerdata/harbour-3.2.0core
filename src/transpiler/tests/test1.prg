@@ -5,5 +5,9 @@ PROCEDURE Main()
    LOCAL z
 
    z := x + y
-   
+
+   ? "x=" + Str( x )
+   ? "y=" + Str( y )
+   ? "z=" + Str( z )
+
 RETURN

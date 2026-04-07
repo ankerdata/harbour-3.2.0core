@@ -39,3 +39,16 @@ RETURN nResult
 FUNCTION FormatPrice( nPrice, cCurrency )
    LOCAL nFinal := nPrice * 1.15
 RETURN cCurrency + " " + Str( nFinal )
+
+PROCEDURE Main()
+
+   LOCAL oCalc := Calculator():New()
+
+   oCalc:Add( 10 )
+   oCalc:Add( 20 )
+   oCalc:Display( "Total" )
+
+   ? CalcTotal( 1, 2, 3 )
+   ? FormatPrice( 9.99, "$" )
+
+RETURN

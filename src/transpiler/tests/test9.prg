@@ -1,6 +1,12 @@
 #include "hbclass.ch"
 
-CLASS Person INHERIT HBObject
+CLASS Inherited
+
+   CLASSDATA nVersion INIT 1.0
+
+ENDCLASS
+
+CLASS Person INHERIT Inherited
 
    DATA nAge      INIT 0
    DATA cName     INIT ""
@@ -45,5 +51,10 @@ FUNCTION Main()
    LOCAL x
    LOCAL counter
    LOCAL Temp
+
+   ? "nCount=" + Str( nCount )
+   ? "nPrice=" + Str( nPrice )
+   ? "cName=" + cName
+   ? "lFound=" + IIF( lFound, ".T.", ".F." )
 
 RETURN NIL

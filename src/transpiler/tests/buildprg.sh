@@ -11,7 +11,7 @@ FAIL=0
 
 for f in "$SCRIPTDIR"/test*.prg; do
    name=$(basename "$f" .prg)
-   hbmk2 "$f" -o"$SCRIPTDIR/prgexe/$name" -q 2>/dev/null
+   hbmk2 "$f" -o"$SCRIPTDIR/prgexe/$name" -gtcgi -q 2>/dev/null
    if [ $? -eq 0 ]; then
       echo "PASS: $name"
       PASS=$((PASS + 1))

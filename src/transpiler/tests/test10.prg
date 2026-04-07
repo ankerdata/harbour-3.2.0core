@@ -29,4 +29,7 @@ FUNCTION Main()
 
    nCounter := nCounter + 1
 
+   ? "nValue=" + Str( oObj:nValue )
+   ? "nCounter=" + Str( nCounter )
+
 RETURN oObj:nValue

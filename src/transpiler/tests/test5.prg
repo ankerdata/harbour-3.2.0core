@@ -20,4 +20,6 @@ FUNCTION Main()
       nSum := nSum + Len( cItem )
    NEXT
 
+   ? "nSum=" + Str( nSum )
+
 RETURN nSum

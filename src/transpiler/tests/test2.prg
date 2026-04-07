@@ -16,11 +16,16 @@ FUNCTION Main()
       cResult := "small"
    ENDIF
 
+   ? "nSum after FOR=" + Str( nSum )
+   ? "cResult=" + cResult
+
    DO WHILE nSum > 0
       nSum := nSum - 10
       IF nSum < 0
          EXIT
       ENDIF
    ENDDO
+
+   ? "nSum after WHILE=" + Str( nSum )
 
 RETURN cResult

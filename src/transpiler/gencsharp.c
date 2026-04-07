@@ -165,9 +165,9 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
 static const char * hb_csFuncMap( const char * szName )
 {
    if( hb_stricmp( szName, "QOUT" ) == 0 )
-      return "Console.WriteLine";
+      return "HbRuntime.QOut";
    if( hb_stricmp( szName, "QQOUT" ) == 0 )
-      return "Console.Write";
+      return "HbRuntime.QQOut";
    if( hb_stricmp( szName, "SETCOLOR" ) == 0 )
       return "HbRuntime.SetColor";
    return szName;
@@ -195,22 +195,21 @@ static HB_BOOL hb_csEmitSpecialFunc( const char * szName, PHB_EXPR pParms,
       PHB_EXPR pWidth = pNum ? pNum->pNext : NULL;
       PHB_EXPR pDec = pWidth ? pWidth->pNext : NULL;
 
-      fprintf( yyc, "(" );
+      fprintf( yyc, "HbRuntime.Str(" );
       hb_csEmitExpr( pNum, yyc, HB_FALSE );
-      if( pDec )
-      {
-         fprintf( yyc, ").ToString(\"F\" + (" );
-         hb_csEmitExpr( pDec, yyc, HB_FALSE );
-         fprintf( yyc, ").ToString())" );
-      }
-      else
-         fprintf( yyc, ").ToString()" );
       if( pWidth )
       {
-         fprintf( yyc, ".PadLeft((int)(" );
+         fprintf( yyc, ", (int)(" );
          hb_csEmitExpr( pWidth, yyc, HB_FALSE );
-         fprintf( yyc, "))" );
+         fprintf( yyc, ")" );
       }
+      if( pDec )
+      {
+         fprintf( yyc, ", (int)(" );
+         hb_csEmitExpr( pDec, yyc, HB_FALSE );
+         fprintf( yyc, ")" );
+      }
+      fprintf( yyc, ")" );
       return HB_TRUE;
    }
    /* Val(s) → decimal.Parse(s) */
@@ -826,7 +825,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
       case HB_AST_QOUT:
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "Console.WriteLine(" );
+         fprintf( yyc, "HbRuntime.QOut(" );
          if( pNode->value.asQOut.pExprList )
             hb_csEmitExpr( pNode->value.asQOut.pExprList, yyc, HB_FALSE );
          fprintf( yyc, ");\n" );
@@ -834,7 +833,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
       case HB_AST_QQOUT:
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "Console.Write(" );
+         fprintf( yyc, "HbRuntime.QQOut(" );
          if( pNode->value.asQOut.pExprList )
             hb_csEmitExpr( pNode->value.asQOut.pExprList, yyc, HB_FALSE );
          fprintf( yyc, ");\n" );
@@ -1858,9 +1857,30 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    fprintf( yyc, "\n" );
 
    /* Harbour runtime stubs */
+   fprintf( yyc, "using System.Globalization;\n\n" );
    fprintf( yyc, "public static class HbRuntime\n" );
    fprintf( yyc, "{\n" );
+   fprintf( yyc, "    static readonly CultureInfo INV = CultureInfo.InvariantCulture;\n" );
    fprintf( yyc, "    public static void SetColor(string cColor) { }\n" );
+   fprintf( yyc, "    static string Fmt(dynamic a) =>\n" );
+   fprintf( yyc, "        a is decimal d ? Str(d) : Convert.ToString(a, INV);\n" );
+   fprintf( yyc, "    public static void QOut(params dynamic[] args)\n" );
+   fprintf( yyc, "    {\n" );
+   fprintf( yyc, "        Console.WriteLine();\n" );
+   fprintf( yyc, "        foreach (var a in args) Console.Write(Fmt(a));\n" );
+   fprintf( yyc, "    }\n" );
+   fprintf( yyc, "    public static void QQOut(params dynamic[] args)\n" );
+   fprintf( yyc, "    {\n" );
+   fprintf( yyc, "        foreach (var a in args) Console.Write(Fmt(a));\n" );
+   fprintf( yyc, "    }\n" );
+   fprintf( yyc, "    public static string Str(decimal n, int nWidth = 10, int nDec = -1)\n" );
+   fprintf( yyc, "    {\n" );
+   fprintf( yyc, "        string s;\n" );
+   fprintf( yyc, "        if (nDec >= 0) s = n.ToString(\"F\" + nDec, INV);\n" );
+   fprintf( yyc, "        else if (n == Math.Truncate(n)) s = n.ToString(\"F0\", INV);\n" );
+   fprintf( yyc, "        else s = n.ToString(\"G\", INV);\n" );
+   fprintf( yyc, "        return s.PadLeft(nWidth);\n" );
+   fprintf( yyc, "    }\n" );
    fprintf( yyc, "}\n\n" );
 
    /* Emit comments and #include/#define from startup function */

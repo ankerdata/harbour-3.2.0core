@@ -12,7 +12,7 @@ procedure main()
    x := x /*x for sex is NB*/ + 1 && dBASE commentd
    /* Standalone
       multi-line comment */
-   SET COLOR TO "W/B" // after command
+   SET COLOR TO "W/B"
 
    ? "Amazing success!"
 

@@ -30,6 +30,8 @@ FUNCTION Main()
       CleanUp()
    END SEQUENCE
 
+   ? "cResult=" + cResult
+
 RETURN cResult
 
 FUNCTION DoSomething()

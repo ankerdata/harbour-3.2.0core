@@ -14,4 +14,6 @@ FUNCTION Main()
       cResult := "other"
    ENDSWITCH
 
+   ? "cResult=" + cResult
+
 RETURN cResult
