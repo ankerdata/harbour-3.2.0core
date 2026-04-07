@@ -60,6 +60,9 @@ typedef enum
    HB_LANG_C,                      /* C language (by default) <file.c> */
    HB_LANG_PORT_OBJ,               /* Portable objects <file.hrb> */
    HB_LANG_PORT_OBJ_BUF            /* Portable objects in memory buffer */
+#ifdef HB_TRANSPILER
+   , HB_LANG_TRANSPILE             /* Transpiled source output <file.hb> */
+#endif
 } HB_LANGUAGES;                    /* supported Harbour output languages */
 
 /* Error message format modes */
@@ -850,6 +853,20 @@ typedef struct _HB_COMP
    HB_BOOL           fNoArchDefs;         /* do not define architecture dependent macros: __PLATFORM__*, __ARCH??BIT__, __*_ENDIAN__ */
    HB_BOOL           fMeaningful;         /* do not generate warnings about meaningless expression usage */
    HB_BOOL           fINCLUDE;            /* use INCLUDE envvar as header path (default) */
+
+#ifdef HB_TRANSPILER
+   /* Transpiler AST state */
+   struct
+   {
+      struct _HB_AST_NODE * pFuncList;
+      struct _HB_AST_NODE * pFuncLast;
+      struct _HB_AST_NODE * pCurrFunc;
+      struct _HB_AST_NODE * aBlockStack[ 64 ];
+      int                   iBlockTop;
+      struct _HB_AST_NODE * pCurrBlock;
+      HB_BOOL               fSuppressExprStmt;  /* suppress next expression statement capture */
+   } ast;
+#endif
 } HB_COMP, * PHB_COMP;
 
 typedef struct

@@ -756,6 +756,11 @@ PHB_EXPR hb_compExprGenStatement( PHB_EXPR pExpr, HB_COMP_DECL )
    HB_TRACE( HB_TR_DEBUG, ( "hb_compExprGenStatement(%p)", ( void * ) pExpr ) );
    if( pExpr )
    {
+#ifdef HB_TRANSPILER
+      /* Capture expression statement in AST before PCODE generation */
+      hb_astAddExprStmt( HB_COMP_PARAM, pExpr, HB_COMP_PARAM->currLine );
+#endif
+
       if( pExpr->ExprType == HB_EO_EQUAL )
       {
          /* NOTE: direct type change */

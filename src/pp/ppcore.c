@@ -5298,6 +5298,15 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
          }
       }
 
+      if( pState->fPassthrough )
+      {
+         /* Passthrough mode: skip all directive and rule processing.
+            Send every line directly to output as tokens. */
+         if( pState->pFile->pTokenList )
+            hb_pp_genLineTokens( pState );
+         continue;
+      }
+
       if( HB_PP_TOKEN_ISDIRECTIVE( pState->pFile->pTokenList ) )
       {
          HB_BOOL fError = HB_FALSE, fDirect;
@@ -5377,6 +5386,19 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
          }
          else if( hb_pp_tokenValueCmp( pToken, "INCLUDE", HB_PP_CMP_DBASE ) )
          {
+            if( pState->fNoInclude )
+            {
+               /* Capture #include for transpiler output */
+               if( pState->pDirectiveFunc )
+               {
+                  PHB_PP_TOKEN pInc = pToken->pNext;
+                  if( pInc )
+                     pState->pDirectiveFunc( pState->pDirectiveCargo,
+                        "INCLUDE", pInc->value, pState->pFile->iCurrentLine );
+               }
+            }
+            else
+            {
             pToken = pToken->pNext;
             if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_STRING )
                hb_pp_includeFile( pState, pToken->value, HB_FALSE );
@@ -5402,6 +5424,7 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
             }
             else
                hb_pp_error( pState, 'F', HB_PP_ERR_WRONG_FILE_NAME, NULL );
+            }
          }
          else if( hb_pp_tokenValueCmp( pToken, "REQUIRE", HB_PP_CMP_STD ) )
          {
@@ -5427,7 +5450,16 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
          }
          else if( hb_pp_tokenValueCmp( pToken, "DEFINE", HB_PP_CMP_DBASE ) )
          {
-            hb_pp_defineNew( pState, pToken, fDirect );
+            if( pState->fNoInclude && pState->pDirectiveFunc )
+            {
+               /* Capture #define for transpiler output */
+               const char * szLine = hb_pp_tokenListStr( pToken->pNext, NULL,
+                  HB_FALSE, pState->pBuffer, HB_FALSE, HB_FALSE );
+               pState->pDirectiveFunc( pState->pDirectiveCargo,
+                  "DEFINE", szLine, pState->pFile->iCurrentLine );
+            }
+            else
+               hb_pp_defineNew( pState, pToken, fDirect );
          }
          else if( hb_pp_tokenValueCmp( pToken, "UNDEF", HB_PP_CMP_DBASE ) )
          {
@@ -5680,6 +5712,16 @@ void hb_pp_setIncFunc( PHB_PP_STATE pState, PHB_PP_INC_FUNC pIncFunc )
 void hb_pp_setComments( PHB_PP_STATE pState, HB_BOOL fComments )
 {
    pState->fComments = fComments;
+}
+
+void hb_pp_setPassthrough( PHB_PP_STATE pState, HB_BOOL fPassthrough )
+{
+   pState->fPassthrough = fPassthrough;
+}
+
+void hb_pp_setNoInclude( PHB_PP_STATE pState, HB_BOOL fNoInclude )
+{
+   pState->fNoInclude = fNoInclude;
 }
 
 /*
