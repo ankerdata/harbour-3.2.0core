@@ -1379,6 +1379,10 @@ static int hb_compSort_HB_SIZE( const void * pLeft, const void * pRight )
 /* Jump Optimizer and dummy code eliminator */
 static void hb_compOptimizeJumps( HB_COMP_DECL )
 {
+#ifdef HB_TRANSPILER
+   HB_SYMBOL_UNUSED( HB_COMP_PARAM );
+   return;
+#else
    HB_BYTE * pCode = HB_COMP_PARAM->functions.pLast->pCode;
    HB_SIZE * pNOOPs, * pJumps;
    HB_SIZE nOptimized, nNextByte, nBytes2Copy, nJumpAddr, nNOOP, nJump;
@@ -1700,6 +1704,7 @@ static void hb_compOptimizeJumps( HB_COMP_DECL )
          hb_compCodeTraceMarkDead( HB_COMP_PARAM, HB_COMP_PARAM->functions.pLast );
       }
    }
+#endif /* !HB_TRANSPILER */
 }
 
 static void hb_compOptimizeFrames( HB_COMP_DECL, PHB_HFUNC pFunc )
@@ -1911,6 +1916,7 @@ static void hb_compFinalizeFunction( HB_COMP_DECL ) /* fixes all last defined fu
 
       if( ! pFunc->bError )
       {
+#ifndef HB_TRANSPILER
          if( pFunc->wParamCount && ( pFunc->funFlags & HB_FUNF_USES_LOCAL_PARAMS ) == 0 )
          {
             /* There was a PARAMETERS statement used.
@@ -1928,6 +1934,7 @@ static void hb_compFinalizeFunction( HB_COMP_DECL ) /* fixes all last defined fu
          }
 
          hb_compPCodeTraceOptimizer( HB_COMP_PARAM );
+#endif
          hb_compOptimizeJumps( HB_COMP_PARAM );
       }
    }
@@ -3644,11 +3651,13 @@ void hb_compCodeBlockEnd( HB_COMP_DECL )
 
    if( ! pCodeblock->bError )
    {
+#ifndef HB_TRANSPILER
       if( pCodeblock->wParamCount && !( pCodeblock->funFlags & HB_FUNF_USES_LOCAL_PARAMS ) )
          /* PARAMETERs were used after LOCALs in extended codeblock
           * fix generated local indexes
           */
          hb_compFixFuncPCode( HB_COMP_PARAM, pCodeblock );
+#endif
       hb_compOptimizeJumps( HB_COMP_PARAM );
    }
 
