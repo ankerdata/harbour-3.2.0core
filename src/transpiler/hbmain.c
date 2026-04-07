@@ -2222,7 +2222,7 @@ void hb_compFunctionAdd( HB_COMP_DECL, const char * szFunName, HB_SYMBOLSCOPE cS
    PHB_HFUNC pFunc;
 
    /* Finalize previous function's AST before starting new one */
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE &&
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) &&
        HB_COMP_PARAM->ast.pCurrFunc != NULL )
       hb_astEndFunc( HB_COMP_PARAM );
 
@@ -2264,7 +2264,7 @@ void hb_compFunctionAdd( HB_COMP_DECL, const char * szFunName, HB_SYMBOLSCOPE cS
       HB_COMP_PARAM->lastLine = -1;
 
    /* Build AST function node for transpiler */
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE &&
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) &&
        ( iType & HB_FUNF_FILE_DECL ) == 0 )
    {
       hb_astBeginFunc( HB_COMP_PARAM, szFunName,
@@ -3908,6 +3908,10 @@ static void hb_compGenOutput( HB_COMP_DECL, int iLanguage )
       case HB_LANG_TRANSPILE:
          hb_compGenTranspile( HB_COMP_PARAM, HB_COMP_PARAM->pFileName );
          break;
+
+      case HB_LANG_CSHARP:
+         hb_compGenCSharp( HB_COMP_PARAM, HB_COMP_PARAM->pFileName );
+         break;
    }
 }
 
@@ -4559,13 +4563,15 @@ static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuff
          }
 
          /* Finalize last function's AST before generating output */
-         if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE &&
+         if( ( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE ||
+               HB_COMP_PARAM->iLanguage == HB_LANG_CSHARP ) &&
              HB_COMP_PARAM->ast.pCurrFunc != NULL )
             hb_astEndFunc( HB_COMP_PARAM );
 
          hb_compGenOutput( HB_COMP_PARAM, HB_COMP_PARAM->iLanguage );
 
-         if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+         if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE ||
+             HB_COMP_PARAM->iLanguage == HB_LANG_CSHARP )
             hb_astCleanup( HB_COMP_PARAM );
       }
       else

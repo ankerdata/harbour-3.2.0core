@@ -353,6 +353,10 @@ extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );
 
 extern void         hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName );
 
+/* === C# output (gencsharp.c) === */
+
+extern void         hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName );
+
 HB_EXTERN_END
 
 #endif /* HB_AST_H_ */

@@ -166,7 +166,7 @@ void hb_astEndFunc( HB_COMP_DECL )
 /* Add an expression statement to the current block */
 void hb_astAddExprStmt( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE && pExpr )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) && pExpr )
    {
       /* Check suppression flag (set when VarDef with initializer is captured) */
       if( HB_COMP_PARAM->ast.fSuppressExprStmt )
@@ -185,7 +185,7 @@ void hb_astAddExprStmt( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
 /* Add a RETURN statement to the current block */
 void hb_astAddReturn( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_RETURN, iLine );
       pNode->value.asReturn.pExpr = pExpr;
@@ -197,7 +197,7 @@ void hb_astAddReturn( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
 void hb_astAddLocal( HB_COMP_DECL, const char * szName,
                      PHB_EXPR pInit, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_LOCAL, iLine );
       pNode->value.asVar.szName = szName;
@@ -211,7 +211,7 @@ void hb_astAddLocal( HB_COMP_DECL, const char * szName,
 void hb_astAddStatic( HB_COMP_DECL, const char * szName,
                       PHB_EXPR pInit, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_STATIC, iLine );
       pNode->value.asVar.szName = szName;
@@ -226,7 +226,7 @@ void hb_astAddStatic( HB_COMP_DECL, const char * szName,
 /* Called at IfBegin: save condition, push block for then-body */
 void hb_astBeginIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_IF, iLine );
       pNode->value.asIf.pCondition = pCondition;
@@ -247,7 +247,7 @@ void hb_astBeginIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 /* Called at IfElse: pop then-body, push block for else-body */
 void hb_astBeginElse( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pIfBlock, pIfNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -277,7 +277,7 @@ void hb_astBeginElse( HB_COMP_DECL )
 /* Called at IfElseIf: pop current body, start new elseif */
 void hb_astBeginElseIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pIfBlock, pIfNode, pElseIf;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -325,7 +325,7 @@ void hb_astBeginElseIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 /* Called at EndIf: pop final body, assemble complete IF node, append to parent */
 void hb_astEndIf( HB_COMP_DECL, HB_BOOL fElse, HB_BOOL fElseIf )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pIfBlock, pIfNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -367,7 +367,7 @@ void hb_astEndIf( HB_COMP_DECL, HB_BOOL fElse, HB_BOOL fElseIf )
 
 void hb_astBeginWhile( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_DOWHILE, iLine );
       pNode->value.asWhile.pCondition = pCondition;
@@ -381,7 +381,7 @@ void hb_astBeginWhile( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 
 void hb_astEndWhile( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pWhileBlock, pWhileNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -400,7 +400,7 @@ void hb_astEndWhile( HB_COMP_DECL )
 void hb_astBeginFor( HB_COMP_DECL, const char * szVar,
                      PHB_EXPR pStart, PHB_EXPR pEnd, PHB_EXPR pStep, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_FOR, iLine );
       pNode->value.asFor.szVar  = szVar;
@@ -417,7 +417,7 @@ void hb_astBeginFor( HB_COMP_DECL, const char * szVar,
 
 void hb_astEndFor( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pForBlock, pForNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -435,7 +435,7 @@ void hb_astEndFor( HB_COMP_DECL )
 
 void hb_astBeginSwitch( HB_COMP_DECL, PHB_EXPR pSwitch, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_SWITCH, iLine );
       pNode->value.asSwitch.pSwitch  = pSwitch;
@@ -449,7 +449,7 @@ void hb_astBeginSwitch( HB_COMP_DECL, PHB_EXPR pSwitch, int iLine )
 
 void hb_astAddSwitchCase( HB_COMP_DECL, PHB_EXPR pValue, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pSwitchBlock, pSwitchNode, pCase, pLast;
 
@@ -504,7 +504,7 @@ void hb_astAddSwitchDefault( HB_COMP_DECL, int iLine )
 
 void hb_astEndSwitch( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pSwitchBlock, pSwitchNode, pLast;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -532,7 +532,7 @@ void hb_astEndSwitch( HB_COMP_DECL )
 
 void hb_astBeginWithObject( HB_COMP_DECL, PHB_EXPR pObject, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_WITHOBJECT, iLine );
       pNode->value.asWithObj.pObject = pObject;
@@ -546,7 +546,7 @@ void hb_astBeginWithObject( HB_COMP_DECL, PHB_EXPR pObject, int iLine )
 
 void hb_astEndWithObject( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pBlock, pNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -564,13 +564,13 @@ void hb_astEndWithObject( HB_COMP_DECL )
 
 void hb_astAddExit( HB_COMP_DECL, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
       hb_astAppend( HB_COMP_PARAM, hb_astNew( HB_AST_EXIT, iLine ) );
 }
 
 void hb_astAddLoop( HB_COMP_DECL, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
       hb_astAppend( HB_COMP_PARAM, hb_astNew( HB_AST_LOOP, iLine ) );
 }
 
@@ -578,7 +578,7 @@ void hb_astAddLoop( HB_COMP_DECL, int iLine )
 
 void hb_astBeginDoCase( HB_COMP_DECL, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_DOCASE, iLine );
       pNode->value.asDoCase.pCases = NULL;
@@ -591,7 +591,7 @@ void hb_astBeginDoCase( HB_COMP_DECL, int iLine )
 
 void hb_astAddCase( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pDoCaseBlock, pDoCaseNode, pCase, pLast;
 
@@ -642,7 +642,7 @@ void hb_astAddCase( HB_COMP_DECL, PHB_EXPR pCondition, int iLine )
 
 void hb_astBeginOtherwise( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pDoCaseBlock, pDoCaseNode, pLast;
 
@@ -668,7 +668,7 @@ void hb_astBeginOtherwise( HB_COMP_DECL )
 
 void hb_astEndDoCase( HB_COMP_DECL, HB_BOOL fOtherwise )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pDoCaseBlock, pDoCaseNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -700,7 +700,7 @@ void hb_astEndDoCase( HB_COMP_DECL, HB_BOOL fOtherwise )
 
 void hb_astBeginSeq( HB_COMP_DECL, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_BEGINSEQ, iLine );
       pNode->value.asSeq.pBody       = NULL;
@@ -716,7 +716,7 @@ void hb_astBeginSeq( HB_COMP_DECL, int iLine )
 
 void hb_astBeginRecover( HB_COMP_DECL, const char * szVar )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pSeqBlock, pSeqNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -732,7 +732,7 @@ void hb_astBeginRecover( HB_COMP_DECL, const char * szVar )
 
 void hb_astBeginAlways( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pSeqBlock, pSeqNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -750,7 +750,7 @@ void hb_astBeginAlways( HB_COMP_DECL )
 
 void hb_astEndSeq( HB_COMP_DECL, HB_BOOL fRecover, HB_BOOL fAlways )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pSeqBlock, pSeqNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
@@ -774,7 +774,7 @@ void hb_astEndSeq( HB_COMP_DECL, HB_BOOL fRecover, HB_BOOL fAlways )
 
 void hb_astAddBreak( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_BREAK, iLine );
       pNode->value.asBreak.pExpr = pExpr;
@@ -787,7 +787,7 @@ void hb_astAddBreak( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
 void hb_astBeginForEach( HB_COMP_DECL, PHB_EXPR pVar, PHB_EXPR pEnum,
                          int iDir, int iLine )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_FOREACH, iLine );
       pNode->value.asForEach.pVar  = pVar;
@@ -803,7 +803,7 @@ void hb_astBeginForEach( HB_COMP_DECL, PHB_EXPR pVar, PHB_EXPR pEnum,
 
 void hb_astEndForEach( HB_COMP_DECL )
 {
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
    {
       PHB_AST_NODE pBlock, pNode;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );

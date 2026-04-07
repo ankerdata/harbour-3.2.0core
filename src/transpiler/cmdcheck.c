@@ -398,6 +398,11 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
                   szSwPtr += 2;
                   break;
 
+               case 'S':
+                  HB_COMP_PARAM->iLanguage = HB_LANG_CSHARP;
+                  szSwPtr += 2;
+                  break;
+
                case 'D':
                   if( HB_COMP_PARAM->szDepExt )
                   {

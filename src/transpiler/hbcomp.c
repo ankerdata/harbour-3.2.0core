@@ -114,7 +114,7 @@ static void hb_compExprFree( HB_COMP_DECL, PHB_EXPR pExpr )
 
    /* In transpiler mode, defer expression freeing so AST can reference them.
       They will be freed during AST cleanup or expression list dealloc. */
-   if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE )
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
       return;
 
    HB_EXPR_USE( pExpr, HB_EA_DELETE );

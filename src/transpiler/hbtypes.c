@@ -26,10 +26,7 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
    switch( pExpr->ExprType )
    {
       case HB_ET_NUMERIC:
-         if( pExpr->value.asNum.NumType == HB_ET_LONG )
-            return "INTEGER";
-         else
-            return "DECIMAL";
+         return "NUMERIC";
 
       case HB_ET_STRING:
          return "STRING";
@@ -176,24 +173,18 @@ const char * hb_astInferTypeFromInit( const char * szName, const char * szInit )
       if( hb_stricmp( szInit, "NIL" ) == 0 )
          return NULL;
 
-      /* Numeric: check if it's integer or decimal */
+      /* Numeric literal */
       if( ( szInit[ 0 ] >= '0' && szInit[ 0 ] <= '9' ) ||
           szInit[ 0 ] == '-' || szInit[ 0 ] == '+' )
       {
-         HB_BOOL fDecimal = HB_FALSE;
          HB_SIZE i;
          for( i = ( szInit[ 0 ] == '-' || szInit[ 0 ] == '+' ) ? 1 : 0; i < n; i++ )
          {
-            if( szInit[ i ] == '.' )
-               fDecimal = HB_TRUE;
-            else if( szInit[ i ] < '0' || szInit[ i ] > '9' )
-            {
-               fDecimal = HB_FALSE;
+            if( szInit[ i ] != '.' && ( szInit[ i ] < '0' || szInit[ i ] > '9' ) )
                break;  /* not a simple number */
-            }
          }
          if( i == n )
-            return fDecimal ? "DECIMAL" : "INTEGER";
+            return "NUMERIC";
       }
    }
 
@@ -319,26 +310,12 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          if( strcmp( szLeft, "STRING" ) == 0 && strcmp( szRight, "STRING" ) == 0 )
             return "STRING";
 
-         /* INTEGER + INTEGER = INTEGER */
-         if( strcmp( szLeft, "INTEGER" ) == 0 && strcmp( szRight, "INTEGER" ) == 0 )
-            return "INTEGER";
-
-         /* Mixed numeric: widen to most general type */
-         if( ( strcmp( szLeft, "INTEGER" ) == 0 || strcmp( szLeft, "DECIMAL" ) == 0 ||
-               strcmp( szLeft, "NUMERIC" ) == 0 ) &&
-             ( strcmp( szRight, "INTEGER" ) == 0 || strcmp( szRight, "DECIMAL" ) == 0 ||
-               strcmp( szRight, "NUMERIC" ) == 0 ) )
-         {
-            if( strcmp( szLeft, "DECIMAL" ) == 0 || strcmp( szRight, "DECIMAL" ) == 0 )
-               return "DECIMAL";
-            if( strcmp( szLeft, "NUMERIC" ) == 0 || strcmp( szRight, "NUMERIC" ) == 0 )
-               return "NUMERIC";
-            return "INTEGER";
-         }
+         /* NUMERIC + NUMERIC = NUMERIC */
+         if( strcmp( szLeft, "NUMERIC" ) == 0 && strcmp( szRight, "NUMERIC" ) == 0 )
+            return "NUMERIC";
 
          /* DATE + NUMERIC = DATE */
-         if( strcmp( szLeft, "DATE" ) == 0 &&
-             ( strcmp( szRight, "INTEGER" ) == 0 || strcmp( szRight, "NUMERIC" ) == 0 ) )
+         if( strcmp( szLeft, "DATE" ) == 0 && strcmp( szRight, "NUMERIC" ) == 0 )
             return "DATE";
 
          return NULL;
@@ -359,31 +336,14 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          if( ! szLeft || ! szRight )
             return NULL;
 
-         /* Division always produces DECIMAL */
-         if( pExpr->ExprType == HB_EO_DIV )
-            return "DECIMAL";
-
-         /* DATE - DATE = INTEGER (number of days) */
+         /* DATE - DATE = NUMERIC (number of days) */
          if( pExpr->ExprType == HB_EO_MINUS &&
              strcmp( szLeft, "DATE" ) == 0 && strcmp( szRight, "DATE" ) == 0 )
-            return "INTEGER";
+            return "NUMERIC";
 
-         /* INTEGER op INTEGER = INTEGER (except DIV handled above) */
-         if( strcmp( szLeft, "INTEGER" ) == 0 && strcmp( szRight, "INTEGER" ) == 0 )
-            return "INTEGER";
-
-         /* Mixed numeric arithmetic: widen to most general type */
-         if( ( strcmp( szLeft, "INTEGER" ) == 0 || strcmp( szLeft, "DECIMAL" ) == 0 ||
-               strcmp( szLeft, "NUMERIC" ) == 0 ) &&
-             ( strcmp( szRight, "INTEGER" ) == 0 || strcmp( szRight, "DECIMAL" ) == 0 ||
-               strcmp( szRight, "NUMERIC" ) == 0 ) )
-         {
-            if( strcmp( szLeft, "DECIMAL" ) == 0 || strcmp( szRight, "DECIMAL" ) == 0 )
-               return "DECIMAL";
-            if( strcmp( szLeft, "NUMERIC" ) == 0 || strcmp( szRight, "NUMERIC" ) == 0 )
-               return "NUMERIC";
-            return "INTEGER";
-         }
+         /* NUMERIC op NUMERIC = NUMERIC */
+         if( strcmp( szLeft, "NUMERIC" ) == 0 && strcmp( szRight, "NUMERIC" ) == 0 )
+            return "NUMERIC";
 
          return NULL;
       }
@@ -427,7 +387,72 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          return hb_astInferExprType( pExpr->value.asOperator.pLeft, pEnv );
 
       case HB_ET_FUNCALL:
-         /* Can't infer function return types in general */
+         /* Infer return types for well-known Harbour functions */
+         if( pExpr->value.asFunCall.pFunName &&
+             pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+         {
+            const char * szFunc = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+            /* Functions returning STRING */
+            if( hb_stricmp( szFunc, "STR" ) == 0 ||
+                hb_stricmp( szFunc, "UPPER" ) == 0 ||
+                hb_stricmp( szFunc, "LOWER" ) == 0 ||
+                hb_stricmp( szFunc, "TRIM" ) == 0 ||
+                hb_stricmp( szFunc, "RTRIM" ) == 0 ||
+                hb_stricmp( szFunc, "LTRIM" ) == 0 ||
+                hb_stricmp( szFunc, "ALLTRIM" ) == 0 ||
+                hb_stricmp( szFunc, "SUBSTR" ) == 0 ||
+                hb_stricmp( szFunc, "LEFT" ) == 0 ||
+                hb_stricmp( szFunc, "RIGHT" ) == 0 ||
+                hb_stricmp( szFunc, "PADC" ) == 0 ||
+                hb_stricmp( szFunc, "PADL" ) == 0 ||
+                hb_stricmp( szFunc, "PADR" ) == 0 ||
+                hb_stricmp( szFunc, "SPACE" ) == 0 ||
+                hb_stricmp( szFunc, "REPLICATE" ) == 0 ||
+                hb_stricmp( szFunc, "STRTRAN" ) == 0 ||
+                hb_stricmp( szFunc, "STUFF" ) == 0 ||
+                hb_stricmp( szFunc, "CHR" ) == 0 ||
+                hb_stricmp( szFunc, "DTOC" ) == 0 ||
+                hb_stricmp( szFunc, "DTOS" ) == 0 ||
+                hb_stricmp( szFunc, "TIME" ) == 0 ||
+                hb_stricmp( szFunc, "TRANSFORM" ) == 0 ||
+                hb_stricmp( szFunc, "STRZERO" ) == 0 )
+               return "STRING";
+            /* Functions returning NUMERIC */
+            if( hb_stricmp( szFunc, "LEN" ) == 0 ||
+                hb_stricmp( szFunc, "VAL" ) == 0 ||
+                hb_stricmp( szFunc, "ASC" ) == 0 ||
+                hb_stricmp( szFunc, "AT" ) == 0 ||
+                hb_stricmp( szFunc, "RAT" ) == 0 ||
+                hb_stricmp( szFunc, "INT" ) == 0 ||
+                hb_stricmp( szFunc, "ROUND" ) == 0 ||
+                hb_stricmp( szFunc, "ABS" ) == 0 ||
+                hb_stricmp( szFunc, "MAX" ) == 0 ||
+                hb_stricmp( szFunc, "MIN" ) == 0 ||
+                hb_stricmp( szFunc, "MOD" ) == 0 ||
+                hb_stricmp( szFunc, "SQRT" ) == 0 ||
+                hb_stricmp( szFunc, "LOG" ) == 0 ||
+                hb_stricmp( szFunc, "EXP" ) == 0 )
+               return "NUMERIC";
+            /* Functions returning LOGICAL */
+            if( hb_stricmp( szFunc, "EMPTY" ) == 0 ||
+                hb_stricmp( szFunc, "FILE" ) == 0 ||
+                hb_stricmp( szFunc, "ISDIGIT" ) == 0 ||
+                hb_stricmp( szFunc, "ISALPHA" ) == 0 ||
+                hb_stricmp( szFunc, "ISUPPER" ) == 0 ||
+                hb_stricmp( szFunc, "ISLOWER" ) == 0 )
+               return "LOGICAL";
+            /* Functions returning DATE */
+            if( hb_stricmp( szFunc, "DATE" ) == 0 ||
+                hb_stricmp( szFunc, "CTOD" ) == 0 ||
+                hb_stricmp( szFunc, "STOD" ) == 0 )
+               return "DATE";
+            /* Functions returning ARRAY */
+            if( hb_stricmp( szFunc, "ARRAY" ) == 0 ||
+                hb_stricmp( szFunc, "ACLONE" ) == 0 ||
+                hb_stricmp( szFunc, "ASORT" ) == 0 ||
+                hb_stricmp( szFunc, "DIRECTORY" ) == 0 )
+               return "ARRAY";
+         }
          return NULL;
 
       default:
@@ -583,18 +608,10 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                *pszRetType = szType;
             else if( strcmp( *pszRetType, szType ) != 0 )
             {
-               /* Multiple RETURN types disagree — check for compatible numerics */
-               if( ( strcmp( *pszRetType, "INTEGER" ) == 0 || strcmp( *pszRetType, "DECIMAL" ) == 0 ||
-                     strcmp( *pszRetType, "NUMERIC" ) == 0 ) &&
-                   ( strcmp( szType, "INTEGER" ) == 0 || strcmp( szType, "DECIMAL" ) == 0 ||
-                     strcmp( szType, "NUMERIC" ) == 0 ) )
-               {
-                  /* Widen to DECIMAL if either is DECIMAL, otherwise NUMERIC */
-                  if( strcmp( *pszRetType, "DECIMAL" ) == 0 || strcmp( szType, "DECIMAL" ) == 0 )
-                     *pszRetType = "DECIMAL";
-                  else
-                     *pszRetType = "NUMERIC";
-               }
+               /* Multiple RETURN types disagree — compatible if both numeric */
+               if( strcmp( *pszRetType, "NUMERIC" ) == 0 &&
+                   strcmp( szType, "NUMERIC" ) == 0 )
+                  *pszRetType = "NUMERIC";
                else
                   *pfConflict = HB_TRUE;
             }

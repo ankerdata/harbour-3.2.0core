@@ -62,8 +62,15 @@ typedef enum
    HB_LANG_PORT_OBJ_BUF            /* Portable objects in memory buffer */
 #ifdef HB_TRANSPILER
    , HB_LANG_TRANSPILE             /* Transpiled source output <file.hb> */
+   , HB_LANG_CSHARP                /* C# source output <file.cs> */
 #endif
 } HB_LANGUAGES;                    /* supported Harbour output languages */
+
+#ifdef HB_TRANSPILER
+/* Check if current language mode requires AST building */
+#define HB_COMP_ISAST( p )  ( (p)->iLanguage == HB_LANG_TRANSPILE || \
+                               (p)->iLanguage == HB_LANG_CSHARP )
+#endif
 
 /* Error message format modes */
 typedef enum
