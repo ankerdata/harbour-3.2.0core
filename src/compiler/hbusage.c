@@ -264,8 +264,18 @@ void hb_compPrintLogo( HB_COMP_DECL )
    #define HB_VER_COMMIT_YEAR  "2025"
    #define HB_VER_ORIGIN_URL   "https://harbour.github.io/"
 
+#ifdef HB_TRANSPILER
+   hb_compOutStd( HB_COMP_PARAM, "Harbour Transpiler 1.0 [" );
+   hb_compOutStd( HB_COMP_PARAM, szVer );
+   hb_compOutStd( HB_COMP_PARAM, "]\n" );
+   hb_compOutStd( HB_COMP_PARAM,
+      "Copyright (c) 1999-" HB_VER_COMMIT_YEAR ", " HB_VER_ORIGIN_URL "\n" );
+   hb_compOutStd( HB_COMP_PARAM,
+      "Transpiler output: -GT (Harbour)  -GS (C#)\n" );
+#else
    hb_compOutStd( HB_COMP_PARAM, szVer );
    hb_compOutStd( HB_COMP_PARAM,
       "\nCopyright (c) 1999-" HB_VER_COMMIT_YEAR ", " HB_VER_ORIGIN_URL "\n" );
+#endif
    hb_xfree( szVer );
 }

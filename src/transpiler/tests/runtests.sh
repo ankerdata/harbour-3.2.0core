@@ -2,9 +2,9 @@
 # Run all transpiler tests
 # Usage: ./runtests.sh [path-to-hbtranspiler]
 
-TRANSPILER="${1:-/tmp/hbtranspiler}"
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
 ROOTDIR="$(cd "$SCRIPTDIR/../../.." && pwd)"
+TRANSPILER="${1:-$ROOTDIR/bin/hbtranspiler}"
 PASS=0
 FAIL=0
 
