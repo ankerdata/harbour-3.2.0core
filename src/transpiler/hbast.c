@@ -248,6 +248,32 @@ void hb_astAddStatic( HB_COMP_DECL, const char * szName,
    }
 }
 
+void hb_astAddPublic( HB_COMP_DECL, const char * szName,
+                      PHB_EXPR pInit, int iLine )
+{
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
+   {
+      PHB_AST_NODE pNode = hb_astNew( HB_AST_PUBLIC, iLine );
+      pNode->value.asVar.szName = szName;
+      pNode->value.asVar.pInit  = pInit;
+      pNode->value.asVar.szAlias = NULL;
+      hb_astAppend( HB_COMP_PARAM, pNode );
+   }
+}
+
+void hb_astAddPrivate( HB_COMP_DECL, const char * szName,
+                       PHB_EXPR pInit, int iLine )
+{
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
+   {
+      PHB_AST_NODE pNode = hb_astNew( HB_AST_PRIVATE, iLine );
+      pNode->value.asVar.szName = szName;
+      pNode->value.asVar.pInit  = pInit;
+      pNode->value.asVar.szAlias = NULL;
+      hb_astAppend( HB_COMP_PARAM, pNode );
+   }
+}
+
 /* === IF / ELSEIF / ELSE / ENDIF === */
 
 /* Called at IfBegin: save condition, push block for then-body */

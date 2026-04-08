@@ -42,8 +42,8 @@ RETURN nResult
 
 FUNCTION FormatPrice( nPrice, cCurrency )
    LOCAL nFinal := nPrice * 1.15
-   ? "nFinal=" + Str( nFinal )
-RETURN cCurrency + " " + Str( nFinal )
+   ? "nFinal=" + Str( nFinal, 10, 2 )
+RETURN cCurrency + " " + Str( nFinal, 10, 2 )
 
 PROCEDURE Main()
 

@@ -292,6 +292,10 @@ extern void         hb_astAddLocal( HB_COMP_DECL, const char * szName,
                                     PHB_EXPR pInit, int iLine );
 extern void         hb_astAddStatic( HB_COMP_DECL, const char * szName,
                                      PHB_EXPR pInit, int iLine );
+extern void         hb_astAddPublic( HB_COMP_DECL, const char * szName,
+                                     PHB_EXPR pInit, int iLine );
+extern void         hb_astAddPrivate( HB_COMP_DECL, const char * szName,
+                                      PHB_EXPR pInit, int iLine );
 
 /* IF / ELSEIF / ELSE / ENDIF */
 extern void         hb_astBeginIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine );

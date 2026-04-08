@@ -5550,6 +5550,10 @@ yyreduce:
                   }
                   else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC || HB_COMP_PARAM->iVarScope == HB_VSCOMP_PRIVATE )
                   {
+                     if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC )
+                        hb_astAddPublic( HB_COMP_PARAM, (yyvsp[-1].string), NULL, HB_COMP_PARAM->currLine );
+                     else
+                        hb_astAddPrivate( HB_COMP_PARAM, (yyvsp[-1].string), NULL, HB_COMP_PARAM->currLine );
                      hb_compRTVariableAdd( HB_COMP_PARAM, hb_compExprNewRTVar( (yyvsp[-1].string), NULL, HB_COMP_PARAM ), HB_FALSE );
                   }
                   else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_LOCAL &&
@@ -5592,6 +5596,10 @@ yyreduce:
                   }
                   else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC || HB_COMP_PARAM->iVarScope == HB_VSCOMP_PRIVATE )
                   {
+                     if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC )
+                        hb_astAddPublic( HB_COMP_PARAM, (yyvsp[-4].string), (yyvsp[0].asExpr), HB_COMP_PARAM->currLine );
+                     else
+                        hb_astAddPrivate( HB_COMP_PARAM, (yyvsp[-4].string), (yyvsp[0].asExpr), HB_COMP_PARAM->currLine );
                      HB_COMP_EXPR_FREE( hb_compExprGenPush( (yyvsp[0].asExpr), HB_COMP_PARAM ) );
                      hb_compRTVariableAdd( HB_COMP_PARAM, hb_compExprNewRTVar( (yyvsp[-4].string), NULL, HB_COMP_PARAM ), HB_TRUE );
                   }

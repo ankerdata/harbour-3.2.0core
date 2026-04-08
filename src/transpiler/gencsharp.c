@@ -161,139 +161,41 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
    }
 }
 
-/* Map well-known Harbour function names to C# equivalents */
-static const char * hb_csFuncMap( const char * szName )
-{
-   if( hb_stricmp( szName, "QOUT" ) == 0 )
-      return "HbRuntime.QOut";
-   if( hb_stricmp( szName, "QQOUT" ) == 0 )
-      return "HbRuntime.QQOut";
-   if( hb_stricmp( szName, "SETCOLOR" ) == 0 )
-      return "HbRuntime.SetColor";
-   return szName;
-}
+/* Known Harbour builtin function names — these map to HbRuntime.Name() */
+static const char * s_szBuiltins[] = {
+   "QOUT", "QQOUT", "SETCOLOR",
+   "STR", "VAL", "INT", "ROUND", "ABS", "MAX", "MIN", "MOD", "SQRT", "LOG", "EXP",
+   "LEN", "UPPER", "LOWER", "TRIM", "RTRIM", "LTRIM", "ALLTRIM",
+   "SUBSTR", "LEFT", "RIGHT", "SPACE", "REPLICATE", "CHR", "ASC",
+   "AT", "RAT", "PADL", "PADR", "PADC",
+   "STRTRAN", "STUFF", "TRANSFORM", "STRZERO",
+   "EMPTY", "FILE", "ISDIGIT", "ISALPHA", "ISUPPER", "ISLOWER",
+   "DATE", "CTOD", "STOD", "DTOC", "DTOS", "TIME",
+   NULL
+};
 
-/* Unwrap ARGLIST/LIST wrapper to get first argument in a parameter list */
-static PHB_EXPR hb_csUnwrapArgs( PHB_EXPR pParms )
+/* Check if a function name is a known Harbour builtin */
+static HB_BOOL hb_csIsBuiltin( const char * szName )
 {
-   if( pParms && ( pParms->ExprType == HB_ET_ARGLIST ||
-                    pParms->ExprType == HB_ET_LIST ) )
-      return pParms->value.asList.pExprList;
-   return pParms;
-}
-
-/* Check if a function call needs special C# emission (returns HB_TRUE if handled) */
-static HB_BOOL hb_csEmitSpecialFunc( const char * szName, PHB_EXPR pParms,
-                                      FILE * yyc )
-{
-   /* Str(n) → (n).ToString()
-      Str(n, nWidth) → (n).ToString().PadLeft(nWidth)
-      Str(n, nWidth, nDec) → (n).ToString("F" + nDec).PadLeft(nWidth) */
-   if( hb_stricmp( szName, "STR" ) == 0 && pParms )
+   int i;
+   for( i = 0; s_szBuiltins[ i ]; i++ )
    {
-      PHB_EXPR pNum = hb_csUnwrapArgs( pParms );
-      PHB_EXPR pWidth = pNum ? pNum->pNext : NULL;
-      PHB_EXPR pDec = pWidth ? pWidth->pNext : NULL;
-
-      fprintf( yyc, "HbRuntime.Str(" );
-      hb_csEmitExpr( pNum, yyc, HB_FALSE );
-      if( pWidth )
-      {
-         fprintf( yyc, ", (int)(" );
-         hb_csEmitExpr( pWidth, yyc, HB_FALSE );
-         fprintf( yyc, ")" );
-      }
-      if( pDec )
-      {
-         fprintf( yyc, ", (int)(" );
-         hb_csEmitExpr( pDec, yyc, HB_FALSE );
-         fprintf( yyc, ")" );
-      }
-      fprintf( yyc, ")" );
-      return HB_TRUE;
-   }
-   /* Val(s) → decimal.Parse(s) */
-   if( hb_stricmp( szName, "VAL" ) == 0 && pParms )
-   {
-      fprintf( yyc, "decimal.Parse(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ")" );
-      return HB_TRUE;
-   }
-   /* Len(x) → (x).Length */
-   if( hb_stricmp( szName, "LEN" ) == 0 && pParms )
-   {
-      fprintf( yyc, "(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ").Length" );
-      return HB_TRUE;
-   }
-   /* Upper(s) → (s).ToUpper() */
-   if( hb_stricmp( szName, "UPPER" ) == 0 && pParms )
-   {
-      fprintf( yyc, "(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ").ToUpper()" );
-      return HB_TRUE;
-   }
-   /* Lower(s) → (s).ToLower() */
-   if( hb_stricmp( szName, "LOWER" ) == 0 && pParms )
-   {
-      fprintf( yyc, "(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ").ToLower()" );
-      return HB_TRUE;
-   }
-   /* Trim/RTrim(s) → (s).TrimEnd() */
-   if( ( hb_stricmp( szName, "TRIM" ) == 0 ||
-         hb_stricmp( szName, "RTRIM" ) == 0 ) && pParms )
-   {
-      fprintf( yyc, "(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ").TrimEnd()" );
-      return HB_TRUE;
-   }
-   /* LTrim(s) → (s).TrimStart() */
-   if( hb_stricmp( szName, "LTRIM" ) == 0 && pParms )
-   {
-      fprintf( yyc, "(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ").TrimStart()" );
-      return HB_TRUE;
-   }
-   /* AllTrim(s) → (s).Trim() */
-   if( hb_stricmp( szName, "ALLTRIM" ) == 0 && pParms )
-   {
-      fprintf( yyc, "(" );
-      hb_csEmitExpr( pParms, yyc, HB_FALSE );
-      fprintf( yyc, ").Trim()" );
-      return HB_TRUE;
-   }
-   /* SubStr(s, n, n2) → (s).Substring(n-1, n2) */
-   if( hb_stricmp( szName, "SUBSTR" ) == 0 && pParms )
-   {
-      PHB_EXPR pStr = hb_csUnwrapArgs( pParms );
-      if( pStr )
-      {
-         fprintf( yyc, "(" );
-         hb_csEmitExpr( pStr, yyc, HB_FALSE );
-         fprintf( yyc, ").Substring(" );
-         if( pStr->pNext )
-         {
-            hb_csEmitExpr( pStr->pNext, yyc, HB_FALSE );
-            fprintf( yyc, " - 1" );
-            if( pStr->pNext->pNext )
-            {
-               fprintf( yyc, ", (int)(" );
-               hb_csEmitExpr( pStr->pNext->pNext, yyc, HB_FALSE );
-               fprintf( yyc, ")" );
-            }
-         }
-         fprintf( yyc, ")" );
-      }
-      return HB_TRUE;
+      if( hb_stricmp( szName, s_szBuiltins[ i ] ) == 0 )
+         return HB_TRUE;
    }
    return HB_FALSE;
+}
+
+/* Map a function name: builtins → HbRuntime.Name, others → unchanged */
+static const char * hb_csFuncMap( const char * szName )
+{
+   static char s_szBuf[ 128 ];
+   if( hb_csIsBuiltin( szName ) )
+   {
+      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "HbRuntime.%s", szName );
+      return s_szBuf;
+   }
+   return szName;
 }
 
 /* Check if a name matches a known class in s_pClassList */
@@ -423,11 +325,6 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             if( pExpr->value.asFunCall.pFunName &&
                 pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
                szName = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
-
-            /* Try special function mapping first */
-            if( szName && hb_csEmitSpecialFunc( szName,
-                             pExpr->value.asFunCall.pParms, yyc ) )
-               break;
 
             if( szName )
                fprintf( yyc, "%s", hb_csFuncMap( szName ) );
@@ -789,6 +686,8 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_EXPRSTMT:
       case HB_AST_LOCAL:
       case HB_AST_STATIC:
+      case HB_AST_PUBLIC:
+      case HB_AST_PRIVATE:
       case HB_AST_RETURN:
       case HB_AST_EXIT:
       case HB_AST_LOOP:
@@ -938,6 +837,12 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_STATIC:
+         /* STATIC is emitted as a static class field — skip in method body.
+            The field is emitted by hb_csEmitStaticFields(). */
+         break;
+
+      case HB_AST_PUBLIC:
+      case HB_AST_PRIVATE:
          {
             const char * szType = NULL;
             hb_csEmitIndent( yyc, iIndent );
@@ -948,7 +853,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                szType = hb_astInferType( pNode->value.asVar.szName,
                                           pNode->value.asVar.pInit );
 
-            /* C# doesn't support static locals — emit as regular local */
+            /* PUBLIC/PRIVATE → regular local in C# */
             fprintf( yyc, "%s %s", hb_csTypeMap( szType ),
                      pNode->value.asVar.szName );
             if( pNode->value.asVar.pInit )
@@ -1856,32 +1761,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       fprintf( yyc, "using System.Collections.Generic;\n" );
    fprintf( yyc, "\n" );
 
-   /* Harbour runtime stubs */
-   fprintf( yyc, "using System.Globalization;\n\n" );
-   fprintf( yyc, "public static class HbRuntime\n" );
-   fprintf( yyc, "{\n" );
-   fprintf( yyc, "    static readonly CultureInfo INV = CultureInfo.InvariantCulture;\n" );
-   fprintf( yyc, "    public static void SetColor(string cColor) { }\n" );
-   fprintf( yyc, "    static string Fmt(dynamic a) =>\n" );
-   fprintf( yyc, "        a is decimal d ? Str(d) : Convert.ToString(a, INV);\n" );
-   fprintf( yyc, "    public static void QOut(params dynamic[] args)\n" );
-   fprintf( yyc, "    {\n" );
-   fprintf( yyc, "        Console.WriteLine();\n" );
-   fprintf( yyc, "        foreach (var a in args) Console.Write(Fmt(a));\n" );
-   fprintf( yyc, "    }\n" );
-   fprintf( yyc, "    public static void QQOut(params dynamic[] args)\n" );
-   fprintf( yyc, "    {\n" );
-   fprintf( yyc, "        foreach (var a in args) Console.Write(Fmt(a));\n" );
-   fprintf( yyc, "    }\n" );
-   fprintf( yyc, "    public static string Str(decimal n, int nWidth = 10, int nDec = -1)\n" );
-   fprintf( yyc, "    {\n" );
-   fprintf( yyc, "        string s;\n" );
-   fprintf( yyc, "        if (nDec >= 0) s = n.ToString(\"F\" + nDec, INV);\n" );
-   fprintf( yyc, "        else if (n == Math.Truncate(n)) s = n.ToString(\"F0\", INV);\n" );
-   fprintf( yyc, "        else s = n.ToString(\"G\", INV);\n" );
-   fprintf( yyc, "        return s.PadLeft(nWidth);\n" );
-   fprintf( yyc, "    }\n" );
-   fprintf( yyc, "}\n\n" );
+   /* HbRuntime.cs must be present in the output directory.
+      The build script copies it from src/transpiler/HbRuntime.cs */
 
    /* Emit comments and #include/#define from startup function */
    {
@@ -1934,6 +1815,40 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                   hb_csEmitNode( pStmt, yyc, 1 );
                pStmt = pStmt->pNext;
             }
+         }
+      }
+
+      /* Emit STATIC declarations as static class fields */
+      {
+         PHB_AST_NODE pF = HB_COMP_PARAM->ast.pFuncList;
+         while( pF )
+         {
+            if( pF->type == HB_AST_FUNCTION && pF->value.asFunc.pBody &&
+                pF->value.asFunc.pBody->type == HB_AST_BLOCK )
+            {
+               PHB_AST_NODE pStmt = pF->value.asFunc.pBody->value.asBlock.pFirst;
+               while( pStmt )
+               {
+                  if( pStmt->type == HB_AST_STATIC )
+                  {
+                     const char * szType = pStmt->value.asVar.szAlias ?
+                        pStmt->value.asVar.szAlias :
+                        hb_astInferType( pStmt->value.asVar.szName,
+                                          pStmt->value.asVar.pInit );
+                     hb_csEmitIndent( yyc, 1 );
+                     fprintf( yyc, "static %s %s", hb_csTypeMap( szType ),
+                              pStmt->value.asVar.szName );
+                     if( pStmt->value.asVar.pInit )
+                     {
+                        fprintf( yyc, " = " );
+                        hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
+                     }
+                     fprintf( yyc, ";\n" );
+                  }
+                  pStmt = pStmt->pNext;
+               }
+            }
+            pF = pF->pNext;
          }
       }
 

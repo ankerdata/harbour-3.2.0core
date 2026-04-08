@@ -54,7 +54,7 @@ FUNCTION Main()
    LOCAL Temp
 
    ? "nCount=" + Str( nCount )
-   ? "nPrice=" + Str( nPrice )
+   ? "nPrice=" + Str( nPrice, 10, 2 )
    ? "cName=" + cName
    ? "lFound=" + IIF( lFound, ".T.", ".F." )
 

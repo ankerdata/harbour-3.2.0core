@@ -12,13 +12,13 @@ FUNCTION Main()
 
    // Compound assignment operators
    nX += 5
-   ? "nX += 5: " + Str( nX )
+   ? "nX += 5: " + Str( nX, 10, 2 )
    nX -= 3
-   ? "nX -= 3: " + Str( nX )
+   ? "nX -= 3: " + Str( nX, 10, 2 )
    nX *= 2
-   ? "nX *= 2: " + Str( nX )
+   ? "nX *= 2: " + Str( nX, 10, 2 )
    nX /= 4
-   ? "nX /= 4: " + Str( nX )
+   ? "nX /= 4: " + Str( nX, 10, 2 )
 
    // Logical operators
    IF lFlag .AND. .NOT. lOther
@@ -37,21 +37,21 @@ FUNCTION Main()
 
    // Nested IIF
    nVal := IIF( nX > 100, 3, IIF( nX > 10, 2, 1 ) )
-   ? "nVal=" + Str( nVal )
+   ? "nVal=" + Str( nVal, 10, 2 )
 
    // Pre/post increment
    nX++
-   ? "nX++: " + Str( nX )
+   ? "nX++: " + Str( nX, 10, 2 )
    ++nY
-   ? "++nY: " + Str( nY )
+   ? "++nY: " + Str( nY, 10, 2 )
    nX--
-   ? "nX--: " + Str( nX )
+   ? "nX--: " + Str( nX, 10, 2 )
    --nY
-   ? "--nY: " + Str( nY )
+   ? "--nY: " + Str( nY, 10, 2 )
 
    // Negation
    nVal := -nX
-   ? "nVal=-nX: " + Str( nVal )
+   ? "nVal=-nX: " + Str( nVal, 10, 2 )
 
    // NOT operator
    lFlag := !lOther

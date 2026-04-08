@@ -724,7 +724,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
    pStmt = pBody->value.asBlock.pFirst;
    while( pStmt )
    {
-      if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC )
+      if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
       {
          const char * szType = hb_astInferType( pStmt->value.asVar.szName,
                                                 pStmt->value.asVar.pInit );
@@ -745,7 +745,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
    pStmt = pBody->value.asBlock.pFirst;
    while( pStmt )
    {
-      if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC )
+      if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
       {
          const char * szCurType = hb_astInferType( pStmt->value.asVar.szName,
                                                    pStmt->value.asVar.pInit );
