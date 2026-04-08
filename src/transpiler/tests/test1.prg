@@ -1,3 +1,4 @@
+// Test 1: PROCEDURE, LOCAL declarations, simple arithmetic
 PROCEDURE Main()
 
    LOCAL x := 5

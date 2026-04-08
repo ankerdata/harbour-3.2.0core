@@ -1,3 +1,4 @@
+// Test 10: CLASS methods, STATIC local, WITH OBJECT
 #include "hbclass.ch"
 
 CLASS MyObj

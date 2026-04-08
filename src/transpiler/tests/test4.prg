@@ -1,3 +1,4 @@
+// Test 4: SWITCH/CASE/OTHERWISE/EXIT
 FUNCTION Main()
 
    LOCAL nVal := 2

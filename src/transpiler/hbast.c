@@ -248,6 +248,18 @@ void hb_astAddStatic( HB_COMP_DECL, const char * szName,
    }
 }
 
+void hb_astAddMemvar( HB_COMP_DECL, const char * szName, int iLine )
+{
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) )
+   {
+      PHB_AST_NODE pNode = hb_astNew( HB_AST_MEMVAR, iLine );
+      pNode->value.asVar.szName = szName;
+      pNode->value.asVar.pInit  = NULL;
+      pNode->value.asVar.szAlias = NULL;
+      hb_astAppend( HB_COMP_PARAM, pNode );
+   }
+}
+
 void hb_astAddPublic( HB_COMP_DECL, const char * szName,
                       PHB_EXPR pInit, int iLine )
 {

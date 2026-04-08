@@ -21,6 +21,7 @@ static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static int s_iLastLine = 0;
 static PHB_AST_NODE s_pClassList = NULL;
 static HB_BOOL s_fVoidFunc = HB_FALSE;  /* suppress return expr in void functions */
+static PHB_EXPR s_pWithObject = NULL;   /* current WITH OBJECT expression */
 
 /* ---- Type mapping ---- */
 
@@ -390,10 +391,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             else
                hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_TRUE );
          }
-         else
+         else if( s_pWithObject )
          {
-            /* No explicit object — WITH OBJECT implicit reference */
-            fprintf( yyc, "__withObj" );
+            /* No explicit object — use WITH OBJECT expression directly */
+            hb_csEmitExpr( s_pWithObject, yyc, HB_TRUE );
          }
          if( pExpr->value.asMessage.szMessage )
             fprintf( yyc, ".%s", pExpr->value.asMessage.szMessage );
@@ -412,7 +413,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_ARRAYAT:
          hb_csEmitExpr( pExpr->value.asList.pExprList, yyc, HB_TRUE );
-         /* Use (int) cast for numeric indices (arrays), but not for string keys (hashes) */
+         /* String keys (hashes) — no index adjustment */
          if( pExpr->value.asList.pIndex &&
              pExpr->value.asList.pIndex->ExprType == HB_ET_STRING )
          {
@@ -420,9 +421,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             hb_csEmitExpr( pExpr->value.asList.pIndex, yyc, HB_FALSE );
             fprintf( yyc, "]" );
          }
+         /* Integer literal index — emit decremented value directly */
+         else if( pExpr->value.asList.pIndex &&
+                  pExpr->value.asList.pIndex->ExprType == HB_ET_NUMERIC &&
+                  pExpr->value.asList.pIndex->value.asNum.NumType == HB_ET_LONG )
+         {
+            fprintf( yyc, "[%" HB_PFS "d]",
+                     pExpr->value.asList.pIndex->value.asNum.val.l - 1 );
+         }
+         /* Variable or expression index — cast and subtract at runtime */
          else
          {
-            /* Harbour arrays are 1-based, C# arrays are 0-based */
             fprintf( yyc, "[(int)(" );
             hb_csEmitExpr( pExpr->value.asList.pIndex, yyc, HB_FALSE );
             fprintf( yyc, ") - 1]" );
@@ -683,9 +692,14 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
    /* Blank line preservation */
    switch( pNode->type )
    {
+      case HB_AST_STATIC:
+      case HB_AST_MEMVAR:
+         /* Skipped nodes — don't update line tracking so they
+            don't create spurious blank lines in the output */
+         break;
+
       case HB_AST_EXPRSTMT:
       case HB_AST_LOCAL:
-      case HB_AST_STATIC:
       case HB_AST_PUBLIC:
       case HB_AST_PRIVATE:
       case HB_AST_RETURN:
@@ -837,8 +851,11 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_STATIC:
-         /* STATIC is emitted as a static class field — skip in method body.
-            The field is emitted by hb_csEmitStaticFields(). */
+         /* STATIC is emitted as a static class field — skip in method body. */
+         break;
+
+      case HB_AST_MEMVAR:
+         /* MEMVAR is a declaration hint — no C# equivalent needed. */
          break;
 
       case HB_AST_PUBLIC:
@@ -1128,18 +1145,15 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_WITHOBJECT:
-         /* WITH OBJECT → scope block with alias variable */
-         hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "{\n" );
-         hb_csEmitIndent( yyc, iIndent + 1 );
-         fprintf( yyc, "var __withObj = " );
-         hb_csEmitExpr( pNode->value.asWithObj.pObject, yyc, HB_FALSE );
-         fprintf( yyc, ";\n" );
-         s_iLastLine = 0;
-         if( pNode->value.asWithObj.pBody )
-            hb_csEmitBlock( pNode->value.asWithObj.pBody, yyc, iIndent + 1 );
-         hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "}\n" );
+         {
+            /* WITH OBJECT — emit body with implicit object reference */
+            PHB_EXPR pSavedWith = s_pWithObject;
+            s_pWithObject = pNode->value.asWithObj.pObject;
+            s_iLastLine = 0;
+            if( pNode->value.asWithObj.pBody )
+               hb_csEmitBlock( pNode->value.asWithObj.pBody, yyc, iIndent );
+            s_pWithObject = pSavedWith;
+         }
          break;
 
       case HB_AST_COMMENT:
@@ -1390,6 +1404,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    /* Method body */
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "{\n" );
+   s_iLastLine = 0;
    if( pFunc->value.asFunc.pBody )
    {
       if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
@@ -1397,7 +1412,6 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       {
          /* Skip CLASSMETHOD marker */
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
-         s_iLastLine = 0;
          while( pStmt )
          {
             hb_csEmitNode( pStmt, yyc, iIndent + 1 );
@@ -1638,6 +1652,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "{\n" );
+   s_iLastLine = 0;
    if( pFunc->value.asFunc.pBody )
       hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
    hb_csEmitIndent( yyc, iIndent );
@@ -1875,7 +1890,6 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                       pFunc->value.asFunc.pBody->value.asBlock.pFirst )
                   {
                      hb_csEmitFunc( pFunc, pCompFunc, yyc, 1 );
-                     fprintf( yyc, "\n" );
                   }
                }
             }

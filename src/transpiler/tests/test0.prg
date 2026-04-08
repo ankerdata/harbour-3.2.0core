@@ -1,3 +1,4 @@
+// Test 0: Comments (all types), SET COLOR, basic LOCAL assignment
 procedure main()
 
    // /* some comment*/

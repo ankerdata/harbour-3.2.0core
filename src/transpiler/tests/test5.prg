@@ -1,3 +1,4 @@
+// Test 5: FOR with STEP, FOR counting down, FOR EACH DESCEND
 FUNCTION Main()
 
    LOCAL i

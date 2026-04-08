@@ -418,6 +418,9 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_EXPRSTMT:
       case HB_AST_LOCAL:
       case HB_AST_STATIC:
+      case HB_AST_PUBLIC:
+      case HB_AST_PRIVATE:
+      case HB_AST_MEMVAR:
       case HB_AST_RETURN:
       case HB_AST_EXIT:
       case HB_AST_LOOP:
@@ -498,9 +501,19 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          fprintf( yyc, "\n" );
          break;
 
-      case HB_AST_STATIC:
+      case HB_AST_MEMVAR:
          hb_astEmitIndent( yyc, iIndent );
-         fprintf( yyc, "STATIC %s", pNode->value.asVar.szName );
+         fprintf( yyc, "MEMVAR %s\n", pNode->value.asVar.szName );
+         break;
+
+      case HB_AST_STATIC:
+      case HB_AST_PUBLIC:
+      case HB_AST_PRIVATE:
+         hb_astEmitIndent( yyc, iIndent );
+         fprintf( yyc, "%s %s",
+                  pNode->type == HB_AST_STATIC ? "STATIC" :
+                  pNode->type == HB_AST_PUBLIC ? "PUBLIC" : "PRIVATE",
+                  pNode->value.asVar.szName );
          if( pNode->value.asVar.pInit )
          {
             fprintf( yyc, " := " );
@@ -964,8 +977,6 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
             hb_astEmitBlock( pFunc->value.asFunc.pBody, yyc, 1 );
       }
    }
-
-   fprintf( yyc, "\n" );
 }
 
 /* Main entry point: generate transpiled output */

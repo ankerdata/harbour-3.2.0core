@@ -1,4 +1,4 @@
-// Single line comment
+// Test 8: All comment types with code interspersed
 FUNCTION Main()
 
    // Double-slash inside function

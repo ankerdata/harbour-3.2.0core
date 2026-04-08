@@ -1,3 +1,4 @@
+// Test 9: Type inference from initializers and Hungarian notation
 #include "hbclass.ch"
 
 CLASS Inherited

@@ -292,6 +292,8 @@ extern void         hb_astAddLocal( HB_COMP_DECL, const char * szName,
                                     PHB_EXPR pInit, int iLine );
 extern void         hb_astAddStatic( HB_COMP_DECL, const char * szName,
                                      PHB_EXPR pInit, int iLine );
+extern void         hb_astAddMemvar( HB_COMP_DECL, const char * szName,
+                                     int iLine );
 extern void         hb_astAddPublic( HB_COMP_DECL, const char * szName,
                                      PHB_EXPR pInit, int iLine );
 extern void         hb_astAddPrivate( HB_COMP_DECL, const char * szName,

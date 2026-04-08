@@ -1,3 +1,4 @@
+// Test 7: #define constants, #include directives
 #include "hbclass.ch"
 #include "common.ch"
 

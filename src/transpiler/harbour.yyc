@@ -5542,6 +5542,8 @@ yyreduce:
                      hb_astAddLocal( HB_COMP_PARAM, (yyvsp[-1].string), NULL, HB_COMP_PARAM->currLine );
                   else if( HB_COMP_PARAM->iVarScope & HB_VSCOMP_STATIC )
                      hb_astAddStatic( HB_COMP_PARAM, (yyvsp[-1].string), NULL, HB_COMP_PARAM->currLine );
+                  else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_MEMVAR )
+                     hb_astAddMemvar( HB_COMP_PARAM, (yyvsp[-1].string), HB_COMP_PARAM->currLine );
                   hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) );
                   if( HB_COMP_PARAM->iVarScope & HB_VSCOMP_STATIC )
                   {
@@ -5687,13 +5689,15 @@ yyreduce:
 
   case 417:
 #line 1222 "harbour.y" /* yacc.c:1646  */
-    { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); }
+    { hb_astAddMemvar( HB_COMP_PARAM, (yyvsp[-1].string), HB_COMP_PARAM->currLine );
+                  hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); }
 #line 5658 "harboury.c" /* yacc.c:1646  */
     break;
 
   case 418:
 #line 1223 "harbour.y" /* yacc.c:1646  */
-    { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); }
+    { hb_astAddMemvar( HB_COMP_PARAM, (yyvsp[-1].string), HB_COMP_PARAM->currLine );
+                  hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); }
 #line 5664 "harboury.c" /* yacc.c:1646  */
     break;
 
