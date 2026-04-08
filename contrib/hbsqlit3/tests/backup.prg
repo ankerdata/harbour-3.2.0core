@@ -65,24 +65,20 @@
 
 PROCEDURE init_trace( pDb, cPrefix )
    LOCAL hFile
-   IF sqlite3_libversion_number() < 3014000
-      sqlite3_trace( pDb, .T., cPrefix + ".log" )
-   ELSE
-      hFile := FOpen( cPrefix + ".log", FO_READWRITE + HB_FO_CREAT )
-      FSeek( hFile, 0, FS_END )
-      sqlite3_trace_v2( pDb, SQLITE_TRACE_STMT + SQLITE_TRACE_CLOSE, {| nMask, p, x |
-         IF nMask == SQLITE_TRACE_STMT  /* p is pPreparedStatement, x is cOriginalSql */
-            IF hb_LeftEq( x, "--" )
-               FWrite( hFile, x + hb_eol() )
-            ELSE
-               FWrite( hFile, sqlite3_expanded_sql( p ) + hb_eol() )
-            ENDIF
-         ELSEIF nMask == SQLITE_TRACE_CLOSE  /* p is the database connection */
-            FWrite( hFile, "Closing the database connection: " + sqlite3_db_filename( p, "main" ) + hb_eol() )
+   hFile := FOpen( cPrefix + ".log", FO_READWRITE + HB_FO_CREAT )
+   FSeek( hFile, 0, FS_END )
+   sqlite3_trace_v2( pDb, SQLITE_TRACE_STMT + SQLITE_TRACE_CLOSE, {| nMask, p, x |
+      IF nMask == SQLITE_TRACE_STMT  /* p is pPreparedStatement, x is cOriginalSql */
+         IF hb_LeftEq( x, "--" )
+            FWrite( hFile, x + hb_eol() )
+         ELSE
+            FWrite( hFile, sqlite3_expanded_sql( p ) + hb_eol() )
          ENDIF
-         RETURN 0
-      } )
-   ENDIF
+      ELSEIF nMask == SQLITE_TRACE_CLOSE  /* p is the database connection */
+         FWrite( hFile, "Closing the database connection: " + sqlite3_db_filename( p, "main" ) + hb_eol() )
+      ENDIF
+      RETURN 0
+   } )
    RETURN
 
 PROCEDURE Main()

@@ -2257,6 +2257,7 @@ HB_FUNC( WIN_OLEAUTO___ONERROR )
          wFlags = V_VT( &dispparam.rgvarg[ 0 ] ) == VT_DISPATCH ? DISPATCH_PROPERTYPUTREF :
                                                                   DISPATCH_PROPERTYPUT;
 
+         /* 28/01/2024 Harbour News Group
          lOleError = HB_VTBL( pDisp )->Invoke( HB_THIS_( pDisp ) dispid, HB_ID_REF( IID_NULL ),
                                                LOCALE_USER_DEFAULT, wFlags,
                                                &dispparam, NULL, &excep, &uiArgErr );

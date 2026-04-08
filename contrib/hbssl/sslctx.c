@@ -130,7 +130,11 @@ const SSL_METHOD * hb_ssl_method_id_to_ptr( int n )
       case HB_SSL_CTX_NEW_METHOD_TLSV1_CLIENT:  p = TLSv1_client_method();  break;
 #endif
 #endif
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+      default: p = TLS_method();
+#else
       default: p = SSLv23_method();
+#endif
    }
 
    return p;

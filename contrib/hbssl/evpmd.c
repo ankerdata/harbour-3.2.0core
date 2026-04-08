@@ -57,7 +57,9 @@
 
 HB_FUNC( OPENSSL_ADD_ALL_DIGESTS )
 {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
    OpenSSL_add_all_digests();
+#endif
 }
 
 static HB_GARBAGE_FUNC( EVP_MD_CTX_release )

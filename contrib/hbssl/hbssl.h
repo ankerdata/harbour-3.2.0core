@@ -51,9 +51,9 @@
 #include "hbapierr.h"
 #include "hbsocket.h"
 
-/* pacify OpenSSL 3.0 depreciated warnings until we update the code */
-#ifndef OPENSSL_API_COMPAT
-   #define OPENSSL_API_COMPAT 10100
+/* suppress OpenSSL 3.0 deprecated warnings without removing compat macros */
+#ifndef OPENSSL_SUPPRESS_DEPRECATED
+   #define OPENSSL_SUPPRESS_DEPRECATED
 #endif
 
 #if defined( HB_OS_WIN )

@@ -1936,6 +1936,7 @@ static void SQL3TraceLog( void * sFile, const char * sTraceMsg )
 }
 #endif
 
+#ifdef SQLITE_OMIT_DEPRECATED
 HB_FUNC( SQLITE3_PROFILE )
 {
 #if SQLITE_VERSION_NUMBER < 3014000
@@ -1993,6 +1994,7 @@ HB_FUNC( SQLITE3_TRACE )
    hb_errRT_BASE_SubstR( EG_UNSUPPORTED, 0, NULL, HB_ERR_FUNCNAME, HB_ERR_ARGS_BASEPARAMS );
 #endif
 }
+#endif
 
 
 /**
