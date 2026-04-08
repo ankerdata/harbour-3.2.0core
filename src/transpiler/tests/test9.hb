@@ -1,10 +1,18 @@
 #include "astype.ch"
+// Test 9: Type inference from initializers and Hungarian notation
 #include "hbclass.ch"
 
-CLASS Person INHERIT HBObject
+CLASS Inherited
 
 
-   DATA nAge AS INTEGER INIT 0
+   CLASSDATA nVersion AS NUMERIC INIT 1.0
+
+ENDCLASS
+
+CLASS Person INHERIT Inherited
+
+
+   DATA nAge AS NUMERIC INIT 0
    DATA cName AS STRING INIT ""
    DATA dBirth AS DATE
    DATA lActive AS LOGICAL INIT .T.
@@ -14,21 +22,21 @@ CLASS Person INHERIT HBObject
    DATA bCallback AS BLOCK
    DATA xUnknown AS USUAL
 
-   CLASSDATA nCount AS INTEGER INIT 0
+   CLASSDATA nCount AS NUMERIC INIT 0
 
    METHOD New()
 
 ENDCLASS
 
 METHOD New() AS OBJECT CLASS Person
+   QOut("New called")
 RETURN Self
-
 
 FUNCTION Main()
 
    // Type from initializer (most specific)
-   LOCAL nCount := 0 AS INTEGER
-   LOCAL nPrice := 9.99 AS DECIMAL
+   LOCAL nCount := 0 AS NUMERIC
+   LOCAL nPrice := 9.99 AS NUMERIC
    LOCAL cName := "hello" AS STRING
    LOCAL lFound := .T. AS LOGICAL
    LOCAL aList := {1, 2, 3} AS ARRAY
@@ -49,5 +57,9 @@ FUNCTION Main()
    LOCAL counter AS USUAL
    LOCAL Temp AS USUAL
 
-RETURN NIL
+   QOut("nCount=" + Str(nCount))
+   QOut("nPrice=" + Str(nPrice, 10, 2))
+   QOut("cName=" + cName)
+   QOut("lFound=" + IIF(lFound, ".T.", ".F."))
 
+RETURN NIL

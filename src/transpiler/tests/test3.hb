@@ -1,7 +1,8 @@
 #include "astype.ch"
+// Test 3: DO CASE, FOR EACH, BEGIN SEQUENCE/RECOVER/ALWAYS, BREAK
 FUNCTION Main() AS STRING
 
-   LOCAL nChoice := 2 AS INTEGER
+   LOCAL nChoice := 2 AS NUMERIC
    LOCAL aItems := {"apple", "banana", "cherry"} AS ARRAY
    LOCAL cItem AS STRING
    LOCAL cResult := "" AS STRING
@@ -11,10 +12,13 @@ FUNCTION Main() AS STRING
    DO CASE
       CASE nChoice == 1
          cResult := "first"
+         QOut("cResult=" + cResult)
       CASE nChoice == 2
          cResult := "second"
+         QOut("cResult=" + cResult)
       OTHERWISE
          cResult := "other"
+         QOut("cResult=" + cResult)
    ENDCASE
 
    // FOR EACH
@@ -22,17 +26,20 @@ FUNCTION Main() AS STRING
       cResult += cItem
    NEXT
 
+   QOut("cResult=" + cResult)
+
    // BEGIN SEQUENCE
    BEGIN SEQUENCE
       cResult := DoSomething()
+      QOut("cResult=" + cResult)
    RECOVER USING oErr
       cResult := "error caught"
+      QOut("cResult=" + cResult)
    ALWAYS
       CleanUp()
    END SEQUENCE
 
 RETURN cResult
-
 
 FUNCTION DoSomething()
 
@@ -40,8 +47,6 @@ FUNCTION DoSomething()
 
 RETURN NIL
 
-
 FUNCTION CleanUp()
 
 RETURN NIL
-

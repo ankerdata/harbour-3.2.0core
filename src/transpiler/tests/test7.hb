@@ -1,4 +1,5 @@
 #include "astype.ch"
+// Test 7: #define constants, #include directives
 #include "hbclass.ch"
 #include "common.ch"
 
@@ -8,6 +9,6 @@
 FUNCTION Main()
 
    LOCAL cVersion := APP_VERSION AS STRING
+   QOut("cVersion=" + cVersion)
 
 RETURN NIL
-

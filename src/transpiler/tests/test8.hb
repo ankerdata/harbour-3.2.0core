@@ -1,14 +1,14 @@
 #include "astype.ch"
-// Single line comment
+// Test 8: All comment types with code interspersed
 FUNCTION Main() AS STRING
 
    // Double-slash inside function
    // trailing comment on code line
-   LOCAL x := 5 AS INTEGER
+   LOCAL x := 5 AS NUMERIC
 
    && dBASE-style comment
    && trailing dBASE comment
-   LOCAL y := 10 AS INTEGER
+   LOCAL y := 10 AS NUMERIC
 
    * Star comment at start of line
    LOCAL z := x + y AS USUAL
@@ -18,13 +18,19 @@ FUNCTION Main() AS STRING
    /* Single-line block comment */
    LOCAL cResult := "hello" AS STRING
 
+   QOut("x=" + Str(x))
+   QOut("y=" + Str(y))
+   QOut("z=" + Str(z))
+   QOut("cResult=" + cResult)
+
    /* Multi-line
       block comment
       spanning three lines */
    cResult += " world"
+   QOut("cResult=" + cResult)
 
    /* inline block comment */
    x += 1
+   QOut("x=" + Str(x))
 
 RETURN cResult
-
