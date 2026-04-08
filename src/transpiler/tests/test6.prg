@@ -34,6 +34,7 @@ RETURN Self
 
 METHOD SetAge( nAge ) CLASS Person
    ::nAge := nAge
+   ? "nAge=" + Str( ::nAge )
 RETURN Self
 
 METHOD FullName() CLASS Person
@@ -41,6 +42,7 @@ RETURN ::cName
 
 METHOD _FullName( cVal ) CLASS Person
    ::cName := cVal
+   ? "cName=" + ::cName
 RETURN cVal
 
 METHOD InternalCalc() CLASS Person
@@ -49,10 +51,9 @@ RETURN ::nAge * 2
 FUNCTION Main()
 
    LOCAL oPerson := Person():New()
+   ? "oPerson created"
 
    oPerson:SetAge( 25 )
-
-   ? "nAge=" + Str( oPerson:nAge )
    ? "FullName=" + oPerson:FullName
 
 RETURN oPerson:FullName

@@ -15,16 +15,18 @@ FUNCTION Main()
    /* Single-line block comment */
    LOCAL cResult := "hello"
 
-   /* Multi-line
-      block comment
-      spanning three lines */
-   cResult := cResult + " world"
-
-   x := x /* inline block comment */ + 1
-
    ? "x=" + Str( x )
    ? "y=" + Str( y )
    ? "z=" + Str( z )
    ? "cResult=" + cResult
+
+   /* Multi-line
+      block comment
+      spanning three lines */
+   cResult := cResult + " world"
+   ? "cResult=" + cResult
+
+   x := x /* inline block comment */ + 1
+   ? "x=" + Str( x )
 
 RETURN cResult

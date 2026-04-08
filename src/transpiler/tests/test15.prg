@@ -21,44 +21,50 @@ FUNCTION Main()
 
    // Array subscript access
    nTotal := aNumbers[ 1 ] + aNumbers[ 3 ] + aNumbers[ 5 ]
+   ? "nTotal=" + Str( nTotal )
 
    // Array subscript assignment
    aNumbers[ 2 ] := 99
+   ? "aNumbers[2]=" + Str( aNumbers[ 2 ] )
 
    // Array length
    nLen := Len( aNumbers )
+   ? "nLen=" + Str( nLen )
 
    // FOR loop with array subscript
    nTotal := 0
    FOR i := 1 TO Len( aNumbers )
       nTotal += aNumbers[ i ]
    NEXT
+   ? "nTotal=" + Str( nTotal )
 
    // FOR EACH over array
    nTotal := 0
    FOR EACH nItem IN aNumbers
       nTotal += nItem
    NEXT
+   ? "nTotal=" + Str( nTotal )
 
    // Nested array access
    nTotal := aMatrix[ 2 ][ 1 ]
+   ? "nTotal=" + Str( nTotal )
 
    // Hash access
    cName := hPerson[ "name" ]
+   ? "cName=" + cName
 
    // Hash assignment
    hPerson[ "age" ] := 31
+   ? "age=" + Str( hPerson[ "age" ] )
 
    // String operations via mapped functions
    cUpper := Upper( cText )
+   ? "cUpper=" + cUpper
    cTrimmed := AllTrim( cText )
+   ? "cTrimmed=" + cTrimmed
    cSub := SubStr( cText, 3, 5 )
+   ? "cSub=" + cSub
    nPos := Len( cText )
-
-   ? nTotal
-   ? cName
-   ? cUpper
-   ? cTrimmed
-   ? cSub
+   ? "nPos=" + Str( nPos )
 
 RETURN nPos

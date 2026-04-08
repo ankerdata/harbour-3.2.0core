@@ -432,8 +432,11 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
       }
    }
 
-   /* Add CLASS to AST */
-   hb_astAppend( HB_COMP_PARAM, pClass );
+   /* Add CLASS to startup function's body (top-level scope).
+      This is needed because hb_compClassParse may be called while
+      a method body is open, and we don't want the CLASS nested
+      inside another function's body. */
+   hb_astAppendToStartup( HB_COMP_PARAM, pClass );
 
    return HB_TRUE;
 }

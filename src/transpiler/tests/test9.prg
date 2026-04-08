@@ -25,6 +25,7 @@ CLASS Person INHERIT Inherited
 ENDCLASS
 
 METHOD New() CLASS Person
+   ? "New called"
 RETURN Self
 
 FUNCTION Main()

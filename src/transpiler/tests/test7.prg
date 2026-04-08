@@ -7,7 +7,6 @@
 FUNCTION Main()
 
    LOCAL cVersion := APP_VERSION
-
    ? "cVersion=" + cVersion
 
 RETURN NIL

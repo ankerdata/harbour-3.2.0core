@@ -15,6 +15,7 @@ RETURN Self
 
 METHOD SetValue( nVal ) CLASS MyObj
    ::nValue := nVal
+   ? "nValue=" + Str( ::nValue )
 RETURN Self
 
 FUNCTION Main()
@@ -28,8 +29,6 @@ FUNCTION Main()
    END WITH
 
    nCounter := nCounter + 1
-
-   ? "nValue=" + Str( oObj:nValue )
    ? "nCounter=" + Str( nCounter )
 
 RETURN oObj:nValue

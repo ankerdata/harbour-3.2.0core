@@ -18,6 +18,7 @@ RETURN Self
 
 METHOD Add( nValue ) CLASS Calculator
    ::nResult := ::nResult + nValue
+   ? "nResult=" + Str( ::nResult )
 RETURN Self
 
 METHOD GetResult() CLASS Calculator
@@ -25,19 +26,23 @@ RETURN ::nResult
 
 PROCEDURE Reset() CLASS Calculator
    ::nResult := 0
+   ? "nResult=" + Str( ::nResult )
 RETURN
 
 PROCEDURE Display( cLabel ) CLASS Calculator
-   QOut( cLabel + ": " + Str( ::nResult ) )
+   ? cLabel + ": " + Str( ::nResult )
 RETURN
 
 FUNCTION CalcTotal( nA, nB, nC )
    LOCAL nResult := nA + nB
+   ? "nResult=" + Str( nResult )
    nResult := nResult + nC
+   ? "nResult=" + Str( nResult )
 RETURN nResult
 
 FUNCTION FormatPrice( nPrice, cCurrency )
    LOCAL nFinal := nPrice * 1.15
+   ? "nFinal=" + Str( nFinal )
 RETURN cCurrency + " " + Str( nFinal )
 
 PROCEDURE Main()
@@ -48,7 +53,7 @@ PROCEDURE Main()
    oCalc:Add( 20 )
    oCalc:Display( "Total" )
 
-   ? CalcTotal( 1, 2, 3 )
-   ? FormatPrice( 9.99, "$" )
+   ? "CalcTotal=" + Str( CalcTotal( 1, 2, 3 ) )
+   ? "FormatPrice=" + FormatPrice( 9.99, "$" )
 
 RETURN

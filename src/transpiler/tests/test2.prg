@@ -1,5 +1,5 @@
 FUNCTION Main()
-   
+
    LOCAL nSum := 0
    LOCAL i
    LOCAL cResult
@@ -7,17 +7,18 @@ FUNCTION Main()
    FOR i := 1 TO 10
       nSum := nSum + i
    NEXT
+   ? "nSum=" + Str( nSum )
 
    IF nSum > 50
       cResult := "big"
+      ? "cResult=" + cResult
    ELSEIF nSum > 20
       cResult := "medium"
+      ? "cResult=" + cResult
    ELSE
       cResult := "small"
+      ? "cResult=" + cResult
    ENDIF
-
-   ? "nSum after FOR=" + Str( nSum )
-   ? "cResult=" + cResult
 
    DO WHILE nSum > 0
       nSum := nSum - 10
@@ -25,7 +26,6 @@ FUNCTION Main()
          EXIT
       ENDIF
    ENDDO
-
-   ? "nSum after WHILE=" + Str( nSum )
+   ? "nSum=" + Str( nSum )
 
 RETURN cResult

@@ -116,6 +116,33 @@ void hb_astAppend( HB_COMP_DECL, PHB_AST_NODE pNode )
    pNode->pNext = NULL;
 }
 
+/* Append a node to the startup function's body (top-level scope).
+   Used for CLASS nodes which must always be at file scope regardless
+   of which function body is currently being parsed. */
+void hb_astAppendToStartup( HB_COMP_DECL, PHB_AST_NODE pNode )
+{
+   PHB_AST_NODE pStartup = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pFuncList;
+   PHB_AST_NODE pBody;
+
+   if( ! pStartup || ! pNode )
+      return;
+
+   pBody = pStartup->value.asFunc.pBody;
+   if( ! pBody )
+   {
+      /* Startup function body hasn't been created yet — use current block */
+      hb_astAppend( HB_COMP_PARAM, pNode );
+      return;
+   }
+
+   if( pBody->value.asBlock.pLast )
+      pBody->value.asBlock.pLast->pNext = pNode;
+   else
+      pBody->value.asBlock.pFirst = pNode;
+   pBody->value.asBlock.pLast = pNode;
+   pNode->pNext = NULL;
+}
+
 /* Begin a new function definition */
 PHB_AST_NODE hb_astBeginFunc( HB_COMP_DECL,
                               const char * szName,

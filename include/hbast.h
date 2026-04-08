@@ -277,6 +277,7 @@ extern void         hb_astPushBlock( HB_COMP_DECL );
 extern PHB_AST_NODE hb_astPopBlock( HB_COMP_DECL );
 
 extern void         hb_astAppend( HB_COMP_DECL, PHB_AST_NODE pNode );
+extern void         hb_astAppendToStartup( HB_COMP_DECL, PHB_AST_NODE pNode );
 
 extern PHB_AST_NODE hb_astBeginFunc( HB_COMP_DECL,
                                      const char * szName,
