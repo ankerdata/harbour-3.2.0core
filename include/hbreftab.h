@@ -38,10 +38,20 @@
 
 HB_EXTERN_BEGIN
 
-/* The single hardcoded path the loader reads from. Change this if the
-   source tree moves. */
+/* Default path the loader reads from when no override has been set.
+   Change this if the source tree moves. */
 #define HB_REFTAB_PATH \
    "/Users/alexstrickland/dev/harbour-core/src/transpiler/hbreftab.tab"
+
+/* Override the table path at runtime (set by `--reftab=<path>` on the
+   command line). Pass NULL to clear. The override is applied to every
+   subsequent hb_refTabGetPath() call. */
+extern void         hb_refTabSetPath( const char * szPath );
+
+/* Returns the active table path: the override if one was set, or
+   HB_REFTAB_PATH otherwise. The C# / .hb / scan back-ends use this
+   instead of the macro directly. */
+extern const char * hb_refTabGetPath( void );
 
 typedef struct HB_REFTAB_   HB_REFTAB,   * PHB_REFTAB;
 typedef struct HB_REFPARAM_ HB_REFPARAM, * PHB_REFPARAM;

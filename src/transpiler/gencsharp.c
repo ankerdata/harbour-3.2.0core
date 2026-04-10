@@ -26,6 +26,57 @@ static PHB_AST_NODE s_pClassList = NULL;
 static HB_BOOL s_fVoidFunc = HB_FALSE;  /* suppress return expr in void functions */
 static PHB_EXPR s_pWithObject = NULL;   /* current WITH OBJECT expression */
 static PHB_REFTAB s_pRefTab = NULL;     /* by-ref parameter table for current run */
+static char s_szCurrentFunc[ 256 ] = "";  /* keyed name of the function currently
+                                             being emitted (e.g. "calculator::adjust"
+                                             or "fred"). Used to look up nilable
+                                             parameters when wrapping IF/IIF
+                                             conditions. Empty when no function. */
+
+/* Returns HB_TRUE if pExpr is a "naked" boolean condition that needs
+   wrapping with `== true` for C# to accept it. The case we care about
+   is a single nilable parameter (from the active function) used as a
+   condition: in Harbour `IF lFlag` is fine even when lFlag is NIL,
+   but in C# `if (lFlag)` doesn't compile if lFlag is `bool?`.
+
+   We unwrap a one-element HB_ET_LIST first because the parser wraps
+   conditions in lists. The inner expression must be HB_ET_VARIABLE
+   referring to a parameter that hbreftab has marked nilable. */
+static HB_BOOL hb_csConditionNeedsBoolUnwrap( PHB_EXPR pExpr )
+{
+   const char * szName;
+   const HB_REFPARAM * pP;
+   int i;
+   int nParams;
+
+   if( ! pExpr || ! s_szCurrentFunc[ 0 ] || ! s_pRefTab )
+      return HB_FALSE;
+
+   /* Peel single-element list wrappers (defensive — the strip pass
+      should have left these alone already, but be safe). */
+   while( ( pExpr->ExprType == HB_ET_LIST ||
+            pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList &&
+          ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+
+   if( pExpr->ExprType != HB_ET_VARIABLE )
+      return HB_FALSE;
+
+   szName = pExpr->value.asSymbol.name;
+   if( ! szName )
+      return HB_FALSE;
+
+   /* Look up in the active function's parameter list for a nilable
+      slot whose name matches. */
+   nParams = hb_refTabParamCount( s_pRefTab, s_szCurrentFunc );
+   for( i = 0; i < nParams; i++ )
+   {
+      pP = hb_refTabParam( s_pRefTab, s_szCurrentFunc, i );
+      if( pP && pP->szName && hb_stricmp( pP->szName, szName ) == 0 )
+         return pP->fNilable;
+   }
+   return HB_FALSE;
+}
 
 /* Emit the argument list of a function or method call.
 
@@ -559,8 +610,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          if( pExpr->value.asList.pExprList )
          {
             PHB_EXPR pCond = pExpr->value.asList.pExprList;
+            HB_BOOL fWrap = hb_csConditionNeedsBoolUnwrap( pCond );
             fprintf( yyc, "(" );
             hb_csEmitExpr( pCond, yyc, HB_FALSE );
+            if( fWrap )
+               fprintf( yyc, " == true" );
             if( pCond->pNext )
             {
                fprintf( yyc, " ? " );
@@ -961,7 +1015,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_IF:
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "if (" );
-         hb_csEmitExpr( pNode->value.asIf.pCondition, yyc, HB_FALSE );
+         {
+            HB_BOOL fWrap = hb_csConditionNeedsBoolUnwrap(
+               pNode->value.asIf.pCondition );
+            hb_csEmitExpr( pNode->value.asIf.pCondition, yyc, HB_FALSE );
+            if( fWrap )
+               fprintf( yyc, " == true" );
+         }
          fprintf( yyc, ")\n" );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "{\n" );
@@ -975,9 +1035,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             PHB_AST_NODE pElseIf = pNode->value.asIf.pElseIfs;
             while( pElseIf )
             {
+               HB_BOOL fWrap = hb_csConditionNeedsBoolUnwrap(
+                  pElseIf->value.asElseIf.pCondition );
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "else if (" );
                hb_csEmitExpr( pElseIf->value.asElseIf.pCondition, yyc, HB_FALSE );
+               if( fWrap )
+                  fprintf( yyc, " == true" );
                fprintf( yyc, ")\n" );
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "{\n" );
@@ -1445,6 +1509,18 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
       fProcedure = pFirstStmt->value.asClassMethod.fProcedure;
 
+   /* Track current method (Class::Method) for nilable-parameter
+      lookups in IF/IIF condition emission. */
+   {
+      const char * szClass =
+         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
+            ? pFirstStmt->value.asClassMethod.szClass
+            : NULL;
+      const char * szKey = hb_refTabMethodKey(
+         szClass, pFunc->value.asFunc.szName );
+      hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
+   }
+
    /* Emit method signature */
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "public " );
@@ -1539,6 +1615,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
+   s_szCurrentFunc[ 0 ] = '\0';
 }
 
 /* Emit a complete C# class definition */
@@ -1721,6 +1798,11 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( hb_stricmp( pFunc->value.asFunc.szName, "Main" ) == 0 )
       fIsMain = HB_TRUE;
 
+   /* Track current function for nilable-parameter lookups in IF/IIF
+      condition emission. Free functions get the bare name. */
+   hb_strncpy( s_szCurrentFunc, pFunc->value.asFunc.szName,
+               sizeof( s_szCurrentFunc ) - 1 );
+
    /* Emit blank line if gap */
    if( pFunc->iLine > 0 && s_iLastLine > 0 && pFunc->iLine > s_iLastLine + 1 )
       fprintf( yyc, "\n" );
@@ -1817,6 +1899,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
+   s_szCurrentFunc[ 0 ] = '\0';
 }
 
 /* ---- Main entry point ---- */
@@ -1861,7 +1944,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       pick up anything new, and any stale-on-disk entries for
       functions defined in this file get overwritten. */
    s_pRefTab = hb_refTabNew();
-   hb_refTabLoad( s_pRefTab, HB_REFTAB_PATH );
+   hb_refTabLoad( s_pRefTab, hb_refTabGetPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
 
    /* Collect CLASS nodes from startup function */

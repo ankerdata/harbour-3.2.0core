@@ -21,6 +21,7 @@ clang -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   src/transpiler/hbtypes.c src/transpiler/hbreftab.c \
   src/transpiler/hbfunctab.c src/transpiler/ppcomp.c \
   src/transpiler/pcodestubs.c src/transpiler/harboury.c \
+  src/common/expropt2.c \
   src/compiler/compi18n.c src/compiler/exproptb.c \
   src/compiler/hbdbginf.c \
   src/compiler/hbfunchk.c \

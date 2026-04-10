@@ -429,11 +429,27 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
                   hb_pp_hb_inLine : NULL, hb_pp_CompilerSwitch );
 
 #ifdef HB_TRANSPILER
-      /* Transpiler mode: load std.ch rules for SET/? command translation,
-         but skip #include file expansion in source files. */
+      /* Transpiler mode: source #include directives are captured as
+         AST nodes (for round-tripping in .hb output) but the included
+         files themselves are NOT expanded into the source — we don't
+         want their content flowing into the parser.
+
+         To still see the standard syntax sugar (DEFAULT, IIF, etc.)
+         we preload std.ch and common.ch via hb_pp_readRules. That
+         call consumes a file in "rules-only" mode: any #xcommand /
+         #define / #xtranslate directives are registered globally,
+         but every other token is discarded.
+
+         IMPORTANT: we deliberately do NOT load hbclass.ch. The
+         transpiler has its own dedicated CLASS / METHOD / DATA
+         parser (hbclsparse.c) which expects the canonical syntax.
+         Loading hbclass.ch's rules would expand class syntax into
+         its underlying runtime-call machinery, and the dedicated
+         class parser would never see the original form. */
       hb_pp_setNoInclude( HB_COMP_PARAM->pLex->pPP, HB_TRUE );
       hb_pp_setComments( HB_COMP_PARAM->pLex->pPP, HB_TRUE );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "std.ch" );
+      hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "common.ch" );
       hb_pp_setStdBase( HB_COMP_PARAM->pLex->pPP );
       /* Set callback to capture #include/#define directives into AST */
       {

@@ -2002,6 +2002,16 @@ PHB_EXPR hb_compExprReduceIIF( PHB_EXPR pSelf, HB_COMP_DECL )
  */
 PHB_EXPR hb_compExprListStrip( PHB_EXPR pSelf, HB_COMP_DECL )
 {
+#ifdef HB_TRANSPILER
+   /* In transpiler mode the AST captures expression pointers as the
+      parser builds them. The original strip mutates the LIST in place
+      (sets pExprList = NULL) which corrupts AST nodes that have
+      already captured the LIST. The PCODE-side caller doesn't care
+      whether the wrapper is stripped — pSelf or pSelf->...->pExprList
+      both work for codegen — so leave the LIST intact. */
+   HB_SYMBOL_UNUSED( HB_COMP_PARAM );
+   return pSelf;
+#else
    while( pSelf->ExprType == HB_ET_LIST &&
           hb_compExprListLen( pSelf ) == 1 &&
           pSelf->value.asList.pExprList->ExprType <= HB_ET_VARIABLE &&
@@ -2018,6 +2028,7 @@ PHB_EXPR hb_compExprListStrip( PHB_EXPR pSelf, HB_COMP_DECL )
    }
 
    return pSelf;
+#endif
 }
 
 HB_BOOL hb_compExprReduceAT( PHB_EXPR pSelf, HB_COMP_DECL )

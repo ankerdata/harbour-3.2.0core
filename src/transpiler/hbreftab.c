@@ -33,6 +33,29 @@ struct HB_REFTAB_
    HB_SIZE      nCount;
 };
 
+/* ---- runtime path override ----
+   Set by --reftab=<path> on the command line so transpiler runs over
+   foreign codebases can keep their signature table out of the
+   harbour-core test tree. */
+static char s_szRefTabPathOverride[ HB_PATH_MAX ] = { 0 };
+
+void hb_refTabSetPath( const char * szPath )
+{
+   if( ! szPath || ! *szPath )
+   {
+      s_szRefTabPathOverride[ 0 ] = '\0';
+      return;
+   }
+   hb_strncpy( s_szRefTabPathOverride, szPath,
+               sizeof( s_szRefTabPathOverride ) - 1 );
+}
+
+const char * hb_refTabGetPath( void )
+{
+   return s_szRefTabPathOverride[ 0 ] ? s_szRefTabPathOverride
+                                      : HB_REFTAB_PATH;
+}
+
 /* ---- string helpers (case-folded) ---- */
 
 static HB_SIZE hb_refTabHash( const char * sz )

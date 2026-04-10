@@ -46,6 +46,9 @@
 
 #include "hbcomp.h"
 #include "hbset.h"
+#ifdef HB_TRANSPILER
+#include "hbreftab.h"
+#endif
 
 static char s_szUndefineMarker[ 1 ] = "";
 
@@ -200,6 +203,16 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          HB_COMP_PARAM->fQuiet = HB_FALSE;
          HB_COMP_PARAM->fExit = HB_FALSE;
       }
+#ifdef HB_TRANSPILER
+      else if( strncmp( szSwPtr + 2, "reftab=", 7 ) == 0 )
+      {
+         /* --reftab=<path> overrides the default hbreftab.tab path
+            so a transpile of one codebase doesn't pollute another's
+            signature table. The path applies to load AND save. */
+         hb_refTabSetPath( szSwPtr + 9 );
+         szSwPtr += strlen( szSwPtr );  /* consume rest of switch */
+      }
+#endif
    }
    else if( HB_ISOPTSEP( *szSwPtr ) )
    {

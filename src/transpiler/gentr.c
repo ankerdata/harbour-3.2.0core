@@ -1148,7 +1148,7 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
       table from disk first so cross-file by-ref usage is visible, then
       scan this file's own AST. */
    s_pRefTab = hb_refTabNew();
-   hb_refTabLoad( s_pRefTab, HB_REFTAB_PATH );
+   hb_refTabLoad( s_pRefTab, hb_refTabGetPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
 
    /* Find CLASS nodes in the startup function's body for type propagation */
