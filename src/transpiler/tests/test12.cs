@@ -1,7 +1,7 @@
 using System;
 
 // Test 12: Expressions — IIF, codeblocks, compound assignment, logical operators
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

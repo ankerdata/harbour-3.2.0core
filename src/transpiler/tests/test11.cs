@@ -12,7 +12,7 @@ public class Calculator
         return this;
     }
 
-    public object Add(decimal nValue)
+    public object Add(decimal nValue = default)
     {
         this.nResult = this.nResult + nValue;
         HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
@@ -31,16 +31,16 @@ public class Calculator
         return;
     }
 
-    public void Display(string cLabel)
+    public void Display(string cLabel = default)
     {
         HbRuntime.QOut(cLabel + ": " + HbRuntime.Str(this.nResult));
         return;
     }
 }
 
-public static class Program
+public static partial class Program
 {
-    public static decimal CalcTotal(decimal nA, decimal nB, decimal nC)
+    public static decimal CalcTotal(decimal nA = default, decimal nB = default, decimal nC = default)
     {
         decimal nResult = nA + nB;
         HbRuntime.QOut("nResult=" + HbRuntime.Str(nResult));
@@ -49,7 +49,7 @@ public static class Program
         return nResult;
     }
 
-    public static string FormatPrice(decimal nPrice, string cCurrency)
+    public static string FormatPrice(decimal nPrice = default, string cCurrency = default)
     {
         decimal nFinal = nPrice * 1.15m;
         HbRuntime.QOut("nFinal=" + HbRuntime.Str(nFinal, 10, 2));

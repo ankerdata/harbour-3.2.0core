@@ -51,8 +51,8 @@ RETURN ::Describe() + " (" + ::cBreed + ")"
 
 PROCEDURE Main()
 
-   LOCAL oAnimal := Animal():New("Cat", "Meow") AS OBJECT
-   LOCAL oDog := Dog():Init("Rex", "Labrador") AS OBJECT
+   LOCAL oAnimal := Animal():New("Cat", "Meow")
+   LOCAL oDog := Dog():Init("Rex", "Labrador")
 
    QOut("Speak=" + oAnimal:Speak())
    QOut("Describe=" + oAnimal:Describe())

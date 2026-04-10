@@ -50,7 +50,7 @@ RETURN cCurrency + " " + Str(nFinal, 10, 2)
 
 PROCEDURE Main()
 
-   LOCAL oCalc := Calculator():New() AS OBJECT
+   LOCAL oCalc := Calculator():New()
 
    oCalc:Add(10)
    oCalc:Add(20)

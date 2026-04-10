@@ -3,7 +3,7 @@ using System;
 // Test 7: #define constants, #include directives
 // #include "hbclass.ch"
 // #include "common.ch"
-public static class Program
+public static partial class Program
 {
     const string APP_VERSION = "1.0";
     const decimal MAX_ITEMS = 100;

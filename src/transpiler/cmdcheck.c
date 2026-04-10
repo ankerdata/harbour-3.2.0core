@@ -403,6 +403,14 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
                   szSwPtr += 2;
                   break;
 
+               case 'F':
+                  /* -GF: scan-only mode. Build the user-function
+                     signature table and append to it; no codegen.
+                     Used for whole-codebase pre-scan before -GS/-GT. */
+                  HB_COMP_PARAM->iLanguage = HB_LANG_SCAN;
+                  szSwPtr += 2;
+                  break;
+
                case 'D':
                   if( HB_COMP_PARAM->szDepExt )
                   {

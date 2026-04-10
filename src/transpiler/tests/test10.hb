@@ -23,7 +23,7 @@ RETURN Self
 
 FUNCTION Main() AS NUMERIC
 
-   LOCAL oObj := MyObj():New() AS OBJECT
+   LOCAL oObj := MyObj():New()
    STATIC nCounter := 0 AS NUMERIC
 
    // WITH OBJECT test

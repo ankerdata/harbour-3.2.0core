@@ -1,7 +1,7 @@
 using System;
 
 // Test 2: FUNCTION, FOR/NEXT, IF/ELSEIF/ELSE, DO WHILE, EXIT
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

@@ -1,7 +1,7 @@
 using System;
 
 // Test 5: FOR with STEP, FOR counting down, FOR EACH DESCEND
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

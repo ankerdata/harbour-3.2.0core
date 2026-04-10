@@ -29,7 +29,7 @@ public class Person : Inherited
     }
 }
 
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

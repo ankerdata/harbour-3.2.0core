@@ -11,7 +11,7 @@ FUNCTION Main() AS STRING
    LOCAL y := 10 AS NUMERIC
 
    * Star comment at start of line
-   LOCAL z := x + y AS USUAL
+   LOCAL z := x + y AS NUMERIC
 
    NOTE Old-style comment keyword
 

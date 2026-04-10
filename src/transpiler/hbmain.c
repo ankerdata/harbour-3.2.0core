@@ -3921,6 +3921,10 @@ static void hb_compGenOutput( HB_COMP_DECL, int iLanguage )
       case HB_LANG_CSHARP:
          hb_compGenCSharp( HB_COMP_PARAM, HB_COMP_PARAM->pFileName );
          break;
+
+      case HB_LANG_SCAN:
+         hb_compGenScan( HB_COMP_PARAM, HB_COMP_PARAM->pFileName );
+         break;
    }
 }
 
@@ -4572,15 +4576,13 @@ static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuff
          }
 
          /* Finalize last function's AST before generating output */
-         if( ( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE ||
-               HB_COMP_PARAM->iLanguage == HB_LANG_CSHARP ) &&
+         if( HB_COMP_ISAST( HB_COMP_PARAM ) &&
              HB_COMP_PARAM->ast.pCurrFunc != NULL )
             hb_astEndFunc( HB_COMP_PARAM );
 
          hb_compGenOutput( HB_COMP_PARAM, HB_COMP_PARAM->iLanguage );
 
-         if( HB_COMP_PARAM->iLanguage == HB_LANG_TRANSPILE ||
-             HB_COMP_PARAM->iLanguage == HB_LANG_CSHARP )
+         if( HB_COMP_ISAST( HB_COMP_PARAM ) )
             hb_astCleanup( HB_COMP_PARAM );
       }
       else

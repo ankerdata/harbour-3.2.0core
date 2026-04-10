@@ -15,10 +15,11 @@ clang -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   -o "$OUTPUT" \
   src/transpiler/cmdcheck.c src/transpiler/complex.c \
   src/transpiler/expropta.c src/transpiler/gentr.c \
-  src/transpiler/gencsharp.c src/transpiler/genstubs.c \
+  src/transpiler/gencsharp.c src/transpiler/genscan.c src/transpiler/genstubs.c \
   src/transpiler/hbast.c src/transpiler/hbclsparse.c \
   src/transpiler/hbcomp.c src/transpiler/hbmain.c \
-  src/transpiler/hbtypes.c src/transpiler/ppcomp.c \
+  src/transpiler/hbtypes.c src/transpiler/hbreftab.c \
+  src/transpiler/hbfunctab.c src/transpiler/ppcomp.c \
   src/transpiler/pcodestubs.c src/transpiler/harboury.c \
   src/compiler/compi18n.c src/compiler/exproptb.c \
   src/compiler/hbdbginf.c \

@@ -350,7 +350,14 @@ extern void         hb_astEndWithObject( HB_COMP_DECL );
 /* Type inference (hbtypes.c) */
 extern const char * hb_astInferType( const char * szName, PHB_EXPR pInit );
 extern const char * hb_astInferTypeFromInit( const char * szName, const char * szInit );
-extern const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList );
+/* The third argument is an opaque pointer to the active user-function
+   signature table (PHB_REFTAB from hbreftab.h). It is consulted to
+   resolve return types for calls to user-defined functions defined in
+   other files. Pass NULL if no table is available; the type-inference
+   pass will simply fall back to "unknown" for cross-file calls. */
+extern const char * hb_astPropagate( PHB_AST_NODE pBody,
+                                     PHB_AST_NODE pClassList,
+                                     void * pRefTab );
 
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
@@ -363,6 +370,10 @@ extern void         hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName );
 /* === C# output (gencsharp.c) === */
 
 extern void         hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName );
+
+/* === Scan-only mode (genscan.c) — populate the user-function table === */
+
+extern void         hb_compGenScan( HB_COMP_DECL, PHB_FNAME pFileName );
 
 HB_EXTERN_END
 

@@ -1,7 +1,7 @@
 using System;
 
 // Test 0: Comments (all types), SET COLOR, basic LOCAL assignment
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

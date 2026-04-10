@@ -8,6 +8,14 @@ TRANSPILER="${1:-$ROOTDIR/bin/hbtranspiler}"
 PASS=0
 FAIL=0
 
+# Whole-codebase pre-scan: populate hbreftab.tab with signature
+# information for every test*.prg before any -GT runs. This is what
+# makes cross-file by-ref data available to single-file transpiles
+# (see test19a.prg for the canonical example).
+for f in "$SCRIPTDIR"/test*.prg; do
+   "$TRANSPILER" -I"$ROOTDIR/include" "$f" -GF -q > /dev/null 2>&1
+done
+
 for f in "$SCRIPTDIR"/test*.prg; do
    name=$(basename "$f" .prg)
    "$TRANSPILER" -I"$ROOTDIR/include" "$f" -GT 2>/dev/null

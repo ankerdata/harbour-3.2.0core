@@ -12,7 +12,7 @@ public class MyObj
         return this;
     }
 
-    public object SetValue(decimal nVal)
+    public object SetValue(decimal nVal = default)
     {
         this.nValue = nVal;
         HbRuntime.QOut("nValue=" + HbRuntime.Str(this.nValue));
@@ -20,7 +20,7 @@ public class MyObj
     }
 }
 
-public static class Program
+public static partial class Program
 {
     static decimal nCounter = 0;
     public static void Main(string[] args)

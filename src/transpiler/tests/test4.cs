@@ -1,7 +1,7 @@
 using System;
 
 // Test 4: SWITCH/CASE/OTHERWISE/EXIT
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

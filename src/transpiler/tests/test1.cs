@@ -1,7 +1,7 @@
 using System;
 
 // Test 1: PROCEDURE, LOCAL declarations, simple arithmetic
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

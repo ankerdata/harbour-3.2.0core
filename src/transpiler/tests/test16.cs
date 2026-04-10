@@ -1,7 +1,7 @@
 using System;
 
 // Test 16: STATIC, PUBLIC, and PRIVATE declarations with type inference
-public static class Program
+public static partial class Program
 {
     static decimal nCount = 0;
     static string cLabel = "count";

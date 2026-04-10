@@ -29,8 +29,14 @@ public static class HbRuntime
 
     // ---- Numeric functions ----
 
-    public static string Str(decimal n, int nWidth = 10, int nDec = -1)
+    public static string Str(decimal? nOrNull, int nWidth = 10, int nDec = -1)
     {
+        // Accepts nullable decimals so transpiled code can pass parameters
+        // marked nilable in the by-ref table without an explicit cast.
+        // NIL in the source becomes null here, which we render as "".
+        if (nOrNull is null)
+            return "".PadLeft(nWidth);
+        decimal n = nOrNull.Value;
         string s;
         if (nDec >= 0)
             s = n.ToString("F" + nDec, INV);

@@ -11,17 +11,107 @@
 
 #include "hbcomp.h"
 #include "hbast.h"
+#include "hbreftab.h"
+#include "hbfunctab.h"
 
 /* Forward declarations */
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
+static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
 
 /* Track last source line for blank line preservation */
 static int s_iLastLine = 0;
 static PHB_AST_NODE s_pClassList = NULL;
 static HB_BOOL s_fVoidFunc = HB_FALSE;  /* suppress return expr in void functions */
 static PHB_EXPR s_pWithObject = NULL;   /* current WITH OBJECT expression */
+static PHB_REFTAB s_pRefTab = NULL;     /* by-ref parameter table for current run */
+
+/* Emit the argument list of a function or method call.
+
+   pParms is typically an HB_ET_LIST/HB_ET_ARGLIST whose pExprList holds
+   the args. Three jobs:
+
+   1. HB_ET_VARREF items get prefixed with `ref ` to match the
+      ref-marked parameter declaration.
+
+   2. Trailing HB_ET_NONE slots (Harbour's empty-arg sentinel) are
+      dropped entirely — the C# default values on the target function
+      fill them in.
+
+   3. Middle HB_ET_NONE slots — the Fred(x, , z) case — force a
+      switch to C# named-argument syntax from that point onwards, so
+      we emit Fred(x, c: z). We look up parameter names from the
+      signature table via szFunc. If szFunc is NULL or the function
+      isn't in the table, we fall back to emitting `default` for the
+      missing slot (safe but less pretty).
+*/
+static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc )
+{
+   PHB_EXPR pHead;
+   PHB_EXPR pItem;
+   int      nLastReal = -1;
+   int      iPos;
+   HB_BOOL  fFirst = HB_TRUE;
+   HB_BOOL  fNamed = HB_FALSE;
+
+   if( ! pParms )
+      return;
+
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pHead = pParms->value.asList.pExprList;
+   else
+      pHead = pParms;
+
+   /* Pass 1: find the last index that holds a real (non-HB_ET_NONE)
+      argument. Everything past that is a trailing default and gets
+      dropped. */
+   for( pItem = pHead, iPos = 0; pItem; pItem = pItem->pNext, iPos++ )
+   {
+      if( pItem->ExprType != HB_ET_NONE )
+         nLastReal = iPos;
+   }
+
+   if( nLastReal < 0 )
+      return;   /* empty arg list or all HB_ET_NONE */
+
+   /* Pass 2: walk [0 .. nLastReal] and emit each slot. On the first
+      HB_ET_NONE we hit before nLastReal, flip into named-arg mode for
+      every subsequent non-NONE slot. */
+   for( pItem = pHead, iPos = 0; pItem && iPos <= nLastReal;
+        pItem = pItem->pNext, iPos++ )
+   {
+      if( pItem->ExprType == HB_ET_NONE )
+      {
+         /* A gap. The next real slot will emit in named form. */
+         fNamed = HB_TRUE;
+         continue;
+      }
+
+      if( ! fFirst )
+         fprintf( yyc, ", " );
+      fFirst = HB_FALSE;
+
+      if( fNamed )
+      {
+         const HB_REFPARAM * pP = szFunc
+            ? hb_refTabParam( s_pRefTab, szFunc, iPos )
+            : NULL;
+         if( pP && pP->szName && pP->szName[ 0 ] )
+            fprintf( yyc, "%s: ", pP->szName );
+         /* If we can't find the name, the emission falls back to
+            positional — which is only correct if there are no more
+            gaps after this one. We accept the risk: unknown functions
+            aren't in the table. */
+      }
+
+      if( pItem->ExprType == HB_ET_VARREF )
+         fprintf( yyc, "ref " );
+      hb_csEmitExpr( pItem, yyc, HB_FALSE );
+   }
+}
 
 /* ---- Type mapping ---- */
 
@@ -162,44 +252,27 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
    }
 }
 
-/* Known Harbour builtin function names — these map to HbRuntime.Name() */
-static const char * s_szBuiltins[] = {
-   "QOUT", "QQOUT", "SETCOLOR",
-   "STR", "VAL", "INT", "ROUND", "ABS", "MAX", "MIN", "MOD", "SQRT", "LOG", "EXP",
-   "LEN", "UPPER", "LOWER", "TRIM", "RTRIM", "LTRIM", "ALLTRIM",
-   "SUBSTR", "LEFT", "RIGHT", "SPACE", "REPLICATE", "CHR", "ASC",
-   "AT", "RAT", "PADL", "PADR", "PADC",
-   "STRTRAN", "STUFF", "TRANSFORM", "STRZERO",
-   "EMPTY", "FILE", "ISDIGIT", "ISALPHA", "ISUPPER", "ISLOWER",
-   "DATE", "CTOD", "STOD", "DTOC", "DTOS", "TIME",
-   NULL
-};
-
-/* Check if a function name is a known Harbour builtin */
-static HB_BOOL hb_csIsBuiltin( const char * szName )
-{
-   int i;
-   for( i = 0; s_szBuiltins[ i ]; i++ )
-   {
-      if( hb_stricmp( szName, s_szBuiltins[ i ] ) == 0 )
-         return HB_TRUE;
-   }
-   return HB_FALSE;
-}
-
-/* Map a function name: builtins → HbRuntime.Name, others → unchanged */
+/* Map a function name to its remapped form, e.g. STR → HbRuntime.STR.
+   The prefix is looked up in hbfuncs.tab (see include/hbfunctab.h).
+   Functions with no prefix entry are returned unchanged. */
 static const char * hb_csFuncMap( const char * szName )
 {
    static char s_szBuf[ 128 ];
-   if( hb_csIsBuiltin( szName ) )
+   const char * szPrefix = hb_funcTabPrefix( szName );
+   if( szPrefix )
    {
-      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "HbRuntime.%s", szName );
+      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szName );
       return s_szBuf;
    }
    return szName;
 }
 
-/* Check if a name matches a known class in s_pClassList */
+/* Check if a name matches a known class. We check two sources:
+     1. s_pClassList — classes defined in the file currently being
+        emitted (the local AST class list)
+     2. s_pRefTab    — classes recorded by the cross-file scan
+                       (-GF), so ClassName():New() patterns work even
+                       when ClassName is defined in another file */
 static HB_BOOL hb_csIsClassName( const char * szName )
 {
    PHB_AST_NODE pStmt = s_pClassList;
@@ -210,6 +283,8 @@ static HB_BOOL hb_csIsClassName( const char * szName )
          return HB_TRUE;
       pStmt = pStmt->pNext;
    }
+   if( hb_refTabIsClass( s_pRefTab, szName ) )
+      return HB_TRUE;
    return HB_FALSE;
 }
 
@@ -332,8 +407,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             else
                hb_csEmitExpr( pExpr->value.asFunCall.pFunName, yyc, HB_FALSE );
             fprintf( yyc, "(" );
-            if( pExpr->value.asFunCall.pParms )
-               hb_csEmitExpr( pExpr->value.asFunCall.pParms, yyc, HB_FALSE );
+            hb_csEmitCallArgs( szName, pExpr->value.asFunCall.pParms, yyc );
             fprintf( yyc, ")" );
          }
          break;
@@ -373,7 +447,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      /* Cast needed: New()/Init() returns object */
                      fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor,
                               pExpr->value.asMessage.szMessage );
-                     hb_csEmitExpr( pArgs, yyc, HB_FALSE );
+                     hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
+                                        pArgs, yyc );
                      fprintf( yyc, ")" );
                   }
                   else
@@ -406,7 +481,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          if( pExpr->value.asMessage.pParms )
          {
             fprintf( yyc, "(" );
-            hb_csEmitExpr( pExpr->value.asMessage.pParms, yyc, HB_FALSE );
+            hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
+                               pExpr->value.asMessage.pParms, yyc );
             fprintf( yyc, ")" );
          }
          break;
@@ -1359,7 +1435,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab );
 
    /* Get CLASSMETHOD marker */
    if( pFunc->value.asFunc.pBody &&
@@ -1389,15 +1465,55 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Parameters */
    pVar = pFunc->value.asFunc.pParams;
-   while( pVar && nParam < pCompFunc->wParamCount )
    {
-      if( nParam > 0 )
-         fprintf( yyc, ", " );
-      fprintf( yyc, "%s %s",
-               hb_csTypeMap( hb_astInferType( pVar->szName, NULL ) ),
-               pVar->szName );
-      nParam++;
-      pVar = pVar->pNext;
+      /* Method entries in the table are keyed Class::Method, so build
+         that key from the CLASSMETHOD marker before any lookups. */
+      const char * szClassName =
+         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
+            ? pFirstStmt->value.asClassMethod.szClass
+            : NULL;
+      char szKeyBuf[ 256 ];
+      const char * szMethName = hb_refTabMethodKey(
+         szClassName, pFunc->value.asFunc.szName );
+      hb_strncpy( szKeyBuf, szMethName, sizeof( szKeyBuf ) - 1 );
+      szMethName = szKeyBuf;
+
+      {
+         int iPos = 0;
+         int iLastRef = -1;
+         int k;
+
+         for( k = 0; k < ( int ) pCompFunc->wParamCount; k++ )
+            if( hb_refTabIsRef( s_pRefTab, szMethName, k ) )
+               iLastRef = k;
+
+         while( pVar && nParam < pCompFunc->wParamCount )
+         {
+            HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szMethName, iPos );
+            HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szMethName, iPos );
+            const HB_REFPARAM * pP =
+               hb_refTabParam( s_pRefTab, szMethName, iPos );
+            const char * szSlotType = NULL;
+            if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+               szSlotType = pP->szType;
+            if( ! szSlotType )
+               szSlotType = hb_astInferType( pVar->szName, NULL );
+
+            if( nParam > 0 )
+               fprintf( yyc, ", " );
+            if( fThisRef )
+               fprintf( yyc, "ref " );
+            fprintf( yyc, "%s%s %s",
+                     hb_csTypeMap( szSlotType ),
+                     fThisNilable ? "?" : "",
+                     pVar->szName );
+            if( ! fThisRef && iPos > iLastRef )
+               fprintf( yyc, fThisNilable ? " = null" : " = default" );
+            nParam++;
+            iPos++;
+            pVar = pVar->pNext;
+         }
+      }
    }
    fprintf( yyc, ")\n" );
 
@@ -1599,7 +1715,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab );
 
    /* Detect Main entry point */
    if( hb_stricmp( pFunc->value.asFunc.szName, "Main" ) == 0 )
@@ -1638,15 +1754,59 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    }
 
    pVar = pFunc->value.asFunc.pParams;
-   while( pVar && nParam < pCompFunc->wParamCount )
    {
-      if( nParam > 0 || fIsMain )
-         fprintf( yyc, ", " );
-      fprintf( yyc, "%s %s",
-               hb_csTypeMap( hb_astInferType( pVar->szName, NULL ) ),
-               pVar->szName );
-      nParam++;
-      pVar = pVar->pNext;
+      /* Main is an entry point — no defaults. For everything else,
+         all parameters after the last ref-marked one get `= default`,
+         so callers can omit trailing args. Ref params can't carry
+         defaults (C# rule), which is why we use "after the last ref"
+         as the cutoff for the optional tail. */
+      const char * szFnName = fIsMain ? "Main" : pFunc->value.asFunc.szName;
+      int iPos = 0;
+      int iLastRef = -1;
+      HB_BOOL fWantDefaults = ! fIsMain;
+
+      if( fWantDefaults )
+      {
+         int k;
+         for( k = 0; k < ( int ) pCompFunc->wParamCount; k++ )
+            if( hb_refTabIsRef( s_pRefTab, szFnName, k ) )
+               iLastRef = k;
+      }
+
+      while( pVar && nParam < pCompFunc->wParamCount )
+      {
+         HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szFnName, iPos );
+         HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szFnName, iPos );
+         /* Prefer the table's per-slot type (which may have been
+            refined from call sites in other files); only fall back to
+            Hungarian inference if the table has nothing useful. */
+         const HB_REFPARAM * pP =
+            hb_refTabParam( s_pRefTab, szFnName, iPos );
+         const char * szSlotType = NULL;
+         if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+            szSlotType = pP->szType;
+         if( ! szSlotType )
+            szSlotType = hb_astInferType( pVar->szName, NULL );
+
+         if( nParam > 0 || fIsMain )
+            fprintf( yyc, ", " );
+         if( fThisRef )
+            fprintf( yyc, "ref " );
+         fprintf( yyc, "%s%s %s",
+                  hb_csTypeMap( szSlotType ),
+                  fThisNilable ? "?" : "",
+                  pVar->szName );
+         if( fWantDefaults && ! fThisRef && iPos > iLastRef )
+         {
+            /* Nilable params default to null (preserves Harbour NIL
+               semantics); non-nilable strongly-typed params get the
+               value-type zero via `default`. */
+            fprintf( yyc, fThisNilable ? " = null" : " = default" );
+         }
+         nParam++;
+         iPos++;
+         pVar = pVar->pNext;
+      }
    }
    fprintf( yyc, ")\n" );
 
@@ -1693,6 +1853,16 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    }
 
    s_iLastLine = 0;
+
+   /* Build the user-function signature table. We first merge in any
+      pre-scanned table from disk (the result of `hbtranspiler -GF`
+      run over the whole codebase) so that cross-file call-site
+      information is visible. Then we scan this file's own AST to
+      pick up anything new, and any stale-on-disk entries for
+      functions defined in this file get overwritten. */
+   s_pRefTab = hb_refTabNew();
+   hb_refTabLoad( s_pRefTab, HB_REFTAB_PATH );
+   hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
 
    /* Collect CLASS nodes from startup function */
    s_pClassList = NULL;
@@ -1813,7 +1983,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    {
       PHB_HFUNC pCompFunc = HB_COMP_PARAM->functions.pFirst;
 
-      fprintf( yyc, "public static class Program\n{\n" );
+      /* Marked `partial` so multi-file projects (e.g. test19a + test19b)
+         can have their separate Program definitions merged into one
+         class at the C# build step. Single-file projects are unaffected. */
+      fprintf( yyc, "public static partial class Program\n{\n" );
       s_iLastLine = 0;
 
       /* Emit #define constants as static const members */
@@ -1904,6 +2077,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
 
    /* Cleanup */
    hb_csFreeClasses( pClassList );
+   hb_refTabFree( s_pRefTab );
+   s_pRefTab = NULL;
    fclose( yyc );
 
    if( ! HB_COMP_PARAM->fQuiet )

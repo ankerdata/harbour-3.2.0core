@@ -1,7 +1,7 @@
 using System;
 
 // Test 8: All comment types with code interspersed
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {
@@ -14,7 +14,7 @@ public static class Program
         decimal y = 10;
 
         // Star comment at start of line
-        dynamic z = x + y;
+        decimal z = x + y;
 
         // Old-style comment keyword
 

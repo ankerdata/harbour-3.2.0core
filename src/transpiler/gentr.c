@@ -11,15 +11,43 @@
 
 #include "hbcomp.h"
 #include "hbast.h"
+#include "hbreftab.h"
 
 /* Forward declarations */
 static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_astEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
+static void hb_astEmitCallArgs( PHB_EXPR pParms, FILE * yyc );
+
+/* Returns szType if it is a standard Harbour type tag that
+   include/astype.ch knows how to strip; returns NULL otherwise.
+   Class names (and any other unknown tag) get filtered to NULL so
+   the .hb emitter doesn't write `AS Calculator` which stock Harbour
+   would reject as a syntax error. */
+static const char * hb_astStandardType( const char * szType )
+{
+   if( ! szType )
+      return NULL;
+   if( hb_stricmp( szType, "INTEGER"   ) == 0 ||
+       hb_stricmp( szType, "DECIMAL"   ) == 0 ||
+       hb_stricmp( szType, "STRING"    ) == 0 ||
+       hb_stricmp( szType, "LOGICAL"   ) == 0 ||
+       hb_stricmp( szType, "NUMERIC"   ) == 0 ||
+       hb_stricmp( szType, "ARRAY"     ) == 0 ||
+       hb_stricmp( szType, "HASH"      ) == 0 ||
+       hb_stricmp( szType, "BLOCK"     ) == 0 ||
+       hb_stricmp( szType, "OBJECT"    ) == 0 ||
+       hb_stricmp( szType, "DATE"      ) == 0 ||
+       hb_stricmp( szType, "TIMESTAMP" ) == 0 ||
+       hb_stricmp( szType, "USUAL"     ) == 0 )
+      return szType;
+   return NULL;
+}
 
 /* Track last seen source line for blank line preservation */
 static int s_iLastLine = 0;
 static PHB_AST_NODE s_pClassList = NULL;
+static PHB_REFTAB s_pRefTab = NULL;
 
 /* Emit a single blank line if there's a gap in source line numbers,
    indicating the source had one or more blank/comment lines between statements */
@@ -68,6 +96,47 @@ static const char * hb_astOperatorStr( HB_EXPRTYPE type )
       case HB_EO_OR:      return " .OR. ";
       case HB_EO_IN:      return " $ ";
       default:            return " ??? ";
+   }
+}
+
+/* Emit a function/method call argument list. Each HB_ET_VARREF item
+   is prefixed with `@` so the by-ref intent at the call site survives
+   the round-trip. (HB_ET_REFERENCE — `@arr[i]` etc. — already gets its
+   `@` from the generic expression emitter.) */
+static void hb_astEmitCallArgs( PHB_EXPR pParms, FILE * yyc )
+{
+   PHB_EXPR pItem;
+   HB_BOOL  fFirst = HB_TRUE;
+
+   if( ! pParms )
+      return;
+
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pItem = pParms->value.asList.pExprList;
+   else
+      pItem = pParms;
+
+   while( pItem )
+   {
+      if( ! fFirst )
+         fprintf( yyc, ", " );
+      fFirst = HB_FALSE;
+
+      /* HB_ET_NONE is Harbour's empty-slot sentinel, e.g. Fred(x, , z).
+         Round-tripping demands we preserve the gap, so we just emit
+         nothing and let the comma separators do the work. */
+      if( pItem->ExprType == HB_ET_NONE )
+      {
+         pItem = pItem->pNext;
+         continue;
+      }
+
+      if( pItem->ExprType == HB_ET_VARREF )
+         fprintf( yyc, "@" );
+      hb_astEmitExpr( pItem, yyc, HB_FALSE );
+      pItem = pItem->pNext;
    }
 }
 
@@ -155,8 +224,7 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_FUNCALL:
          hb_astEmitExpr( pExpr->value.asFunCall.pFunName, yyc, HB_FALSE );
          fprintf( yyc, "(" );
-         if( pExpr->value.asFunCall.pParms )
-            hb_astEmitExpr( pExpr->value.asFunCall.pParms, yyc, HB_FALSE );
+         hb_astEmitCallArgs( pExpr->value.asFunCall.pParms, yyc );
          fprintf( yyc, ")" );
          break;
 
@@ -184,7 +252,7 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          if( pExpr->value.asMessage.pParms )
          {
             fprintf( yyc, "(" );
-            hb_astEmitExpr( pExpr->value.asMessage.pParms, yyc, HB_FALSE );
+            hb_astEmitCallArgs( pExpr->value.asMessage.pParms, yyc );
             fprintf( yyc, ")" );
          }
          break;
@@ -492,12 +560,18 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             fprintf( yyc, " := " );
             hb_astEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
          }
-         /* Use propagated type if available, otherwise infer */
-         if( pNode->value.asVar.szAlias )
-            fprintf( yyc, " AS %s", pNode->value.asVar.szAlias );
-         else
-            fprintf( yyc, " AS %s", hb_astInferType( pNode->value.asVar.szName,
-                                                      pNode->value.asVar.pInit ) );
+         /* Use propagated type if available, otherwise infer.
+            Class names get filtered out — astype.ch only knows how
+            to strip the standard type tags. */
+         {
+            const char * szT =
+               pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias
+                                          : hb_astInferType( pNode->value.asVar.szName,
+                                                             pNode->value.asVar.pInit );
+            szT = hb_astStandardType( szT );
+            if( szT )
+               fprintf( yyc, " AS %s", szT );
+         }
          fprintf( yyc, "\n" );
          break;
 
@@ -519,11 +593,15 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             fprintf( yyc, " := " );
             hb_astEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
          }
-         if( pNode->value.asVar.szAlias )
-            fprintf( yyc, " AS %s", pNode->value.asVar.szAlias );
-         else
-            fprintf( yyc, " AS %s", hb_astInferType( pNode->value.asVar.szName,
-                                                      pNode->value.asVar.pInit ) );
+         {
+            const char * szT =
+               pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias
+                                          : hb_astInferType( pNode->value.asVar.szName,
+                                                             pNode->value.asVar.pInit );
+            szT = hb_astStandardType( szT );
+            if( szT )
+               fprintf( yyc, " AS %s", szT );
+         }
          fprintf( yyc, "\n" );
          break;
 
@@ -896,7 +974,7 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
 
    /* Run type propagation before emitting */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab );
 
    /* Emit blank line if there's a gap from previous output */
    if( pFunc->iLine > 0 && s_iLastLine > 0 && pFunc->iLine > s_iLastLine + 1 )
@@ -929,18 +1007,64 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
       else
          fprintf( yyc, "FUNCTION %s(", pFunc->value.asFunc.szName );
 
-      /* Emit parameters with inferred types */
+      /* Emit parameters with inferred types. Harbour's grammar has no
+         syntax for declaring a by-ref parameter in a FUNCTION/PROCEDURE
+         signature (by-ref is purely a call-site notion in the language),
+         so we tag by-ref slots with the user's existing block-comment
+         marker placed immediately before the parameter name — Harbour
+         harmlessly ignores it as a comment, and downstream tools can
+         scan for the literal sequence. */
       pVar = pFunc->value.asFunc.pParams;
-      while( pVar && nParam < pCompFunc->wParamCount )
       {
-         if( nParam > 0 )
-            fprintf( yyc, ", " );
-         else
-            fprintf( yyc, " " );
-         fprintf( yyc, "%s AS %s", pVar->szName,
-                  hb_astInferType( pVar->szName, NULL ) );
-         nParam++;
-         pVar = pVar->pNext;
+         /* Methods are keyed Class::Method in the table; use the
+            method-key helper to consult the right entry. */
+         char szKeyBuf[ 256 ];
+         const char * szFnName = hb_refTabMethodKey(
+            szClassName, pFunc->value.asFunc.szName );
+         hb_strncpy( szKeyBuf, szFnName, sizeof( szKeyBuf ) - 1 );
+         szFnName = szKeyBuf;
+         {
+            int iPos = 0;
+            while( pVar && nParam < pCompFunc->wParamCount )
+            {
+               HB_BOOL fByRef = hb_refTabIsRef( s_pRefTab, szFnName, iPos );
+               /* Prefer the table's refined type (which may reflect
+                  cross-file call-site analysis) over bare Hungarian
+                  inference — keeps the .hb annotations in lockstep with
+                  the -GS output. */
+               const HB_REFPARAM * pP =
+                  hb_refTabParam( s_pRefTab, szFnName, iPos );
+               const char * szSlotType = NULL;
+               if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+                  szSlotType = pP->szType;
+               if( ! szSlotType )
+                  szSlotType = hb_astInferType( pVar->szName, NULL );
+
+               if( nParam > 0 )
+                  fprintf( yyc, ", " );
+               else
+                  fprintf( yyc, " " );
+               {
+                  /* Filter class names: astype.ch only knows the
+                     standard tags. Class-typed parameters degrade to
+                     untyped in the .hb but stay strongly typed in
+                     the .cs because the C# emitter has its own path. */
+                  const char * szT = hb_astStandardType( szSlotType );
+                  if( szT )
+                     fprintf( yyc, "%s%s AS %s",
+                              fByRef ? "/*@*/" : "",
+                              pVar->szName,
+                              szT );
+                  else
+                     fprintf( yyc, "%s%s",
+                              fByRef ? "/*@*/" : "",
+                              pVar->szName );
+               }
+               nParam++;
+               iPos++;
+               pVar = pVar->pNext;
+            }
+         }
       }
       if( nParam > 0 )
          fprintf( yyc, " " );
@@ -948,10 +1072,18 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
 
       /* Emit return type for FUNCTIONs and METHODs (not PROCEDUREs) */
       if( szRetType && ! pFunc->value.asFunc.fProcedure )
-         fprintf( yyc, " AS %s", szRetType );
+      {
+         const char * szT = hb_astStandardType( szRetType );
+         if( szT )
+            fprintf( yyc, " AS %s", szT );
+      }
       else if( szRetType && szClassName &&
                pFirstStmt && ! pFirstStmt->value.asClassMethod.fProcedure )
-         fprintf( yyc, " AS %s", szRetType );
+      {
+         const char * szT = hb_astStandardType( szRetType );
+         if( szT )
+            fprintf( yyc, " AS %s", szT );
+      }
 
       if( szClassName )
          fprintf( yyc, " CLASS %s", szClassName );
@@ -1011,6 +1143,14 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
 
    fprintf( yyc, "#include \"astype.ch\"\n" );
    s_iLastLine = 0;
+
+   /* Build the user-function signature table. Merge in any pre-scanned
+      table from disk first so cross-file by-ref usage is visible, then
+      scan this file's own AST. */
+   s_pRefTab = hb_refTabNew();
+   hb_refTabLoad( s_pRefTab, HB_REFTAB_PATH );
+   hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
+
    /* Find CLASS nodes in the startup function's body for type propagation */
    s_pClassList = NULL;
    {
@@ -1067,6 +1207,8 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
       }
    }
 
+   hb_refTabFree( s_pRefTab );
+   s_pRefTab = NULL;
    fclose( yyc );
 
    if( ! HB_COMP_PARAM->fQuiet )

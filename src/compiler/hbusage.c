@@ -271,7 +271,7 @@ void hb_compPrintLogo( HB_COMP_DECL )
    hb_compOutStd( HB_COMP_PARAM,
       "Copyright (c) 1999-" HB_VER_COMMIT_YEAR ", " HB_VER_ORIGIN_URL "\n" );
    hb_compOutStd( HB_COMP_PARAM,
-      "Transpiler output: -GT (Harbour)  -GS (C#)\n" );
+      "Transpiler output: -GT (Harbour)  -GS (C#)  -GF (scan only)\n" );
 #else
    hb_compOutStd( HB_COMP_PARAM, szVer );
    hb_compOutStd( HB_COMP_PARAM,

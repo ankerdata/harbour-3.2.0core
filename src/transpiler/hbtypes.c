@@ -13,6 +13,8 @@
 
 #include "hbcomp.h"
 #include "hbast.h"
+#include "hbfunctab.h"
+#include "hbreftab.h"
 
 /*
  * Infer type from an initializer expression.
@@ -208,12 +210,14 @@ typedef struct
 typedef struct
 {
    HB_TYPEENV_ENTRY entries[ HB_TYPEENV_MAX ];
-   int count;
+   int        count;
+   PHB_REFTAB pRefTab;          /* active user-function table, or NULL */
 } HB_TYPEENV;
 
-static void hb_typeEnvInit( HB_TYPEENV * pEnv )
+static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab )
 {
-   pEnv->count = 0;
+   pEnv->count   = 0;
+   pEnv->pRefTab = pRefTab;
 }
 
 static void hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
@@ -284,6 +288,23 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          }
 
       case HB_ET_SEND:
+         /* Constructor pattern: ClassName():New() / ClassName():Init() →
+            return the class name as the inferred type so subsequent
+            uses of the resulting variable can be method-resolved
+            against the right class. */
+         if( pExpr->value.asMessage.szMessage &&
+             pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_FUNCALL )
+         {
+            PHB_EXPR pCall = pExpr->value.asMessage.pObject;
+            const char * szMsg = pExpr->value.asMessage.szMessage;
+            if( pCall->value.asFunCall.pFunName &&
+                pCall->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+                ( hb_stricmp( szMsg, "NEW" ) == 0 ||
+                  hb_stricmp( szMsg, "INIT" ) == 0 ) )
+               return pCall->value.asFunCall.pFunName->value.asSymbol.name;
+         }
+
          /* SELF:member — check type environment first (for class DATA types),
             then fall back to Hungarian prefix */
          if( pExpr->value.asMessage.szMessage )
@@ -321,31 +342,35 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          return NULL;
       }
 
-      case HB_EO_MINUS:
       case HB_EO_MULT:
       case HB_EO_DIV:
       case HB_EO_MOD:
       case HB_EO_POWER:
+         /* These four operators are arithmetic-only in Harbour: there
+            is no other meaning. The result is always NUMERIC, even when
+            one or both operand types haven't been inferred yet. This
+            is what lets `n * 2` infer NUMERIC for an untyped parameter
+            `n` — the operator itself constrains the result. */
+         return "NUMERIC";
+
+      case HB_EO_MINUS:
       {
-         /* Arithmetic operators: infer from operands */
+         /* MINUS is polymorphic between NUMERIC and DATE-DATE. If we
+            don't know either operand, we still know the result is one
+            of those — but for type-mapping purposes that's not useful.
+            Default to NUMERIC since DATE-DATE is rare in practice. */
          const char * szLeft = hb_astInferExprType(
             pExpr->value.asOperator.pLeft, pEnv );
          const char * szRight = hb_astInferExprType(
             pExpr->value.asOperator.pRight, pEnv );
 
-         if( ! szLeft || ! szRight )
-            return NULL;
-
-         /* DATE - DATE = NUMERIC (number of days) */
-         if( pExpr->ExprType == HB_EO_MINUS &&
+         if( szLeft && szRight &&
              strcmp( szLeft, "DATE" ) == 0 && strcmp( szRight, "DATE" ) == 0 )
-            return "NUMERIC";
+            return "NUMERIC";  /* DATE - DATE = days */
 
-         /* NUMERIC op NUMERIC = NUMERIC */
-         if( strcmp( szLeft, "NUMERIC" ) == 0 && strcmp( szRight, "NUMERIC" ) == 0 )
-            return "NUMERIC";
-
-         return NULL;
+         /* All other minus uses (DATE - NUMERIC, NUMERIC - NUMERIC,
+            NUMERIC - unknown, unknown - unknown) → NUMERIC. */
+         return "NUMERIC";
       }
 
       case HB_EO_EQUAL:
@@ -387,71 +412,19 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          return hb_astInferExprType( pExpr->value.asOperator.pLeft, pEnv );
 
       case HB_ET_FUNCALL:
-         /* Infer return types for well-known Harbour functions */
+         /* Infer return types for known functions:
+              1. stdlib   — hbfuncs.tab knowledge file
+              2. user     — hbreftab.tab (cross-file pre-scan output) */
          if( pExpr->value.asFunCall.pFunName &&
              pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
          {
-            const char * szFunc = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
-            /* Functions returning STRING */
-            if( hb_stricmp( szFunc, "STR" ) == 0 ||
-                hb_stricmp( szFunc, "UPPER" ) == 0 ||
-                hb_stricmp( szFunc, "LOWER" ) == 0 ||
-                hb_stricmp( szFunc, "TRIM" ) == 0 ||
-                hb_stricmp( szFunc, "RTRIM" ) == 0 ||
-                hb_stricmp( szFunc, "LTRIM" ) == 0 ||
-                hb_stricmp( szFunc, "ALLTRIM" ) == 0 ||
-                hb_stricmp( szFunc, "SUBSTR" ) == 0 ||
-                hb_stricmp( szFunc, "LEFT" ) == 0 ||
-                hb_stricmp( szFunc, "RIGHT" ) == 0 ||
-                hb_stricmp( szFunc, "PADC" ) == 0 ||
-                hb_stricmp( szFunc, "PADL" ) == 0 ||
-                hb_stricmp( szFunc, "PADR" ) == 0 ||
-                hb_stricmp( szFunc, "SPACE" ) == 0 ||
-                hb_stricmp( szFunc, "REPLICATE" ) == 0 ||
-                hb_stricmp( szFunc, "STRTRAN" ) == 0 ||
-                hb_stricmp( szFunc, "STUFF" ) == 0 ||
-                hb_stricmp( szFunc, "CHR" ) == 0 ||
-                hb_stricmp( szFunc, "DTOC" ) == 0 ||
-                hb_stricmp( szFunc, "DTOS" ) == 0 ||
-                hb_stricmp( szFunc, "TIME" ) == 0 ||
-                hb_stricmp( szFunc, "TRANSFORM" ) == 0 ||
-                hb_stricmp( szFunc, "STRZERO" ) == 0 )
-               return "STRING";
-            /* Functions returning NUMERIC */
-            if( hb_stricmp( szFunc, "LEN" ) == 0 ||
-                hb_stricmp( szFunc, "VAL" ) == 0 ||
-                hb_stricmp( szFunc, "ASC" ) == 0 ||
-                hb_stricmp( szFunc, "AT" ) == 0 ||
-                hb_stricmp( szFunc, "RAT" ) == 0 ||
-                hb_stricmp( szFunc, "INT" ) == 0 ||
-                hb_stricmp( szFunc, "ROUND" ) == 0 ||
-                hb_stricmp( szFunc, "ABS" ) == 0 ||
-                hb_stricmp( szFunc, "MAX" ) == 0 ||
-                hb_stricmp( szFunc, "MIN" ) == 0 ||
-                hb_stricmp( szFunc, "MOD" ) == 0 ||
-                hb_stricmp( szFunc, "SQRT" ) == 0 ||
-                hb_stricmp( szFunc, "LOG" ) == 0 ||
-                hb_stricmp( szFunc, "EXP" ) == 0 )
-               return "NUMERIC";
-            /* Functions returning LOGICAL */
-            if( hb_stricmp( szFunc, "EMPTY" ) == 0 ||
-                hb_stricmp( szFunc, "FILE" ) == 0 ||
-                hb_stricmp( szFunc, "ISDIGIT" ) == 0 ||
-                hb_stricmp( szFunc, "ISALPHA" ) == 0 ||
-                hb_stricmp( szFunc, "ISUPPER" ) == 0 ||
-                hb_stricmp( szFunc, "ISLOWER" ) == 0 )
-               return "LOGICAL";
-            /* Functions returning DATE */
-            if( hb_stricmp( szFunc, "DATE" ) == 0 ||
-                hb_stricmp( szFunc, "CTOD" ) == 0 ||
-                hb_stricmp( szFunc, "STOD" ) == 0 )
-               return "DATE";
-            /* Functions returning ARRAY */
-            if( hb_stricmp( szFunc, "ARRAY" ) == 0 ||
-                hb_stricmp( szFunc, "ACLONE" ) == 0 ||
-                hb_stricmp( szFunc, "ASORT" ) == 0 ||
-                hb_stricmp( szFunc, "DIRECTORY" ) == 0 )
-               return "ARRAY";
+            const char * szFunc =
+               pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+            const char * szRet = hb_funcTabReturnType( szFunc );
+            if( szRet )
+               return szRet;
+            if( pEnv && pEnv->pRefTab )
+               return hb_refTabReturnType( pEnv->pRefTab, szFunc );
          }
          return NULL;
 
@@ -667,6 +640,327 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    }
 }
 
+/* ================================================================
+ * Call-site parameter-type refinement
+ *
+ * After intra-function type propagation has converged, walk the body
+ * one more time looking for FUNCALL/SEND nodes. For each argument
+ * whose type we can now infer, call hb_refTabRefineParamType on the
+ * callee's slot. If that returns HB_REFINE_CONFLICT, emit a one-shot
+ * warning to stderr so the user can investigate.
+ *
+ * Requires the refTab to be present in the env. If pEnv->pRefTab is
+ * NULL (e.g. legacy callers that don't have the table), this pass is
+ * a no-op.
+ * ================================================================ */
+
+static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
+                                 HB_TYPEENV * pEnv, int iLine )
+{
+   PHB_EXPR pArg;
+   int      iPos = 0;
+
+   if( ! szCallee || ! pParms || ! pEnv->pRefTab )
+      return;
+
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pArg = pParms->value.asList.pExprList;
+   else
+      pArg = pParms;
+
+   while( pArg )
+   {
+      if( pArg->ExprType != HB_ET_NONE )
+      {
+         /* Unwrap `@var` at the call site so we infer from the
+            referent, not the reference. */
+         PHB_EXPR pEffective = pArg;
+         if( pArg->ExprType == HB_ET_VARREF )
+            pEffective = pArg;   /* keep as-is, asSymbol.name already works */
+         else if( pArg->ExprType == HB_ET_REFERENCE )
+            pEffective = pArg->value.asReference;
+
+         /* By-ref marking. The scanner handles Self:method and free
+            functions; here we cover the typed-receiver method calls
+            (oCalc:Adjust(@n) and the like) where statically resolving
+            the class needs the type env. */
+         if( pArg->ExprType == HB_ET_VARREF ||
+             pArg->ExprType == HB_ET_REFERENCE )
+            hb_refTabMark( pEnv->pRefTab, szCallee, iPos );
+
+         {
+            const char * szArgType =
+               hb_astInferExprType( pEffective, pEnv );
+            HB_REFINE_RESULT r = hb_refTabRefineParamType(
+               pEnv->pRefTab, szCallee, iPos, szArgType );
+
+            if( r == HB_REFINE_CONFLICT )
+            {
+               /* Look up what the slot was before the conflict —
+                  unfortunately by the time we get the CONFLICT
+                  result the slot has already been downgraded to
+                  USUAL, so we can only report the incoming type
+                  that triggered it. That's still useful. */
+               const HB_REFPARAM * pP =
+                  hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+               const char * szPName = ( pP && pP->szName ) ? pP->szName : "?";
+               if( iLine > 0 )
+                  fprintf( stderr,
+                     "hbtranspiler: warning: line %d: call site passes %s "
+                     "for parameter '%s:%s' but earlier sites had a "
+                     "different type — downgrading to USUAL\n",
+                     iLine, szArgType ? szArgType : "?",
+                     szCallee, szPName );
+               else
+                  fprintf( stderr,
+                     "hbtranspiler: warning: call site passes %s for "
+                     "parameter '%s:%s' but earlier sites had a "
+                     "different type — downgrading to USUAL\n",
+                     szArgType ? szArgType : "?",
+                     szCallee, szPName );
+            }
+         }
+      }
+      pArg = pArg->pNext;
+      iPos++;
+   }
+}
+
+static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine );
+
+static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pNode || pNode->type != HB_AST_BLOCK )
+      return;
+
+   pStmt = pNode->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      int iLine = pStmt->iLine;
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            hb_astRefineExpr( pStmt->value.asExprStmt.pExpr, pEnv, iLine );
+            break;
+         case HB_AST_RETURN:
+            hb_astRefineExpr( pStmt->value.asReturn.pExpr, pEnv, iLine );
+            break;
+         case HB_AST_QOUT:
+         case HB_AST_QQOUT:
+            hb_astRefineExpr( pStmt->value.asQOut.pExprList, pEnv, iLine );
+            break;
+         case HB_AST_IF:
+            hb_astRefineExpr( pStmt->value.asIf.pCondition, pEnv, iLine );
+            hb_astRefineBlock( pStmt->value.asIf.pThen, pEnv );
+            {
+               PHB_AST_NODE p = pStmt->value.asIf.pElseIfs;
+               while( p )
+               {
+                  hb_astRefineExpr( p->value.asElseIf.pCondition, pEnv, p->iLine );
+                  hb_astRefineBlock( p->value.asElseIf.pBody, pEnv );
+                  p = p->pNext;
+               }
+            }
+            hb_astRefineBlock( pStmt->value.asIf.pElse, pEnv );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astRefineExpr( pStmt->value.asWhile.pCondition, pEnv, iLine );
+            hb_astRefineBlock( pStmt->value.asWhile.pBody, pEnv );
+            break;
+         case HB_AST_FOR:
+            hb_astRefineExpr( pStmt->value.asFor.pStart, pEnv, iLine );
+            hb_astRefineExpr( pStmt->value.asFor.pEnd,   pEnv, iLine );
+            hb_astRefineExpr( pStmt->value.asFor.pStep,  pEnv, iLine );
+            hb_astRefineBlock( pStmt->value.asFor.pBody, pEnv );
+            break;
+         case HB_AST_FOREACH:
+            hb_astRefineExpr( pStmt->value.asForEach.pEnum, pEnv, iLine );
+            hb_astRefineBlock( pStmt->value.asForEach.pBody, pEnv );
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE p = pStmt->value.asDoCase.pCases;
+            while( p )
+            {
+               hb_astRefineExpr( p->value.asCase.pCondition, pEnv, p->iLine );
+               hb_astRefineBlock( p->value.asCase.pBody, pEnv );
+               p = p->pNext;
+            }
+            hb_astRefineBlock( pStmt->value.asDoCase.pOtherwise, pEnv );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE p = pStmt->value.asSwitch.pCases;
+            hb_astRefineExpr( pStmt->value.asSwitch.pSwitch, pEnv, iLine );
+            while( p )
+            {
+               hb_astRefineExpr( p->value.asCase.pCondition, pEnv, p->iLine );
+               hb_astRefineBlock( p->value.asCase.pBody, pEnv );
+               p = p->pNext;
+            }
+            hb_astRefineBlock( pStmt->value.asSwitch.pDefault, pEnv );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_astRefineBlock( pStmt->value.asSeq.pBody, pEnv );
+            hb_astRefineBlock( pStmt->value.asSeq.pRecover, pEnv );
+            hb_astRefineBlock( pStmt->value.asSeq.pAlways, pEnv );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astRefineExpr( pStmt->value.asWithObj.pObject, pEnv, iLine );
+            hb_astRefineBlock( pStmt->value.asWithObj.pBody, pEnv );
+            break;
+         case HB_AST_BREAK:
+            hb_astRefineExpr( pStmt->value.asBreak.pExpr, pEnv, iLine );
+            break;
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+         case HB_AST_PUBLIC:
+         case HB_AST_PRIVATE:
+            hb_astRefineExpr( pStmt->value.asVar.pInit, pEnv, iLine );
+            break;
+         default:
+            break;
+      }
+      pStmt = pStmt->pNext;
+   }
+}
+
+static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
+{
+   if( ! pExpr )
+      return;
+
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_FUNCALL:
+      {
+         const char * szName = NULL;
+         if( pExpr->value.asFunCall.pFunName &&
+             pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+            szName = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+
+         hb_astRefineArgList( szName, pExpr->value.asFunCall.pParms,
+                              pEnv, iLine );
+         /* Recurse into args too (nested calls). */
+         {
+            PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+            if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                            pParms->ExprType == HB_ET_ARGLIST ) )
+            {
+               PHB_EXPR p = pParms->value.asList.pExprList;
+               while( p )
+               {
+                  hb_astRefineExpr( p, pEnv, iLine );
+                  p = p->pNext;
+               }
+            }
+         }
+         break;
+      }
+
+      case HB_ET_SEND:
+      {
+         /* Method calls — try to compute the receiver's class so the
+            refinement keys on Class::Method instead of bare Method.
+            If the receiver type isn't a known class (e.g. dynamic
+            object, function return), fall back to the bare name and
+            preserve the previous behaviour. */
+         const char * szMethod = pExpr->value.asMessage.szMessage;
+         const char * szRecvType = NULL;
+         char szKey[ 256 ];
+         const char * szLookup = szMethod;
+
+         if( pExpr->value.asMessage.pObject )
+            szRecvType = hb_astInferExprType(
+               pExpr->value.asMessage.pObject, pEnv );
+
+         if( szRecvType && szMethod )
+         {
+            /* Reject the standard non-class type tags. Anything that
+               survives is treated as a class name. */
+            if( hb_stricmp( szRecvType, "USUAL"   ) != 0 &&
+                hb_stricmp( szRecvType, "NUMERIC" ) != 0 &&
+                hb_stricmp( szRecvType, "STRING"  ) != 0 &&
+                hb_stricmp( szRecvType, "LOGICAL" ) != 0 &&
+                hb_stricmp( szRecvType, "DATE"    ) != 0 &&
+                hb_stricmp( szRecvType, "ARRAY"   ) != 0 &&
+                hb_stricmp( szRecvType, "HASH"    ) != 0 &&
+                hb_stricmp( szRecvType, "BLOCK"   ) != 0 &&
+                hb_stricmp( szRecvType, "OBJECT"  ) != 0 )
+            {
+               hb_snprintf( szKey, sizeof( szKey ), "%s::%s",
+                            szRecvType, szMethod );
+               szLookup = szKey;
+            }
+         }
+
+         hb_astRefineArgList( szLookup, pExpr->value.asMessage.pParms,
+                              pEnv, iLine );
+         hb_astRefineExpr( pExpr->value.asMessage.pObject, pEnv, iLine );
+         {
+            PHB_EXPR pParms = pExpr->value.asMessage.pParms;
+            if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                            pParms->ExprType == HB_ET_ARGLIST ) )
+            {
+               PHB_EXPR p = pParms->value.asList.pExprList;
+               while( p )
+               {
+                  hb_astRefineExpr( p, pEnv, iLine );
+                  p = p->pNext;
+               }
+            }
+         }
+         break;
+      }
+
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR p = pExpr->value.asList.pExprList;
+         while( p )
+         {
+            hb_astRefineExpr( p, pEnv, iLine );
+            p = p->pNext;
+         }
+         break;
+      }
+
+      case HB_ET_CODEBLOCK:
+      {
+         PHB_EXPR p = pExpr->value.asCodeblock.pExprList;
+         while( p )
+         {
+            hb_astRefineExpr( p, pEnv, iLine );
+            p = p->pNext;
+         }
+         break;
+      }
+
+      case HB_ET_ARRAYAT:
+         hb_astRefineExpr( pExpr->value.asList.pExprList, pEnv, iLine );
+         hb_astRefineExpr( pExpr->value.asList.pIndex,    pEnv, iLine );
+         break;
+
+      default:
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+         {
+            hb_astRefineExpr( pExpr->value.asOperator.pLeft,  pEnv, iLine );
+            hb_astRefineExpr( pExpr->value.asOperator.pRight, pEnv, iLine );
+         }
+         break;
+   }
+}
+
 /*
  * Run type propagation on a function's AST body.
  *
@@ -674,10 +968,13 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
  * Pass 2: Walk expression statements and infer types for USUAL variables
  * Pass 3: Update LOCAL/STATIC AST nodes with propagated types
  * Pass 4: Infer function return type from RETURN statements
+ * Pass 5: Refine callee parameter types from the types we see at call
+ *         sites in this body (requires pRefTab to be non-NULL).
  *
  * Returns the inferred return type string, or NULL if it can't be determined.
  */
-const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
+const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
+                              void * pRefTab )
 {
    HB_TYPEENV env;
    PHB_AST_NODE pStmt;
@@ -688,7 +985,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
    if( ! pBody || pBody->type != HB_AST_BLOCK )
       return NULL;
 
-   hb_typeEnvInit( &env );
+   hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab );
 
    /* Pass 0: Seed class DATA member types from all class definitions.
       This allows SELF:member expressions to resolve to specific types. */
@@ -720,14 +1017,22 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
       }
    }
 
-   /* Pass 1: Seed from declarations */
+   /* Pass 1: Seed from declarations.
+      First try the env-aware inferencer on the initializer expression
+      (so e.g. constructor patterns `LOCAL oCalc := Foo():New()` give
+      the actual class name). Fall back to the simpler Hungarian-only
+      inferencer for cases the env-aware one can't decide. */
    pStmt = pBody->value.asBlock.pFirst;
    while( pStmt )
    {
       if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
       {
-         const char * szType = hb_astInferType( pStmt->value.asVar.szName,
-                                                pStmt->value.asVar.pInit );
+         const char * szType = NULL;
+         if( pStmt->value.asVar.pInit )
+            szType = hb_astInferExprType( pStmt->value.asVar.pInit, &env );
+         if( ! szType )
+            szType = hb_astInferType( pStmt->value.asVar.szName,
+                                      pStmt->value.asVar.pInit );
          hb_typeEnvSet( &env, pStmt->value.asVar.szName, szType );
       }
       pStmt = pStmt->pNext;
@@ -741,7 +1046,13 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
    }
    while( fChanged );
 
-   /* Pass 3: Update LOCAL/STATIC AST nodes that were USUAL */
+   /* Pass 3: Update LOCAL/STATIC AST nodes whose propagated type is
+      more specific than what Hungarian/initializer inference produced.
+      "More specific" covers two cases:
+        - declared as USUAL (any specific type wins)
+        - declared as OBJECT but the env now has a concrete class name
+          (e.g. `LOCAL oCalc := Foo():New()` — Hungarian gives OBJECT,
+          but Pass 1's env-aware seeding records `Foo`) */
    pStmt = pBody->value.asBlock.pFirst;
    while( pStmt )
    {
@@ -749,21 +1060,33 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList )
       {
          const char * szCurType = hb_astInferType( pStmt->value.asVar.szName,
                                                    pStmt->value.asVar.pInit );
-         if( strcmp( szCurType, "USUAL" ) == 0 )
-         {
-            const char * szPropType = hb_typeEnvGet( &env, pStmt->value.asVar.szName );
-            if( szPropType && strcmp( szPropType, "USUAL" ) != 0 )
-            {
-               /* Store the propagated type in the alias field (reuse) */
-               pStmt->value.asVar.szAlias = szPropType;
-            }
-         }
+         const char * szPropType = hb_typeEnvGet( &env, pStmt->value.asVar.szName );
+         HB_BOOL fOverride = HB_FALSE;
+
+         if( strcmp( szCurType, "USUAL" ) == 0 &&
+             szPropType && strcmp( szPropType, "USUAL" ) != 0 )
+            fOverride = HB_TRUE;
+         else if( strcmp( szCurType, "OBJECT" ) == 0 &&
+                  szPropType && strcmp( szPropType, "OBJECT" ) != 0 &&
+                  strcmp( szPropType, "USUAL" ) != 0 )
+            fOverride = HB_TRUE;
+
+         if( fOverride )
+            pStmt->value.asVar.szAlias = szPropType;
       }
       pStmt = pStmt->pNext;
    }
 
    /* Pass 4: Infer return type from RETURN statements */
    hb_astCollectReturnTypes( pBody, &env, &szRetType, &fConflict );
+
+   /* Pass 5: Refine callee parameter types from call sites in this
+      body. Only runs when the refTab is available (the scanner in
+      -GF mode always supplies it; legacy callers that don't have a
+      table get this skipped and behave as before). */
+   if( env.pRefTab )
+      hb_astRefineBlock( pBody, &env );
+
    if( fConflict )
       return "USUAL";
 

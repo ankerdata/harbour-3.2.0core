@@ -10,7 +10,7 @@ public class Animal
     public decimal nLegs { get; set; } = 4;
     public string cSound { get; set; } = "";
 
-    public object New(string cName, string cSound)
+    public object New(string cName = default, string cSound = default)
     {
         this.cName = cName;
         HbRuntime.QOut("cName=" + this.cName);
@@ -34,7 +34,7 @@ public class Dog : Animal
 {
     public string cBreed { get; set; } = "";
 
-    public object Init(string cName, string cBreed)
+    public object Init(string cName = default, string cBreed = default)
     {
         this.cName = cName;
         HbRuntime.QOut("cName=" + this.cName);
@@ -49,7 +49,7 @@ public class Dog : Animal
     }
 }
 
-public static class Program
+public static partial class Program
 {
     public static void Main(string[] args)
     {

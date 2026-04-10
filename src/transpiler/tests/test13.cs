@@ -1,9 +1,9 @@
 using System;
 
 // Test 13: Nested control flow, multiple returns, LOOP
-public static class Program
+public static partial class Program
 {
-    public static string Classify(decimal nVal)
+    public static string Classify(decimal nVal = default)
     {
         // Multiple return paths
         if (nVal < 0)
@@ -18,7 +18,7 @@ public static class Program
         return "positive";
     }
 
-    public static decimal SumEvenTo(decimal nMax)
+    public static decimal SumEvenTo(decimal nMax = default)
     {
         decimal nSum = 0;
         decimal i;
@@ -39,7 +39,7 @@ public static class Program
         return nSum;
     }
 
-    public static decimal FindFirst(dynamic[] aItems, string cTarget)
+    public static decimal FindFirst(dynamic[] aItems = default, string cTarget = default)
     {
         string cItem;
         decimal nPos = 0;
@@ -59,7 +59,7 @@ public static class Program
         return nPos;
     }
 
-    public static string DeepNest(decimal nX)
+    public static string DeepNest(decimal nX = default)
     {
         string cResult = "";
 
