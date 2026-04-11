@@ -38,6 +38,50 @@ static PHB_AST_NODE s_pCurrentFuncNode = NULL;  /* AST node of function currentl
                                                    references the parser wrapped
                                                    as implicit memvar aliases. */
 
+/* File-scope STATIC var registry. Harbour STATIC vars are private to
+   their declaring .prg file, but every generated .cs file merges into
+   one `public static partial class Program`, so two files each
+   declaring `STATIC aHex := {...}` produce a C# member collision.
+   We collect the STATIC names once per emit and rewrite both the
+   declaration and every reference to `<FileBase>_<VarName>`, which
+   is file-unique by construction. Locals with the same name still
+   win (handled in hb_csEmitExpr for HB_ET_VARIABLE). */
+#define HB_CS_MAX_FILE_STATICS 256
+static const char * s_pFileStatics[ HB_CS_MAX_FILE_STATICS ];
+static int s_iFileStaticCount = 0;
+static char s_szFileBase[ 64 ] = "";
+
+static HB_BOOL hb_csIsFileStatic( const char * szName )
+{
+   int i;
+   if( ! szName || s_iFileStaticCount == 0 )
+      return HB_FALSE;
+   for( i = 0; i < s_iFileStaticCount; i++ )
+      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+static void hb_csAddFileStatic( const char * szName )
+{
+   if( ! szName || s_iFileStaticCount >= HB_CS_MAX_FILE_STATICS )
+      return;
+   /* Dedup: the collection pass walks every function's body block
+      for HB_AST_STATIC nodes, and the same name can legitimately
+      appear in more than one collection pass during a single file
+      emission. Silently drop duplicates rather than growing the
+      registry unbounded. */
+   if( hb_csIsFileStatic( szName ) )
+      return;
+   s_pFileStatics[ s_iFileStaticCount++ ] = szName;
+}
+
+static void hb_csResetFileStatics( void )
+{
+   s_iFileStaticCount = 0;
+   s_szFileBase[ 0 ] = '\0';
+}
+
 /* Walk the current function's parameter+local list for a case-insensitive
    name match. Returns the canonical (declared) name if found, or NULL.
    Harbour's local lookup is case-insensitive at the language level but the
@@ -204,6 +248,8 @@ static const char * hb_csTypeMap( const char * szHbType )
    if( hb_stricmp( szHbType, "LOGICAL" ) == 0 )
       return "bool";
    if( hb_stricmp( szHbType, "DATE" ) == 0 )
+      return "DateTime";
+   if( hb_stricmp( szHbType, "TIMESTAMP" ) == 0 )
       return "DateTime";
    if( hb_stricmp( szHbType, "OBJECT" ) == 0 )
       return "object";
@@ -471,11 +517,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_VARIABLE:
       case HB_ET_VARREF:
-         /* Self → this in C# */
-         if( hb_stricmp( pExpr->value.asSymbol.name, "Self" ) == 0 )
-            fprintf( yyc, "this" );
-         else
-            fprintf( yyc, "%s", pExpr->value.asSymbol.name );
+         {
+            const char * szVarName = pExpr->value.asSymbol.name;
+            if( hb_stricmp( szVarName, "Self" ) == 0 )
+               fprintf( yyc, "this" );
+            else if( hb_csResolveLocal( szVarName ) == NULL &&
+                     hb_csIsFileStatic( szVarName ) )
+            {
+               /* File-scope STATIC reference — rewrite to the mangled
+                  class field name to dodge cross-file collisions.
+                  A local with the same name in the current scope
+                  shadows the static, matching Harbour's rule. */
+               fprintf( yyc, "%s_%s", s_szFileBase, szVarName );
+            }
+            else
+               fprintf( yyc, "%s", szVarName );
+         }
          break;
 
       case HB_ET_FUNREF:
@@ -2052,7 +2109,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
 
    HB_SYMBOL_UNUSED( HB_COMP_PARAM );
 
-   /* Build output filename with .cs extension */
+   /* Build output filename with .cs extension, and capture the base
+      name (without path or extension) for use as a STATIC-var name
+      prefix. See hb_csIsFileStatic for the collision rationale. */
+   hb_csResetFileStatics();
    {
       PHB_FNAME pOut = hb_fsFNameSplit( HB_COMP_PARAM->szFile );
       pFileName->szExtension = ".cs";
@@ -2061,6 +2121,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       else if( pOut->szPath )
          pFileName->szPath = pOut->szPath;
       hb_fsFNameMerge( szFileName, pFileName );
+      if( pOut->szName )
+         hb_strncpy( s_szFileBase, pOut->szName, sizeof( s_szFileBase ) - 1 );
       hb_xfree( pOut );
    }
 
@@ -2226,7 +2288,11 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          }
       }
 
-      /* Emit STATIC declarations as static class fields */
+      /* Emit STATIC declarations as static class fields. Names are
+         mangled with the file base name so two files declaring the
+         same STATIC don't collide under the merged `partial class
+         Program`. References to these names in function bodies are
+         rewritten identically — see hb_csEmitExpr for HB_ET_VARIABLE. */
       {
          PHB_AST_NODE pF = HB_COMP_PARAM->ast.pFuncList;
          while( pF )
@@ -2243,8 +2309,11 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         pStmt->value.asVar.szAlias :
                         hb_astInferType( pStmt->value.asVar.szName,
                                           pStmt->value.asVar.pInit );
+                     hb_csAddFileStatic( pStmt->value.asVar.szName );
                      hb_csEmitIndent( yyc, 1 );
-                     fprintf( yyc, "static %s %s", hb_csTypeMap( szType ),
+                     fprintf( yyc, "static %s %s_%s",
+                              hb_csTypeMap( szType ),
+                              s_szFileBase,
                               pStmt->value.asVar.szName );
                      if( pStmt->value.asVar.pInit )
                      {
@@ -2299,6 +2368,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    hb_csFreeClasses( pClassList );
    hb_refTabFree( s_pRefTab );
    s_pRefTab = NULL;
+   hb_csResetFileStatics();
    fclose( yyc );
 
    if( ! HB_COMP_PARAM->fQuiet )

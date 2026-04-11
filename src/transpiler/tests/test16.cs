@@ -3,16 +3,16 @@ using System;
 // Test 16: STATIC, PUBLIC, and PRIVATE declarations with type inference
 public static partial class Program
 {
-    static decimal nCount = 0;
-    static string cLabel = "count";
-    static decimal nStatic = 10;
-    static string cStaticLabel = "static";
+    static decimal test16_nCount = 0;
+    static string test16_cLabel = "count";
+    static decimal test16_nStatic = 10;
+    static string test16_cStaticLabel = "static";
     public static decimal Counter()
     {
-        nCount += 1;
-        HbRuntime.QOUT(cLabel + "=" + HbRuntime.STR(nCount));
+        test16_nCount += 1;
+        HbRuntime.QOUT(test16_cLabel + "=" + HbRuntime.STR(test16_nCount));
 
-        return nCount;
+        return test16_nCount;
     }
 
     public static void Main(string[] args)
@@ -22,8 +22,8 @@ public static partial class Program
         decimal nPub = 100;
         string cPubName = "global";
 
-        HbRuntime.QOUT("nStatic=" + HbRuntime.STR(nStatic));
-        HbRuntime.QOUT("cStaticLabel=" + cStaticLabel);
+        HbRuntime.QOUT("nStatic=" + HbRuntime.STR(test16_nStatic));
+        HbRuntime.QOUT("cStaticLabel=" + test16_cStaticLabel);
         HbRuntime.QOUT("nPriv=" + HbRuntime.STR(nPriv));
         HbRuntime.QOUT("cPrivName=" + cPrivName);
         HbRuntime.QOUT("nPub=" + HbRuntime.STR(nPub));
@@ -33,8 +33,8 @@ public static partial class Program
         Counter();
         Counter();
 
-        nStatic += 5;
-        HbRuntime.QOUT("nStatic=" + HbRuntime.STR(nStatic));
+        test16_nStatic += 5;
+        HbRuntime.QOUT("nStatic=" + HbRuntime.STR(test16_nStatic));
 
         nPriv += 1;
         HbRuntime.QOUT("nPriv=" + HbRuntime.STR(nPriv));
