@@ -945,6 +945,14 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
       }
 
       case HB_ET_ALIAS:
+         /* HB_ET_ALIAS is the bare alias-keyword node created by
+            hb_compExprNewAlias() — e.g. `FIELD->` or `MEMVAR->`. It
+            uses the asSymbol union variant (just a char* name), not
+            asAlias, so there are no child expressions to recurse into.
+            Don't read asAlias fields here — they would alias with the
+            name pointer and produce a bogus PHB_EXPR. */
+         break;
+
       case HB_ET_ALIASVAR:
       case HB_ET_ALIASEXPR:
          hb_refTabScanExpr( pTab, pExpr->value.asAlias.pAlias, pCtx );
