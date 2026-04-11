@@ -519,6 +519,32 @@ static int hb_comp_funcStart( HB_COMP_DECL, YYSTYPE * yylval_ptr )
 
 extern int hb_comp_yylex( YYSTYPE * yylval_ptr, HB_COMP_DECL );
 
+#ifdef HB_TRANSPILER
+/* Advance past any COMMENT tokens in a token list. Used for
+   keyword-classification peek-aheads (e.g. ELSE, ENDIF, CASE, DO CASE).
+   When -k comment preservation is on, a trailing `//` or C-style
+   comment sits in the token chain between a keyword and the real next
+   token; the peeks below need to see past it or they misclassify the
+   keyword as a plain identifier. */
+static PHB_PP_TOKEN hb_comp_skipComments( PHB_PP_TOKEN pToken )
+{
+   while( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_COMMENT )
+      pToken = pToken->pNext;
+   return pToken;
+}
+/* One-step peek: first non-comment sibling after t. */
+#define HB_COMP_PEEK( t )   hb_comp_skipComments( ( t )->pNext )
+/* Two-step peek: first non-comment sibling after the first non-comment
+   sibling. Evaluates HB_COMP_PEEK(t) twice — hb_comp_skipComments is
+   pure so that is safe. */
+#define HB_COMP_PEEK2( t )  ( HB_COMP_PEEK( t ) ? \
+                              hb_comp_skipComments( HB_COMP_PEEK( t )->pNext ) : \
+                              NULL )
+#else
+#define HB_COMP_PEEK( t )   ( ( t )->pNext )
+#define HB_COMP_PEEK2( t )  ( ( t )->pNext ? ( t )->pNext->pNext : NULL )
+#endif
+
 int hb_comp_yylex( YYSTYPE * yylval_ptr, HB_COMP_DECL )
 {
    PHB_COMP_LEX pLex = HB_COMP_PARAM->pLex;
@@ -1053,7 +1079,7 @@ hb_comp_yylex_restart:
             case ELSE:
                if( HB_SUPPORT_HARBOUR &&
                    ( pLex->iState != LOOKUP ||
-                     ! HB_PP_TOKEN_ISEOC( pToken->pNext ) ) )
+                     ! HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) ) )
                {
                   iType = IDENTIFIER;
                   break;
@@ -1065,8 +1091,8 @@ hb_comp_yylex_restart:
             case CASE:
                if( HB_SUPPORT_HARBOUR &&
                    ( pLex->iState != LOOKUP ||
-                     HB_PP_TOKEN_ISEOC( pToken->pNext ) ||
-                     HB_PP_LEX_NEEDLEFT( pToken->pNext ) ) )
+                     HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) ||
+                     HB_PP_LEX_NEEDLEFT( HB_COMP_PEEK( pToken ) ) ) )
                {
                   iType = IDENTIFIER;
                   break;
@@ -1079,7 +1105,7 @@ hb_comp_yylex_restart:
             case ENDDO:
                if( HB_SUPPORT_HARBOUR &&
                    ( pLex->iState != LOOKUP ||
-                     ! HB_PP_TOKEN_ISEOC( pToken->pNext ) ) )
+                     ! HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) ) )
                {
                   iType = IDENTIFIER;
                   break;
@@ -1092,7 +1118,7 @@ hb_comp_yylex_restart:
             case ENDSWITCH:
             case ENDWITH:
             case ALWAYS:
-               if( pLex->iState == LOOKUP && HB_PP_TOKEN_ISEOC( pToken->pNext ) )
+               if( pLex->iState == LOOKUP && HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) )
                {
                   pLex->iState = iType;
                   return iType;
@@ -1102,13 +1128,13 @@ hb_comp_yylex_restart:
 
             case FOR:
                if( pLex->iState == LOOKUP &&
-                   ! HB_PP_TOKEN_ISEOC( pToken->pNext ) )
+                   ! HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) )
                {
-                  PHB_PP_TOKEN pNext = pToken->pNext;
+                  PHB_PP_TOKEN pNext = HB_COMP_PEEK( pToken );
 
                   if( HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_KEYWORD &&
-                      pNext->pNext &&
-                      HB_PP_TOKEN_TYPE( pNext->pNext->type ) == HB_PP_TOKEN_KEYWORD &&
+                      HB_COMP_PEEK( pNext ) &&
+                      HB_PP_TOKEN_TYPE( HB_COMP_PEEK( pNext )->type ) == HB_PP_TOKEN_KEYWORD &&
                       hb_stricmp( "EACH", pNext->value ) == 0 )
                   {
                      hb_pp_tokenGet( pLex->pPP );
@@ -1129,9 +1155,11 @@ hb_comp_yylex_restart:
             case NEXT:
                if( pLex->iState == LOOKUP )
                {
-                  if( HB_PP_TOKEN_ISEOC( pToken->pNext ) ||
-                      ( HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_KEYWORD &&
-                        HB_PP_TOKEN_ISEOC( pToken->pNext->pNext ) ) )
+                  PHB_PP_TOKEN pNext = HB_COMP_PEEK( pToken );
+                  if( HB_PP_TOKEN_ISEOC( pNext ) ||
+                      ( pNext &&
+                        HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_KEYWORD &&
+                        HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pNext ) ) ) )
                   {
                      pLex->iState = iType;
                      return iType;
@@ -1140,11 +1168,12 @@ hb_comp_yylex_restart:
                   {
                      /* Clipper does not like NEXT[], NEXT(), NEXT->,
                         NEXT++ & NEXT-- at the beginning of line */
-                     if( HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_LEFT_PB ||
-                         HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_LEFT_SB ||
-                         HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_INC ||
-                         HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_DEC ||
-                         HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_ALIAS )
+                     if( pNext &&
+                         ( HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_LEFT_PB ||
+                           HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_LEFT_SB ||
+                           HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_INC ||
+                           HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_DEC ||
+                           HB_PP_TOKEN_TYPE( pNext->type ) == HB_PP_TOKEN_ALIAS ) )
                         hb_compGenError( HB_COMP_PARAM, hb_comp_szErrors, 'E',
                                          HB_COMP_ERR_NEXTFOR, NULL, NULL );
                   }
@@ -1210,29 +1239,31 @@ hb_comp_yylex_restart:
                break;
 
             case DO:
-               if( pLex->iState == LOOKUP && ! HB_PP_TOKEN_ISEOC( pToken->pNext ) )
+               if( pLex->iState == LOOKUP && ! HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) )
                {
-                  if( HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_KEYWORD )
+                  PHB_PP_TOKEN pNext1 = HB_COMP_PEEK( pToken );
+                  PHB_PP_TOKEN pNext2 = HB_COMP_PEEK2( pToken );
+                  if( HB_PP_TOKEN_TYPE( pNext1->type ) == HB_PP_TOKEN_KEYWORD )
                   {
-                     if( pToken->pNext->len == 4 &&
-                         hb_stricmp( "CASE", pToken->pNext->value ) == 0 )
+                     if( pNext1->len == 4 &&
+                         hb_stricmp( "CASE", pNext1->value ) == 0 )
                      {
-                        if( HB_PP_TOKEN_ISEOC( pToken->pNext->pNext ) )
+                        if( HB_PP_TOKEN_ISEOC( pNext2 ) )
                         {
                            hb_pp_tokenGet( pLex->pPP );
                            pLex->iState = DOCASE;
                            return DOCASE;
                         }
                      }
-                     else if( pToken->pNext->len >= 4 &&
-                              pToken->pNext->len <= 5 &&
-                              hb_strnicmp( "WHILE", pToken->pNext->value,
-                                           pToken->pNext->len ) == 0 &&
+                     else if( pNext1->len >= 4 &&
+                              pNext1->len <= 5 &&
+                              hb_strnicmp( "WHILE", pNext1->value,
+                                           pNext1->len ) == 0 &&
                         /* check if it's not DO while [WITH <args>] */
-                        ! HB_PP_TOKEN_ISEOC( pToken->pNext->pNext ) &&
-                        ( HB_PP_TOKEN_TYPE( pToken->pNext->pNext->type ) != HB_PP_TOKEN_KEYWORD ||
-                          pToken->pNext->pNext->len != 4 ||
-                          hb_stricmp( "WITH", pToken->pNext->pNext->value ) != 0 ) )
+                        ! HB_PP_TOKEN_ISEOC( pNext2 ) &&
+                        ( HB_PP_TOKEN_TYPE( pNext2->type ) != HB_PP_TOKEN_KEYWORD ||
+                          pNext2->len != 4 ||
+                          hb_stricmp( "WITH", pNext2->value ) != 0 ) )
                      {
                         /* DO WHILE <exp> */
                         hb_pp_tokenGet( pLex->pPP );

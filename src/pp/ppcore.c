@@ -555,7 +555,12 @@ static void hb_pp_tokenAddCmdSep( PHB_PP_STATE pState )
 static void hb_pp_tokenAddNext( PHB_PP_STATE pState, const char * value, HB_SIZE nLen,
                                 HB_USHORT type )
 {
-   if( pState->fCanNextLine )
+   /* Comment tokens do not terminate a ';' line-continuation. When the
+      -k comment preservation mode is on, a trailing '//' or '&&'
+      comment after a line-continuation ';' would otherwise emit a
+      spurious statement separator and break the logical line. Comments
+      are structurally neutral — let the continuation ride through. */
+   if( pState->fCanNextLine && HB_PP_TOKEN_TYPE( type ) != HB_PP_TOKEN_COMMENT )
       hb_pp_tokenAddCmdSep( pState );
 
    if( ! pState->fDirective )
