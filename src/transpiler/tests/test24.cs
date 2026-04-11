@@ -40,32 +40,32 @@ public static partial class Program
         // comment on IF line
         if (x == 1)
         {
-            HbRuntime.QOut("one");
+            HbRuntime.QOUT("one");
             // comment on ELSE line — the headliner
         }
         else
         {
-            HbRuntime.QOut("other");
+            HbRuntime.QOUT("other");
         }
 
         if (x == 1)
         {
-            HbRuntime.QOut("case one");
+            HbRuntime.QOUT("case one");
         }
         else
         {
             // comment on OTHERWISE
-            HbRuntime.QOut("case other");
+            HbRuntime.QOUT("case other");
         }
 
         // comment on FOR
-        for (n = 1; n <= HbRuntime.Len(aCodes); n++)
+        for (n = 1; n <= HbRuntime.LEN(aCodes); n++)
         {
-            HbRuntime.QOut(aCodes[(int)(n) - 1]);
+            HbRuntime.QOUT(aCodes[(int)(n) - 1]);
             // comment on NEXT
         }
 
-        HbRuntime.QOut("array len:", HbRuntime.Len(aCodes));
+        HbRuntime.QOUT("array len:", HbRuntime.LEN(aCodes));
         return;
     }
 }

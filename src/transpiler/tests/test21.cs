@@ -38,11 +38,11 @@ public static partial class Program
         Calculator oCalc = new Calculator();
         decimal n = 10;
 
-        HbRuntime.QOut("before: n=" + HbRuntime.Str(n));
+        HbRuntime.QOUT("before: n=" + HbRuntime.STR(n));
         oCalc.Adjust(ref n);
-        HbRuntime.QOut("after:  n=" + HbRuntime.Str(n));
+        HbRuntime.QOUT("after:  n=" + HbRuntime.STR(n));
         oCalc.Adjust(ref n);
-        HbRuntime.QOut("after:  n=" + HbRuntime.Str(n));
+        HbRuntime.QOUT("after:  n=" + HbRuntime.STR(n));
 
         return;
     }

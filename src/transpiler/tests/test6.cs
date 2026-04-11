@@ -26,7 +26,7 @@ public class Person : Inherited
     public object SetAge(decimal nAge = default)
     {
         this.nAge = nAge;
-        HbRuntime.QOut("nAge=" + HbRuntime.Str(this.nAge));
+        HbRuntime.QOUT("nAge=" + HbRuntime.STR(this.nAge));
         return this;
     }
 
@@ -41,10 +41,10 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Person oPerson = new Person();
-        HbRuntime.QOut("oPerson created");
+        HbRuntime.QOUT("oPerson created");
 
         oPerson.SetAge(25);
-        HbRuntime.QOut("FullName=" + oPerson.FullName);
+        HbRuntime.QOUT("FullName=" + oPerson.FullName);
 
         return;
     }

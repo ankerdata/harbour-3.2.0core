@@ -12,15 +12,15 @@ public static partial class Program
         {
             case 1:
                 cResult = "one";
-                HbRuntime.QOut("cResult=" + cResult);
+                HbRuntime.QOUT("cResult=" + cResult);
                 break;
             case 2:
                 cResult = "two";
-                HbRuntime.QOut("cResult=" + cResult);
+                HbRuntime.QOUT("cResult=" + cResult);
                 break;
             default:
                 cResult = "other";
-                HbRuntime.QOut("cResult=" + cResult);
+                HbRuntime.QOUT("cResult=" + cResult);
                 break;
         }
 

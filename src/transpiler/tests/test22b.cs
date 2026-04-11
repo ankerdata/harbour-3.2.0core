@@ -22,7 +22,7 @@ public class Names
 
     public object Show()
     {
-        HbRuntime.QOut("all=" + this.cAll);
+        HbRuntime.QOUT("all=" + this.cAll);
         return this;
     }
 }

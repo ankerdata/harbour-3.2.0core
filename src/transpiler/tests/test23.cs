@@ -38,11 +38,11 @@ public static partial class Program
         }
         if (lFormal == true)
         {
-            HbRuntime.QOut("Good day, " + cName);
+            HbRuntime.QOUT("Good day, " + cName);
         }
         else
         {
-            HbRuntime.QOut("Hi " + cName);
+            HbRuntime.QOUT("Hi " + cName);
         }
 
         return;

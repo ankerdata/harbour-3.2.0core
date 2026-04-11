@@ -31,6 +31,33 @@ static char s_szCurrentFunc[ 256 ] = "";  /* keyed name of the function currentl
                                              or "fred"). Used to look up nilable
                                              parameters when wrapping IF/IIF
                                              conditions. Empty when no function. */
+static PHB_AST_NODE s_pCurrentFuncNode = NULL;  /* AST node of function currently
+                                                   being emitted. Used for
+                                                   case-insensitive local lookups
+                                                   when resolving identifier
+                                                   references the parser wrapped
+                                                   as implicit memvar aliases. */
+
+/* Walk the current function's parameter+local list for a case-insensitive
+   name match. Returns the canonical (declared) name if found, or NULL.
+   Harbour's local lookup is case-insensitive at the language level but the
+   parser stores only the first-seen casing, so typo'd references like
+   `aRetval` against a local declared `aRetVal` get auto-wrapped as implicit
+   memvars. This helper lets the C# emitter unwrap that case at emit time. */
+static const char * hb_csResolveLocal( const char * szName )
+{
+   PHB_HVAR pVar;
+   if( ! szName || ! s_pCurrentFuncNode )
+      return NULL;
+   pVar = s_pCurrentFuncNode->value.asFunc.pParams;
+   while( pVar )
+   {
+      if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+         return pVar->szName;
+      pVar = pVar->pNext;
+   }
+   return NULL;
+}
 
 /* Returns HB_TRUE if pExpr is a "naked" boolean condition that needs
    wrapping with `== true` for C# to accept it. The case we care about
@@ -305,14 +332,28 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
 
 /* Map a function name to its remapped form, e.g. STR → HbRuntime.STR.
    The prefix is looked up in hbfuncs.tab (see include/hbfunctab.h).
-   Functions with no prefix entry are returned unchanged. */
+   Functions with no prefix entry are returned unchanged.
+
+   When a prefix is found, the function name is uppercased. Harbour is
+   case-insensitive for identifiers, so real-world code uses every
+   variation (`INT()`, `int()`, `Int()`). C# is case-sensitive, and
+   HbRuntime.cs exposes its methods as UPPERCASE to match the Harbour
+   convention. Without the uppercasing, `int()` would emit `HbRuntime.int`
+   which is both syntactically broken (`int` is reserved) and semantically
+   wrong (no such method). Non-remapped functions (user code, prefix="-")
+   keep their source case so IDE navigation stays useful. */
 static const char * hb_csFuncMap( const char * szName )
 {
    static char s_szBuf[ 128 ];
    const char * szPrefix = hb_funcTabPrefix( szName );
    if( szPrefix )
    {
-      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szName );
+      char szUpper[ 128 ];
+      HB_SIZE i;
+      for( i = 0; szName[ i ] && i < sizeof( szUpper ) - 1; i++ )
+         szUpper[ i ] = ( char ) HB_TOUPPER( ( HB_UCHAR ) szName[ i ] );
+      szUpper[ i ] = '\0';
+      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szUpper );
       return s_szBuf;
    }
    return szName;
@@ -653,12 +694,45 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_ALIASVAR:
-         /* work area alias → comment for now */
-         fprintf( yyc, "/* ALIAS: " );
-         hb_csEmitExpr( pExpr->value.asAlias.pAlias, yyc, HB_FALSE );
-         fprintf( yyc, "->" );
-         hb_csEmitExpr( pExpr->value.asAlias.pVar, yyc, HB_FALSE );
-         fprintf( yyc, " */" );
+         /* Harbour's parser auto-wraps identifiers it can't resolve
+            against the current scope as implicit memvar aliases —
+            producing HB_ET_ALIASVAR with a bare HB_ET_ALIAS keyword
+            on the alias side. This happens in two situations real
+            codebases hit all the time:
+
+              1) Case-typo'd locals. Harbour is case-insensitive but
+                 the parser stores the first-seen casing as the local's
+                 canonical name, so a later reference with different
+                 case (`aRetval` vs `aRetVal`) fails to resolve and gets
+                 wrapped. We catch these by doing a case-insensitive
+                 lookup against the current function's locals list and
+                 emitting the canonical name unwrapped.
+
+              2) Real unqualified memvars (PRIVATE/PUBLIC). These can't
+                 be resolved at emit time and get emitted as bare
+                 identifiers — C# will complain, but with a clean
+                 "undefined identifier" rather than malformed syntax.
+
+            Named-alias references (`WORKAREA->field`) keep the comment
+            fallback, which stays syntactically broken but is at least
+            recognizable for triage. */
+         if( pExpr->value.asAlias.pAlias &&
+             pExpr->value.asAlias.pAlias->ExprType == HB_ET_ALIAS &&
+             pExpr->value.asAlias.pVar &&
+             pExpr->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+         {
+            const char * szVarName = pExpr->value.asAlias.pVar->value.asSymbol.name;
+            const char * szLocal = hb_csResolveLocal( szVarName );
+            fprintf( yyc, "%s", szLocal ? szLocal : ( szVarName ? szVarName : "" ) );
+         }
+         else
+         {
+            fprintf( yyc, "/* ALIAS: " );
+            hb_csEmitExpr( pExpr->value.asAlias.pAlias, yyc, HB_FALSE );
+            fprintf( yyc, "->" );
+            hb_csEmitExpr( pExpr->value.asAlias.pVar, yyc, HB_FALSE );
+            fprintf( yyc, " */" );
+         }
          break;
 
       case HB_ET_ALIASEXPR:
@@ -667,6 +741,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          fprintf( yyc, "->(" );
          hb_csEmitExpr( pExpr->value.asAlias.pExpList, yyc, HB_FALSE );
          fprintf( yyc, ") */" );
+         break;
+
+      case HB_ET_ALIAS:
+         /* Bare alias keyword (FIELD, MEMVAR, or the implicit wrapper
+            the parser inserts for unresolved identifiers). When it
+            appears outside an ALIASVAR wrapper — which shouldn't happen
+            in well-formed code but occasionally does in the tail of an
+            ALIASVAR's alias side that escaped the HB_ET_ALIASVAR handler
+            above — emit the keyword name as a comment so downstream
+            context is preserved instead of producing `unknown expr type 26`. */
+         fprintf( yyc, "/* %s */",
+                  pExpr->value.asSymbol.name ? pExpr->value.asSymbol.name : "ALIAS" );
          break;
 
       case HB_ET_CODEBLOCK:
@@ -1347,29 +1433,76 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             else if( *p == '"' || *p == '\'' )
             {
-               /* String constant */
+               /* String constant. Harbour string literals have no escape
+                  processing (`"\"` is a one-byte backslash), so a C#
+                  verbatim string (`@"..."`) is a perfect semantic match:
+                  backslash stays literal, only `"` needs doubling. Using
+                  a regular string instead would require escaping every
+                  `\` and every `"`, which the previous pass-through
+                  implementation didn't do at all — producing broken
+                  literals for any source-level backslash. */
+               char cQuote = *p;
+               const char * pInner = p + 1;
+               HB_SIZE nInner;
+               HB_SIZE i;
+
+               nInner = strlen( pInner );
+               if( nInner > 0 && pInner[ nInner - 1 ] == cQuote )
+                  nInner--;
+
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "const string %s = ", szName );
-               /* Re-emit with C# double-quote escaping */
-               if( *p == '\'' )
+               fprintf( yyc, "const string %s = @\"", szName );
+               for( i = 0; i < nInner; i++ )
                {
-                  HB_SIZE len = strlen( p );
-                  /* Strip single quotes, wrap in double quotes */
-                  fprintf( yyc, "\"%.*s\"", ( int )( len >= 2 ? len - 2 : 0 ), p + 1 );
+                  if( pInner[ i ] == '"' )
+                     fprintf( yyc, "\"\"" );
+                  else
+                     fputc( pInner[ i ], yyc );
                }
-               else
-                  fprintf( yyc, "%s", p );
-               fprintf( yyc, ";\n" );
+               fprintf( yyc, "\";\n" );
             }
             else if( ( *p >= '0' && *p <= '9' ) || *p == '-' || *p == '+' )
             {
-               /* Numeric constant */
+               /* Numeric constant. Parse just the literal and split off any
+                  trailing comment before appending the `m` suffix and `;`
+                  — otherwise a `#define X 2 // comment` would round-trip as
+                  `const decimal X = 2 // commentm;` where both the suffix
+                  and the terminator get swallowed by the line comment. */
+               const char * pNumStart = p;
+               const char * pNumEnd = p;
+               const char * pTrail;
+               HB_BOOL fHasDot = HB_FALSE;
+
+               if( *pNumEnd == '+' || *pNumEnd == '-' )
+                  pNumEnd++;
+               while( *pNumEnd >= '0' && *pNumEnd <= '9' )
+                  pNumEnd++;
+               if( *pNumEnd == '.' )
+               {
+                  fHasDot = HB_TRUE;
+                  pNumEnd++;
+                  while( *pNumEnd >= '0' && *pNumEnd <= '9' )
+                     pNumEnd++;
+               }
+
+               /* Locate the first non-whitespace after the literal — if it
+                  starts a comment, emit it after the statement terminator. */
+               pTrail = pNumEnd;
+               while( *pTrail == ' ' || *pTrail == '\t' )
+                  pTrail++;
+               if( ! ( pTrail[ 0 ] == '/' &&
+                       ( pTrail[ 1 ] == '/' || pTrail[ 1 ] == '*' ) ) )
+                  pTrail = NULL;
+
                hb_csEmitIndent( yyc, iIndent );
-               /* Check if it contains a decimal point */
-               if( strchr( p, '.' ) )
-                  fprintf( yyc, "const decimal %s = %sm;\n", szName, p );
+               fprintf( yyc, "const decimal %s = %.*s%s;",
+                        szName,
+                        ( int )( pNumEnd - pNumStart ), pNumStart,
+                        fHasDot ? "m" : "" );
+               if( pTrail )
+                  fprintf( yyc, " %s\n", pTrail );
                else
-                  fprintf( yyc, "const decimal %s = %s;\n", szName, p );
+                  fprintf( yyc, "\n" );
             }
             else if( hb_stricmp( p, ".T." ) == 0 || hb_stricmp( p, ".F." ) == 0 )
             {
@@ -1520,6 +1653,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          szClass, pFunc->value.asFunc.szName );
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
    }
+   s_pCurrentFuncNode = pFunc;
 
    /* Emit method signature */
    hb_csEmitIndent( yyc, iIndent );
@@ -1616,6 +1750,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
    s_szCurrentFunc[ 0 ] = '\0';
+   s_pCurrentFuncNode = NULL;
 }
 
 /* Emit a complete C# class definition */
@@ -1802,6 +1937,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       condition emission. Free functions get the bare name. */
    hb_strncpy( s_szCurrentFunc, pFunc->value.asFunc.szName,
                sizeof( s_szCurrentFunc ) - 1 );
+   s_pCurrentFuncNode = pFunc;
 
    /* Emit blank line if gap */
    if( pFunc->iLine > 0 && s_iLastLine > 0 && pFunc->iLine > s_iLastLine + 1 )
@@ -1900,6 +2036,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
    s_szCurrentFunc[ 0 ] = '\0';
+   s_pCurrentFuncNode = NULL;
 }
 
 /* ---- Main entry point ---- */

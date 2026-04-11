@@ -34,7 +34,7 @@ public class Numbers
 
     public object Show()
     {
-        HbRuntime.QOut("total=" + HbRuntime.Str(this.nTotal));
+        HbRuntime.QOUT("total=" + HbRuntime.STR(this.nTotal));
         return this;
     }
 }

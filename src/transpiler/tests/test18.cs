@@ -16,15 +16,15 @@ public static partial class Program
 
     public static void Fred(decimal nA = default, decimal? nB = null, decimal? nC = null)
     {
-        HbRuntime.QOut("a=" + HbRuntime.Str(nA));
+        HbRuntime.QOUT("a=" + HbRuntime.STR(nA));
         if (nB != null)
         {
-            HbRuntime.QOut("b=" + HbRuntime.Str(nB));
+            HbRuntime.QOUT("b=" + HbRuntime.STR(nB));
         }
 
         if (nC != null)
         {
-            HbRuntime.QOut("c=" + HbRuntime.Str(nC));
+            HbRuntime.QOUT("c=" + HbRuntime.STR(nC));
         }
 
         return;

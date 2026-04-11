@@ -354,9 +354,26 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_ALIASVAR:
-         hb_astEmitExpr( pExpr->value.asAlias.pAlias, yyc, HB_FALSE );
-         fprintf( yyc, "->" );
-         hb_astEmitExpr( pExpr->value.asAlias.pVar, yyc, HB_FALSE );
+         /* When the alias side is an HB_ET_ALIAS keyword node with no
+            name (the implicit-memvar wrap the parser inserts for
+            unresolved identifiers), emit just the bare var — re-parsing
+            will re-wrap it the same way, so the round-trip is
+            semantically equivalent and syntactically valid. Named
+            HB_ET_ALIAS (`FIELD->x`, `MEMVAR->x`) and workarea aliases
+            (`cust->name`) fall through to the normal `alias->var`
+            emission via the HB_ET_ALIAS / HB_ET_VARIABLE handlers. */
+         if( pExpr->value.asAlias.pAlias &&
+             pExpr->value.asAlias.pAlias->ExprType == HB_ET_ALIAS &&
+             ! pExpr->value.asAlias.pAlias->value.asSymbol.name )
+         {
+            hb_astEmitExpr( pExpr->value.asAlias.pVar, yyc, HB_FALSE );
+         }
+         else
+         {
+            hb_astEmitExpr( pExpr->value.asAlias.pAlias, yyc, HB_FALSE );
+            fprintf( yyc, "->" );
+            hb_astEmitExpr( pExpr->value.asAlias.pVar, yyc, HB_FALSE );
+         }
          break;
 
       case HB_ET_ALIASEXPR:
@@ -364,6 +381,17 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          fprintf( yyc, "->(" );
          hb_astEmitExpr( pExpr->value.asAlias.pExpList, yyc, HB_FALSE );
          fprintf( yyc, ")" );
+         break;
+
+      case HB_ET_ALIAS:
+         /* Bare alias keyword (FIELD, MEMVAR, or an implicit wrapper
+            with NULL name). When named, emit the keyword so the enclosing
+            HB_ET_ALIASVAR produces valid `FIELD->x` / `MEMVAR->x`.
+            The NULL case is handled one level up in HB_ET_ALIASVAR and
+            shouldn't reach here, but emit a safe placeholder if it does
+            instead of falling through to "unknown expr type 26". */
+         if( pExpr->value.asSymbol.name )
+            fprintf( yyc, "%s", pExpr->value.asSymbol.name );
          break;
 
       case HB_ET_CODEBLOCK:

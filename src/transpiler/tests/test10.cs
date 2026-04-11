@@ -15,7 +15,7 @@ public class MyObj
     public object SetValue(decimal nVal = default)
     {
         this.nValue = nVal;
-        HbRuntime.QOut("nValue=" + HbRuntime.Str(this.nValue));
+        HbRuntime.QOUT("nValue=" + HbRuntime.STR(this.nValue));
         return this;
     }
 }
@@ -31,7 +31,7 @@ public static partial class Program
         oObj.SetValue(42);
 
         nCounter += 1;
-        HbRuntime.QOut("nCounter=" + HbRuntime.Str(nCounter));
+        HbRuntime.QOUT("nCounter=" + HbRuntime.STR(nCounter));
 
         return;
     }

@@ -10,7 +10,7 @@ public static partial class Program
     public static decimal Counter()
     {
         nCount += 1;
-        HbRuntime.QOut(cLabel + "=" + HbRuntime.Str(nCount));
+        HbRuntime.QOUT(cLabel + "=" + HbRuntime.STR(nCount));
 
         return nCount;
     }
@@ -22,25 +22,25 @@ public static partial class Program
         decimal nPub = 100;
         string cPubName = "global";
 
-        HbRuntime.QOut("nStatic=" + HbRuntime.Str(nStatic));
-        HbRuntime.QOut("cStaticLabel=" + cStaticLabel);
-        HbRuntime.QOut("nPriv=" + HbRuntime.Str(nPriv));
-        HbRuntime.QOut("cPrivName=" + cPrivName);
-        HbRuntime.QOut("nPub=" + HbRuntime.Str(nPub));
-        HbRuntime.QOut("cPubName=" + cPubName);
+        HbRuntime.QOUT("nStatic=" + HbRuntime.STR(nStatic));
+        HbRuntime.QOUT("cStaticLabel=" + cStaticLabel);
+        HbRuntime.QOUT("nPriv=" + HbRuntime.STR(nPriv));
+        HbRuntime.QOUT("cPrivName=" + cPrivName);
+        HbRuntime.QOUT("nPub=" + HbRuntime.STR(nPub));
+        HbRuntime.QOUT("cPubName=" + cPubName);
 
         Counter();
         Counter();
         Counter();
 
         nStatic += 5;
-        HbRuntime.QOut("nStatic=" + HbRuntime.Str(nStatic));
+        HbRuntime.QOUT("nStatic=" + HbRuntime.STR(nStatic));
 
         nPriv += 1;
-        HbRuntime.QOut("nPriv=" + HbRuntime.Str(nPriv));
+        HbRuntime.QOUT("nPriv=" + HbRuntime.STR(nPriv));
 
         nPub -= 10;
-        HbRuntime.QOut("nPub=" + HbRuntime.Str(nPub));
+        HbRuntime.QOUT("nPub=" + HbRuntime.STR(nPub));
 
         return;
     }

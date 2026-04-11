@@ -13,17 +13,17 @@ public static partial class Program
         if (nChoice == 1)
         {
             cResult = "first";
-            HbRuntime.QOut("cResult=" + cResult);
+            HbRuntime.QOUT("cResult=" + cResult);
         }
         else if (nChoice == 2)
         {
             cResult = "second";
-            HbRuntime.QOut("cResult=" + cResult);
+            HbRuntime.QOUT("cResult=" + cResult);
         }
         else
         {
             cResult = "other";
-            HbRuntime.QOut("cResult=" + cResult);
+            HbRuntime.QOUT("cResult=" + cResult);
         }
 
         // FOR EACH
@@ -32,18 +32,18 @@ public static partial class Program
             cResult += cItem;
         }
 
-        HbRuntime.QOut("cResult=" + cResult);
+        HbRuntime.QOUT("cResult=" + cResult);
 
         // BEGIN SEQUENCE
         try
         {
             cResult = DoSomething();
-            HbRuntime.QOut("cResult=" + cResult);
+            HbRuntime.QOUT("cResult=" + cResult);
         }
         catch (Exception oErr)
         {
             cResult = "error caught";
-            HbRuntime.QOut("cResult=" + cResult);
+            HbRuntime.QOUT("cResult=" + cResult);
         }
         finally
         {

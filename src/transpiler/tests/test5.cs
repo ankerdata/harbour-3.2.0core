@@ -15,7 +15,7 @@ public static partial class Program
             nSum += i;
         }
 
-        HbRuntime.QOut("nSum after STEP=" + HbRuntime.Str(nSum));
+        HbRuntime.QOUT("nSum after STEP=" + HbRuntime.STR(nSum));
 
         // FOR counting down with negative STEP
         for (i = 10; i >= 1; i += -1)
@@ -23,15 +23,15 @@ public static partial class Program
             nSum += i;
         }
 
-        HbRuntime.QOut("nSum after DOWN=" + HbRuntime.Str(nSum));
+        HbRuntime.QOUT("nSum after DOWN=" + HbRuntime.STR(nSum));
 
         // FOR EACH with DESCEND
         foreach (dynamic cItem in aItems.Reverse())
         {
-            nSum += HbRuntime.Len(cItem);
+            nSum += HbRuntime.LEN(cItem);
         }
 
-        HbRuntime.QOut("nSum=" + HbRuntime.Str(nSum));
+        HbRuntime.QOUT("nSum=" + HbRuntime.STR(nSum));
 
         return;
     }
