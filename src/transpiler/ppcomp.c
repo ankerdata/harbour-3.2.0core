@@ -399,17 +399,25 @@ static void hb_pp_directiveCapture( void * cargo, const char * szDirective,
 {
    PHB_COMP pComp = ( PHB_COMP ) cargo;
 
+   /* #include and #define are file-scope in Harbour regardless of where
+      they textually appear. Use hb_astAppendToStartup so they land in the
+      synthetic startup function's body (file scope), not in whichever user
+      function happens to be mid-parse when the preprocessor fires. Without
+      this, a #define between two functions gets attached to the first
+      function's body and both the -GT and -GS emitters drop it in the
+      wrong place (e.g. a `const` decl after `return`, invisible to sibling
+      functions). Mirrors how CLASS nodes are handled. */
    if( strcmp( szDirective, "INCLUDE" ) == 0 )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_INCLUDE, iLine );
       pNode->value.asInclude.szFile = hb_compIdentifierNew( pComp, szValue, HB_IDENT_COPY );
-      hb_astAppend( pComp, pNode );
+      hb_astAppendToStartup( pComp, pNode );
    }
    else if( strcmp( szDirective, "DEFINE" ) == 0 )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_PPDEFINE, iLine );
       pNode->value.asDefine.szDefine = hb_compIdentifierNew( pComp, szValue, HB_IDENT_COPY );
-      hb_astAppend( pComp, pNode );
+      hb_astAppendToStartup( pComp, pNode );
    }
 }
 #endif
