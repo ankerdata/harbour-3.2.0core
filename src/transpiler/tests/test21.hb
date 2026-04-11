@@ -31,7 +31,7 @@ METHOD Adjust( /*@*/nValue AS NUMERIC ) AS OBJECT CLASS Calculator
 RETURN Self
 
 PROCEDURE Main()
-   LOCAL oCalc := Calculator():New()
+   LOCAL oCalc := Calculator():New() AS OBJECT
    LOCAL n := 10 AS NUMERIC
 
    QOut("before: n=" + Str(n))

@@ -53,7 +53,7 @@ RETURN ::nAge * 2
 
 FUNCTION Main() AS USUAL
 
-   LOCAL oPerson := Person():New()
+   LOCAL oPerson := Person():New() AS OBJECT
    QOut("oPerson created")
 
    oPerson:SetAge(25)

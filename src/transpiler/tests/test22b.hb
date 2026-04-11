@@ -26,8 +26,8 @@ METHOD Show() AS OBJECT CLASS Names
 RETURN Self
 
 PROCEDURE Main()
-   LOCAL oNums := Numbers():New()
-   LOCAL oNames := Names():New()
+   LOCAL oNums := Numbers():New() AS OBJECT
+   LOCAL oNames := Names():New() AS OBJECT
 
    oNums:Add(10)
    oNums:Add(20)

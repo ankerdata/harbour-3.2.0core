@@ -23,7 +23,9 @@ static void hb_astEmitCallArgs( PHB_EXPR pParms, FILE * yyc );
    include/astype.ch knows how to strip; returns NULL otherwise.
    Class names (and any other unknown tag) get filtered to NULL so
    the .hb emitter doesn't write `AS Calculator` which stock Harbour
-   would reject as a syntax error. */
+   would reject as a syntax error. See hb_astStandardTypeOrObject
+   for the caller-friendly wrapper that degrades class names to the
+   generic OBJECT instead of losing the annotation entirely. */
 static const char * hb_astStandardType( const char * szType )
 {
    if( ! szType )
@@ -42,6 +44,23 @@ static const char * hb_astStandardType( const char * szType )
        hb_stricmp( szType, "USUAL"     ) == 0 )
       return szType;
    return NULL;
+}
+
+/* Same as hb_astStandardType but maps non-standard, non-NULL type
+   names (which in practice are always class names recorded by the
+   type propagator — `Calculator`, `Foo`, etc.) to the generic
+   `OBJECT` tag rather than dropping the annotation. The C# emitter
+   has its own path that emits the concrete class name; the .hb
+   round-trip lossily degrades to OBJECT because astype.ch doesn't
+   know about user classes. Without this, `LOCAL oCalc := Foo():New()`
+   rounds-tripped as a bare `LOCAL oCalc := Foo():New()` with no
+   type annotation, even though the type information was available. */
+static const char * hb_astStandardTypeOrObject( const char * szType )
+{
+   const char * szT = hb_astStandardType( szType );
+   if( ! szT && szType )
+      return "OBJECT";
+   return szT;
 }
 
 /* Track last seen source line for blank line preservation */
@@ -588,15 +607,15 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             fprintf( yyc, " := " );
             hb_astEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
          }
-         /* Use propagated type if available, otherwise infer.
-            Class names get filtered out — astype.ch only knows how
-            to strip the standard type tags. */
+         /* Use propagated type if available, otherwise infer. Class
+            names degrade to the generic OBJECT (astype.ch doesn't know
+            user class names, but it does know OBJECT). */
          {
             const char * szT =
                pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias
                                           : hb_astInferType( pNode->value.asVar.szName,
                                                              pNode->value.asVar.pInit );
-            szT = hb_astStandardType( szT );
+            szT = hb_astStandardTypeOrObject( szT );
             if( szT )
                fprintf( yyc, " AS %s", szT );
          }
@@ -626,7 +645,7 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias
                                           : hb_astInferType( pNode->value.asVar.szName,
                                                              pNode->value.asVar.pInit );
-            szT = hb_astStandardType( szT );
+            szT = hb_astStandardTypeOrObject( szT );
             if( szT )
                fprintf( yyc, " AS %s", szT );
          }
@@ -1073,11 +1092,11 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
                else
                   fprintf( yyc, " " );
                {
-                  /* Filter class names: astype.ch only knows the
-                     standard tags. Class-typed parameters degrade to
-                     untyped in the .hb but stay strongly typed in
-                     the .cs because the C# emitter has its own path. */
-                  const char * szT = hb_astStandardType( szSlotType );
+                  /* Class-typed parameters degrade to the generic
+                     OBJECT tag in .hb output (astype.ch doesn't know
+                     about user class names); the .cs path keeps the
+                     concrete type via its own emitter. */
+                  const char * szT = hb_astStandardTypeOrObject( szSlotType );
                   if( szT )
                      fprintf( yyc, "%s%s AS %s",
                               fByRef ? "/*@*/" : "",
@@ -1098,17 +1117,18 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
          fprintf( yyc, " " );
       fprintf( yyc, ")" );
 
-      /* Emit return type for FUNCTIONs and METHODs (not PROCEDUREs) */
+      /* Emit return type for FUNCTIONs and METHODs (not PROCEDUREs).
+         Class-typed returns degrade to the generic OBJECT tag. */
       if( szRetType && ! pFunc->value.asFunc.fProcedure )
       {
-         const char * szT = hb_astStandardType( szRetType );
+         const char * szT = hb_astStandardTypeOrObject( szRetType );
          if( szT )
             fprintf( yyc, " AS %s", szT );
       }
       else if( szRetType && szClassName &&
                pFirstStmt && ! pFirstStmt->value.asClassMethod.fProcedure )
       {
-         const char * szT = hb_astStandardType( szRetType );
+         const char * szT = hb_astStandardTypeOrObject( szRetType );
          if( szT )
             fprintf( yyc, " AS %s", szT );
       }
