@@ -4394,10 +4394,31 @@ static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuff
                hb_compOutStd( HB_COMP_PARAM, buffer );
             }
 
-            /* Generate the starting procedure frame */
+            /* Generate the starting procedure frame. In transpiler mode
+               prefix the uppercased filename with "__hbInit_" so the
+               synthetic startup symbol cannot collide with user-defined
+               functions or Harbour builtins (e.g. transform.prg would
+               otherwise create a TRANSFORM procedure that shadows the
+               builtin Transform()). The file-first synthetic function
+               never needs to be callable by name — it only holds file-
+               level statics, #includes and CLASS definitions until
+               codegen reshuffles them. */
+#ifdef HB_TRANSPILER
+            {
+               char * szBase = hb_strupr( hb_strdup( pFileName->szName ) );
+               char * szInit = ( char * ) hb_xgrab( strlen( szBase ) + 10 );
+               hb_strncpy( szInit, "__hbInit_", 9 );
+               hb_strncpy( szInit + 9, szBase, strlen( szBase ) + 1 );
+               hb_xfree( szBase );
+               hb_compFunctionAdd( HB_COMP_PARAM,
+                                   hb_compIdentifierNew( HB_COMP_PARAM, szInit, HB_IDENT_FREE ),
+                                   HB_FS_STATIC, HB_FUNF_PROCEDURE | HB_FUNF_FILE_FIRST );
+            }
+#else
             hb_compFunctionAdd( HB_COMP_PARAM,
                                 hb_compIdentifierNew( HB_COMP_PARAM, hb_strupr( hb_strdup( pFileName->szName ) ), HB_IDENT_FREE ),
                                 HB_FS_PUBLIC, HB_FUNF_PROCEDURE | HB_FUNF_FILE_FIRST | ( HB_COMP_PARAM->iStartProc == 0 ? 0 : HB_FUNF_FILE_DECL ) );
+#endif
          }
 
          if( ! HB_COMP_PARAM->fExit )
