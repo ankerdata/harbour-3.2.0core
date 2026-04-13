@@ -9,10 +9,11 @@ using System;
 // hb_astInferFromPrefix), and (b) no two tests declared a STATIC var
 // with the same name across the merged partial class Program.
 //
-//   A. hb_csTypeMap TIMESTAMP → DateTime. Before: an identifier whose
-//      Hungarian prefix inferred TIMESTAMP emitted as bare `TIMESTAMP`
-//      in C#, which is not a valid C# type. After: maps to DateTime,
-//      matching the DATE entry already in the map.
+//   A. hb_csTypeMap DATE → DateOnly and TIMESTAMP → DateTime. Before:
+//      an identifier whose Hungarian prefix inferred TIMESTAMP emitted
+//      as bare `TIMESTAMP` in C#, which is not a valid C# type. DATE
+//      used to map to DateTime for parity; it now maps to .NET's
+//      DateOnly (no time component), matching Harbour DATE semantics.
 //
 //   B. File-scope STATIC var name mangling. Harbour STATICs are
 //      private to their declaring .prg file, but every generated .cs
@@ -32,11 +33,11 @@ public static partial class Program
     static decimal test26_nCounter = 0;
     public static void Main(string[] args)
     {
-        // Hungarian prefix `tDate` → hb_astInferType returns "TIMESTAMP" →
-        // hb_csTypeMap returns "DateTime". Before the fix this emitted as
-        // `TIMESTAMP tDate = HbRuntime.DATE();` and the C# compiler
-        // errored with "TIMESTAMP could not be found".
-        DateTime tDate = HbRuntime.DATE();
+        // Hungarian prefix `dDate` → hb_astInferType returns "DATE" →
+        // hb_csTypeMap returns "DateOnly". Date() returns DateOnly too,
+        // so the assignment compiles cleanly. Separately, tStamp's
+        // TIMESTAMP → DateTime mapping is covered by test27.
+        DateOnly dDate = HbRuntime.DATE();
         decimal i;
 
         // Exercise function-scope STATIC mangling three times to confirm
@@ -49,16 +50,16 @@ public static partial class Program
 
         HbRuntime.QOUT("total: " + HbRuntime.STR(BumpCounter(), 4));
 
-        // Use tDate so C# doesn't warn-as-error about an unused local.
+        // Use dDate so C# doesn't warn-as-error about an unused local.
         // Empty(date()) is .F. for today; both Harbour and HbRuntime.EMPTY
-        // return false for a non-null DateTime, so output matches.
-        if (HbRuntime.EMPTY(tDate))
+        // return false for a non-null DateOnly, so output matches.
+        if (HbRuntime.EMPTY(dDate))
         {
-            HbRuntime.QOUT("tDate: empty");
+            HbRuntime.QOUT("dDate: empty");
         }
         else
         {
-            HbRuntime.QOUT("tDate: nonempty");
+            HbRuntime.QOUT("dDate: nonempty");
         }
 
         return;

@@ -11,6 +11,7 @@
 
 #include "hbcomp.h"
 #include "hbast.h"
+#include "hbdate.h"
 #include "hbreftab.h"
 #include "hbfunctab.h"
 
@@ -248,7 +249,7 @@ static const char * hb_csTypeMap( const char * szHbType )
    if( hb_stricmp( szHbType, "LOGICAL" ) == 0 )
       return "bool";
    if( hb_stricmp( szHbType, "DATE" ) == 0 )
-      return "DateTime";
+      return "DateOnly";
    if( hb_stricmp( szHbType, "TIMESTAMP" ) == 0 )
       return "DateTime";
    if( hb_stricmp( szHbType, "OBJECT" ) == 0 )
@@ -839,12 +840,29 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_DATE:
-         fprintf( yyc, "new DateTime(/* date: 0x%08lx */)", pExpr->value.asDate.lDate );
+      {
+         int iYear, iMonth, iDay;
+         hb_dateDecode( pExpr->value.asDate.lDate, &iYear, &iMonth, &iDay );
+         if( iYear == 0 && iMonth == 0 && iDay == 0 )
+            fprintf( yyc, "default(DateOnly)" );
+         else
+            fprintf( yyc, "new DateOnly(%d, %d, %d)", iYear, iMonth, iDay );
          break;
+      }
 
       case HB_ET_TIMESTAMP:
-         fprintf( yyc, "new DateTime(/* timestamp */)" );
+      {
+         int iYear, iMonth, iDay, iHour, iMin, iSec, iMSec;
+         hb_dateDecode( pExpr->value.asDate.lDate, &iYear, &iMonth, &iDay );
+         hb_timeDecode( pExpr->value.asDate.lTime, &iHour, &iMin, &iSec, &iMSec );
+         if( iYear == 0 && iMonth == 0 && iDay == 0 &&
+             iHour == 0 && iMin == 0 && iSec == 0 && iMSec == 0 )
+            fprintf( yyc, "default(DateTime)" );
+         else
+            fprintf( yyc, "new DateTime(%d, %d, %d, %d, %d, %d, %d)",
+                     iYear, iMonth, iDay, iHour, iMin, iSec, iMSec );
          break;
+      }
 
       case HB_ET_RTVAR:
          if( pExpr->value.asRTVar.szName )

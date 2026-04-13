@@ -13,7 +13,7 @@ public class Person : Inherited
 {
     public decimal nAge { get; set; } = 0;
     public string cName { get; set; } = "";
-    public DateTime dBirth { get; set; }
+    public DateOnly dBirth { get; set; }
     public bool lActive { get; set; } = true;
     public dynamic[] aItems { get; set; } = Array.Empty<dynamic>();
     public object oParent { get; set; }
@@ -47,7 +47,7 @@ public static partial class Program
         bool lDone;
         dynamic[] aBuffer;
         object oConnection;
-        DateTime dToday;
+        DateOnly dToday;
         Dictionary<dynamic, dynamic> hSettings;
         dynamic bAction;
 

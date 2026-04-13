@@ -13,7 +13,7 @@ public class Person : Inherited
 {
     public decimal nAge { get; set; } = 0;
     public string cName { get; set; } = "";
-    public DateTime dBirth { get; set; }
+    public DateOnly dBirth { get; set; }
     public static decimal nCount = 0;
     public dynamic FullName { get; set; }
         protected string cSecret { get; set; } = "hidden";

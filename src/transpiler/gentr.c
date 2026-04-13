@@ -11,6 +11,7 @@
 
 #include "hbcomp.h"
 #include "hbast.h"
+#include "hbdate.h"
 #include "hbreftab.h"
 
 /* Forward declarations */
@@ -433,13 +434,29 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_DATE:
-         fprintf( yyc, "0d%08lx", pExpr->value.asDate.lDate );
+      {
+         int iYear, iMonth, iDay;
+         hb_dateDecode( pExpr->value.asDate.lDate, &iYear, &iMonth, &iDay );
+         if( iYear == 0 && iMonth == 0 && iDay == 0 )
+            fprintf( yyc, "0d0" );    /* empty date short form */
+         else
+            fprintf( yyc, "0d%04d%02d%02d", iYear, iMonth, iDay );
          break;
+      }
 
       case HB_ET_TIMESTAMP:
-         fprintf( yyc, "t\"%ld,%ld\"", pExpr->value.asDate.lDate,
-                  pExpr->value.asDate.lTime );
+      {
+         int iYear, iMonth, iDay, iHour, iMin, iSec, iMSec;
+         hb_dateDecode( pExpr->value.asDate.lDate, &iYear, &iMonth, &iDay );
+         hb_timeDecode( pExpr->value.asDate.lTime, &iHour, &iMin, &iSec, &iMSec );
+         if( iMSec != 0 )
+            fprintf( yyc, "t\"%04d-%02d-%02d %02d:%02d:%02d.%03d\"",
+                     iYear, iMonth, iDay, iHour, iMin, iSec, iMSec );
+         else
+            fprintf( yyc, "t\"%04d-%02d-%02d %02d:%02d:%02d\"",
+                     iYear, iMonth, iDay, iHour, iMin, iSec );
          break;
+      }
 
       case HB_ET_RTVAR:
          /* PRIVATE/PUBLIC variable reference */

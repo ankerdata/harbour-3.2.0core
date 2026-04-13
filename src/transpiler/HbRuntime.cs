@@ -153,12 +153,14 @@ public static class HbRuntime
     public static bool ISLOWER(string s) => s.Length > 0 && char.IsLower(s[0]);
 
     // ---- Date functions ----
+    // Harbour DATE → C# DateOnly (no time component). Harbour TIMESTAMP
+    // maps to C# DateTime via the transpiler's type map.
 
-    public static DateTime DATE() => DateTime.Today;
-    public static DateTime CTOD(string s) { DateTime.TryParse(s, out DateTime d); return d; }
-    public static DateTime STOD(string s) { DateTime.TryParseExact(s, "yyyyMMdd", INV, DateTimeStyles.None, out DateTime d); return d; }
-    public static string DTOC(DateTime d) => d.ToString("MM/dd/yyyy", INV);
-    public static string DTOS(DateTime d) => d.ToString("yyyyMMdd", INV);
+    public static DateOnly DATE() => DateOnly.FromDateTime(DateTime.Today);
+    public static DateOnly CTOD(string s) { DateTime.TryParse(s, out DateTime d); return DateOnly.FromDateTime(d); }
+    public static DateOnly STOD(string s) { DateTime.TryParseExact(s, "yyyyMMdd", INV, DateTimeStyles.None, out DateTime d); return DateOnly.FromDateTime(d); }
+    public static string DTOC(DateOnly d) => d.ToString("MM/dd/yyyy", INV);
+    public static string DTOS(DateOnly d) => d.ToString("yyyyMMdd", INV);
     public static string TIME() => DateTime.Now.ToString("HH:mm:ss", INV);
 
     // ---- Terminal ----
