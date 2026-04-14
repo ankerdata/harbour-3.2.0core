@@ -913,11 +913,34 @@ hb_comp_yylex_restart:
          }
          /* Intercept METHOD keyword for class implementations after ENDCLASS.
             METHOD is an identifier, so it won't conflict with the yacc parser.
-            PROCEDURE is handled separately below since it's a yacc keyword. */
+            PROCEDURE is handled separately below since it's a yacc keyword.
+
+            Before handing tokens to hb_compMethodParse, peek ahead for a
+            CLASS keyword on the same logical line. Without this guard,
+            hb_compMethodParse consumes the method-name + params tokens,
+            discovers there's no CLASS suffix, returns HB_FALSE — and
+            leaves the original METHOD token dangling, which then hits
+            hb_comp_tokenIdentifer below with a freed value.
+            (Pre-existing bug surfaced by easicds.prg:683 which has a
+            typo'd `METHOD X(...)` with no `CLASS Y`.) */
          if( iType == IDENTIFIER && pLex->iState == LOOKUP &&
              hb_stricmp( pToken->value, "METHOD" ) == 0 )
          {
-            if( hb_compMethodParse( HB_COMP_PARAM, HB_FALSE ) )
+            HB_BOOL fHasClass = HB_FALSE;
+            PHB_PP_TOKEN pPeek = pToken->pNext;
+            while( pPeek &&
+                   HB_PP_TOKEN_TYPE( pPeek->type ) != HB_PP_TOKEN_EOL &&
+                   HB_PP_TOKEN_TYPE( pPeek->type ) != HB_PP_TOKEN_EOC )
+            {
+               if( HB_PP_TOKEN_TYPE( pPeek->type ) == HB_PP_TOKEN_KEYWORD &&
+                   hb_stricmp( pPeek->value, "CLASS" ) == 0 )
+               {
+                  fHasClass = HB_TRUE;
+                  break;
+               }
+               pPeek = pPeek->pNext;
+            }
+            if( fHasClass && hb_compMethodParse( HB_COMP_PARAM, HB_FALSE ) )
             {
                pLex->iState = LOOKUP;
                goto hb_comp_yylex_restart;
@@ -984,9 +1007,9 @@ hb_comp_yylex_restart:
                   return hb_comp_funcStart( HB_COMP_PARAM, yylval_ptr );
                }
                else if( pLex->iState == LOOKUP &&
-                        ( ( iType == EXIT && HB_PP_TOKEN_ISEOC( pToken->pNext ) ) ||
-                          ( iType == STATIC && pToken->pNext &&
-                            HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_KEYWORD ) ) )
+                        ( ( iType == EXIT && HB_PP_TOKEN_ISEOC( HB_COMP_PEEK( pToken ) ) ) ||
+                          ( iType == STATIC && HB_COMP_PEEK( pToken ) &&
+                            HB_PP_TOKEN_TYPE( HB_COMP_PEEK( pToken )->type ) == HB_PP_TOKEN_KEYWORD ) ) )
                {
                   pLex->iState = iType;
                   return iType;

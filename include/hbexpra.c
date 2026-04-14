@@ -654,6 +654,7 @@ PHB_EXPR hb_compExprAssignStatic( PHB_EXPR pLeftExpr, PHB_EXPR pRightExpr, HB_CO
 
    pExpr->value.asOperator.pRight = pRightExpr;
 
+#ifndef HB_TRANSPILER
    if( pRightExpr->ExprType == HB_ET_ARGLIST )
    {
       /* HB_ET_ARGLIST is used in case of STATIC var[dim1, dim2, dimN]
@@ -682,6 +683,7 @@ PHB_EXPR hb_compExprAssignStatic( PHB_EXPR pLeftExpr, PHB_EXPR pRightExpr, HB_CO
    {
       hb_compExprCheckStaticInitializer( pLeftExpr, pRightExpr, HB_COMP_PARAM );
    }
+#endif
 
    return pExpr;
 }

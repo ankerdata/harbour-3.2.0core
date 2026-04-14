@@ -47,6 +47,7 @@ public static partial class Program
         {
             HbRuntime.QOUT("other");
         }
+        // comment on ENDIF line
 
         if (x == 1)
         {
@@ -57,6 +58,7 @@ public static partial class Program
             // comment on OTHERWISE
             HbRuntime.QOUT("case other");
         }
+        // comment on ENDCASE
 
         // comment on FOR
         for (n = 1; n <= HbRuntime.LEN(aCodes); n++)

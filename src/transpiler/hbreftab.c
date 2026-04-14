@@ -19,6 +19,7 @@ typedef struct HB_REFENTRY_
    char *                szReturnType; /* inferred return type, or NULL (owned) */
    int                   nParams;      /* declared parameter count, -1 = unknown */
    HB_BOOL               fVariadic;    /* function uses PCount/HB_PValue */
+   HB_BOOL               fCalledVarargs; /* some call site forwards `...` to this function */
    HB_BOOL               fDefined;     /* set once a real definition has been seen */
    HB_BOOL               fIsClass;     /* this is a CLASS marker, not a function */
    HB_REFPARAM *         pParams;      /* nParams entries (NULL if unknown) */
@@ -415,6 +416,24 @@ HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName )
    return e && e->fIsClass;
 }
 
+void hb_refTabMarkCalledVarargs( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return;
+   e = hb_refTabFindOrCreate( pTab, szName );
+   e->fCalledVarargs = HB_TRUE;
+}
+
+HB_BOOL hb_refTabIsCalledVarargs( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fCalledVarargs;
+}
+
 const char * hb_refTabReturnType( PHB_REFTAB pTab, const char * szFunc )
 {
    PHB_REFENTRY e;
@@ -468,7 +487,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
       return HB_FALSE;
    fprintf( fp, "# Harbour transpiler user-function signature table\n" );
    fprintf( fp, "# Format: NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...\n" );
-   fprintf( fp, "# FLAGS:    V = variadic, - = none\n" );
+   fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
    fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, - = none\n" );
@@ -488,11 +507,12 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
          if( e->fDefined )
          {
             int p;
-            char fnFlags[ 4 ];
+            char fnFlags[ 5 ];
             int  fnK = 0;
-            if( e->fVariadic ) fnFlags[ fnK++ ] = 'V';
-            if( e->fIsClass )  fnFlags[ fnK++ ] = 'K';
-            if( fnK == 0 )     fnFlags[ fnK++ ] = '-';
+            if( e->fVariadic )      fnFlags[ fnK++ ] = 'V';
+            if( e->fCalledVarargs ) fnFlags[ fnK++ ] = 'S';
+            if( e->fIsClass )       fnFlags[ fnK++ ] = 'K';
+            if( fnK == 0 )          fnFlags[ fnK++ ] = '-';
             fnFlags[ fnK ] = '\0';
             fprintf( fp, "%s\t%s\t%s\t%d",
                      e->szName,
@@ -598,19 +618,25 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       if( nFields < 4 )
          continue;
       {
-         /* FLAGS is a string of letters: V (variadic), K (klass), - */
+         /* FLAGS is a string of letters: V (variadic), S (called with
+            `...` spread), K (klass), - */
          char * c;
          HB_BOOL fIsClass = HB_FALSE;
+         HB_BOOL fSpread  = HB_FALSE;
          fVariadic = HB_FALSE;
          for( c = fields[ 1 ]; *c; c++ )
          {
             if( *c == 'V' || *c == 'v' )
                fVariadic = HB_TRUE;
+            else if( *c == 'S' || *c == 's' )
+               fSpread = HB_TRUE;
             else if( *c == 'K' || *c == 'k' )
                fIsClass = HB_TRUE;
          }
          if( fIsClass )
             hb_refTabMarkClass( pTab, fields[ 0 ] );
+         if( fSpread )
+            hb_refTabMarkCalledVarargs( pTab, fields[ 0 ] );
       }
       /* fields[2] is RETTYPE, possibly "-" */
       nParams = atoi( fields[ 3 ] );
@@ -819,6 +845,22 @@ static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
          (for the Fred(x, , z) case) but don't recurse. */
       if( pArg->ExprType == HB_ET_NONE )
       {
+         pArg = pArg->pNext;
+         iPos++;
+         continue;
+      }
+      /* `...` as a call argument lands here as an HB_ET_ARGLIST item
+         with `reference=TRUE` and an empty child list (see
+         hb_compExprNewArgRef). When that shape appears inside an
+         argument list, the caller is forwarding its varargs to the
+         callee — mark the callee so the emitter knows to widen its
+         C# signature to `params dynamic[] hbva`. */
+      if( pArg->ExprType == HB_ET_ARGLIST &&
+          pArg->value.asList.reference &&
+          ! pArg->value.asList.pExprList )
+      {
+         if( szFunc )
+            hb_refTabMarkCalledVarargs( pTab, szFunc );
          pArg = pArg->pNext;
          iPos++;
          continue;

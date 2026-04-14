@@ -17,7 +17,7 @@ C_SOURCES := \
    cmdcheck.c \
    complex.c \
    expropta.c \
-   gentr.c \
+   genhb.c \
    genstubs.c \
    hbast.c \
    hbclsparse.c \

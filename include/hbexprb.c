@@ -1160,6 +1160,14 @@ static HB_EXPR_FUNC( hb_compExprUseArgList )
          {
 #if defined( HB_MACRO_SUPPORT )
             if( ! HB_PCODE_DATA->fVParams )
+#elif defined( HB_TRANSPILER )
+            /* Under HB_TRANSPILER the fVParams tracking is unreliable for
+             * short codeblocks (|...| body is parsed in the enclosing
+             * function's scope, so functions.pLast->fVParams reflects the
+             * caller, not the block). The C# emitter doesn't consume
+             * HB_P_PUSHVPARAMS pcode anyway — it re-emits `...` symbolically
+             * — so suppress the check. */
+            if( 0 )
 #else
             if( ! HB_COMP_PARAM->functions.pLast->fVParams )
 #endif

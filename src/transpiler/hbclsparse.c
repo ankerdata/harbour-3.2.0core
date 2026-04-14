@@ -166,9 +166,24 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
    /* Skip rest of line */
    hb_clsSkipLine( HB_COMP_PARAM, pToken );
 
-   /* Create a proper function scope so the yacc parser captures the body */
-   hb_compFunctionAdd( HB_COMP_PARAM, szMethodName,
-                       HB_FS_PUBLIC, fProcedure ? HB_FUNF_PROCEDURE : 0 );
+   /* Register the method under a class-scoped internal name so it
+      doesn't collide with a same-named free function in the same
+      file — real code does this all the time (e.g. easikzg.prg has
+      both `static function BuyVoucher(...)` and `METHOD BuyVoucher
+      CLASS EasiKzg`). The emitter uses the HB_AST_CLASSMETHOD node's
+      szName/szClass fields for output, so the internal key is opaque.
+      Double-underscore matches the existing `<File>__<Var>` STATIC
+      mangling convention. */
+   {
+      size_t nLen = strlen( szClassName ) + 2 + strlen( szMethodName ) + 1;
+      char * szKey = ( char * ) hb_xgrab( nLen );
+      hb_snprintf( szKey, nLen, "%s__%s", szClassName, szMethodName );
+      hb_compFunctionAdd( HB_COMP_PARAM,
+                          hb_compIdentifierNew( HB_COMP_PARAM, szKey, HB_IDENT_COPY ),
+                          HB_FS_PUBLIC,
+                          fProcedure ? HB_FUNF_PROCEDURE : 0 );
+      hb_xfree( szKey );
+   }
 
    /* Add parameters as local variables */
    if( nParams > 0 )

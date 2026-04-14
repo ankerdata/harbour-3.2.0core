@@ -41,6 +41,7 @@ PROCEDURE Main()
    ELSE
       QOut("other")
    ENDIF
+   // comment on ENDIF line
 
    DO CASE
       CASE x == 1
@@ -49,6 +50,7 @@ PROCEDURE Main()
          // comment on OTHERWISE
          QOut("case other")
    ENDCASE
+   // comment on ENDCASE
 
    // comment on FOR
    FOR n := 1 TO Len(aCodes)

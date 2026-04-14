@@ -363,7 +363,7 @@ extern const char * hb_astPropagate( PHB_AST_NODE pBody,
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
 extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );
 
-/* === Transpiler output (gentr.c) === */
+/* === Transpiler output (genhb.c) === */
 
 extern void         hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName );
 

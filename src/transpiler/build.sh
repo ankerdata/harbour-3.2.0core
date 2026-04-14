@@ -14,7 +14,7 @@ cd "$REPO_ROOT"
 clang -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   -o "$OUTPUT" \
   src/transpiler/cmdcheck.c src/transpiler/complex.c \
-  src/transpiler/expropta.c src/transpiler/gentr.c \
+  src/transpiler/expropta.c src/transpiler/genhb.c \
   src/transpiler/gencsharp.c src/transpiler/genscan.c src/transpiler/genstubs.c \
   src/transpiler/hbast.c src/transpiler/hbclsparse.c \
   src/transpiler/hbcomp.c src/transpiler/hbmain.c \

@@ -5548,6 +5548,43 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
       else
       {
          HB_BOOL fDirective = HB_FALSE;
+         /* Detach trailing `//` line comments from the command line
+            before running #define / #translate / #command rule matching.
+            With comment preservation enabled, patterns with marker
+            types like `<(x)>` (HB_PP_RMARKER_STRSMART) can enter
+            hb_pp_matchResultLstAdd with a match range that includes
+            the following COMMENT token, and the for(;;) walk there
+            spins up the iteration count to seconds per line. Stripping
+            the comments for rule-matching preserves the PP's usual
+            behaviour on well-formed code; the chain we save here is
+            reattached below so downstream consumers (the lexer's
+            comment-capture hook under HB_TRANSPILER) still see them. */
+         PHB_PP_TOKEN pDetachedComments = NULL;
+         PHB_PP_TOKEN * pAttachPt = NULL;
+         {
+            PHB_PP_TOKEN * pScan = &pState->pFile->pTokenList;
+            PHB_PP_TOKEN * pLastReal = NULL;
+            while( *pScan && ! HB_PP_TOKEN_ISEOC( *pScan ) )
+            {
+               if( HB_PP_TOKEN_TYPE( ( *pScan )->type ) != HB_PP_TOKEN_COMMENT )
+                  pLastReal = pScan;
+               pScan = &( *pScan )->pNext;
+            }
+            if( pLastReal && ( *pLastReal )->pNext &&
+                HB_PP_TOKEN_TYPE( ( *pLastReal )->pNext->type ) == HB_PP_TOKEN_COMMENT )
+            {
+               PHB_PP_TOKEN pCmt = ( *pLastReal )->pNext;
+               PHB_PP_TOKEN pLast = pCmt;
+               while( pLast->pNext &&
+                      HB_PP_TOKEN_TYPE( pLast->pNext->type ) == HB_PP_TOKEN_COMMENT )
+                  pLast = pLast->pNext;
+               pDetachedComments = pCmt;
+               /* splice past the comment run */
+               ( *pLastReal )->pNext = pLast->pNext;
+               pLast->pNext = NULL;  /* self-terminate the detached chain */
+               pAttachPt = pLastReal;  /* where to splice them back */
+            }
+         }
 
          pState->iCycle = 0;
          while( ! HB_PP_TOKEN_ISEOC( pState->pFile->pTokenList ) &&
@@ -5571,6 +5608,26 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
                continue;
             break;
          }
+
+         /* Reattach detached trailing comments. Walk the (possibly-
+            rewritten) token list to EOC/end and splice in. */
+         if( pDetachedComments )
+         {
+            PHB_PP_TOKEN * pTail = &pState->pFile->pTokenList;
+            while( *pTail && ! HB_PP_TOKEN_ISEOC( *pTail ) )
+               pTail = &( *pTail )->pNext;
+            /* *pTail is now either NULL or an EOC/EOL sentinel.
+               Insert comments before it. */
+            {
+               PHB_PP_TOKEN pLast = pDetachedComments;
+               while( pLast->pNext )
+                  pLast = pLast->pNext;
+               pLast->pNext = *pTail;
+               *pTail = pDetachedComments;
+            }
+            ( void ) pAttachPt;  /* kept for debug; not used at reattach */
+         }
+
          if( ! fDirective && pState->pFile->pTokenList )
             hb_pp_genLineTokens( pState );
       }

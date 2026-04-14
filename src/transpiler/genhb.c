@@ -348,12 +348,24 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_MACROARGLIST:
          {
             PHB_EXPR pItem = pExpr->value.asList.pExprList;
-            while( pItem )
+            /* Empty ARGLIST with reference=TRUE represents `...` — varargs
+               forwarding as a call argument (`Foo(...)`) or array spread
+               (`{ ... }`). Without the explicit re-emit the dots are lost
+               and the callee is invoked with zero args. */
+            if( pExpr->ExprType == HB_ET_ARGLIST &&
+                pExpr->value.asList.reference && ! pItem )
             {
-               hb_astEmitExpr( pItem, yyc, HB_FALSE );
-               pItem = pItem->pNext;
-               if( pItem )
-                  fprintf( yyc, ", " );
+               fprintf( yyc, "..." );
+            }
+            else
+            {
+               while( pItem )
+               {
+                  hb_astEmitExpr( pItem, yyc, HB_FALSE );
+                  pItem = pItem->pNext;
+                  if( pItem )
+                     fprintf( yyc, ", " );
+               }
             }
          }
          break;
@@ -417,6 +429,7 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_CODEBLOCK:
          {
             PHB_CBVAR pVar;
+            HB_BOOL fVParams = ( pExpr->value.asCodeblock.flags & HB_BLOCK_VPARAMS ) != 0;
             fprintf( yyc, "{|" );
             pVar = pExpr->value.asCodeblock.pLocals;
             while( pVar )
@@ -425,6 +438,12 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                pVar = pVar->pNext;
                if( pVar )
                   fprintf( yyc, ", " );
+            }
+            if( fVParams )
+            {
+               if( pExpr->value.asCodeblock.pLocals )
+                  fprintf( yyc, ", " );
+               fprintf( yyc, "..." );
             }
             fprintf( yyc, "| " );
             if( pExpr->value.asCodeblock.pExprList )
@@ -1059,17 +1078,29 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
           pFirstStmt->value.asClassMethod.szClass )
          szClassName = pFirstStmt->value.asClassMethod.szClass;
 
-      if( szClassName )
+      /* The AST function's szName is mangled as `<Class>__<Method>`
+         for class methods (so they don't collide with same-name free
+         functions in the compiler function table). Use the original
+         method name from the CLASSMETHOD marker for emission and
+         reftab lookups. */
       {
-         /* Emit as METHOD/PROCEDURE ... CLASS ... */
-         fprintf( yyc, "%s %s(",
-                  ( pFirstStmt->value.asClassMethod.fProcedure ? "PROCEDURE" : "METHOD" ),
-                  pFunc->value.asFunc.szName );
+         const char * szEmitName =
+            ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+              pFirstStmt->value.asClassMethod.szName )
+               ? pFirstStmt->value.asClassMethod.szName
+               : pFunc->value.asFunc.szName;
+         if( szClassName )
+         {
+            /* Emit as METHOD/PROCEDURE ... CLASS ... */
+            fprintf( yyc, "%s %s(",
+                     ( pFirstStmt->value.asClassMethod.fProcedure ? "PROCEDURE" : "METHOD" ),
+                     szEmitName );
+         }
+         else if( pFunc->value.asFunc.fProcedure )
+            fprintf( yyc, "PROCEDURE %s(", szEmitName );
+         else
+            fprintf( yyc, "FUNCTION %s(", szEmitName );
       }
-      else if( pFunc->value.asFunc.fProcedure )
-         fprintf( yyc, "PROCEDURE %s(", pFunc->value.asFunc.szName );
-      else
-         fprintf( yyc, "FUNCTION %s(", pFunc->value.asFunc.szName );
 
       /* Emit parameters with inferred types. Harbour's grammar has no
          syntax for declaring a by-ref parameter in a FUNCTION/PROCEDURE
@@ -1083,8 +1114,13 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
          /* Methods are keyed Class::Method in the table; use the
             method-key helper to consult the right entry. */
          char szKeyBuf[ 256 ];
+         const char * szRealName =
+            ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+              pFirstStmt->value.asClassMethod.szName )
+               ? pFirstStmt->value.asClassMethod.szName
+               : pFunc->value.asFunc.szName;
          const char * szFnName = hb_refTabMethodKey(
-            szClassName, pFunc->value.asFunc.szName );
+            szClassName, szRealName );
          hb_strncpy( szKeyBuf, szFnName, sizeof( szKeyBuf ) - 1 );
          szFnName = szKeyBuf;
          {
@@ -1129,6 +1165,19 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
                pVar = pVar->pNext;
             }
          }
+      }
+      if( pCompFunc->fVParams )
+      {
+         /* `PROCEDURE Foo(...)` / `FUNCTION Foo(a, b, ...)` — re-emit
+            the `...` marker so the .hb round-trip preserves the
+            varargs declaration. Without this the function compiles
+            with vanilla Harbour as a fixed-arity nullary and any
+            `hb_AParams()` / `{ ... }` in the body returns empty. */
+         if( nParam > 0 )
+            fprintf( yyc, ", ..." );
+         else
+            fprintf( yyc, " ..." );
+         nParam++;
       }
       if( nParam > 0 )
          fprintf( yyc, " " );

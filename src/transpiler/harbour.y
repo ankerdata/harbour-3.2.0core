@@ -2663,9 +2663,18 @@ static void hb_compSwitchAdd( HB_COMP_DECL, PHB_EXPR pExpr )
       pCase->nOffset = pFunc->nPCodePos;
       pCase->pNext = NULL;
       pCase->pExpr = pExpr = hb_compExprReduce( pExpr, HB_COMP_PARAM );
+      /* Under HB_TRANSPILER the PP intentionally preserves #define symbols
+       * rather than expanding them to their constant values, so a
+       * `CASE MYCONST` expression arrives here as an identifier, not a
+       * literal. The C# emitter re-emits the symbolic reference against
+       * the `const` field generated from the #define, so the "must be a
+       * literal" rule has no meaning for the transpiler target. */
+#ifndef HB_TRANSPILER
       if( !( hb_compExprIsLong( pExpr ) || hb_compExprIsString( pExpr ) ) )
          hb_compGenError( HB_COMP_PARAM, hb_comp_szErrors, 'E', HB_COMP_ERR_NOT_LITERAL_CASE, NULL, NULL );
-      else if( pFunc->pSwitch->pCases )
+      else
+#endif
+      if( pFunc->pSwitch->pCases )
       {
          PHB_SWITCHCASE pCases = pFunc->pSwitch->pCases;
          while( pCases )

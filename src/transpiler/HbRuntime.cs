@@ -15,6 +15,18 @@ public static class HbRuntime
 {
     static readonly CultureInfo INV = CultureInfo.InvariantCulture;
 
+    // ---- Codeblock dispatch ----
+    // Harbour codeblocks emit as Func<dynamic[], dynamic>, so EVAL just
+    // packs the trailing args into the array and invokes. Delegate
+    // fallback covers blocks that survived as a plain delegate (e.g.
+    // typed fixed-arity lambdas) via DynamicInvoke.
+    public static dynamic EVAL(dynamic block, params dynamic[] args)
+    {
+        if (block is Func<dynamic[], dynamic> fa) return fa(args);
+        if (block is Delegate d) return d.DynamicInvoke(args);
+        return null;
+    }
+
     // ---- Console output (? and ??) ----
 
     public static void QOUT(params dynamic[] args)

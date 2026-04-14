@@ -38,6 +38,12 @@ for f in "$SCRIPT_DIR"/test*.cs; do
    # as single test19 / test20 projects below.
    case "$name" in
       test19a|test19b|test20a|test20b|test22a|test22b) continue ;;
+      # test32 exercises the PP trailing-comment-in-command fix via
+      # `SET CENTURY ON // ...`. The PP expands to HbRuntime.__SetCentury
+      # / Set / _SET_EXACT, which HbRuntime.cs does not stub yet.
+      # Parser/round-trip side is covered by runtests + runhb; the
+      # C# side will come with the HbRuntime coverage todo.
+      test32) continue ;;
    esac
    cd "$CSEXE"
    dotnet new console --name "$name" --force > /dev/null 2>&1

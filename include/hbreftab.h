@@ -158,6 +158,15 @@ extern void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName );
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );
 
+/* Mark szName as called with `...` spread — i.e. some call site forwards
+   the caller's varargs (`...`) as this function's arguments. The C#
+   emitter uses this to change the function's signature to
+   `params dynamic[] hbva` and to generate per-param unpack assignments,
+   so the fixed-arity source signature still round-trips to a callable
+   C# method while accepting varargs-spread from codeblocks. */
+extern void    hb_refTabMarkCalledVarargs( PHB_REFTAB pTab, const char * szName );
+extern HB_BOOL hb_refTabIsCalledVarargs ( PHB_REFTAB pTab, const char * szName );
+
 /* Returns the recorded return type for szFunc (e.g. "NUMERIC"), or
    NULL if the function isn't registered or has no known return type.
    The returned pointer is owned by the table — do not free. */

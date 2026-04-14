@@ -552,6 +552,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                 pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
                szName = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
 
+            /* hb_AParams() inside a spread-receiving function body is
+               literally the `hbva` array we already bound at the top
+               of the C# function. Short-circuit to that instead of
+               routing through HbRuntime, which has no such array to
+               return. */
+            if( szName && hb_stricmp( szName, "HB_APARAMS" ) == 0 )
+            {
+               fprintf( yyc, "hbva" );
+               break;
+            }
+
             if( szName )
                fprintf( yyc, "%s", hb_csFuncMap( szName ) );
             else
@@ -733,6 +744,21 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_MACROARGLIST:
          {
             PHB_EXPR pItem = pExpr->value.asList.pExprList;
+            /* `...` call argument and `{ ... }` array-spread literal
+               both arrive as an HB_ET_ARGLIST with `reference=TRUE`
+               and an empty child list (see hb_compExprNewArgRef).
+               Emit `hbva` — the lambda's vararg array — which lines
+               up with the name used by the HB_ET_CODEBLOCK VPARAMS
+               emission above and by the vararg preamble in
+               hb_csEmitFunc. Callee must accept `params dynamic[]`;
+               the scanner flags the callee (fCalledVarargs) so its
+               signature widens to match. */
+            if( pExpr->ExprType == HB_ET_ARGLIST &&
+                pExpr->value.asList.reference && ! pItem )
+            {
+               fprintf( yyc, "hbva" );
+               break;
+            }
             while( pItem )
             {
                hb_csEmitExpr( pItem, yyc, HB_FALSE );
@@ -815,27 +841,65 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_CODEBLOCK:
          {
-            PHB_CBVAR pVar;
-            fprintf( yyc, "(" );
-            pVar = pExpr->value.asCodeblock.pLocals;
-            if( pVar )
+            PHB_CBVAR pVar = pExpr->value.asCodeblock.pLocals;
+            HB_BOOL fVParams =
+               ( pExpr->value.asCodeblock.flags & HB_BLOCK_VPARAMS ) != 0;
+            if( fVParams )
             {
-               fprintf( yyc, "(" );
-               while( pVar )
+               /* `{|...| body}` — emit as a Func<dynamic[], dynamic>
+                  so the lambda has a uniform shape that HbRuntime.EVAL
+                  (and downstream callers that treat the block as
+                  dynamic) can invoke by packing args into an array.
+                  Named params listed before `...` bind to the leading
+                  slots of `hbva`.
+
+                  The body is emitted as a statement (expression + ';')
+                  followed by `return null` rather than `return expr`,
+                  because `...` codeblocks overwhelmingly forward to a
+                  procedure (`Echo(...)`) whose call can't legally sit
+                  on the right of `return` in C# (void has no value).
+                  Harbour blocks then naturally evaluate to NIL, which
+                  matches `return null`. */
+               fprintf( yyc, "((Func<dynamic[], dynamic>)((dynamic[] hbva) => { " );
                {
-                  fprintf( yyc, "%s", pVar->szName );
-                  pVar = pVar->pNext;
-                  if( pVar )
-                     fprintf( yyc, ", " );
+                  int iLocal = 0;
+                  while( pVar )
+                  {
+                     fprintf( yyc, "dynamic %s = hbva.Length > %d ? hbva[%d] : null; ",
+                              pVar->szName, iLocal, iLocal );
+                     pVar = pVar->pNext;
+                     iLocal++;
+                  }
                }
-               fprintf( yyc, ")" );
+               if( pExpr->value.asCodeblock.pExprList )
+               {
+                  hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
+                  fprintf( yyc, "; " );
+               }
+               fprintf( yyc, "return null; }))" );
             }
             else
-               fprintf( yyc, "()" );
-            fprintf( yyc, " => " );
-            if( pExpr->value.asCodeblock.pExprList )
-               hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
-            fprintf( yyc, ")" );
+            {
+               fprintf( yyc, "(" );
+               if( pVar )
+               {
+                  fprintf( yyc, "(" );
+                  while( pVar )
+                  {
+                     fprintf( yyc, "%s", pVar->szName );
+                     pVar = pVar->pNext;
+                     if( pVar )
+                        fprintf( yyc, ", " );
+                  }
+                  fprintf( yyc, ")" );
+               }
+               else
+                  fprintf( yyc, "()" );
+               fprintf( yyc, " => " );
+               if( pExpr->value.asCodeblock.pExprList )
+                  hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+            }
          }
          break;
 
@@ -1066,14 +1130,27 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                /* Codeblock initializers need explicit Func<> type */
                if( pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK )
                {
-                  PHB_CBVAR pCBVar = pNode->value.asVar.pInit->value.asCodeblock.pLocals;
-                  int nParams = 0;
-                  int j;
-                  while( pCBVar ) { nParams++; pCBVar = pCBVar->pNext; }
-                  fprintf( yyc, "Func<" );
-                  for( j = 0; j < nParams; j++ )
-                     fprintf( yyc, "dynamic, " );
-                  fprintf( yyc, "dynamic> %s = ", pNode->value.asVar.szName );
+                  HB_BOOL fVParamsBlock =
+                     ( pNode->value.asVar.pInit->value.asCodeblock.flags
+                       & HB_BLOCK_VPARAMS ) != 0;
+                  if( fVParamsBlock )
+                  {
+                     /* `{|...| body}` — uniform dynamic[] shape,
+                        matches the cast emitted in HB_ET_CODEBLOCK. */
+                     fprintf( yyc, "Func<dynamic[], dynamic> %s = ",
+                              pNode->value.asVar.szName );
+                  }
+                  else
+                  {
+                     PHB_CBVAR pCBVar = pNode->value.asVar.pInit->value.asCodeblock.pLocals;
+                     int nParams = 0;
+                     int j;
+                     while( pCBVar ) { nParams++; pCBVar = pCBVar->pNext; }
+                     fprintf( yyc, "Func<" );
+                     for( j = 0; j < nParams; j++ )
+                        fprintf( yyc, "dynamic, " );
+                     fprintf( yyc, "dynamic> %s = ", pNode->value.asVar.szName );
+                  }
                }
                else
                   fprintf( yyc, "%s %s = ", hb_csTypeMap( szType ),
@@ -1717,15 +1794,23 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
       fProcedure = pFirstStmt->value.asClassMethod.fProcedure;
 
-   /* Track current method (Class::Method) for nilable-parameter
-      lookups in IF/IIF condition emission. */
+   /* The AST function's szName is mangled as `<Class>__<Method>` by
+      hb_compMethodParse so class methods don't collide with same-name
+      free functions in the compiler's function table. The emitters
+      want the real method name from the CLASSMETHOD marker; fall
+      back to the mangled name only if (unexpectedly) no marker is
+      present. */
    {
+      const char * szMethodName =
+         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+           pFirstStmt->value.asClassMethod.szName )
+            ? pFirstStmt->value.asClassMethod.szName
+            : pFunc->value.asFunc.szName;
       const char * szClass =
          ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
             ? pFirstStmt->value.asClassMethod.szClass
             : NULL;
-      const char * szKey = hb_refTabMethodKey(
-         szClass, pFunc->value.asFunc.szName );
+      const char * szKey = hb_refTabMethodKey( szClass, szMethodName );
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
    }
    s_pCurrentFuncNode = pFunc;
@@ -1746,7 +1831,11 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          fprintf( yyc, "dynamic" );
       s_fVoidFunc = HB_FALSE;
    }
-   fprintf( yyc, " %s(", pFunc->value.asFunc.szName );
+   fprintf( yyc, " %s(",
+            ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+              pFirstStmt->value.asClassMethod.szName )
+               ? pFirstStmt->value.asClassMethod.szName
+               : pFunc->value.asFunc.szName );
 
    /* Parameters */
    pVar = pFunc->value.asFunc.pParams;
@@ -1758,8 +1847,12 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             ? pFirstStmt->value.asClassMethod.szClass
             : NULL;
       char szKeyBuf[ 256 ];
-      const char * szMethName = hb_refTabMethodKey(
-         szClassName, pFunc->value.asFunc.szName );
+      const char * szRealName =
+         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+           pFirstStmt->value.asClassMethod.szName )
+            ? pFirstStmt->value.asClassMethod.szName
+            : pFunc->value.asFunc.szName;
+      const char * szMethName = hb_refTabMethodKey( szClassName, szRealName );
       hb_strncpy( szKeyBuf, szMethName, sizeof( szKeyBuf ) - 1 );
       szMethName = szKeyBuf;
 
@@ -1955,7 +2048,20 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
    pMethod = pClass->pMethods;
    while( pMethod )
    {
+      /* The function's szName is mangled `<Class>__<Method>` — read
+         the original method name off the CLASSMETHOD marker for the
+         ACCESS/ASSIGN collision check. */
       const char * szMethName = pMethod->pFunc->value.asFunc.szName;
+      {
+         PHB_AST_NODE pFirst =
+            ( pMethod->pFunc->value.asFunc.pBody &&
+              pMethod->pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
+               ? pMethod->pFunc->value.asFunc.pBody->value.asBlock.pFirst
+               : NULL;
+         if( pFirst && pFirst->type == HB_AST_CLASSMETHOD &&
+             pFirst->value.asClassMethod.szName )
+            szMethName = pFirst->value.asClassMethod.szName;
+      }
       HB_BOOL fSkipMethod = HB_FALSE;
 
       /* Check if this method name matches an ACCESS or ASSIGN property */
@@ -2057,6 +2163,14 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       int iPos = 0;
       int iLastRef = -1;
       HB_BOOL fWantDefaults = ! fIsMain;
+      /* A callee reached via `...` spread from a codeblock gets its
+         signature widened to `params dynamic[] hbva`. The original
+         param names are re-bound from the array inside the body so
+         existing body references keep working. Skipped when any slot
+         is by-ref (C# `params` can't combine with `ref`) — those calls
+         fall back to the reflection path in HbRuntime.EVAL. */
+      HB_BOOL fSpread = ! fIsMain &&
+                        hb_refTabIsCalledVarargs( s_pRefTab, szFnName );
 
       if( fWantDefaults )
       {
@@ -2064,6 +2178,18 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          for( k = 0; k < ( int ) pCompFunc->wParamCount; k++ )
             if( hb_refTabIsRef( s_pRefTab, szFnName, k ) )
                iLastRef = k;
+      }
+
+      if( fSpread && iLastRef >= 0 )
+         fSpread = HB_FALSE;  /* ref-taking callee: keep typed signature */
+
+      if( fSpread )
+      {
+         if( fIsMain )
+            fprintf( yyc, ", " );
+         fprintf( yyc, "params dynamic[] hbva" );
+         nParam = pCompFunc->wParamCount;  /* skip normal param loop */
+         pVar = NULL;
       }
 
       while( pVar && nParam < pCompFunc->wParamCount )
@@ -2106,6 +2232,32 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "{\n" );
    s_iLastLine = 0;
+   /* If the signature was widened to `params dynamic[] hbva` above,
+      re-bind the original named params from the array so references
+      in the body keep working. */
+   if( ! fIsMain &&
+       hb_refTabIsCalledVarargs( s_pRefTab, pFunc->value.asFunc.szName ) )
+   {
+      PHB_HVAR pSlot;
+      int k = 0;
+      int iLastRef = -1;
+      int j;
+      for( j = 0; j < ( int ) pCompFunc->wParamCount; j++ )
+         if( hb_refTabIsRef( s_pRefTab, pFunc->value.asFunc.szName, j ) )
+            iLastRef = j;
+      if( iLastRef < 0 )  /* skip unpack when ref params forced typed sig */
+      {
+         pSlot = pFunc->value.asFunc.pParams;
+         while( pSlot && k < ( int ) pCompFunc->wParamCount )
+         {
+            hb_csEmitIndent( yyc, iIndent + 1 );
+            fprintf( yyc, "dynamic %s = hbva.Length > %d ? hbva[%d] : null;\n",
+                     pSlot->szName, k, k );
+            pSlot = pSlot->pNext;
+            k++;
+         }
+      }
+   }
    if( pFunc->value.asFunc.pBody )
       hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
    hb_csEmitIndent( yyc, iIndent );
