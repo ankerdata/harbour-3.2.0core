@@ -577,6 +577,73 @@ public static class HbRuntime
 
     public static void WAPI_OUTPUTDEBUGSTRING(string cText) => Console.Error.WriteLine(cText);
 
+    // ---- Win32 RGB helpers (easiutil/getrgbvalue.c) ----
+
+    public static decimal COLORRGB2N(decimal r, decimal g, decimal b) =>
+        (int)r + (int)g * 256 + (int)b * 65536;
+    public static decimal GETRVALUE(decimal rgb) => (int)rgb & 0xFF;
+    public static decimal GETGVALUE(decimal rgb) => ((int)rgb >> 8) & 0xFF;
+    public static decimal GETBVALUE(decimal rgb) => ((int)rgb >> 16) & 0xFF;
+
+    // ---- Binary conversions (Harbour builtins) ----
+    // bin2l: 4-byte little-endian signed → numeric.
+    // ul2bin: numeric → 4-byte little-endian unsigned string.
+    // bin2i: 2-byte little-endian signed → numeric.
+    // i2bin: numeric → 2-byte little-endian signed string.
+
+    public static decimal BIN2L(string s)
+    {
+        if (s is null || s.Length < 4) return 0;
+        int v = (byte)s[0] | ((byte)s[1] << 8) | ((byte)s[2] << 16) | ((byte)s[3] << 24);
+        return v;
+    }
+
+    public static string UL2BIN(decimal n)
+    {
+        uint v = (uint)(long)n;
+        char[] b = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF),
+                     (char)((v >> 16) & 0xFF), (char)((v >> 24) & 0xFF) };
+        return new string(b);
+    }
+
+    public static decimal BIN2I(string s)
+    {
+        if (s is null || s.Length < 2) return 0;
+        short v = (short)((byte)s[0] | ((byte)s[1] << 8));
+        return v;
+    }
+
+    public static string I2BIN(decimal n)
+    {
+        ushort v = (ushort)(short)(int)n;
+        char[] b = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF) };
+        return new string(b);
+    }
+
+    // ---- Cross-lib stubs ----
+    // These have real implementations in sibling easipos libs (sharedx,
+    // each app's main .prg). Stubbed here so the EasiUtil classlib
+    // builds standalone; once a multi-project layout is wired up the
+    // real impls take over. GETAPPNAME defaults to the entry assembly
+    // name; MYERASE deletes; GETFLAG returns null (callers tolerate).
+
+    public static string GETAPPNAME() =>
+        System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "EasiUtil";
+
+    public static bool MYERASE(string cFile)
+    {
+        try { System.IO.File.Delete(cFile); return true; }
+        catch { return false; }
+    }
+
+    public static bool MYRENAME(string cOld, string cNew)
+    {
+        try { System.IO.File.Move(cOld, cNew); return true; }
+        catch { return false; }
+    }
+
+    public static dynamic GETFLAG(string cFlagName) => null;
+
     // ---- Misc ----
 
     public static decimal RECNO() => 0;
