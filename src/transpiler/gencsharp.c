@@ -802,12 +802,23 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "hbva" );
                break;
             }
-            while( pItem )
             {
-               hb_csEmitExpr( pItem, yyc, HB_FALSE );
-               pItem = pItem->pNext;
-               if( pItem )
-                  fprintf( yyc, ", " );
+               /* A single-element LIST represents a source-level
+                  `(expr)` parenthesization, not a comma list.
+                  Propagate the caller's fParen hint so a wrapped
+                  ASSIGN / compound-assign can self-parenthesize
+                  when it lives inside a higher-precedence parent
+                  like `<`. Multi-element lists are comma-separated
+                  arg lists where per-child parens aren't needed. */
+               HB_BOOL fSingle = pItem && ! pItem->pNext;
+               while( pItem )
+               {
+                  hb_csEmitExpr( pItem, yyc,
+                                 fSingle ? fParen : HB_FALSE );
+                  pItem = pItem->pNext;
+                  if( pItem )
+                     fprintf( yyc, ", " );
+               }
             }
          }
          break;
@@ -979,7 +990,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_SETGET:
-         hb_csEmitExpr( pExpr->value.asSetGet.pVar, yyc, HB_FALSE );
+         /* Propagate fParen so wrapped ASSIGN can self-parenthesize
+            when in a disambiguation context. */
+         hb_csEmitExpr( pExpr->value.asSetGet.pVar, yyc, fParen );
          break;
 
       case HB_EO_NEGATE:
@@ -1041,10 +1054,28 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                {
                   PHB_EXPR pLeft = pExpr->value.asOperator.pLeft;
                   PHB_EXPR pRight = pExpr->value.asOperator.pRight;
-                  if( ( pLeft && pLeft->ExprType >= HB_EO_ASSIGN &&
-                        pLeft->ExprType < pExpr->ExprType ) ||
-                      ( pRight && pRight->ExprType >= HB_EO_ASSIGN &&
-                        pRight->ExprType < pExpr->ExprType ) )
+                  /* Assignment has Harbour-expression semantics (`:=`
+                     returns the assigned value) and is commonly used
+                     inside comparisons — `(h := FCreate(...)) < 0`.
+                     In Harbour the parens are required to bind `<` to
+                     the result. When this expression is itself a
+                     child of another binop (fParen set by the parent),
+                     emit parens ourselves if we're the ASSIGN — C#
+                     `=` has lower precedence than `<`, so without
+                     them the parent would parse as `h = (call < 0)`,
+                     a bool→decimal assignment and a wrong result. */
+                  if( pExpr->ExprType == HB_EO_ASSIGN ||
+                      pExpr->ExprType == HB_EO_PLUSEQ ||
+                      pExpr->ExprType == HB_EO_MINUSEQ ||
+                      pExpr->ExprType == HB_EO_MULTEQ ||
+                      pExpr->ExprType == HB_EO_DIVEQ ||
+                      pExpr->ExprType == HB_EO_MODEQ ||
+                      pExpr->ExprType == HB_EO_EXPEQ )
+                     fNeedParen = HB_TRUE;
+                  else if( ( pLeft && pLeft->ExprType >= HB_EO_ASSIGN &&
+                             pLeft->ExprType < pExpr->ExprType ) ||
+                           ( pRight && pRight->ExprType >= HB_EO_ASSIGN &&
+                             pRight->ExprType < pExpr->ExprType ) )
                      fNeedParen = HB_TRUE;
                }
                if( fNeedParen )
