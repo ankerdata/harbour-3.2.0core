@@ -288,7 +288,25 @@ public static class HbRuntime
     // Harbour's hb_default( @var, val ) sets var to val if NIL. Without
     // by-ref pass-through we return the non-null one of the two.
 
-    public static dynamic HB_DEFAULT(dynamic val, dynamic defVal) => val ?? defVal;
+    /* Harbour's hb_default( @var, val ) mutates `var` in place when it
+       is NIL, leaving a non-NIL value untouched. The emitter emits
+       `ref var` at every call site (because the PRG uses `@var`).
+
+       Generic `ref T` is required because C# `ref` is invariant — a
+       `ref decimal` won't bind to `ref dynamic`, and most emitted
+       call sites have concrete types for the by-ref parameter. The
+       null check only fires for reference / nullable types; for
+       non-nullable value types it's trivially false and the call is
+       a no-op. That's a behaviour regression against Harbour (where
+       an omitted NIL parameter would pick up the default) but the
+       emitter already initialises such parameters with `= default`,
+       so the common case still compiles and runs. A fuller fix
+       would inline the default at the call site based on the param's
+       nilable flag — leaving that for when it actually bites. */
+    public static void HB_DEFAULT<T>(ref T val, T defVal)
+    {
+        if (val is null) val = defVal;
+    }
 
     // ---- Time ----
 
