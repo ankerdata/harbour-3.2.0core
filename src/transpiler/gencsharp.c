@@ -77,9 +77,45 @@ static void hb_csAddFileStatic( const char * szName )
    s_pFileStatics[ s_iFileStaticCount++ ] = szName;
 }
 
+/* File-scope MEMVAR declarations. Harbour memvars are globally visible
+   at runtime, but the MEMVAR declaration itself is per-file — it tells
+   THIS file's compiler to treat bare references to the name as memvar
+   accesses. We mirror the file-static pattern: each file's MEMVAR is
+   hoisted to a `public static dynamic <filebase>_<name>;` field under
+   the merged partial class Program, and references inside the file
+   get rewritten to the mangled name. Cross-file sharing is sacrificed
+   to avoid CS0102 duplicate-member errors when two files both declare
+   MEMVAR <name>. PUBLIC / PRIVATE inside a function body, when the name
+   appears in this registry, emits as an assignment to the class field
+   instead of a local variable declaration. */
+#define HB_CS_MAX_FILE_MEMVARS 256
+static const char * s_pFileMemvars[ HB_CS_MAX_FILE_MEMVARS ];
+static int s_iFileMemvarCount = 0;
+
+static HB_BOOL hb_csIsFileMemvar( const char * szName )
+{
+   int i;
+   if( ! szName || s_iFileMemvarCount == 0 )
+      return HB_FALSE;
+   for( i = 0; i < s_iFileMemvarCount; i++ )
+      if( hb_stricmp( s_pFileMemvars[ i ], szName ) == 0 )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+static void hb_csAddFileMemvar( const char * szName )
+{
+   if( ! szName || s_iFileMemvarCount >= HB_CS_MAX_FILE_MEMVARS )
+      return;
+   if( hb_csIsFileMemvar( szName ) )
+      return;
+   s_pFileMemvars[ s_iFileMemvarCount++ ] = szName;
+}
+
 static void hb_csResetFileStatics( void )
 {
    s_iFileStaticCount = 0;
+   s_iFileMemvarCount = 0;
    s_szFileBase[ 0 ] = '\0';
 }
 
@@ -529,6 +565,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   class field name to dodge cross-file collisions.
                   A local with the same name in the current scope
                   shadows the static, matching Harbour's rule. */
+               fprintf( yyc, "%s_%s", s_szFileBase, szVarName );
+            }
+            else if( hb_csResolveLocal( szVarName ) == NULL &&
+                     hb_csIsFileMemvar( szVarName ) )
+            {
+               /* File-scope MEMVAR reference — same file-base mangling
+                  as STATIC. Locals still shadow. */
                fprintf( yyc, "%s_%s", s_szFileBase, szVarName );
             }
             else
@@ -1229,24 +1272,41 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_PUBLIC:
       case HB_AST_PRIVATE:
          {
-            const char * szType = NULL;
+            const char * szName = pNode->value.asVar.szName;
             hb_csEmitIndent( yyc, iIndent );
 
-            if( pNode->value.asVar.szAlias )
-               szType = pNode->value.asVar.szAlias;
-            else
-               szType = hb_astInferType( pNode->value.asVar.szName,
-                                          pNode->value.asVar.pInit );
-
-            /* PUBLIC/PRIVATE → regular local in C# */
-            fprintf( yyc, "%s %s", hb_csTypeMap( szType ),
-                     pNode->value.asVar.szName );
-            if( pNode->value.asVar.pInit )
+            if( hb_csIsFileMemvar( szName ) )
             {
-               fprintf( yyc, " = " );
-               hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+               /* PUBLIC/PRIVATE against a file-scope MEMVAR: assign to
+                  the class-scope field rather than introducing a local. */
+               fprintf( yyc, "%s_%s", s_szFileBase, szName );
+               if( pNode->value.asVar.pInit )
+               {
+                  fprintf( yyc, " = " );
+                  hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+               }
+               else
+                  fprintf( yyc, " = default" );
+               fprintf( yyc, ";\n" );
             }
-            fprintf( yyc, ";\n" );
+            else
+            {
+               const char * szType = pNode->value.asVar.szAlias ?
+                  pNode->value.asVar.szAlias :
+                  hb_astInferType( szName, pNode->value.asVar.pInit );
+
+               /* PUBLIC/PRIVATE with no matching MEMVAR → treat as
+                  local for now. Harbour's memvar storage is global, but
+                  we don't model that in C# without the explicit MEMVAR
+                  hoist. Test16 exercises this path. */
+               fprintf( yyc, "%s %s", hb_csTypeMap( szType ), szName );
+               if( pNode->value.asVar.pInit )
+               {
+                  fprintf( yyc, " = " );
+                  hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+               }
+               fprintf( yyc, ";\n" );
+            }
          }
          break;
 
@@ -2492,6 +2552,18 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
                      }
                      fprintf( yyc, ";\n" );
+                  }
+                  else if( pStmt->type == HB_AST_MEMVAR )
+                  {
+                     /* File-scope MEMVAR: emit a shared `dynamic` field
+                        under the partial class. Mangled with file base
+                        to avoid CS0102 when another .prg also MEMVARs
+                        the same name. */
+                     hb_csAddFileMemvar( pStmt->value.asVar.szName );
+                     hb_csEmitIndent( yyc, 1 );
+                     fprintf( yyc, "static dynamic %s_%s;\n",
+                              s_szFileBase,
+                              pStmt->value.asVar.szName );
                   }
                   pStmt = pStmt->pNext;
                }
