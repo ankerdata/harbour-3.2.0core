@@ -28,9 +28,39 @@ public static partial class Program
         decimal nVal = default;
         decimal nA = 0;
         decimal nB = 0;
+        decimal nC = default;
+        decimal nD = default;
+        decimal nE = default;
 
-        // Inline assignment inside comparison. The Fetch() below returns 5;
-        // nVal captures it, and the `> 3` branch reads the captured value.
+        // --- Plain assignment statements (the common case by far) ---
+        //
+        // These are what :=  is actually used for 99% of the time —
+        // not the assignment-in-comparison edge case further down.
+        // Guards against a paren-wrapping regression going too far and
+        // inserting unwanted parens around statement-position assigns.
+
+        nA = 10;
+        HbRuntime.QOUT("plain: nA=" + HbRuntime.STR(nA, 3));
+
+        nA = Fetch();
+        HbRuntime.QOUT("from-call: nA=" + HbRuntime.STR(nA, 3));
+
+        // Chained assignment — `nC := nD := nE := 7` assigns 7 to all
+        // three, right-to-left. Emitted C# needs the nested assign to
+        // survive as an expression, which is a separate code path from
+        // the top-level statement.
+        nC = (nD = (nE = 7));
+        HbRuntime.QOUT("chain: " + HbRuntime.STR(nC, 3) + HbRuntime.STR(nD, 3) + HbRuntime.STR(nE, 3));
+
+        // Compound assignment as a statement (no surrounding comparison).
+        nA += 5;
+        nA *= 2;
+        HbRuntime.QOUT("compound: nA=" + HbRuntime.STR(nA, 3));
+
+        // --- Assignment-inside-expression (the original paren case) ---
+
+        // The Fetch() below returns 5; nVal captures it, and the `> 3`
+        // branch reads the captured value.
         if ((nVal = Fetch()) > 3)
         {
             HbRuntime.QOUT("fetched=" + HbRuntime.STR(nVal, 3) + " branch=big");
@@ -40,7 +70,8 @@ public static partial class Program
             HbRuntime.QOUT("fetched=" + HbRuntime.STR(nVal, 3) + " branch=small");
         }
 
-        // Compound assignment in a comparison. nA += 2 returns 2; > 1 is TRUE.
+        // Reset nA then compound-assign in a comparison.
+        nA = 0;
         if ((nA += 2) > 1)
         {
             HbRuntime.QOUT("nA=" + HbRuntime.STR(nA, 3) + " branch=big");
@@ -50,7 +81,7 @@ public static partial class Program
             HbRuntime.QOUT("nA=" + HbRuntime.STR(nA, 3) + " branch=small");
         }
 
-        // Nested: assignment inside a boolean combined expression.
+        // Assignment inside a boolean combined expression.
         if ((nB = Fetch()) > 3 && nB < 10)
         {
             HbRuntime.QOUT("nB=" + HbRuntime.STR(nB, 3) + " in-range");

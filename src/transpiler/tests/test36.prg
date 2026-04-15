@@ -23,23 +23,52 @@ PROCEDURE Main()
    LOCAL nVal
    LOCAL nA := 0
    LOCAL nB := 0
+   LOCAL nC, nD, nE
 
-   // Inline assignment inside comparison. The Fetch() below returns 5;
-   // nVal captures it, and the `> 3` branch reads the captured value.
+   // --- Plain assignment statements (the common case by far) ---
+   //
+   // These are what :=  is actually used for 99% of the time —
+   // not the assignment-in-comparison edge case further down.
+   // Guards against a paren-wrapping regression going too far and
+   // inserting unwanted parens around statement-position assigns.
+
+   nA := 10
+   ? "plain: nA=" + Str( nA, 3 )
+
+   nA := Fetch()
+   ? "from-call: nA=" + Str( nA, 3 )
+
+   // Chained assignment — `nC := nD := nE := 7` assigns 7 to all
+   // three, right-to-left. Emitted C# needs the nested assign to
+   // survive as an expression, which is a separate code path from
+   // the top-level statement.
+   nC := nD := nE := 7
+   ? "chain: " + Str( nC, 3 ) + Str( nD, 3 ) + Str( nE, 3 )
+
+   // Compound assignment as a statement (no surrounding comparison).
+   nA += 5
+   nA *= 2
+   ? "compound: nA=" + Str( nA, 3 )
+
+   // --- Assignment-inside-expression (the original paren case) ---
+
+   // The Fetch() below returns 5; nVal captures it, and the `> 3`
+   // branch reads the captured value.
    IF ( nVal := Fetch() ) > 3
       ? "fetched=" + Str( nVal, 3 ) + " branch=big"
    ELSE
       ? "fetched=" + Str( nVal, 3 ) + " branch=small"
    ENDIF
 
-   // Compound assignment in a comparison. nA += 2 returns 2; > 1 is TRUE.
+   // Reset nA then compound-assign in a comparison.
+   nA := 0
    IF ( nA += 2 ) > 1
       ? "nA=" + Str( nA, 3 ) + " branch=big"
    ELSE
       ? "nA=" + Str( nA, 3 ) + " branch=small"
    ENDIF
 
-   // Nested: assignment inside a boolean combined expression.
+   // Assignment inside a boolean combined expression.
    IF ( nB := Fetch() ) > 3 .AND. nB < 10
       ? "nB=" + Str( nB, 3 ) + " in-range"
    ELSE
