@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 18: default parameters and middle-gap call sites
 public static partial class Program

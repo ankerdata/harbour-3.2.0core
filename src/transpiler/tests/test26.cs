@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 26: TIMESTAMP type map + per-file STATIC var name mangling.
 //
@@ -38,7 +39,7 @@ public static partial class Program
         // so the assignment compiles cleanly. Separately, tStamp's
         // TIMESTAMP → DateTime mapping is covered by test27.
         DateOnly dDate = HbRuntime.DATE();
-        decimal i;
+        decimal i = default;
 
         // Exercise function-scope STATIC mangling three times to confirm
         // the var persists across calls and the references all point at

@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 22a + 22b: two classes with the same method name but
 // incompatible signatures, defined in separate files because the

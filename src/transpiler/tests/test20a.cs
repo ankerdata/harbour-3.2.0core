@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 20a + 20b: cross-file return-type propagation.
 //

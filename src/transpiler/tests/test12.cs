@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 12: Expressions — IIF, codeblocks, compound assignment, logical operators
 public static partial class Program
@@ -7,10 +8,10 @@ public static partial class Program
     {
         decimal nX = 10;
         decimal nY = 20;
-        string cResult;
+        string cResult = default;
         bool lFlag = true;
         bool lOther = false;
-        decimal nVal;
+        decimal nVal = default;
         Func<dynamic, dynamic, dynamic> bAdd = ((a, b) => a + b);
 
         // Compound assignment operators

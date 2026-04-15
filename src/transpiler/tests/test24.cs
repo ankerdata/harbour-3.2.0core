@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 24: comment preservation vs. parser interactions.
 //
@@ -35,7 +36,7 @@ public static partial class Program
         // C2
         // comment with no ; here
         dynamic[] aCodes = new dynamic[] { "alpha", "bravo", "charlie" };
-        decimal n;
+        decimal n = default;
 
         // comment on IF line
         if (x == 1)

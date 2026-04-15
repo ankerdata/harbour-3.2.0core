@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 27: DATE → DateOnly and TIMESTAMP → DateTime type maps plus
 // literal date emission.
@@ -23,7 +24,7 @@ public static partial class Program
         DateOnly dBirth = new DateOnly(1970, 1, 1);
         // DATE() → DateOnly
         DateOnly dToday = HbRuntime.DATE();
-        string cFormatted;
+        string cFormatted = default;
 
         cFormatted = HbRuntime.DTOS(dBirth);
         HbRuntime.QOUT("birth:", cFormatted);

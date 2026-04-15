@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 2: FUNCTION, FOR/NEXT, IF/ELSEIF/ELSE, DO WHILE, EXIT
 public static partial class Program
@@ -6,8 +7,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nSum = 0;
-        decimal i;
-        string cResult;
+        decimal i = default;
+        string cResult = default;
 
         for (i = 1; i <= 10; i++)
         {

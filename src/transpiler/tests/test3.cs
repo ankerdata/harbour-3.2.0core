@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 3: DO CASE, FOR EACH, BEGIN SEQUENCE/RECOVER/ALWAYS, BREAK
 public static partial class Program

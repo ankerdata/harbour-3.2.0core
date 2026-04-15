@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 7: #define constants, #include directives
 // #include "hbclass.ch"

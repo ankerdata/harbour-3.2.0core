@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 22b: companion to test22a — second class also has an `Add`
 // method, but with a STRING parameter instead of NUMERIC. Plus the

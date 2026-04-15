@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 
 /// <summary>
 /// Harbour runtime function implementations for transpiled C# code.
@@ -183,4 +185,323 @@ public static class HbRuntime
     // ---- Terminal ----
 
     public static void SETCOLOR(string cColor) { }
+
+    // ---- Array functions ----
+    // Harbour arrays map to C# dynamic[] or List<dynamic>. Because dynamic[]
+    // can't be resized, the transpiler-generated code mostly uses List-like
+    // behavior — but the source still writes `aadd()`, `asize()` etc. against
+    // whichever shape the variable happens to be. These helpers accept
+    // dynamic and dispatch on the runtime shape: List<dynamic> resizes in
+    // place; arrays are rebuilt into a new array and returned.
+
+    public static dynamic AADD(dynamic arr, dynamic val)
+    {
+        if (arr is List<dynamic> list) { list.Add(val); return val; }
+        return val;
+    }
+
+    public static dynamic ASIZE(dynamic arr, decimal nLen)
+    {
+        int n = (int)nLen;
+        if (arr is List<dynamic> list)
+        {
+            while (list.Count > n) list.RemoveAt(list.Count - 1);
+            while (list.Count < n) list.Add(null);
+        }
+        return arr;
+    }
+
+    public static dynamic ACLONE(dynamic arr)
+    {
+        if (arr is List<dynamic> list) return new List<dynamic>(list);
+        if (arr is Array a) { var copy = (Array)a.Clone(); return copy; }
+        return arr;
+    }
+
+    public static decimal ASCAN(dynamic arr, dynamic val)
+    {
+        if (arr is List<dynamic> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+                if (Equals(list[i], val)) return i + 1;
+        }
+        return 0;
+    }
+
+    public static dynamic AEVAL(dynamic arr, dynamic block)
+    {
+        if (arr is List<dynamic> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+                EVAL(block, list[i], (decimal)(i + 1));
+        }
+        return arr;
+    }
+
+    public static dynamic ADEL(dynamic arr, decimal nPos)
+    {
+        if (arr is List<dynamic> list)
+        {
+            int i = (int)nPos - 1;
+            if (i >= 0 && i < list.Count) { list.RemoveAt(i); list.Add(null); }
+        }
+        return arr;
+    }
+
+    public static dynamic AINS(dynamic arr, decimal nPos)
+    {
+        if (arr is List<dynamic> list)
+        {
+            int i = (int)nPos - 1;
+            if (i >= 0 && i < list.Count) { list.Insert(i, null); list.RemoveAt(list.Count - 1); }
+        }
+        return arr;
+    }
+
+    // ---- Type inspection ----
+
+    public static string VALTYPE(dynamic x)
+    {
+        if (x is null) return "U";
+        if (x is string) return "C";
+        if (x is decimal || x is int || x is long || x is double || x is float) return "N";
+        if (x is bool) return "L";
+        if (x is DateOnly || x is DateTime) return "D";
+        if (x is List<dynamic> || x is Array) return "A";
+        if (x is Delegate) return "B";
+        if (x is System.Collections.IDictionary) return "H";
+        return "O";
+    }
+
+    public static decimal PCOUNT() => 0;  // varargs path uses hbva.Length directly
+
+    // ---- Defaults helper (hb_default) ----
+    // Harbour's hb_default( @var, val ) sets var to val if NIL. Without
+    // by-ref pass-through we return the non-null one of the two.
+
+    public static dynamic HB_DEFAULT(dynamic val, dynamic defVal) => val ?? defVal;
+
+    // ---- Time ----
+
+    public static decimal SECONDS() =>
+        (decimal)(DateTime.Now - DateTime.Today).TotalSeconds;
+
+    // ---- File I/O ----
+    // Very simple handle table mapping decimal -> FileStream. Real Harbour
+    // returns -1 on failure; FERROR() returns the last OS errno. We only
+    // track "did the last op fail" as 0 / 1.
+
+    static readonly Dictionary<int, FileStream> s_files = new();
+    static int s_nextHandle = 1;
+    static int s_lastError = 0;
+
+    public static decimal FOPEN(string cFile, decimal nMode = 0)
+    {
+        try
+        {
+            FileAccess access = ((int)nMode & 2) != 0 ? FileAccess.ReadWrite
+                              : ((int)nMode & 1) != 0 ? FileAccess.Write
+                                                      : FileAccess.Read;
+            var fs = new FileStream(cFile, FileMode.Open, access, FileShare.ReadWrite);
+            int h = s_nextHandle++;
+            s_files[h] = fs;
+            s_lastError = 0;
+            return h;
+        }
+        catch { s_lastError = 1; return -1; }
+    }
+
+    public static decimal FCREATE(string cFile, decimal nAttr = 0)
+    {
+        try
+        {
+            var fs = new FileStream(cFile, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
+            int h = s_nextHandle++;
+            s_files[h] = fs;
+            s_lastError = 0;
+            return h;
+        }
+        catch { s_lastError = 1; return -1; }
+    }
+
+    public static bool FCLOSE(decimal nHandle)
+    {
+        if (s_files.TryGetValue((int)nHandle, out var fs))
+        {
+            fs.Dispose();
+            s_files.Remove((int)nHandle);
+            return true;
+        }
+        return false;
+    }
+
+    public static decimal FREAD(decimal nHandle, ref string cBuf, decimal nBytes)
+    {
+        if (!s_files.TryGetValue((int)nHandle, out var fs)) { s_lastError = 1; return 0; }
+        byte[] b = new byte[(int)nBytes];
+        int read = fs.Read(b, 0, b.Length);
+        cBuf = System.Text.Encoding.UTF8.GetString(b, 0, read);
+        return read;
+    }
+
+    public static decimal FWRITE(decimal nHandle, string cBuf, decimal nBytes = -1)
+    {
+        if (!s_files.TryGetValue((int)nHandle, out var fs)) { s_lastError = 1; return 0; }
+        byte[] b = System.Text.Encoding.UTF8.GetBytes(cBuf);
+        int n = (int)nBytes < 0 ? b.Length : Math.Min((int)nBytes, b.Length);
+        fs.Write(b, 0, n);
+        return n;
+    }
+
+    public static decimal FSEEK(decimal nHandle, decimal nOffset, decimal nOrigin = 0)
+    {
+        if (!s_files.TryGetValue((int)nHandle, out var fs)) { s_lastError = 1; return 0; }
+        SeekOrigin o = (int)nOrigin switch
+        {
+            1 => SeekOrigin.Current,
+            2 => SeekOrigin.End,
+            _ => SeekOrigin.Begin,
+        };
+        return (decimal)fs.Seek((long)nOffset, o);
+    }
+
+    public static decimal FERROR() => s_lastError;
+
+    public static bool FILE(string cFile) => System.IO.File.Exists(cFile);
+
+    public static string MEMOREAD(string cFile)
+    {
+        try { return System.IO.File.ReadAllText(cFile); }
+        catch { return ""; }
+    }
+
+    public static bool MEMOWRIT(string cFile, string cData)
+    {
+        try { System.IO.File.WriteAllText(cFile, cData); return true; }
+        catch { return false; }
+    }
+
+    // ---- Date decomposition ----
+
+    static DateTime AsDT(dynamic d) => d is DateOnly dd ? dd.ToDateTime(TimeOnly.MinValue)
+                                     : d is DateTime dt ? dt
+                                     : default;
+    public static decimal YEAR(dynamic d) => AsDT(d).Year;
+    public static decimal MONTH(dynamic d) => AsDT(d).Month;
+    public static decimal DAY(dynamic d) => AsDT(d).Day;
+    public static decimal DOW(dynamic d) => (decimal)((int)AsDT(d).DayOfWeek + 1);
+    public static string CDOW(dynamic d) => AsDT(d).ToString("dddd", INV);
+    public static string CMONTH(dynamic d) => AsDT(d).ToString("MMMM", INV);
+
+    // ---- Type predicates ----
+
+    public static bool ISNIL(dynamic x) => x is null;
+    public static bool ISCHARACTER(dynamic x) => x is string;
+    public static bool ISNUMBER(dynamic x) => x is decimal or int or long or double or float;
+    public static bool ISLOGICAL(dynamic x) => x is bool;
+    public static bool ISDATE(dynamic x) => x is DateOnly or DateTime;
+    public static bool ISARRAY(dynamic x) => x is Array or List<dynamic>;
+    public static bool ISHASH(dynamic x) => x is System.Collections.IDictionary;
+    public static bool ISOBJECT(dynamic x) =>
+        x is not null && !(x is string or bool or decimal or int or long or double or float
+                          or DateOnly or DateTime or Array or List<dynamic> or Delegate
+                          or System.Collections.IDictionary);
+    public static bool ISBLOCK(dynamic x) => x is Delegate;
+
+    // ---- Hash helpers ----
+
+    static System.Collections.IDictionary AsDict(dynamic h) => h as System.Collections.IDictionary;
+    public static dynamic HB_HGETDEF(dynamic h, dynamic key, dynamic def = null)
+    {
+        var d = AsDict(h);
+        return (d != null && d.Contains(key)) ? d[key] : def;
+    }
+    public static bool HB_HHASKEY(dynamic h, dynamic key)
+    {
+        var d = AsDict(h);
+        return d != null && d.Contains(key);
+    }
+    public static decimal HB_HDEL(dynamic h, dynamic key)
+    {
+        var d = AsDict(h);
+        if (d != null && d.Contains(key)) d.Remove(key);
+        return 0;
+    }
+    public static dynamic HB_HKEYS(dynamic h)
+    {
+        var r = new List<dynamic>();
+        var d = AsDict(h);
+        if (d != null) foreach (var k in d.Keys) r.Add(k);
+        return r;
+    }
+    public static dynamic HB_HVALUES(dynamic h)
+    {
+        var r = new List<dynamic>();
+        var d = AsDict(h);
+        if (d != null) foreach (var v in d.Values) r.Add(v);
+        return r;
+    }
+
+    // ---- Array extras ----
+
+    public static dynamic AFILL(dynamic arr, dynamic val)
+    {
+        if (arr is List<dynamic> list) for (int i = 0; i < list.Count; i++) list[i] = val;
+        return arr;
+    }
+
+    public static dynamic ASORT(dynamic arr, dynamic nStart = null, dynamic nCount = null, dynamic block = null)
+    {
+        if (arr is List<dynamic> list)
+        {
+            if (block is Delegate)
+                list.Sort((a, b) => ((bool)EVAL(block, a, b)) ? -1 : 1);
+            else
+                list.Sort((a, b) => Comparer<dynamic>.Default.Compare(a, b));
+        }
+        return arr;
+    }
+
+    // ---- Harbour header constants ----
+    // fileio.ch
+    public const decimal FC_NORMAL = 0;
+    public const decimal FC_READONLY = 1;
+    public const decimal FC_HIDDEN = 2;
+    public const decimal FC_SYSTEM = 4;
+    public const decimal FO_READ = 0;
+    public const decimal FO_WRITE = 1;
+    public const decimal FO_READWRITE = 2;
+    public const decimal FO_COMPAT = 0;
+    public const decimal FO_EXCLUSIVE = 16;
+    public const decimal FO_DENYWRITE = 32;
+    public const decimal FO_DENYREAD = 48;
+    public const decimal FO_DENYNONE = 64;
+    public const decimal FO_SHARED = 64;
+    public const decimal FS_SET = 0;
+    public const decimal FS_RELATIVE = 1;
+    public const decimal FS_END = 2;
+    // directry.ch
+    public const decimal F_NAME = 1;
+    public const decimal F_SIZE = 2;
+    public const decimal F_DATE = 3;
+    public const decimal F_TIME = 4;
+    public const decimal F_ATTR = 5;
+    public const decimal F_LEN = 5;
+    public const decimal F_ERROR = -1;
+    // set.ch — only the ones actually used so far
+    public const decimal _SET_EXACT = 1;
+    public const decimal _SET_FIXED = 2;
+    public const decimal _SET_DECIMALS = 3;
+    public const decimal _SET_DATEFORMAT = 4;
+    public const decimal _SET_EPOCH = 5;
+    public const decimal _SET_PATH = 6;
+    public const decimal _SET_DEFAULT = 7;
+    public const decimal _SET_CENTURY = 48;
+    // common.ch
+    public const string CRLF = "\r\n";
+
+    // ---- Misc ----
+
+    public static decimal RECNO() => 0;
+    public static dynamic DIRECTORY(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
 }

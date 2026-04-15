@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 30: EXIT (and STATIC) keyword disambiguation with trailing
 // preserved `//` comments.
@@ -27,7 +28,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        decimal i;
+        decimal i = default;
         decimal nHits = 0;
 
         for (i = 1; i <= 10; i++)

@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 21: class method with by-reference parameter.
 //

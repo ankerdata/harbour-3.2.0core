@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 15: Array and hash operations
 public static partial class Program
@@ -12,14 +13,14 @@ public static partial class Program
         dynamic[] aMatrix = new dynamic[] { new dynamic[] { 1, 2 }, new dynamic[] { 3, 4 }, new dynamic[] { 5, 6 } };
         dynamic[] aEmpty = new dynamic[] {  };
         decimal nTotal = 0;
-        decimal nLen;
-        decimal nPos;
-        decimal i;
-        string cName;
+        decimal nLen = default;
+        decimal nPos = default;
+        decimal i = default;
+        string cName = default;
         string cText = "  Hello World  ";
-        string cUpper;
-        string cTrimmed;
-        string cSub;
+        string cUpper = default;
+        string cTrimmed = default;
+        string cSub = default;
 
         // Array subscript access
         nTotal = aNumbers[0] + aNumbers[2] + aNumbers[4];

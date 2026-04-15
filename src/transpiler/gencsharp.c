@@ -2396,6 +2396,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    fprintf( yyc, "using System;\n" );
    if( pClassList && pClassList->pNext )
       fprintf( yyc, "using System.Collections.Generic;\n" );
+   fprintf( yyc, "using static HbRuntime;\n" );
    fprintf( yyc, "\n" );
 
    /* HbRuntime.cs must be present in the output directory.

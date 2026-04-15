@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 25: four-bug regression test for the C# emitter.
 //

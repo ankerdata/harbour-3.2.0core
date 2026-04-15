@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 4: SWITCH/CASE/OTHERWISE/EXIT
 public static partial class Program
@@ -6,7 +7,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nVal = 2;
-        string cResult;
+        string cResult = default;
 
         switch (nVal)
         {

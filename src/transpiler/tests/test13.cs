@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 13: Nested control flow, multiple returns, LOOP
 public static partial class Program
@@ -21,7 +22,7 @@ public static partial class Program
     public static decimal SumEvenTo(decimal nMax = default)
     {
         decimal nSum = 0;
-        decimal i;
+        decimal i = default;
 
         for (i = 1; i <= nMax; i++)
         {
@@ -41,9 +42,9 @@ public static partial class Program
 
     public static decimal FindFirst(dynamic[] aItems = default, string cTarget = default)
     {
-        string cItem;
+        string cItem = default;
         decimal nPos = 0;
-        decimal i;
+        decimal i = default;
 
         // Nested FOR with EXIT
         for (i = 1; i <= HbRuntime.LEN(aItems); i++)

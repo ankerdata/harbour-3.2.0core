@@ -1,4 +1,5 @@
 using System;
+using static HbRuntime;
 
 // Test 1: PROCEDURE, LOCAL declarations, simple arithmetic
 public static partial class Program
@@ -7,7 +8,7 @@ public static partial class Program
     {
         decimal x = 5;
         decimal y = 10;
-        decimal z;
+        decimal z = default;
 
         z = x + y;
 

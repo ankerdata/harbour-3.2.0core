@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using static HbRuntime;
 
 // Test 9: Type inference from initializers and Hungarian notation
 // #include "hbclass.ch"
@@ -42,19 +43,19 @@ public static partial class Program
         Dictionary<dynamic, dynamic> hMap = new Dictionary<dynamic, dynamic> { { "key", "value" } };
 
         // Type from Hungarian prefix (no initializer)
-        decimal nTotal;
-        string cResult;
-        bool lDone;
-        dynamic[] aBuffer;
-        object oConnection;
-        DateOnly dToday;
-        Dictionary<dynamic, dynamic> hSettings;
-        dynamic bAction;
+        decimal nTotal = default;
+        string cResult = default;
+        bool lDone = default;
+        dynamic[] aBuffer = default;
+        object oConnection = default;
+        DateOnly dToday = default;
+        Dictionary<dynamic, dynamic> hSettings = default;
+        dynamic bAction = default;
 
         // No prefix, no initializer — fallback
-        dynamic x;
-        dynamic counter;
-        dynamic Temp;
+        dynamic x = default;
+        dynamic counter = default;
+        dynamic Temp = default;
 
         HbRuntime.QOUT("nCount=" + HbRuntime.STR(nCount));
         HbRuntime.QOUT("nPrice=" + HbRuntime.STR(nPrice, 10, 2));

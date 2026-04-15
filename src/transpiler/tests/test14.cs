@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using static HbRuntime;
 
 // Test 14: Two classes with inheritance, constructor params, method chaining
 

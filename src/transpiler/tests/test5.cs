@@ -1,11 +1,12 @@
 using System;
+using static HbRuntime;
 
 // Test 5: FOR with STEP, FOR counting down, FOR EACH DESCEND
 public static partial class Program
 {
     public static void Main(string[] args)
     {
-        decimal i;
+        decimal i = default;
         decimal nSum = 0;
         dynamic[] aItems = new dynamic[] { "apple", "banana", "cherry" };
 
