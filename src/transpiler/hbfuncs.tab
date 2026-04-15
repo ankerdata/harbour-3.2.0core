@@ -672,3 +672,7 @@ GETRVALUE	NUMERIC	HbRuntime
 MYERASE	LOGICAL	HbRuntime
 MYRENAME	LOGICAL	HbRuntime
 UL2BIN	STRING	HbRuntime
+
+# Error object stopgap
+CLASSNAME	STRING	HbRuntime
+ERRORNEW	-	HbRuntime

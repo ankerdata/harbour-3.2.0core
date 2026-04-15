@@ -644,6 +644,41 @@ public static class HbRuntime
 
     public static dynamic GETFLAG(string cFlagName) => null;
 
+    // ---- Harbour Error object (stopgap) ----
+    //
+    // This class exists purely to let transpiled code that builds and
+    // inspects Harbour Error objects compile. It mimics the shape of the
+    // canonical Error class (the fields that createerror.prg and callers
+    // poke at) but has no real semantics — no error propagation, no RTE
+    // integration, no Try/SEQUENCE wiring. A real C# port would throw
+    // structured exceptions or use Result<T,E> instead; hanging properties
+    // off a POCO is just the path of least resistance to get past 1061s
+    // in the classlib build. Expect this whole class to be deleted once
+    // the idiomatic story is figured out.
+
+    public class HbError
+    {
+        public decimal severity    { get; set; }
+        public decimal genCode     { get; set; }
+        public string  subSystem   { get; set; } = "";
+        public decimal subCode     { get; set; }
+        public string  description { get; set; } = "";
+        public bool    canRetry    { get; set; }
+        public bool    canDefault  { get; set; }
+        public string  fileName    { get; set; } = "";
+        public decimal osCode      { get; set; }
+        public dynamic[] args      { get; set; } = System.Array.Empty<dynamic>();
+        public string  operation   { get; set; } = "";
+        public dynamic tries       { get; set; }
+        public string classname() => "ERROR";
+    }
+
+    public static dynamic ERRORNEW() => new HbError();
+    /* Object `.classname()` fallback for arbitrary objects — Harbour allows
+       it on anything. Real port would use `GetType().Name`. */
+    public static string CLASSNAME(dynamic o) =>
+        o is HbError he ? he.classname() : (o?.GetType().Name ?? "NIL");
+
     // ---- Misc ----
 
     public static decimal RECNO() => 0;
