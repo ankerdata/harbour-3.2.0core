@@ -63,6 +63,26 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
             return hb_astInferFromExpr( pExpr->value.asOperator.pLeft );
          return "NUMERIC";
 
+      case HB_ET_FUNCALL:
+      {
+         /* If the call target is a known HbRuntime function, prefer its
+            declared return type over the caller's Hungarian prefix.
+            This matters for functions like ErrorNew() whose Hungarian
+            would type the LHS as `object` (killing `.severity`-style
+            late binding) — a `-` return in hbfuncs.tab flags "dynamic
+            on purpose" and we return USUAL here to force that. */
+         PHB_EXPR pName = pExpr->value.asFunCall.pFunName;
+         if( pName && pName->ExprType == HB_ET_FUNNAME &&
+             pName->value.asSymbol.name &&
+             hb_funcTabPrefix( pName->value.asSymbol.name ) )
+         {
+            const char * szRet =
+               hb_funcTabReturnType( pName->value.asSymbol.name );
+            return szRet ? szRet : "USUAL";
+         }
+         break;
+      }
+
       default:
          break;
    }
