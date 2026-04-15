@@ -1301,7 +1301,9 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
                       pStmt->type == HB_AST_CLASSMETHOD ||
                       pStmt->type == HB_AST_INCLUDE ||
                       pStmt->type == HB_AST_PPDEFINE ||
-                      pStmt->type == HB_AST_COMMENT )
+                      pStmt->type == HB_AST_COMMENT ||
+                      pStmt->type == HB_AST_STATIC ||
+                      pStmt->type == HB_AST_MEMVAR )
                      hb_astEmitNode( pStmt, yyc, 0 );
                   else
                      fHasOther = HB_TRUE;

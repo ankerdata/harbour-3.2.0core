@@ -23,6 +23,8 @@
 // another function at the very end whose params *must* survive
 // to the emitted C# signature.
 
+STATIC snState := 0 AS NUMERIC
+
 PROCEDURE Main()
    Bump()
    Bump()
