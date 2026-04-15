@@ -359,9 +359,17 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
+               /* Single-element LIST is a source-level `(expr)`
+                  grouping; propagate fParen so a wrapped ASSIGN can
+                  self-parenthesize. Without this, `(nA += 2) > 1`
+                  round-trips as `nA += 2 > 1` and Harbour misparses
+                  it as `nA += (2 > 1)` — assigning a logical into
+                  nA and crashing downstream. */
+               HB_BOOL fSingle = pItem && ! pItem->pNext;
                while( pItem )
                {
-                  hb_astEmitExpr( pItem, yyc, HB_FALSE );
+                  hb_astEmitExpr( pItem, yyc,
+                                  fSingle ? fParen : HB_FALSE );
                   pItem = pItem->pNext;
                   if( pItem )
                      fprintf( yyc, ", " );
@@ -486,8 +494,9 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_SETGET:
-         /* HB_ET_SETGET is used for PARAMETER defaults: IIF(var==NIL, expr, expr:=var) */
-         hb_astEmitExpr( pExpr->value.asSetGet.pVar, yyc, HB_FALSE );
+         /* Propagate fParen: the wrapped expression (often an ASSIGN)
+            needs the parent's paren hint to survive. */
+         hb_astEmitExpr( pExpr->value.asSetGet.pVar, yyc, fParen );
          break;
 
       case HB_EO_NEGATE:
@@ -530,13 +539,25 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             HB_BOOL fNeedParen = HB_FALSE;
             if( fParen )
             {
-               /* Check if left child is a lower-precedence operator */
                PHB_EXPR pLeft = pExpr->value.asOperator.pLeft;
                PHB_EXPR pRight = pExpr->value.asOperator.pRight;
-               if( ( pLeft && pLeft->ExprType >= HB_EO_ASSIGN &&
-                     pLeft->ExprType < pExpr->ExprType ) ||
-                   ( pRight && pRight->ExprType >= HB_EO_ASSIGN &&
-                     pRight->ExprType < pExpr->ExprType ) )
+               /* ASSIGN / compound-assign self-parenthesize when
+                  they're a child of another operator. Harbour's `:=`
+                  returns the assigned value, so `(x := y) <op> z`
+                  needs the parens to bind <op> to the result rather
+                  than reading as `x := (y <op> z)`. Test36. */
+               if( pExpr->ExprType == HB_EO_ASSIGN ||
+                   pExpr->ExprType == HB_EO_PLUSEQ ||
+                   pExpr->ExprType == HB_EO_MINUSEQ ||
+                   pExpr->ExprType == HB_EO_MULTEQ ||
+                   pExpr->ExprType == HB_EO_DIVEQ ||
+                   pExpr->ExprType == HB_EO_MODEQ ||
+                   pExpr->ExprType == HB_EO_EXPEQ )
+                  fNeedParen = HB_TRUE;
+               else if( ( pLeft && pLeft->ExprType >= HB_EO_ASSIGN &&
+                          pLeft->ExprType < pExpr->ExprType ) ||
+                        ( pRight && pRight->ExprType >= HB_EO_ASSIGN &&
+                          pRight->ExprType < pExpr->ExprType ) )
                   fNeedParen = HB_TRUE;
             }
             if( fNeedParen )

@@ -22,6 +22,14 @@ if [ ! -d "$CSEXE/HbRuntime" ]; then
 fi
 cp "$REPO_ROOT/src/transpiler/HbRuntime.cs" "$CSEXE/HbRuntime/HbRuntime.cs"
 
+# Pre-build HbRuntime sequentially. Test csprojs reference it via
+# ProjectReference, and `dotnet build` with parallel workers will
+# otherwise race to write HbRuntime.dll — manifesting as random
+# CS2012 "file in use" failures scattered across tests. Building
+# once here, then passing `--no-dependencies` to the per-test build
+# below, serialises the shared dependency safely.
+(cd "$CSEXE/HbRuntime" && dotnet build > /dev/null 2>&1)
+
 # Pass 1 — whole-codebase scan. Populates hbreftab.tab with signatures
 # (params + by-ref usage) so the C# emitter has cross-file information
 # when it runs in pass 2. Without this, e.g. test19a's Swap parameters
@@ -75,7 +83,9 @@ EOF
    done
 
    local out
-   out=$(cd "$projdir" && dotnet build 2>&1)
+   # --no-dependencies: skip the HbRuntime rebuild that's already
+   # been done once, up front, in the main process.
+   out=$(cd "$projdir" && dotnet build --no-dependencies 2>&1)
    if echo "$out" | grep -q "Build succeeded" && \
       ! echo "$out" | grep -q "error CS"; then
       echo "PASS" > "$result"
