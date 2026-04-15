@@ -33,9 +33,9 @@ public static partial class Program
     {
         // #command match + trailing line comment.
         // not a set - __SetCentury
-        __SetCentury("ON");
+        HbRuntime.__SETCENTURY("ON");
         // needed for ASORT
-        Set(_SET_EXACT, "ON");
+        HbRuntime.SET(_SET_EXACT, "ON");
 
         Probe(1, true);
         Probe(2);

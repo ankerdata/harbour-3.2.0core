@@ -500,6 +500,83 @@ public static class HbRuntime
     // common.ch
     public const string CRLF = "\r\n";
 
+    // ---- SET() ----
+    // Harbour's Set( _SET_XXX [, newVal] ) reads/writes a setting. Keyed on
+    // the numeric _SET_* identifier. Returns the prior value.
+
+    static readonly Dictionary<int, dynamic> s_sets = new()
+    {
+        [(int)_SET_EXACT]      = false,
+        [(int)_SET_FIXED]      = false,
+        [(int)_SET_DECIMALS]   = 2m,
+        [(int)_SET_DATEFORMAT] = "mm/dd/yyyy",
+        [(int)_SET_EPOCH]      = 1900m,
+        [(int)_SET_PATH]       = "",
+        [(int)_SET_DEFAULT]    = "",
+        [(int)_SET_CENTURY]    = false,
+    };
+
+    public static dynamic SET(decimal nSet, dynamic newVal = null)
+    {
+        int key = (int)nSet;
+        s_sets.TryGetValue(key, out dynamic prev);
+        if (newVal is not null) s_sets[key] = newVal;
+        return prev;
+    }
+
+    public static bool __SETCENTURY(dynamic val = null)
+    {
+        bool prev = (bool)(s_sets[(int)_SET_CENTURY] ?? false);
+        if (val is not null) s_sets[(int)_SET_CENTURY] = (bool)val;
+        return prev;
+    }
+
+    // ---- Threading primitives ----
+    // Harbour's hb_mutex* maps to a System.Threading object. We use a
+    // Dictionary<object, object> of mutexes so the transpiled code can
+    // hold them as dynamic.
+
+    public static dynamic HB_MUTEXCREATE() => new object();
+
+    public static bool HB_MUTEXLOCK(dynamic mtx, dynamic nTimeout = null)
+    {
+        if (mtx is null) return false;
+        System.Threading.Monitor.Enter(mtx);
+        return true;
+    }
+
+    public static bool HB_MUTEXUNLOCK(dynamic mtx)
+    {
+        if (mtx is null) return false;
+        try { System.Threading.Monitor.Exit(mtx); return true; }
+        catch { return false; }
+    }
+
+    // ---- wapi_* stubs ----
+    // Windows-specific. On non-Windows they degrade to Console output /
+    // Thread.Sleep. Enough for transpiled code to compile and run
+    // headless tests.
+
+    public static decimal WAPI_SLEEP(decimal nMs)
+    {
+        System.Threading.Thread.Sleep((int)nMs);
+        return 0;
+    }
+
+    public static decimal WAPI_MESSAGEBOX(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0)
+    {
+        Console.WriteLine($"[MessageBox] {cCaption}: {cText}");
+        return 1;  // IDOK
+    }
+
+    public static decimal WAPI_MESSAGEBOXTIMEOUT(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0, decimal wLang = 0, decimal nMs = 0)
+    {
+        Console.WriteLine($"[MessageBox] {cCaption}: {cText}");
+        return 1;
+    }
+
+    public static void WAPI_OUTPUTDEBUGSTRING(string cText) => Console.Error.WriteLine(cText);
+
     // ---- Misc ----
 
     public static decimal RECNO() => 0;
