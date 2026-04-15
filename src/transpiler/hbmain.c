@@ -4452,6 +4452,17 @@ static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuff
    {
       /* Begin of finalization phase. */
 
+      /* Capture the last user function's AST pParams *before* any
+         synthetic init/line functions get appended to functions.pLast
+         below — hb_astEndFunc reads pLocals from pLast, so waiting
+         until after hb_compAddInitFunc would snapshot the wrong frame
+         (empty pLocals on the synthetic function). Observed as param
+         lists dropping off functions that appear just before a file
+         with file-scope STATIC inits triggers (_INITSTATICS). */
+      if( HB_COMP_ISAST( HB_COMP_PARAM ) &&
+          HB_COMP_PARAM->ast.pCurrFunc != NULL )
+         hb_astEndFunc( HB_COMP_PARAM );
+
       /* fix all previous function returns offsets */
       hb_compFinalizeFunction( HB_COMP_PARAM );
 
