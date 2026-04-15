@@ -1,19 +1,24 @@
 #!/bin/bash
-# Build all transpiled .cs files with dotnet
-# Usage: cd src/transpiler/tests && bash buildcs.sh
+# Build all transpiled .cs files with dotnet, in parallel.
+# Usage: cd src/transpiler/tests && bash buildcs.sh [JOBS]
+# Per-test dotnet invocations run concurrently (default: $(sysctl cpu count) or 4).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TRANSPILER="$REPO_ROOT/bin/hbtranspiler"
 CSEXE="$SCRIPT_DIR/csexe"
 
-mkdir -p "$CSEXE"
+JOBS="${1:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+RESULTS_DIR="$CSEXE/.results"
+rm -rf "$RESULTS_DIR"
+mkdir -p "$CSEXE" "$RESULTS_DIR"
 
 # Ensure HbRuntime shared library exists
 if [ ! -d "$CSEXE/HbRuntime" ]; then
    cd "$CSEXE"
    dotnet new classlib --name HbRuntime --force > /dev/null 2>&1
    rm -f HbRuntime/Class1.cs
+   cd "$SCRIPT_DIR"
 fi
 cp "$REPO_ROOT/src/transpiler/HbRuntime.cs" "$CSEXE/HbRuntime/HbRuntime.cs"
 
@@ -30,103 +35,109 @@ for f in "$SCRIPT_DIR"/test*.prg; do
    "$TRANSPILER" -I"$REPO_ROOT/include" "$f" -GS -q 2>/dev/null
 done
 
-# Build each with dotnet
-pass=0; fail=0
+# Build one test case. First arg is the dest project name; remaining
+# args are the .cs source files (one for single-file tests, multiple
+# for pair tests like test19). Writes PASS/FAIL + error lines to
+# $RESULTS_DIR/$name, which the main process aggregates at the end.
+# Factored out so the per-test work can run in parallel — each call
+# is independent (own project dir, own dotnet workspace).
+build_one() {
+   local name="$1"; shift
+   local projdir="$CSEXE/$name"
+   local result="$RESULTS_DIR/$name"
+
+   mkdir -p "$projdir"
+   # Hand-written csproj: avoids `dotnet new` + `dotnet add reference`,
+   # each of which takes ~0.5s per test. Keeps the per-test call list
+   # down to a single `dotnet build` — the only thing that actually
+   # compiles anything.
+   cat > "$projdir/$name.csproj" <<EOF
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>$name</RootNamespace>
+    <AssemblyName>$name</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../HbRuntime/HbRuntime.csproj" />
+  </ItemGroup>
+</Project>
+EOF
+   # Clean prior sources (otherwise leftover .cs from a previous run
+   # with different inputs would still compile).
+   find "$projdir" -maxdepth 1 -name '*.cs' -delete
+   local src
+   for src in "$@"; do
+      cp "$src" "$projdir/$(basename "$src")"
+   done
+
+   local out
+   out=$(cd "$projdir" && dotnet build 2>&1)
+   if echo "$out" | grep -q "Build succeeded" && \
+      ! echo "$out" | grep -q "error CS"; then
+      echo "PASS" > "$result"
+   else
+      { echo "FAIL"; echo "$out" | grep "error CS"; } > "$result"
+   fi
+}
+
+# Pure-bash job throttling: fire build_one as a background job for
+# each test, waiting when the running count hits $JOBS. Avoids
+# xargs quoting pain when paths have tabs/spaces or the line gets long.
+running=0
+schedule() {
+   if [ "$running" -ge "$JOBS" ]; then
+      wait -n 2>/dev/null || wait
+      running=$((running - 1))
+   fi
+   build_one "$@" &
+   running=$((running + 1))
+}
+
+# Single-file tests — skip multi-file pair members (handled below)
+# and test32 (known C# gap; see the commit history).
 for f in "$SCRIPT_DIR"/test*.cs; do
    name=$(basename "$f" .cs)
-   # test19a/test19b and test20a/test20b are multi-file pairs handled
-   # as single test19 / test20 projects below.
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b) continue ;;
-      # test32 exercises the PP trailing-comment-in-command fix via
-      # `SET CENTURY ON // ...`. The PP expands to HbRuntime.__SetCentury
-      # / Set / _SET_EXACT, which HbRuntime.cs does not stub yet.
-      # Parser/round-trip side is covered by runtests + runhb; the
-      # C# side will come with the HbRuntime coverage todo.
-      test32) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b|test32) continue ;;
    esac
-   cd "$CSEXE"
-   dotnet new console --name "$name" --force > /dev/null 2>&1
-   cp "$f" "$name/Program.cs"
-   rm -f "$name/HbRuntime.cs"
-   # Add project reference to shared HbRuntime library
-   dotnet add "$name/$name.csproj" reference "$CSEXE/HbRuntime/HbRuntime.csproj" > /dev/null 2>&1
-   cd "$name"
-   output=$(dotnet build 2>&1)
-   if echo "$output" | grep -q "Build succeeded" && ! echo "$output" | grep -q "error CS"; then
-      echo "PASS: $name"
+   schedule "$name" "$f"
+done
+
+# Multi-file pair tests: both .cs files in one project named without
+# the a/b suffix (test19a + test19b → test19).
+for pair in 19 20 22; do
+   a="$SCRIPT_DIR/test${pair}a.cs"
+   b="$SCRIPT_DIR/test${pair}b.cs"
+   [ -f "$a" ] && [ -f "$b" ] && schedule "test${pair}" "$a" "$b"
+done
+
+wait
+
+# Aggregate: one file per test, first line is PASS or FAIL. Keep the
+# counting loop out of a pipeline so `pass`/`fail` survive to the
+# final report (subshells would otherwise lose them).
+pass=0; fail=0
+lines=""
+for f in "$RESULTS_DIR"/*; do
+   [ -f "$f" ] || continue
+   name=$(basename "$f")
+   if head -1 "$f" | grep -q PASS; then
+      lines+="PASS: $name
+"
       pass=$((pass+1))
    else
-      echo "FAIL: $name"
-      echo "$output" | grep "error CS" || true
+      lines+="FAIL: $name
+$(tail -n +2 "$f")
+"
       fail=$((fail+1))
    fi
 done
-
-# test19: multi-file project combining test19a.cs (defines Swap) and
-# test19b.cs (Main, calls Swap). Both .cs files live as siblings in
-# the same console project so dotnet links them into one assembly.
-if [ -f "$SCRIPT_DIR/test19a.cs" ] && [ -f "$SCRIPT_DIR/test19b.cs" ]; then
-   cd "$CSEXE"
-   dotnet new console --name test19 --force > /dev/null 2>&1
-   rm -f test19/Program.cs test19/HbRuntime.cs
-   cp "$SCRIPT_DIR/test19a.cs" "test19/test19a.cs"
-   cp "$SCRIPT_DIR/test19b.cs" "test19/test19b.cs"
-   dotnet add "test19/test19.csproj" reference "$CSEXE/HbRuntime/HbRuntime.csproj" > /dev/null 2>&1
-   cd "test19"
-   output=$(dotnet build 2>&1)
-   if echo "$output" | grep -q "Build succeeded" && ! echo "$output" | grep -q "error CS"; then
-      echo "PASS: test19"
-      pass=$((pass+1))
-   else
-      echo "FAIL: test19"
-      echo "$output" | grep "error CS" || true
-      fail=$((fail+1))
-   fi
-fi
-
-# test20: multi-file project combining test20a.cs (defines DoubleIt)
-# and test20b.cs (defines QuadrupleIt + Main, calls DoubleIt).
-if [ -f "$SCRIPT_DIR/test20a.cs" ] && [ -f "$SCRIPT_DIR/test20b.cs" ]; then
-   cd "$CSEXE"
-   dotnet new console --name test20 --force > /dev/null 2>&1
-   rm -f test20/Program.cs test20/HbRuntime.cs
-   cp "$SCRIPT_DIR/test20a.cs" "test20/test20a.cs"
-   cp "$SCRIPT_DIR/test20b.cs" "test20/test20b.cs"
-   dotnet add "test20/test20.csproj" reference "$CSEXE/HbRuntime/HbRuntime.csproj" > /dev/null 2>&1
-   cd "test20"
-   output=$(dotnet build 2>&1)
-   if echo "$output" | grep -q "Build succeeded" && ! echo "$output" | grep -q "error CS"; then
-      echo "PASS: test20"
-      pass=$((pass+1))
-   else
-      echo "FAIL: test20"
-      echo "$output" | grep "error CS" || true
-      fail=$((fail+1))
-   fi
-fi
-
-# test22: multi-file project — two classes with same method name in
-# separate files (each with a class definition + method bodies). Both
-# .cs files live in the same project; test22b.cs contains Main.
-if [ -f "$SCRIPT_DIR/test22a.cs" ] && [ -f "$SCRIPT_DIR/test22b.cs" ]; then
-   cd "$CSEXE"
-   dotnet new console --name test22 --force > /dev/null 2>&1
-   rm -f test22/Program.cs test22/HbRuntime.cs
-   cp "$SCRIPT_DIR/test22a.cs" "test22/test22a.cs"
-   cp "$SCRIPT_DIR/test22b.cs" "test22/test22b.cs"
-   dotnet add "test22/test22.csproj" reference "$CSEXE/HbRuntime/HbRuntime.csproj" > /dev/null 2>&1
-   cd "test22"
-   output=$(dotnet build 2>&1)
-   if echo "$output" | grep -q "Build succeeded" && ! echo "$output" | grep -q "error CS"; then
-      echo "PASS: test22"
-      pass=$((pass+1))
-   else
-      echo "FAIL: test22"
-      echo "$output" | grep "error CS" || true
-      fail=$((fail+1))
-   fi
-fi
+printf '%s' "$lines" | sort
 
 echo ""
 echo "Results: $pass passed, $fail failed"
+[ $fail -eq 0 ]
