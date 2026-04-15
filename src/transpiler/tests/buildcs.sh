@@ -107,12 +107,11 @@ schedule() {
    running=$((running + 1))
 }
 
-# Single-file tests — skip multi-file pair members (handled below)
-# and test32 (known C# gap; see the commit history).
+# Single-file tests — skip multi-file pair members (handled below).
 for f in "$SCRIPT_DIR"/test*.cs; do
    name=$(basename "$f" .cs)
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b|test32) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b) continue ;;
    esac
    schedule "$name" "$f"
 done

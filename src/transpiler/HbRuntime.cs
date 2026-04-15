@@ -529,14 +529,34 @@ public static class HbRuntime
     {
         int key = (int)nSet;
         s_sets.TryGetValue(key, out dynamic prev);
-        if (newVal is not null) s_sets[key] = newVal;
+        if (newVal is not null)
+        {
+            /* Normalize "ON"/"OFF" → bool when the existing slot is
+               bool-typed. Harbour's `SET EXACT ON` lexer route STRSMARTs
+               the keyword into a string literal that Set() receives. */
+            if (prev is bool && newVal is string)
+                s_sets[key] = AsOnOff(newVal);
+            else
+                s_sets[key] = newVal;
+        }
         return prev;
+    }
+
+    /* Harbour's Set() / __SetCentury() accept either a bool or the
+       strings "ON"/"OFF" (because the #command rules for SET ... ON/OFF
+       STRSMART the keyword into a string literal). Normalize to bool. */
+    static bool AsOnOff(dynamic val, bool fallback = false)
+    {
+        if (val is null) return fallback;
+        if (val is bool b) return b;
+        if (val is string s) return string.Equals(s, "ON", StringComparison.OrdinalIgnoreCase);
+        return fallback;
     }
 
     public static bool __SETCENTURY(dynamic val = null)
     {
-        bool prev = (bool)(s_sets[(int)_SET_CENTURY] ?? false);
-        if (val is not null) s_sets[(int)_SET_CENTURY] = (bool)val;
+        bool prev = s_sets[(int)_SET_CENTURY] is bool pb && pb;
+        if (val is not null) s_sets[(int)_SET_CENTURY] = AsOnOff(val);
         return prev;
     }
 

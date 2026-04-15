@@ -24,6 +24,10 @@
 // ttlcalc.prg — 3 files cleared.
 
 #include "set.ch"
+#include "common.ch"   // DEFAULT command lives here; Harbour's compiler
+                       // doesn't auto-load it (our transpiler does),
+                       // so without this hbmk2 fails to compile the
+                       // `DEFAULT var TO val` lines below.
 
 PROCEDURE Main()
    // #command match + trailing line comment.
