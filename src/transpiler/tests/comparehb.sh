@@ -30,3 +30,4 @@ done
 
 echo ""
 echo "Results: $pass match, $fail differ"
+[ $fail -eq 0 ]
