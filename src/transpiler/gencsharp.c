@@ -1211,7 +1211,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                if( ! fSkip )
                {
                   hb_csEmitIndent( yyc, iIndent );
-                  fprintf( yyc, "%s %s;\n", hb_csTypeMap( szType ),
+                  fprintf( yyc, "%s %s = default;\n", hb_csTypeMap( szType ),
                            pNode->value.asVar.szName );
                }
             }
