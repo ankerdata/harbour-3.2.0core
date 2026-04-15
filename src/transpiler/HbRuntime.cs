@@ -31,17 +31,26 @@ public static class HbRuntime
 
     // ---- Console output (? and ??) ----
 
+    // Harbour's `?` / `??` commands separate comma-delimited args
+    // with a single space in the output. "hi", n prints as "hi 3"
+    // (space between label and value), not "hi3".
     public static void QOUT(params dynamic[] args)
     {
         Console.WriteLine();
-        foreach (var a in args)
-            Console.Write(Fmt(a));
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (i > 0) Console.Write(' ');
+            Console.Write(Fmt(args[i]));
+        }
     }
 
     public static void QQOUT(params dynamic[] args)
     {
-        foreach (var a in args)
-            Console.Write(Fmt(a));
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (i > 0) Console.Write(' ');
+            Console.Write(Fmt(args[i]));
+        }
     }
 
     static string Fmt(dynamic a) =>
