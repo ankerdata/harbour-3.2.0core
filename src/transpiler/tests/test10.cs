@@ -31,7 +31,7 @@ public static partial class Program
         // WITH OBJECT test
         oObj.SetValue(42);
 
-        test10_nCounter += 1;
+        test10_nCounter = test10_nCounter + 1;
         HbRuntime.QOUT("nCounter=" + HbRuntime.STR(test10_nCounter));
 
         return;

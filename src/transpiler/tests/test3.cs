@@ -30,7 +30,7 @@ public static partial class Program
         // FOR EACH
         foreach (dynamic cItem in aItems)
         {
-            cResult += cItem;
+            cResult = cResult + cItem;
         }
 
         HbRuntime.QOUT("cResult=" + cResult);

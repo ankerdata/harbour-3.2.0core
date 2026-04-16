@@ -45,7 +45,7 @@ public static partial class Program
     {
         decimal nResult = nA + nB;
         HbRuntime.QOUT("nResult=" + HbRuntime.STR(nResult));
-        nResult += nC;
+        nResult = nResult + nC;
         HbRuntime.QOUT("nResult=" + HbRuntime.STR(nResult));
         return nResult;
     }

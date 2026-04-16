@@ -27,7 +27,7 @@ public class Calculator
 
     public object Adjust(ref decimal nValue)
     {
-        nValue *= 2;
+        nValue = nValue * 2;
         return this;
     }
 }

@@ -219,7 +219,7 @@ const char * hb_astInferTypeFromInit( const char * szName, const char * szInit )
  * ================================================================ */
 
 /* Simple type environment: array of name/type pairs */
-#define HB_TYPEENV_MAX  256
+#define HB_TYPEENV_MAX  1024
 
 typedef struct
 {
@@ -240,8 +240,8 @@ static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab )
    pEnv->pRefTab = pRefTab;
 }
 
-static void hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
-                           const char * szType )
+static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
+                              const char * szType )
 {
    int i;
 
@@ -251,7 +251,7 @@ static void hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
       if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
       {
          pEnv->entries[ i ].szType = szType;
-         return;
+         return HB_TRUE;
       }
    }
 
@@ -261,7 +261,19 @@ static void hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
       pEnv->entries[ pEnv->count ].szName = szName;
       pEnv->entries[ pEnv->count ].szType = szType;
       pEnv->count++;
+      return HB_TRUE;
    }
+
+   /* Env full. A silent drop would set callers' fChanged flag on every
+      fixed-point iteration and spin forever (hb_astPropagate's pass 2
+      loops while fChanged). Fail loud instead — if real-world code
+      exceeds the limit, raise HB_TYPEENV_MAX rather than papering over
+      a missing entry with broken type inference. */
+   fprintf( stderr,
+            "hbtranspiler: fatal: type environment full at %d entries "
+            "(trying to add %s). Raise HB_TYPEENV_MAX in hbtypes.c.\n",
+            HB_TYPEENV_MAX, szName );
+   exit( 1 );
 }
 
 static const char * hb_typeEnvGet( HB_TYPEENV * pEnv, const char * szName )
@@ -466,8 +478,12 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
       const char * szNewType = hb_astInferExprType( pRHS, pEnv );
       if( szNewType && ( ! szCurType || strcmp( szCurType, szNewType ) != 0 ) )
       {
-         hb_typeEnvSet( pEnv, szVarName, szNewType );
-         *pfChanged = HB_TRUE;
+         /* Only mark the fixed-point loop dirty when the env actually
+            stored the new binding. Without this guard an overflowed
+            env would report "changed" every iteration and the outer
+            loop in hb_astPropagate would never terminate. */
+         if( hb_typeEnvSet( pEnv, szVarName, szNewType ) )
+            *pfChanged = HB_TRUE;
       }
    }
 }

@@ -70,7 +70,7 @@ public static partial class Program
     }
     public static decimal BumpCounter()
     {
-        test26_nCounter += 1;
+        test26_nCounter = test26_nCounter + 1;
         return test26_nCounter;
     }
 }

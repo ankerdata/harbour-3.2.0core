@@ -30,11 +30,11 @@ public static partial class Program
         /* Multi-line
       block comment
       spanning three lines */
-        cResult += " world";
+        cResult = cResult + " world";
         HbRuntime.QOUT("cResult=" + cResult);
 
         /* inline block comment */
-        x += 1;
+        x = x + 1;
         HbRuntime.QOUT("x=" + HbRuntime.STR(x));
 
         return;

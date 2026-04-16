@@ -19,7 +19,7 @@ public static partial class Program
         // Old comment
         /*x for sex is NB*/
         // dBASE commentd
-        x += 1;
+        x = x + 1;
         HbRuntime.QOUT("x=" + HbRuntime.STR(x));
 
         /* Standalone

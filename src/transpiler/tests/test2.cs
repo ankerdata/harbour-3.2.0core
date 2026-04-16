@@ -12,7 +12,7 @@ public static partial class Program
 
         for (i = 1; i <= 10; i++)
         {
-            nSum += i;
+            nSum = nSum + i;
         }
 
         HbRuntime.QOUT("nSum=" + HbRuntime.STR(nSum));
@@ -35,7 +35,7 @@ public static partial class Program
 
         while (nSum > 0)
         {
-            nSum -= 10;
+            nSum = nSum - 10;
             if (nSum < 0)
             {
                 break;

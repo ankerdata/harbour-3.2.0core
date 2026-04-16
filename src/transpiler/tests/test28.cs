@@ -21,7 +21,7 @@ using static HbRuntime;
 public static partial class Program
 {
     static string test28_scCRLF = HbRuntime.CHR(13) + HbRuntime.CHR(10);
-    static decimal test28_snBase = 22;
+    static decimal test28_snBase = 10 * 2 + 2;
     public static void Main(string[] args)
     {
         HbRuntime.QOUT("crlf:  " + HbRuntime.LTRIM(HbRuntime.STR(HbRuntime.LEN(test28_scCRLF))));

@@ -644,13 +644,18 @@ PHB_EXPR hb_compExprAssignStatic( PHB_EXPR pLeftExpr, PHB_EXPR pRightExpr, HB_CO
    pExpr = HB_COMP_EXPR_NEW( HB_EO_ASSIGN );
 
    pExpr->value.asOperator.pLeft  = pLeftExpr;
-   /* Try to reduce the assigned value */
+#ifndef HB_TRANSPILER
+   /* Try to reduce the assigned value. Skipped in transpiler mode —
+      REDUCE mutates the expression tree and frees the original root,
+      but the AST has already captured that pointer via
+      hb_astAddStatic. */
    pRightExpr = HB_EXPR_USE( pRightExpr, HB_EA_REDUCE );
    /* When -kc switch is used expression list is not stripped
     * in reduce operation
     */
    if( ! HB_SUPPORT_HARBOUR )
       pRightExpr = hb_compExprListStrip( pRightExpr, HB_COMP_PARAM );
+#endif
 
    pExpr->value.asOperator.pRight = pRightExpr;
 
@@ -759,10 +764,17 @@ PHB_EXPR hb_compExprGenStatement( PHB_EXPR pExpr, HB_COMP_DECL )
    if( pExpr )
    {
 #ifdef HB_TRANSPILER
-      /* Capture expression statement in AST before PCODE generation */
+      /* Capture expression statement in AST. We stop here in transpiler
+         mode — running REDUCE would rewrite the expression tree in
+         place (e.g. folding adjacent HB_ET_STRINGs replaces the parent
+         HB_EO_PLUS node with its left child), and any pointer the AST
+         or yacc stack already holds to the original root ends up
+         dangling. STATEMENT pcode is also useless here since we don't
+         execute pcode. Return NULL — callers do HB_COMP_EXPR_FREE on
+         the result and FREE(NULL) is a no-op. */
       hb_astAddExprStmt( HB_COMP_PARAM, pExpr, HB_COMP_PARAM->currLine );
-#endif
-
+      return NULL;
+#else
       if( pExpr->ExprType == HB_EO_EQUAL )
       {
          /* NOTE: direct type change */
@@ -771,6 +783,7 @@ PHB_EXPR hb_compExprGenStatement( PHB_EXPR pExpr, HB_COMP_DECL )
 
       pExpr = HB_EXPR_USE( pExpr, HB_EA_REDUCE );
       HB_EXPR_USE( pExpr, HB_EA_STATEMENT );
+#endif
    }
    return pExpr;
 }

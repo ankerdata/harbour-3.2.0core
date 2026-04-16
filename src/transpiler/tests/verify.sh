@@ -46,7 +46,14 @@ echo "=== comparecs ==="
 bash comparecs.sh
 cs_rc=$?
 
-if [ $hb_rc -ne 0 ] || [ $cs_rc -ne 0 ]; then
+# Negative tests: every .prg under errors/ must FAIL -GS codegen with
+# the expected transpiler error. Covers unsupported constructs (e.g.
+# workarea ALIAS) that must surface rather than silently transpile.
+echo "=== errors ==="
+bash errors/run.sh
+err_rc=$?
+
+if [ $hb_rc -ne 0 ] || [ $cs_rc -ne 0 ] || [ $err_rc -ne 0 ]; then
    fail=1
 fi
 

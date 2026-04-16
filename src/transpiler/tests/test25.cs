@@ -61,7 +61,7 @@ public static partial class Program
         HbRuntime.QOUT("INT:    " + HbRuntime.STR(HbRuntime.INT(PI + 0.7m), 4));
 
         // Bug C — round-trip the backslash #define through string concat.
-        HbRuntime.QOUT("sep:    a" + SEPARATOR + "b");
+        HbRuntime.QOUT("sep:    " + "a" + SEPARATOR + "b");
 
         return;
 
