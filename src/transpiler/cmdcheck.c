@@ -48,6 +48,7 @@
 #include "hbset.h"
 #ifdef HB_TRANSPILER
 #include "hbreftab.h"
+#include "hbdefinemap.h"
 #endif
 
 static char s_szUndefineMarker[ 1 ] = "";
@@ -211,6 +212,13 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
             signature table. The path applies to load AND save. */
          hb_refTabSetPath( szSwPtr + 9 );
          szSwPtr += strlen( szSwPtr );  /* consume rest of switch */
+      }
+      else if( strncmp( szSwPtr + 2, "defines-map=", 12 ) == 0 )
+      {
+         /* --defines-map=<path> activates the per-source-file const-class
+            rewriter. See include/hbdefinemap.h. */
+         hb_defineMapSetPath( szSwPtr + 14 );
+         szSwPtr += strlen( szSwPtr );
       }
 #endif
    }

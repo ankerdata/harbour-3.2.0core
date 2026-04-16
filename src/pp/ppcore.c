@@ -5137,8 +5137,17 @@ static void hb_pp_conditionPush( PHB_PP_STATE pState, HB_BOOL fCond )
 static void hb_pp_condCompile( PHB_PP_STATE pState, PHB_PP_TOKEN pToken,
                                HB_BOOL fNot )
 {
+   PHB_PP_TOKEN pAfter = pToken ? pToken->pNext : NULL;
+
+   /* Trailing `//` comments on directive lines are preserved as tokens
+      when comment-preservation is on (transpiler mode). Skip past them
+      when validating the end of a `#ifdef NAME` directive. */
+   while( pAfter &&
+          HB_PP_TOKEN_TYPE( pAfter->type ) == HB_PP_TOKEN_COMMENT )
+      pAfter = pAfter->pNext;
+
    if( ! pToken || HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_KEYWORD ||
-       ! HB_PP_TOKEN_ISEOC( pToken->pNext ) )
+       ! HB_PP_TOKEN_ISEOC( pAfter ) )
    {
       hb_pp_error( pState, 'E', HB_PP_ERR_DIRECTIVE_IFDEF, NULL );
    }
