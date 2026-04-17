@@ -6,7 +6,7 @@ FUNCTION Counter() AS NUMERIC
    STATIC nCount := 0 AS NUMERIC
    STATIC cLabel := "count" AS STRING
 
-   nCount += 1
+   nCount := nCount + 1
    QOut(cLabel + "=" + Str(nCount))
 
 RETURN nCount
@@ -36,13 +36,13 @@ PROCEDURE Main()
    Counter()
    Counter()
 
-   nStatic += 5
+   nStatic := nStatic + 5
    QOut("nStatic=" + Str(nStatic))
 
-   nPriv += 1
+   nPriv := nPriv + 1
    QOut("nPriv=" + Str(nPriv))
 
-   nPub -= 10
+   nPub := nPub - 10
    QOut("nPub=" + Str(nPub))
 
 RETURN

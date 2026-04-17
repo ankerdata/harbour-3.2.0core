@@ -7,7 +7,7 @@ FUNCTION Main() AS STRING
    LOCAL cResult AS STRING
 
    FOR i := 1 TO 10
-      nSum += i
+      nSum := nSum + i
    NEXT
 
    QOut("nSum=" + Str(nSum))
@@ -24,7 +24,7 @@ FUNCTION Main() AS STRING
    ENDIF
 
    DO WHILE nSum > 0
-      nSum -= 10
+      nSum := nSum - 10
       IF nSum < 0
          EXIT
       ENDIF

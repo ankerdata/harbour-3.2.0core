@@ -102,6 +102,52 @@ static void hb_csAddFileStatic( const char * szName )
 static const char * s_pFileMemvars[ HB_CS_MAX_FILE_MEMVARS ];
 static int s_iFileMemvarCount = 0;
 
+/* File-scope STATIC function registry. Harbour `STATIC FUNCTION foo`
+   and `STATIC PROCEDURE foo` are file-private — callable only from the
+   same .prg. The transpiler merges every standalone function into one
+   `public static partial class Program`, so two files each declaring
+   `STATIC FUNCTION Helper()` collide (CS0111). Same mechanism as for
+   STATIC vars: collect the STATIC function names once, rewrite both
+   the declaration and every intra-file call site to
+   `<FileBase>_<FuncName>`, file-unique by construction. */
+#define HB_CS_MAX_FILE_STATIC_FUNCS 256
+static const char * s_pFileStaticFuncs[ HB_CS_MAX_FILE_STATIC_FUNCS ];
+static int s_iFileStaticFuncCount = 0;
+
+static HB_BOOL hb_csIsFileStaticFunc( const char * szName )
+{
+   int i;
+   if( ! szName || s_iFileStaticFuncCount == 0 )
+      return HB_FALSE;
+   for( i = 0; i < s_iFileStaticFuncCount; i++ )
+      if( hb_stricmp( s_pFileStaticFuncs[ i ], szName ) == 0 )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+static void hb_csAddFileStaticFunc( const char * szName )
+{
+   if( ! szName || s_iFileStaticFuncCount >= HB_CS_MAX_FILE_STATIC_FUNCS )
+      return;
+   if( hb_csIsFileStaticFunc( szName ) )
+      return;
+   s_pFileStaticFuncs[ s_iFileStaticFuncCount++ ] = szName;
+}
+
+/* Return the mangled name `<FileBase>_<szName>` in a caller-supplied
+   buffer when szName is a STATIC function in this file; otherwise
+   return szName unchanged. */
+static const char * hb_csMangleStaticFunc( const char * szName,
+                                           char * szBuf, size_t nBufSize )
+{
+   if( hb_csIsFileStaticFunc( szName ) && s_szFileBase[ 0 ] )
+   {
+      hb_snprintf( szBuf, nBufSize, "%s_%s", s_szFileBase, szName );
+      return szBuf;
+   }
+   return szName;
+}
+
 static HB_BOOL hb_csIsFileMemvar( const char * szName )
 {
    int i;
@@ -125,6 +171,7 @@ static void hb_csAddFileMemvar( const char * szName )
 static void hb_csResetFileStatics( void )
 {
    s_iFileStaticCount = 0;
+   s_iFileStaticFuncCount = 0;
    s_iFileMemvarCount = 0;
    s_szFileBase[ 0 ] = '\0';
 }
@@ -673,7 +720,20 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
 
             if( szName )
-               fprintf( yyc, "%s", hb_csFuncMap( szName ) );
+            {
+               /* Intra-file STATIC call: resolve to the file-mangled
+                  name. Checked before hb_csFuncMap — the stdlib table
+                  won't have the file-prefixed form and would otherwise
+                  pass the bare name straight through. */
+               if( hb_csIsFileStaticFunc( szName ) )
+               {
+                  char szMangledBuf[ 256 ];
+                  fprintf( yyc, "%s", hb_csMangleStaticFunc( szName,
+                                         szMangledBuf, sizeof( szMangledBuf ) ) );
+               }
+               else
+                  fprintf( yyc, "%s", hb_csFuncMap( szName ) );
+            }
             else
                hb_csEmitExpr( pExpr->value.asFunCall.pFunName, yyc, HB_FALSE );
             fprintf( yyc, "(" );
@@ -2438,7 +2498,18 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       s_fVoidFunc = HB_FALSE;
    }
 
-   fprintf( yyc, " %s(", fIsMain ? "Main" : pFunc->value.asFunc.szName );
+   {
+      /* Mangle STATIC FUNCTION / STATIC PROCEDURE names with the file
+         base so two files each declaring the same static name don't
+         collide under the merged partial class Program. Main is always
+         global. Call sites in this file resolve the same mangled name
+         via hb_csMangleStaticFunc at HB_ET_FUNCALL emit time. */
+      char szMangledBuf[ 256 ];
+      const char * szEmitName = fIsMain ? "Main"
+         : hb_csMangleStaticFunc( pFunc->value.asFunc.szName,
+                                   szMangledBuf, sizeof( szMangledBuf ) );
+      fprintf( yyc, " %s(", szEmitName );
+   }
 
    /* Parameters */
    if( fIsMain )
@@ -2627,6 +2698,22 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    s_pRefTab = hb_refTabNew();
    hb_refTabLoad( s_pRefTab, hb_refTabGetPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
+
+   /* Collect STATIC function/procedure names so intra-file call sites
+      can be mangled consistently with the declaration. Cross-file
+      callers can't reach these (that's the language rule) so we don't
+      need to track them in hbreftab. */
+   {
+      PHB_AST_NODE pF = HB_COMP_PARAM->ast.pFuncList;
+      while( pF )
+      {
+         if( pF->type == HB_AST_FUNCTION &&
+             pF->value.asFunc.szName &&
+             ( pF->value.asFunc.cScope & HB_FS_STATIC ) != 0 )
+            hb_csAddFileStaticFunc( pF->value.asFunc.szName );
+         pF = pF->pNext;
+      }
+   }
 
    /* Collect CLASS nodes from startup function */
    s_pClassList = NULL;

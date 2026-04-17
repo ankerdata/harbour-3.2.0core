@@ -9,21 +9,21 @@ FUNCTION Main() AS NUMERIC
 
    // FOR with STEP
    FOR i := 0 TO 20 STEP 5
-      nSum += i
+      nSum := nSum + i
    NEXT
 
    QOut("nSum after STEP=" + Str(nSum))
 
    // FOR counting down with negative STEP
    FOR i := 10 TO 1 STEP -1
-      nSum += i
+      nSum := nSum + i
    NEXT
 
    QOut("nSum after DOWN=" + Str(nSum))
 
    // FOR EACH with DESCEND
    FOR EACH cItem IN aItems DESCEND
-      nSum += Len(cItem)
+      nSum := nSum + Len(cItem)
    NEXT
 
    QOut("nSum=" + Str(nSum))

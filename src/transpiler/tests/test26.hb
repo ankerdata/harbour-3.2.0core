@@ -60,5 +60,5 @@ RETURN
    // `test26_nCounter` in the generated C#.
 FUNCTION BumpCounter() AS NUMERIC
    STATIC nCounter := 0 AS NUMERIC
-   nCounter += 1
+   nCounter := nCounter + 1
 RETURN nCounter

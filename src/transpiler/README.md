@@ -54,6 +54,14 @@ under stock Harbour should produce a binary that runs identically to
 the binary built from the original `.prg`. The test suite enforces
 this on every test (see [tests/](tests/)).
 
+Additional CLI flags:
+
+| Flag                    | Purpose                                                           |
+|-------------------------|-------------------------------------------------------------------|
+| `-o<dir>/`              | Redirect `.cs` / `.hb` output to `<dir>/` instead of alongside the `.prg` |
+| `--reftab=<path>`       | Override the default `hbreftab.tab` location                      |
+| `--defines-map=<path>`  | Qualify identifier references to per-source `<Name>Const` classes (see [Defines map](#defines-map)) |
+
 ---
 
 ## Architecture
@@ -431,11 +439,15 @@ See [test18.prg](tests/test18.prg) for the full demo.
 | `.T.` / `.F.` / `NIL`            | `true` / `false` / `null`                                |
 | `.AND.` / `.OR.` / `.NOT.`       | `&&` / `\|\|` / `!`                                      |
 | `^` / `$`                        | `Math.Pow()` / `.Contains()`                             |
-| `IIF(c, a, b)`                   | `(c ? a : b)`                                            |
+| `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
+| `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
 | `Self` / `::`                    | `this` / `this.`                                          |
 | `ClassName():New()`              | `new ClassName()`                                        |
-| `ClassName():New(args)`          | `(ClassName) new ClassName().New(args)`                  |
+| `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
+| `BEGIN SEQUENCE … RECOVER … END` | `try { … } catch (Exception e) { … }`                   |
+| `BEGIN SEQUENCE … END` (no RECOVER) | `try { … } catch {}` + W-level warning (idiom usually means "missed RECOVER") |
+| `{ => }` empty hash              | `new Dictionary<dynamic, dynamic>()`                     |
 | `ACCESS` / `ASSIGN`              | C# property `{ get; set; }`                               |
 | `Foo(@x)` + `PROCEDURE Foo(x)`   | `Foo(ref x)` + `Foo(ref decimal x)` (type from refTab)   |
 | `Fred(x)` short call             | `Fred(x)` (relies on `= default` on declaration)         |
@@ -503,31 +515,25 @@ A few non-obvious things it preserves:
 ```bash
 cd src/transpiler/tests
 
-# Round-trip every .prg through -GT. Exercises the .hb emitter and
-# implicitly runs the scanner on every test.
-bash runtests.sh
+# CI-style single entry point — runs every driver below + the
+# compare{hb,cs}.sh steps that catch silent runtime divergences,
+# plus errors/run.sh for the negative tests.
+bash verify.sh
 
-# Compile each .prg directly with stock Harbour (baseline binary).
-bash buildprg.sh
-
-# Compile each generated .hb with stock Harbour.
-bash buildhb.sh
-
-# Compile each generated .cs with `dotnet`.
-bash buildcs.sh
+# Or run individual stages:
+bash runtests.sh    # Round-trip every .prg through -GT
+bash buildprg.sh    # Compile each .prg with stock Harbour (baseline)
+bash buildhb.sh     # Compile each generated .hb with stock Harbour
+bash buildcs.sh     # Compile each generated .cs with dotnet
+bash runprg.sh      # Run prgexe/ and record stdout
+bash runhb.sh       # Run hbexe/ and record stdout
+bash runcs.sh       # Run csexe/ via dotnet run and record stdout
+bash comparehb.sh   # .hb stdout must match .prg stdout
+bash comparecs.sh   # .cs stdout must match .prg stdout
+bash errors/run.sh  # Negative tests — each .prg must fail -GS with a specific error
 ```
 
-Current counts (as of this README):
-- `runtests.sh`: **23 passed, 0 failed**
-- `buildprg.sh`: **21 compiled, 0 failed**
-- `buildhb.sh`: **21 compiled, 0 failed**
-- `buildcs.sh`: **21 passed, 0 failed**
-
-The discrepancy (23 vs 21) is the test19 and test20 multi-file pairs:
-each counts as two files in the round-trip pipeline (because each
-`.prg` produces its own `.hb`), but only one executable in the build
-pipelines (because the build scripts link the pair into a single
-binary).
+Current counts: **40 positive tests + 4 negative tests, all pass via `verify.sh`**.
 
 The test suite is intentionally small and incremental — each numbered
 test exercises one feature in isolation. New tests usually expose new
@@ -542,19 +548,101 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 18        | Default arguments, middle gaps, nilable detection    |
 | 19a + 19b | **Cross-file by-reference** (multi-file pair)        |
 | 20a + 20b | **Cross-file return types + param refinement**      |
+| 21        | By-ref scanner idioms                                 |
+| 22a + 22b | Cross-file return type + nilable param               |
+| 23        | `DEFAULT` command + nilable-bool IF conditions       |
+| 24        | Comment preservation through parser edge cases        |
+| 25        | Case normalization, `#define` numeric / string, `HB_ET_ALIASVAR` |
+| 26        | `TIMESTAMP` type map + STATIC-var name mangling      |
+| 27        | Hungarian `tStamp` prefix → `DateTime`               |
+| 28–32     | easiposx-surfaced bugs: non-const STATIC init, SWITCH on #define, EXIT+trailing-comment, varargs pipeline, PP trailing-`//` in `#command` |
+| 33        | FUNCALL return-type inference                         |
+| 34        | Misc type refinement                                  |
+| 35        | File-scope MEMVAR → `Program` static field           |
+| 36        | Plain / chained / compound `:=` as statements        |
+| 37        | Class DATA INIT with trailing `//` comment           |
+| 38        | `iif()` as statement with empty branches             |
+| 39        | LOCAL / STATIC / class-DATA initializers surviving REDUCE (string+string, CHR+CHR, `{ => }`) |
+| 40        | Bare `BEGIN SEQUENCE / END SEQUENCE`                 |
+
+Negative tests live under `tests/errors/` and are run by `errors/run.sh`:
+
+| Test                | Construct flagged                                       |
+|---------------------|----------------------------------------------------------|
+| `alias_stmt.prg`    | Workarea `ALIAS->( expr )` as a statement               |
+| `alias_expr.prg`    | Workarea `ALIAS->( expr )` in expression position       |
+| `macro_expr.prg`    | `&name` macro substitution                              |
+| `comma_op.prg`      | `(a, b)` comma operator in expression position          |
+
+Each must fail `-GS` codegen with a matching `HB_COMP_ERR_SYNTAX`
+message — see [Unsupported constructs](#unsupported-constructs).
+
+---
+
+## Unsupported constructs
+
+Some Harbour constructs have no clean C# equivalent. Rather than emit
+comments that break downstream syntax, the transpiler calls
+`hb_compGenError( HB_COMP_ERR_SYNTAX, ... )` and substitutes a
+`default` placeholder so the `.cs` stays parseable for diagnostics.
+Any `.prg` containing one of these fails `-GS` with `rc != 0` and
+the build pipeline skips the file:
+
+| Construct                    | Example                                          |
+|------------------------------|--------------------------------------------------|
+| Workarea ALIAS               | `Flags->( dbGoTop() )`, `x := Flags->( eof() )`  |
+| Macro substitution           | `xValue := oRec:&cField`, `&( cExpr )`           |
+| Comma operator (expression)  | `IF (a, b) > 0` — multi-element list in expr pos |
+
+Argument lists (`Foo(a, b)`), array literals (`{ a, b }`), and hash
+literals (`{ a => b, c => d }`) are not affected — those are
+`HB_ET_ARGLIST`, not `HB_ET_LIST`.
+
+---
+
+## Defines map
+
+`--defines-map=<path>` tells the emitter to rewrite bare identifier
+references to qualified `<Name>Const` class members. The path points
+at a three-column TSV:
+
+```
+NAME<TAB>ClassName<TAB>[OwnerBasename]
+ACCEPTANCE   RmcommConst   ``
+IX_FLAGGROUP FlagsConst    ``
+LOCAL_FLAG   MyPrgPrgConst myprg
+```
+
+- An **empty owner** means the define is header-origin and visible
+  everywhere.
+- A **non-empty owner** means the define is the file-local version
+  shadowing the global — only references inside that basename's
+  emission use the shadow.
+
+The per-source `<Name>Const.cs` files and `defines_map.txt` are
+produced by [`tools/gendefines.py`](tools/gendefines.py) from any
+number of `--include-dir` and `--src-dir` paths.
+
+The module state lives in [`hbdefinemap.c`](hbdefinemap.c) /
+[`include/hbdefinemap.h`](../../include/hbdefinemap.h). `gencsharp.c`
+calls `hb_defineMapSetCurrentFile(basename)` at the top of each file's
+emission so file-local shadows take effect; it's reset to `NULL` at
+the end.
 
 ---
 
 ## Limitations and future work
 
+- **Cross-file duplicate procedures** — when two `.prg` files each
+  define a procedure with the same name, they collide under the merged
+  `public static partial class Program` (CS0111). Harbour's linker
+  picks one; the transpiler currently emits both. Dominant remaining
+  build-error bucket on the real-world corpus.
 - **Multi-class files** — a second `CLASS` in the same `.prg`
   currently drops out of the C# output (AST nesting bug).
 - **`SUPER` reference** — not handled in C# output yet.
 - **Multiple inheritance** — Harbour doesn't really support it
   either; the transpiler doesn't try.
-- **Macro expressions** (`&var`, `&(...)`) — emitted as comments.
-  These can't be statically resolved and would need a runtime macro
-  evaluator on the C# side.
 - **Class-scoped method signatures** — `hbreftab.tab` currently keys
   method entries by bare method name, ignoring the owning class.
   Functions and methods called `Close` will collide. Fix when it
@@ -568,6 +656,10 @@ limitations rather than just adding more coverage. Notable test IDs:
 - **PCODE generator** — still allocated alongside the AST. Removing
   it is mostly a cleanup of `harbour.yyc` grammar actions, no
   functional change.
+- **Downgrade warnings don't print the source line** — when
+  `hbreftab` sees inconsistent call-site types it warns with the
+  filename and line number, but triage would be faster if the
+  offending source line were printed under the warning.
 
 ---
 

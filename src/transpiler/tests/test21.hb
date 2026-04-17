@@ -27,7 +27,7 @@ METHOD New() AS OBJECT CLASS Calculator
 RETURN Self
 
 METHOD Adjust( /*@*/nValue AS NUMERIC ) AS OBJECT CLASS Calculator
-   nValue *= 2
+   nValue := nValue * 2
 RETURN Self
 
 PROCEDURE Main()

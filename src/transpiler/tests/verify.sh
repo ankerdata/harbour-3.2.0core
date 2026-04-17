@@ -27,6 +27,12 @@ run_step() {
    fi
 }
 
+# Transpile every .prg → .hb via -GT. buildhb.sh iterates over existing
+# .hb files, so without this step newly-added tests would be silently
+# skipped from the Harbour round-trip pipeline. buildcs.sh runs its own
+# -GS pass internally and doesn't need an equivalent here.
+run_step "runtests"  runtests.sh
+
 # Build: one target per source.
 run_step "buildprg"  buildprg.sh
 run_step "buildhb"   buildhb.sh

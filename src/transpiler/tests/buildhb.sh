@@ -15,7 +15,7 @@ for f in "$SCRIPTDIR"/test*.hb; do
    # test19a/test19b and test20a/test20b are multi-file pairs handled
    # as single test19 / test20 builds below.
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b) continue ;;
    esac
    # hbmk2 treats .hb as scripts — copy to .prg for compilation
    cp "$f" "$SCRIPTDIR/hbexe/${name}_hb.prg"
@@ -77,6 +77,24 @@ if [ -f "$SCRIPTDIR/test22a.hb" ] && [ -f "$SCRIPTDIR/test22b.hb" ]; then
       PASS=$((PASS + 1))
    else
       echo "FAIL: test22"
+      FAIL=$((FAIL + 1))
+   fi
+fi
+
+# test41: multi-file build from test41a.hb + test41b.hb — STATIC
+# function file-scope mangling regression.
+if [ -f "$SCRIPTDIR/test41a.hb" ] && [ -f "$SCRIPTDIR/test41b.hb" ]; then
+   cp "$SCRIPTDIR/test41a.hb" "$SCRIPTDIR/hbexe/test41a_hb.prg"
+   cp "$SCRIPTDIR/test41b.hb" "$SCRIPTDIR/hbexe/test41b_hb.prg"
+   hbmk2 "$SCRIPTDIR/hbexe/test41a_hb.prg" "$SCRIPTDIR/hbexe/test41b_hb.prg" \
+         -o"$SCRIPTDIR/hbexe/test41" -i"$ROOTDIR/include" -gtcgi -q 2>&1
+   rc=$?
+   rm -f "$SCRIPTDIR/hbexe/test41a_hb.prg" "$SCRIPTDIR/hbexe/test41b_hb.prg"
+   if [ $rc -eq 0 ]; then
+      echo "PASS: test41"
+      PASS=$((PASS + 1))
+   else
+      echo "FAIL: test41"
       FAIL=$((FAIL + 1))
    fi
 fi

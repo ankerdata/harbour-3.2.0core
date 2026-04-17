@@ -31,7 +31,7 @@ FUNCTION Main() AS NUMERIC
       :SetValue(42)
    END WITH
 
-   nCounter += 1
+   nCounter := nCounter + 1
    QOut("nCounter=" + Str(nCounter))
 
 RETURN oObj:nValue

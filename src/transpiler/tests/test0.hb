@@ -15,7 +15,7 @@ PROCEDURE main()
    NOTE Old comment
    /*x for sex is NB*/
    && dBASE commentd
-   x += 1
+   x := x + 1
    QOut("x=" + Str(x))
 
    /* Standalone

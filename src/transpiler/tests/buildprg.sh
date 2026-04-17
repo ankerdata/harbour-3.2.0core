@@ -14,7 +14,7 @@ for f in "$SCRIPTDIR"/test*.prg; do
    # test19a/test19b and test20a/test20b are multi-file pairs handled
    # as single test19 / test20 builds below.
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b) continue ;;
    esac
    hbmk2 "$f" -o"$SCRIPTDIR/prgexe/$name" -gtcgi -q 2>/dev/null
    if [ $? -eq 0 ]; then
@@ -63,6 +63,21 @@ if [ -f "$SCRIPTDIR/test22a.prg" ] && [ -f "$SCRIPTDIR/test22b.prg" ]; then
       PASS=$((PASS + 1))
    else
       echo "FAIL: test22"
+      FAIL=$((FAIL + 1))
+   fi
+fi
+
+# test41: multi-file build, two files each declaring `STATIC FUNCTION
+# Helper()` / `HelperNum()` with different bodies. Proves the C#
+# emitter's file-scope mangling of STATIC functions.
+if [ -f "$SCRIPTDIR/test41a.prg" ] && [ -f "$SCRIPTDIR/test41b.prg" ]; then
+   hbmk2 "$SCRIPTDIR/test41a.prg" "$SCRIPTDIR/test41b.prg" \
+         -o"$SCRIPTDIR/prgexe/test41" -gtcgi -q 2>/dev/null
+   if [ $? -eq 0 ]; then
+      echo "PASS: test41"
+      PASS=$((PASS + 1))
+   else
+      echo "FAIL: test41"
       FAIL=$((FAIL + 1))
    fi
 fi

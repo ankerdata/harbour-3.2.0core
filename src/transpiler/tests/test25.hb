@@ -57,7 +57,7 @@ PROCEDURE Main()
    QOut("INT:    " + Str(INT(PI + 0.7), 4))
 
    // Bug C — round-trip the backslash #define through string concat.
-   QOut("sep:    a" + SEPARATOR + "b")
+   QOut("sep:    " + "a" + SEPARATOR + "b")
 
 RETURN
 
@@ -67,6 +67,6 @@ RETURN
    // accepts it and the C# emitter resolves `alocal` to the canonical
    // `aLocal` via hb_csResolveLocal, instead of leaking an unknown-expr
    // comment into live code.
-FUNCTION BugDCheck()
+STATIC FUNCTION BugDCheck()
    LOCAL aLocal := {1, 2, 3} AS ARRAY
 RETURN MEMVAR->alocal[1]

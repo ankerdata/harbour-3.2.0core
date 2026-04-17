@@ -72,7 +72,7 @@ public static partial class Program
         // `aLocal` via hb_csResolveLocal, instead of leaking an unknown-expr
         // comment into live code.
     }
-    public static dynamic BugDCheck()
+    public static dynamic test25_BugDCheck()
     {
         dynamic[] aLocal = new dynamic[] { 1, 2, 3 };
         return aLocal[0];

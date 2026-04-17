@@ -23,7 +23,7 @@ FUNCTION Main() AS STRING
 
    // FOR EACH
    FOR EACH cItem IN aItems
-      cResult += cItem
+      cResult := cResult + cItem
    NEXT
 
    QOut("cResult=" + cResult)

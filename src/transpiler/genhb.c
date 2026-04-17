@@ -1117,10 +1117,22 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
                      ( pFirstStmt->value.asClassMethod.fProcedure ? "PROCEDURE" : "METHOD" ),
                      szEmitName );
          }
-         else if( pFunc->value.asFunc.fProcedure )
-            fprintf( yyc, "PROCEDURE %s(", szEmitName );
          else
-            fprintf( yyc, "FUNCTION %s(", szEmitName );
+         {
+            /* Preserve file-scope visibility. `STATIC FUNCTION` and
+               `STATIC PROCEDURE` are file-private in Harbour; dropping
+               the STATIC prefix would turn them into public symbols
+               and cause duplicate-symbol errors at link time when two
+               files each declare the same STATIC name. */
+            HB_BOOL fStatic =
+               ( pFunc->value.asFunc.cScope & HB_FS_STATIC ) != 0;
+            if( pFunc->value.asFunc.fProcedure )
+               fprintf( yyc, "%sPROCEDURE %s(",
+                        fStatic ? "STATIC " : "", szEmitName );
+            else
+               fprintf( yyc, "%sFUNCTION %s(",
+                        fStatic ? "STATIC " : "", szEmitName );
+         }
       }
 
       /* Emit parameters with inferred types. Harbour's grammar has no

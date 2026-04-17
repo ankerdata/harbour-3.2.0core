@@ -26,11 +26,11 @@ FUNCTION Main() AS STRING
    /* Multi-line
       block comment
       spanning three lines */
-   cResult += " world"
+   cResult := cResult + " world"
    QOut("cResult=" + cResult)
 
    /* inline block comment */
-   x += 1
+   x := x + 1
    QOut("x=" + Str(x))
 
 RETURN cResult

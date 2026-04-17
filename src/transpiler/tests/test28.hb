@@ -19,7 +19,7 @@
 
 PROCEDURE Main()
    STATIC scCRLF := Chr(13) + Chr(10) AS STRING
-   STATIC snBase := 22 AS NUMERIC
+   STATIC snBase := 10 * 2 + 2 AS NUMERIC
    QOut("crlf:  " + LTrim(Str(Len(scCRLF))))
    QOut("base:  " + LTrim(Str(snBase)))
 RETURN

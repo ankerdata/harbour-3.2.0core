@@ -39,7 +39,7 @@ RETURN
 FUNCTION CalcTotal( nA AS NUMERIC, nB AS NUMERIC, nC AS NUMERIC ) AS NUMERIC
    LOCAL nResult := nA + nB AS NUMERIC
    QOut("nResult=" + Str(nResult))
-   nResult += nC
+   nResult := nResult + nC
    QOut("nResult=" + Str(nResult))
 RETURN nResult
 

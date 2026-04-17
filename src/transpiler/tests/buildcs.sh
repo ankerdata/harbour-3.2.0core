@@ -111,14 +111,14 @@ schedule() {
 for f in "$SCRIPT_DIR"/test*.cs; do
    name=$(basename "$f" .cs)
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b) continue ;;
    esac
    schedule "$name" "$f"
 done
 
 # Multi-file pair tests: both .cs files in one project named without
 # the a/b suffix (test19a + test19b → test19).
-for pair in 19 20 22; do
+for pair in 19 20 22 41; do
    a="$SCRIPT_DIR/test${pair}a.cs"
    b="$SCRIPT_DIR/test${pair}b.cs"
    [ -f "$a" ] && [ -f "$b" ] && schedule "test${pair}" "$a" "$b"
