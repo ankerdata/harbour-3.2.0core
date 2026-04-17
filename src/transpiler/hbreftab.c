@@ -17,12 +17,15 @@ typedef struct HB_REFENTRY_
 {
    char *                szName;       /* lowercased name (owned) */
    char *                szReturnType; /* inferred return type, or NULL (owned) */
+   char *                szPublicOwner;/* if fIsPublic: base filename of first .prg that declared PUBLIC szName (owned) */
    int                   nParams;      /* declared parameter count, -1 = unknown */
    HB_BOOL               fVariadic;    /* function uses PCount/HB_PValue */
    HB_BOOL               fCalledVarargs; /* some call site forwards `...` to this function */
    HB_BOOL               fDefined;     /* set once a real definition has been seen */
    HB_BOOL               fIsClass;     /* this is a CLASS marker, not a function */
    HB_BOOL               fClassDynamic;/* fIsClass + class uses ::&(name) — emit as `dynamic` */
+   HB_BOOL               fIsPublic;    /* this is a PUBLIC variable marker */
+   HB_BOOL               fPublicArrayDim; /* PUBLIC declared with [size] — emit `new dynamic[N]` at runtime */
    HB_REFPARAM *         pParams;      /* nParams entries (NULL if unknown) */
    HB_U64                bitmap;       /* by-ref bitmap, bit n = arg n is by-ref */
    HB_U64                nilbits;      /* nilable bitmap, bit n = slot n is nilable */
@@ -219,6 +222,8 @@ void hb_refTabFree( PHB_REFTAB pTab )
          hb_refEntryFreeParams( e );
          if( e->szReturnType )
             hb_xfree( e->szReturnType );
+         if( e->szPublicOwner )
+            hb_xfree( e->szPublicOwner );
          hb_xfree( e->szName );
          hb_xfree( e );
          e = pNext;
@@ -503,6 +508,77 @@ HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName )
    return e && e->fClassDynamic;
 }
 
+void hb_refTabMarkPublic( PHB_REFTAB pTab, const char * szName,
+                          const char * szOwnerBase, HB_BOOL fArrayDim )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return;
+   e = hb_refTabFindOrCreate( pTab, szName );
+   e->fIsPublic = HB_TRUE;
+   e->fDefined  = HB_TRUE;
+   if( fArrayDim )
+      e->fPublicArrayDim = HB_TRUE;
+   if( e->nParams < 0 )
+      e->nParams = 0;
+   /* First declarer wins — subsequent PUBLICs of the same name in
+      other files share the single Program-partial field. */
+   if( ! e->szPublicOwner && szOwnerBase && *szOwnerBase )
+      e->szPublicOwner = hb_refTabDup( szOwnerBase );
+}
+
+HB_BOOL hb_refTabIsPublic( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fIsPublic;
+}
+
+const char * hb_refTabPublicOwner( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return NULL;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e ? e->szPublicOwner : NULL;
+}
+
+HB_BOOL hb_refTabIsPublicArrayDim( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fPublicArrayDim;
+}
+
+void hb_refTabForEachPublic( PHB_REFTAB pTab,
+                              const char * szOwnerBase,
+                              void ( * pCallback )( const char * szName,
+                                                    HB_BOOL fArrayDim,
+                                                    void * userdata ),
+                              void * userdata )
+{
+   HB_SIZE i;
+   if( ! pTab || ! pCallback )
+      return;
+   for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
+   {
+      PHB_REFENTRY e = pTab->buckets[ i ];
+      while( e )
+      {
+         if( e->fIsPublic && e->szName &&
+             ( ! szOwnerBase ||
+               ( e->szPublicOwner &&
+                 hb_stricmp( e->szPublicOwner, szOwnerBase ) == 0 ) ) )
+            pCallback( e->szName, e->fPublicArrayDim, userdata );
+         e = e->pNext;
+      }
+   }
+}
+
 void hb_refTabMarkCalledVarargs( PHB_REFTAB pTab, const char * szName )
 {
    PHB_REFENTRY e;
@@ -574,8 +650,9 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
       return HB_FALSE;
    fprintf( fp, "# Harbour transpiler user-function signature table\n" );
    fprintf( fp, "# Format: NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...\n" );
-   fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, D = dynamic class (extends HbDynamicObject), - = none\n" );
-   fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown\n" );
+   fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, D = dynamic class (extends HbDynamicObject),\n" );
+   fprintf( fp, "#           P = public var, A = public var with array-dim, - = none\n" );
+   fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown; for P entries this slot holds the owning .prg basename\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
    fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, - = none\n" );
    fprintf( fp, "#\n" );
@@ -594,19 +671,25 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
          if( e->fDefined )
          {
             int p;
-            char fnFlags[ 6 ];
+            char fnFlags[ 8 ];
             int  fnK = 0;
+            const char * szRet;
             if( e->fVariadic )      fnFlags[ fnK++ ] = 'V';
             if( e->fCalledVarargs ) fnFlags[ fnK++ ] = 'S';
             if( e->fIsClass )       fnFlags[ fnK++ ] = 'K';
             if( e->fClassDynamic )  fnFlags[ fnK++ ] = 'D';
+            if( e->fIsPublic )      fnFlags[ fnK++ ] = 'P';
+            if( e->fPublicArrayDim) fnFlags[ fnK++ ] = 'A';
             if( fnK == 0 )          fnFlags[ fnK++ ] = '-';
             fnFlags[ fnK ] = '\0';
+            /* For P entries we overload the RETTYPE slot with the owning
+               .prg basename. The owner is never useful as a return type
+               so the reuse is unambiguous. */
+            szRet = e->fIsPublic
+               ? ( e->szPublicOwner ? e->szPublicOwner : "-" )
+               : ( e->szReturnType ? e->szReturnType : "-" );
             fprintf( fp, "%s\t%s\t%s\t%d",
-                     e->szName,
-                     fnFlags,
-                     e->szReturnType ? e->szReturnType : "-",
-                     e->nParams );
+                     e->szName, fnFlags, szRet, e->nParams );
             for( p = 0; p < e->nParams; p++ )
             {
                HB_BOOL fByRef =
@@ -707,11 +790,14 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          continue;
       {
          /* FLAGS is a string of letters: V (variadic), S (called with
-            `...` spread), K (klass), D (dynamic klass), - */
+            `...` spread), K (klass), D (dynamic klass), P (public
+            var), A (public array-dim), - */
          char * c;
          HB_BOOL fIsClass   = HB_FALSE;
          HB_BOOL fSpread    = HB_FALSE;
          HB_BOOL fClassDyn  = HB_FALSE;
+         HB_BOOL fPub       = HB_FALSE;
+         HB_BOOL fPubArr    = HB_FALSE;
          fVariadic = HB_FALSE;
          for( c = fields[ 1 ]; *c; c++ )
          {
@@ -723,6 +809,21 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                fIsClass = HB_TRUE;
             else if( *c == 'D' || *c == 'd' )
                fClassDyn = HB_TRUE;
+            else if( *c == 'P' || *c == 'p' )
+               fPub = HB_TRUE;
+            else if( *c == 'A' || *c == 'a' )
+               fPubArr = HB_TRUE;
+         }
+         if( fPub )
+         {
+            /* For P entries fields[2] is the owner basename (or '-'). */
+            const char * szOwner = ( fields[ 2 ] && fields[ 2 ][ 0 ] &&
+                                     strcmp( fields[ 2 ], "-" ) != 0 )
+               ? fields[ 2 ] : NULL;
+            hb_refTabMarkPublic( pTab, fields[ 0 ], szOwner, fPubArr );
+            /* P entries have no params / no return type — skip the
+               generic function registration below. */
+            continue;
          }
          if( fClassDyn )
             hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
@@ -816,6 +917,7 @@ typedef struct
 {
    const char *  szFunc;          /* enclosing function name (already keyed) */
    const char *  szClass;         /* enclosing class, NULL for free function */
+   const char *  szFileBase;      /* current .prg basename (no extension), for PUBLIC ownership */
    const char ** ppParamNames;    /* parameter names of the enclosing func */
    int           nParams;         /* parameter count */
    HB_BOOL       fVariadic;       /* set if PCount/HB_PValue is called */
@@ -1238,7 +1340,17 @@ static void hb_refTabScanStmt( PHB_REFTAB pTab, PHB_AST_NODE pStmt,
          case HB_AST_FIELD:
          case HB_AST_MEMVAR:
          case HB_AST_PRIVATE:
+            hb_refTabScanExpr( pTab, pStmt->value.asVar.pInit, pCtx );
+            break;
+
          case HB_AST_PUBLIC:
+            /* Register this PUBLIC in the reftab so cross-file callers
+               (and the emitter in the owning file) can find it. First
+               file to declare wins ownership. */
+            if( pCtx && pCtx->szFileBase )
+               hb_refTabMarkPublic( pTab, pStmt->value.asVar.szName,
+                                    pCtx->szFileBase,
+                                    pStmt->value.asVar.fArrayDim );
             hb_refTabScanExpr( pTab, pStmt->value.asVar.pInit, pCtx );
             break;
 
@@ -1452,6 +1564,8 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                HB_SCANCTX ctx;
                ctx.szFunc       = szKeyBuf;
                ctx.szClass      = szClass;   /* NULL for free functions */
+               ctx.szFileBase   = HB_COMP_PARAM->pFileName ?
+                                     HB_COMP_PARAM->pFileName->szName : NULL;
                ctx.ppParamNames = names;
                ctx.nParams      = nParams;
                ctx.fVariadic    = HB_FALSE;
@@ -1479,7 +1593,14 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
          else if( pCompFunc && pFunc->value.asFunc.pBody )
          {
             /* Auto-generated startup function body. */
-            HB_SCANCTX ctx = { NULL, NULL, NULL, 0, HB_FALSE };
+            HB_SCANCTX ctx;
+            ctx.szFunc       = NULL;
+            ctx.szClass      = NULL;
+            ctx.szFileBase   = HB_COMP_PARAM->pFileName ?
+                                  HB_COMP_PARAM->pFileName->szName : NULL;
+            ctx.ppParamNames = NULL;
+            ctx.nParams      = 0;
+            ctx.fVariadic    = HB_FALSE;
             hb_refTabScanStmt( pTab, pFunc->value.asFunc.pBody, &ctx );
          }
 

@@ -5621,7 +5621,31 @@ yyreduce:
 
   case 404:
 #line 1190 "harbour.y" /* yacc.c:1646  */
-    { hb_compVariableDim( (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM ); }
+    {
+                  /* `PUBLIC name[size]` / `PRIVATE name[size]` — record
+                     the declaration in the AST, marking the node as an
+                     array-dim so the emitter allocates `new dynamic[N]`
+                     rather than treating the DimList as a comma-sequence
+                     init. Only PUBLIC / PRIVATE are captured here:
+                     LOCAL / STATIC / MEMVAR with the `[size]` syntax
+                     have been working through hb_compVariableDim's
+                     PCODE path (which the transpiler ignores) — adding
+                     them to the AST now would break existing emission
+                     that treats their pInit as a scalar expression. */
+#ifdef HB_TRANSPILER
+                  if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC )
+                  {
+                     hb_astAddPublic( HB_COMP_PARAM, (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM->currLine );
+                     hb_astMarkLastVarArrayDim( HB_COMP_PARAM );
+                  }
+                  else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PRIVATE )
+                  {
+                     hb_astAddPrivate( HB_COMP_PARAM, (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM->currLine );
+                     hb_astMarkLastVarArrayDim( HB_COMP_PARAM );
+                  }
+#endif
+                  hb_compVariableDim( (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM );
+                }
 #line 5590 "harboury.c" /* yacc.c:1646  */
     break;
 

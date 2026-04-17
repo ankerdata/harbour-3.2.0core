@@ -273,6 +273,25 @@ void hb_astAddPublic( HB_COMP_DECL, const char * szName,
    }
 }
 
+/* Mark the most recently appended LOCAL/STATIC/PRIVATE/PUBLIC/... var
+   declaration as having an array-dimension initializer (the pInit is
+   an HB_ET_ARGLIST of dim expressions from `name[size]` syntax).
+   Called from the grammar for the `IdentName DimList AsArrayType`
+   production; the emitter uses this flag to tell `= new dynamic[N]`
+   apart from a normal comma-expression init. */
+void hb_astMarkLastVarArrayDim( HB_COMP_DECL )
+{
+   PHB_AST_NODE pBlock = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pCurrBlock;
+   if( pBlock && pBlock->value.asBlock.pLast )
+   {
+      PHB_AST_NODE pNode = pBlock->value.asBlock.pLast;
+      if( pNode->type == HB_AST_LOCAL   || pNode->type == HB_AST_STATIC ||
+          pNode->type == HB_AST_PUBLIC  || pNode->type == HB_AST_PRIVATE ||
+          pNode->type == HB_AST_MEMVAR )
+         pNode->value.asVar.fArrayDim = HB_TRUE;
+   }
+}
+
 void hb_astAddPrivate( HB_COMP_DECL, const char * szName,
                        PHB_EXPR pInit, int iLine )
 {

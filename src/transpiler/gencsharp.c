@@ -148,6 +148,19 @@ static const char * hb_csMangleStaticFunc( const char * szName,
    return szName;
 }
 
+/* Callback used by hb_refTabForEachPublic — emits one field line per
+   PUBLIC variable whose owner matches this .prg. The `dynamic` storage
+   type covers both scalar and array-dim forms; the actual `new
+   dynamic[N]` allocation happens at the source's `PUBLIC name[size]`
+   statement (see HB_AST_PUBLIC emission), not at the field decl. */
+static void hb_csEmitPublicField( const char * szName, HB_BOOL fArrayDim,
+                                   void * userdata )
+{
+   FILE * fp = *( FILE ** ) userdata;
+   ( void ) fArrayDim;
+   fprintf( fp, "    public static dynamic %s;\n", szName );
+}
+
 static HB_BOOL hb_csIsFileMemvar( const char * szName )
 {
    int i;
@@ -858,6 +871,19 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             const char * szVarName = pExpr->value.asSymbol.name;
             if( hb_stricmp( szVarName, "Self" ) == 0 )
                fprintf( yyc, "this" );
+            else if( hb_csResolveLocal( szVarName ) == NULL &&
+                     s_pRefTab && hb_refTabIsPublic( s_pRefTab, szVarName ) )
+            {
+               /* PUBLIC variable reference — the owning .prg emits a
+                  single `public static dynamic <name>;` field on the
+                  merged Program partial, so references in THIS file
+                  resolve bare. Prioritised above the STATIC/MEMVAR
+                  mangling branches: a `MEMVAR aX` declaration in a
+                  file that also references a PUBLIC `aX` should hit
+                  the shared public field, not an isolated per-file
+                  mangled shadow. */
+               fprintf( yyc, "%s", szVarName );
+            }
             else if( hb_csResolveLocal( szVarName ) == NULL &&
                      hb_csIsFileStatic( szVarName ) )
             {
@@ -1835,6 +1861,52 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_PRIVATE:
          {
             const char * szName = pNode->value.asVar.szName;
+
+            /* PUBLIC name[size] — the field is declared in the owning
+               .prg's Program-partial, so here we only emit the runtime
+               array allocation. Skipped when a MEMVAR with the same
+               name exists in this file: that path owns the storage as
+               <FileBase>_<name> and we don't want to write to a
+               different (unmangled) field. */
+            if( pNode->type == HB_AST_PUBLIC &&
+                pNode->value.asVar.fArrayDim &&
+                pNode->value.asVar.pInit &&
+                ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+                  pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) &&
+                s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) &&
+                ! hb_csIsFileMemvar( szName ) )
+            {
+               PHB_EXPR pDim = pNode->value.asVar.pInit->value.asList.pExprList;
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "%s = new dynamic[(int)(", szName );
+               if( pDim )
+                  hb_csEmitExpr( pDim, yyc, HB_FALSE );
+               else
+                  fprintf( yyc, "0" );
+               fprintf( yyc, ")];\n" );
+               break;
+            }
+
+            /* Plain `PUBLIC name` or `PUBLIC name := expr` on a PUBLIC
+               that we registered in the reftab: emit as assignment to
+               the shared Program-scope field (no local decl). Skip
+               when a MEMVAR with the same name exists — that path is
+               already handled below (assign to the mangled field). */
+            if( pNode->type == HB_AST_PUBLIC &&
+                s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) &&
+                ! hb_csIsFileMemvar( szName ) )
+            {
+               if( pNode->value.asVar.pInit )
+               {
+                  hb_csEmitIndent( yyc, iIndent );
+                  fprintf( yyc, "%s = ", szName );
+                  hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+                  fprintf( yyc, ";\n" );
+               }
+               /* No init — the field is already `dynamic = default`. */
+               break;
+            }
+
             hb_csEmitIndent( yyc, iIndent );
 
             if( hb_csIsFileMemvar( szName ) )
@@ -1842,7 +1914,25 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                /* PUBLIC/PRIVATE against a file-scope MEMVAR: assign to
                   the class-scope field rather than introducing a local. */
                fprintf( yyc, "%s_%s", s_szFileBase, szName );
-               if( pNode->value.asVar.pInit )
+               if( pNode->value.asVar.fArrayDim &&
+                   pNode->value.asVar.pInit &&
+                   ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+                     pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
+               {
+                  /* `name[size]` array-dim declaration: allocate a
+                     runtime dynamic[]. Multi-dim (`a[i][j]`) takes only
+                     the first dim — nested allocation would need a
+                     loop and isn't yet emitted. */
+                  PHB_EXPR pDim =
+                     pNode->value.asVar.pInit->value.asList.pExprList;
+                  fprintf( yyc, " = new dynamic[(int)(" );
+                  if( pDim )
+                     hb_csEmitExpr( pDim, yyc, HB_FALSE );
+                  else
+                     fprintf( yyc, "0" );
+                  fprintf( yyc, ")]" );
+               }
+               else if( pNode->value.asVar.pInit )
                {
                   fprintf( yyc, " = " );
                   hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
@@ -3399,6 +3489,33 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         hb_csEmitIndent( yyc, 1 );
                         fprintf( yyc, "static dynamic %s_%s;\n",
                                  s_szFileBase, szMName );
+                     }
+                  }
+                  else if( pStmt->type == HB_AST_PUBLIC )
+                  {
+                     /* PUBLIC variable declaration. If this file is the
+                        registered owner in the reftab (first file to
+                        declare wins), emit a Program-partial static
+                        field using the source's original-case name so
+                        references in THIS file and across files all
+                        resolve. We dedupe per-file via
+                        hb_csIsFileMemvar (reusing the file-memvar set —
+                        PUBLIC and MEMVAR never want two fields for the
+                        same name). */
+                     const char * szPName = pStmt->value.asVar.szName;
+                     if( s_pRefTab && szPName &&
+                         ! hb_csIsFileMemvar( szPName ) )
+                     {
+                        const char * szOwner = hb_refTabPublicOwner(
+                           s_pRefTab, szPName );
+                        if( szOwner && s_szFileBase &&
+                            hb_stricmp( szOwner, s_szFileBase ) == 0 )
+                        {
+                           hb_csAddFileMemvar( szPName );
+                           hb_csEmitIndent( yyc, 1 );
+                           fprintf( yyc, "public static dynamic %s;\n",
+                                    szPName );
+                        }
                      }
                   }
                   pStmt = pStmt->pNext;

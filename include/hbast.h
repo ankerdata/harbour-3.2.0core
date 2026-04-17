@@ -82,6 +82,7 @@ struct _HB_AST_NODE
          const char *   szName;
          PHB_EXPR       pInit;         /* initializer expression (NULL if none) */
          const char *   szAlias;       /* FIELD alias or AS CLASS name */
+         HB_BOOL        fArrayDim;     /* pInit is an HB_ET_ARGLIST of array dimensions — for `PUBLIC a[N]` and similar sized declarations. Emitter treats it as `new dynamic[N]` rather than a scalar init. */
          PHB_AST_NODE   pNext;         /* next variable in same declaration */
       } asVar;
 
@@ -299,6 +300,11 @@ extern void         hb_astAddPublic( HB_COMP_DECL, const char * szName,
                                      PHB_EXPR pInit, int iLine );
 extern void         hb_astAddPrivate( HB_COMP_DECL, const char * szName,
                                       PHB_EXPR pInit, int iLine );
+
+/* Mark the most recently added variable declaration as using the
+   `name[size]` array-dim form. pInit on that node is an
+   HB_ET_ARGLIST of dim expressions. */
+extern void         hb_astMarkLastVarArrayDim( HB_COMP_DECL );
 
 /* IF / ELSEIF / ELSE / ENDIF */
 extern void         hb_astBeginIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine );

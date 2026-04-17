@@ -168,6 +168,34 @@ extern void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName );
 /* Returns HB_TRUE if szName has been marked as a dynamic class. */
 extern HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName );
 
+/* Mark szName as a PUBLIC variable. szOwnerBase is the basename of the
+   .prg declaring it; only the first caller sets the owner (subsequent
+   calls leave it alone), giving us a stable single point for emitting
+   the static-field declaration across a multi-file codebase. Pass
+   fArrayDim=HB_TRUE if the declaration used `name[size]` syntax. */
+extern void hb_refTabMarkPublic( PHB_REFTAB pTab, const char * szName,
+                                 const char * szOwnerBase, HB_BOOL fArrayDim );
+
+/* Returns HB_TRUE if szName has been marked as a PUBLIC variable. */
+extern HB_BOOL hb_refTabIsPublic( PHB_REFTAB pTab, const char * szName );
+
+/* Returns the owning .prg basename for a PUBLIC variable, or NULL. */
+extern const char * hb_refTabPublicOwner( PHB_REFTAB pTab, const char * szName );
+
+/* Returns HB_TRUE if a PUBLIC variable was declared with `[size]`. */
+extern HB_BOOL hb_refTabIsPublicArrayDim( PHB_REFTAB pTab, const char * szName );
+
+/* Iterate every PUBLIC variable owned by szOwnerBase (or all PUBLICs
+   if szOwnerBase is NULL), calling pCallback for each. Used by the
+   emitter to generate the `public static dynamic <name>;` field on
+   exactly one .prg per variable. */
+extern void hb_refTabForEachPublic( PHB_REFTAB pTab,
+                                     const char * szOwnerBase,
+                                     void ( * pCallback )( const char * szName,
+                                                           HB_BOOL fArrayDim,
+                                                           void * userdata ),
+                                     void * userdata );
+
 /* Mark szName as called with `...` spread — i.e. some call site forwards
    the caller's varargs (`...`) as this function's arguments. The C#
    emitter uses this to change the function's signature to
