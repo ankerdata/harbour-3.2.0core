@@ -1,15 +1,16 @@
-// Regression: macro (&name) substitution — must fail -GS codegen.
-// Pattern copied from sharedx/languages.prg and easiposx/xzauto.prg:
-//     cField := "NAME"
-//     xValue := oRec:&cField
-// A macro expands to an identifier at Harbour runtime; C# has no
-// equivalent, so the transpiler surfaces an error rather than
-// emitting `oRec./* MACRO */` and breaking syntax.
+// Regression: bare macro eval `&cExpression` — must fail -GS codegen.
+// Pattern copied from sharedx/ormsql.prg:
+//     xResult := &cExpression
+// A full runtime expression eval has no C# equivalent without an
+// interpreter. The transpiler surfaces this as E0016. Note that
+// obj:&(name) (dynamic member access) IS supported — it emits
+// HbRuntime.GETMEMBER / SETMEMBER / SENDMSG calls. Only the
+// standalone `&expr` form is unsupported.
 
 PROCEDURE Main()
-   LOCAL cField := "NAME"
-   LOCAL xValue
+   LOCAL cExpression := "1 + 2"
+   LOCAL xResult
 
-   xValue := oRec:&cField
+   xResult := &cExpression
 
    RETURN

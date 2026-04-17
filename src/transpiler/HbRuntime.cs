@@ -730,4 +730,38 @@ public static class HbRuntime
 
     public static decimal RECNO() => 0;
     public static dynamic DIRECTORY(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
+
+    // ---- Dynamic member access (Harbour obj:&(name) macro support) ----
+
+    private static readonly System.Reflection.BindingFlags MemberFlags =
+        System.Reflection.BindingFlags.Public |
+        System.Reflection.BindingFlags.Instance |
+        System.Reflection.BindingFlags.IgnoreCase;
+
+    public static dynamic GETMEMBER(object obj, string name)
+    {
+        if (obj == null || string.IsNullOrEmpty(name)) return null;
+        var prop = obj.GetType().GetProperty(name, MemberFlags);
+        return prop?.GetValue(obj);
+    }
+
+    public static void SETMEMBER(object obj, string name, dynamic value)
+    {
+        if (obj == null || string.IsNullOrEmpty(name)) return;
+        var prop = obj.GetType().GetProperty(name, MemberFlags);
+        if (prop == null) return;
+        object coerced = value;
+        if (value != null && prop.PropertyType != typeof(object) &&
+            prop.PropertyType != value.GetType())
+            coerced = Convert.ChangeType(value, prop.PropertyType);
+        prop.SetValue(obj, coerced);
+    }
+
+    public static dynamic SENDMSG(object obj, string name, params dynamic[] args)
+    {
+        if (obj == null || string.IsNullOrEmpty(name)) return null;
+        var method = obj.GetType().GetMethod(name, MemberFlags);
+        if (method == null) return null;
+        return method.Invoke(obj, args);
+    }
 }

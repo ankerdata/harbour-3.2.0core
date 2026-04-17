@@ -802,6 +802,67 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                break;
             }
          }
+         /* Dynamic member access: obj:&(nameExpr) or obj:&name.
+            Detect macro pMessage BEFORE emitting the object, because
+            we need to rewrite the entire expression as a runtime
+            helper call: GETMEMBER(obj, name) for reads, SENDMSG for
+            method calls. The SETMEMBER (write) case is intercepted
+            in the HB_EO_ASSIGN path. */
+         if( pExpr->value.asMessage.pMessage &&
+             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
+         {
+            PHB_EXPR pMacro = pExpr->value.asMessage.pMessage;
+            PHB_EXPR pObj   = pExpr->value.asMessage.pObject;
+            HB_BOOL  fCall  = pExpr->value.asMessage.pParms != NULL;
+
+            fprintf( yyc, "HbRuntime.%s(", fCall ? "SENDMSG" : "GETMEMBER" );
+            /* Object argument */
+            if( pObj )
+            {
+               if( pObj->ExprType == HB_ET_VARIABLE &&
+                   hb_stricmp( pObj->value.asSymbol.name, "Self" ) == 0 )
+                  fprintf( yyc, "this" );
+               else
+                  hb_csEmitExpr( pObj, yyc, HB_FALSE );
+            }
+            else if( s_pWithObject )
+               hb_csEmitExpr( s_pWithObject, yyc, HB_FALSE );
+            /* Member name argument */
+            fprintf( yyc, ", " );
+            if( pMacro->value.asMacro.pExprList )
+               hb_csEmitExpr( pMacro->value.asMacro.pExprList, yyc, HB_FALSE );
+            else if( pMacro->value.asMacro.szMacro )
+            {
+               /* The parser uppercases bare macro identifiers (`&name`
+                  stores "NAME"). Resolve against the current function's
+                  locals so the canonical casing is used — C# is
+                  case-sensitive. */
+               const char * szResolved =
+                  hb_csResolveLocal( pMacro->value.asMacro.szMacro );
+               fprintf( yyc, "%s",
+                        szResolved ? szResolved : pMacro->value.asMacro.szMacro );
+            }
+            /* Method arguments if call */
+            if( fCall )
+            {
+               PHB_EXPR pArgs = pExpr->value.asMessage.pParms;
+               PHB_EXPR pItem = ( pArgs &&
+                  ( pArgs->ExprType == HB_ET_ARGLIST ||
+                    pArgs->ExprType == HB_ET_LIST ) )
+                  ? pArgs->value.asList.pExprList : pArgs;
+               while( pItem )
+               {
+                  if( pItem->ExprType != HB_ET_NONE )
+                  {
+                     fprintf( yyc, ", " );
+                     hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                  }
+                  pItem = pItem->pNext;
+               }
+            }
+            fprintf( yyc, ")" );
+            break;
+         }
          if( pExpr->value.asMessage.pObject )
          {
             /* Self:member → this.member */
@@ -1241,6 +1302,42 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_TRUE );
                fprintf( yyc, ".Contains(" );
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+            }
+            else if( pExpr->ExprType == HB_EO_ASSIGN &&
+                     pExpr->value.asOperator.pLeft &&
+                     pExpr->value.asOperator.pLeft->ExprType == HB_ET_SEND &&
+                     pExpr->value.asOperator.pLeft->value.asMessage.pMessage &&
+                     pExpr->value.asOperator.pLeft->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
+            {
+               /* obj:&(name) := value → HbRuntime.SETMEMBER(obj, name, value) */
+               PHB_EXPR pSend  = pExpr->value.asOperator.pLeft;
+               PHB_EXPR pMacro = pSend->value.asMessage.pMessage;
+               PHB_EXPR pObj   = pSend->value.asMessage.pObject;
+
+               fprintf( yyc, "HbRuntime.SETMEMBER(" );
+               if( pObj )
+               {
+                  if( pObj->ExprType == HB_ET_VARIABLE &&
+                      hb_stricmp( pObj->value.asSymbol.name, "Self" ) == 0 )
+                     fprintf( yyc, "this" );
+                  else
+                     hb_csEmitExpr( pObj, yyc, HB_FALSE );
+               }
+               else if( s_pWithObject )
+                  hb_csEmitExpr( s_pWithObject, yyc, HB_FALSE );
+               fprintf( yyc, ", " );
+               if( pMacro->value.asMacro.pExprList )
+                  hb_csEmitExpr( pMacro->value.asMacro.pExprList, yyc, HB_FALSE );
+               else if( pMacro->value.asMacro.szMacro )
+               {
+                  const char * szResolved =
+                     hb_csResolveLocal( pMacro->value.asMacro.szMacro );
+                  fprintf( yyc, "%s",
+                           szResolved ? szResolved : pMacro->value.asMacro.szMacro );
+               }
+               fprintf( yyc, ", " );
+               hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
                fprintf( yyc, ")" );
             }
             else

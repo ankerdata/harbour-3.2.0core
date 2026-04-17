@@ -275,6 +275,15 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             hb_clsSkipLine( HB_COMP_PARAM, pToken );
             break;
          }
+         /* `END CLASS` — Harbour's hbclass.ch has a PP rule for this
+            but the transpiler skips hbclass.ch (ppcomp.c), so the
+            class parser must handle it natively. Only match `END`
+            when followed by `CLASS` to avoid false-matching END IF /
+            END SEQUENCE / etc. inside INLINE methods. */
+         /* NOTE: only `ENDCLASS` (one word) is supported. Harbour's
+            `END CLASS` (two words) requires hbclass.ch PP rules which
+            the transpiler doesn't load. Source files using `END CLASS`
+            must be changed to `ENDCLASS` before transpiling. */
 
          /* Scope section headers: EXPORTED/VISIBLE, PROTECTED, HIDDEN */
          if( hb_clsTokenIs( pToken, "EXPORTED" ) || hb_clsTokenIs( pToken, "VISIBLE" ) ||
