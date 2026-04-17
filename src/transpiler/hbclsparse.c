@@ -387,6 +387,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             PHB_AST_NODE pMethod;
             const char * szMethodName;
             const char * szParams = NULL;
+            const char * szInline = NULL;
             int iMemberScope = iScope;
             HB_BOOL fProcedure = hb_clsTokenIs( pToken, "PROCEDURE" );
 
@@ -426,17 +427,37 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                   pToken = hb_clsNextToken( HB_COMP_PARAM );
             }
 
-            /* Scan rest of line for scope modifiers */
+            /* Scan rest of line for scope modifiers and INLINE body.
+               INLINE is Harbour's short-form method body — everything
+               after the keyword up to EOL is the expression whose value
+               the method returns. hb_clsCollectLine captures it
+               verbatim (parens and all) so the emitter can re-parse it
+               as a Harbour expression at emit time. */
             while( ! hb_clsTokenIsEOL( pToken ) )
             {
                if( hb_clsTokenIs( pToken, "EXPORTED" ) || hb_clsTokenIs( pToken, "VISIBLE" ) ||
                    hb_clsTokenIs( pToken, "EXPORT" ) )
+               {
                   iMemberScope = HB_AST_SCOPE_EXPORTED;
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+               }
                else if( hb_clsTokenIs( pToken, "PROTECTED" ) )
+               {
                   iMemberScope = HB_AST_SCOPE_PROTECTED;
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+               }
                else if( hb_clsTokenIs( pToken, "HIDDEN" ) )
+               {
                   iMemberScope = HB_AST_SCOPE_HIDDEN;
-               pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+               }
+               else if( hb_clsTokenIs( pToken, "INLINE" ) )
+               {
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  szInline = hb_clsCollectLine( HB_COMP_PARAM, &pToken );
+               }
+               else
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
             }
 
             pMethod = hb_astNew( HB_AST_CLASSMETHOD, hb_clsCurrLine( HB_COMP_PARAM ) );
@@ -444,6 +465,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             pMethod->value.asClassMethod.szClass      = NULL;
             pMethod->value.asClassMethod.szParams     = szParams;
             pMethod->value.asClassMethod.pBody        = NULL;
+            pMethod->value.asClassMethod.szInline     = szInline;
             pMethod->value.asClassMethod.iScope       = iMemberScope;
             pMethod->value.asClassMethod.fProcedure   = fProcedure;
             hb_clsAddMember( pClass, pMethod );

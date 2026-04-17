@@ -68,7 +68,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Record oRec = new Record();
+        dynamic oRec = new Record();
         dynamic[] aFields = new dynamic[] { "cName", "nValue", "lActive" };
 
         // Direct property access — baseline

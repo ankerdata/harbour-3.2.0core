@@ -22,17 +22,46 @@ typedef struct HB_REFENTRY_
    HB_BOOL               fCalledVarargs; /* some call site forwards `...` to this function */
    HB_BOOL               fDefined;     /* set once a real definition has been seen */
    HB_BOOL               fIsClass;     /* this is a CLASS marker, not a function */
+   HB_BOOL               fClassDynamic;/* fIsClass + class uses ::&(name) — emit as `dynamic` */
    HB_REFPARAM *         pParams;      /* nParams entries (NULL if unknown) */
    HB_U64                bitmap;       /* by-ref bitmap, bit n = arg n is by-ref */
    HB_U64                nilbits;      /* nilable bitmap, bit n = slot n is nilable */
    struct HB_REFENTRY_ * pNext;
 } HB_REFENTRY, * PHB_REFENTRY;
 
+/* Deferred-free list: superseded type-string allocations from
+   hb_refTabRefineParamType. We cannot free eagerly because the type
+   inference env in hb_astPropagate may still hold pointers to these
+   strings (the env is seeded from pParams[i].szType and mutations in
+   Pass 5 would otherwise invalidate env entries for the current
+   function's own param slots). We keep the superseded allocations
+   alive for the table's lifetime and release them all in
+   hb_refTabFree. The strings are small (class names, ~10-30 bytes
+   each) and the number of refinements per scan is bounded by call
+   sites, so the retained memory is negligible (< 1 MB per scan). */
+typedef struct HB_REFTAB_DEFERRED_
+{
+   char *                       sz;
+   struct HB_REFTAB_DEFERRED_ * pNext;
+} HB_REFTAB_DEFERRED, * PHB_REFTAB_DEFERRED;
+
 struct HB_REFTAB_
 {
-   PHB_REFENTRY buckets[ HB_REFTAB_BUCKETS ];
-   HB_SIZE      nCount;
+   PHB_REFENTRY         buckets[ HB_REFTAB_BUCKETS ];
+   HB_SIZE              nCount;
+   PHB_REFTAB_DEFERRED  pDeferred;    /* freed on hb_refTabFree */
 };
+
+static void hb_refTabDefer( PHB_REFTAB pTab, char * sz )
+{
+   PHB_REFTAB_DEFERRED p;
+   if( ! sz )
+      return;
+   p = ( PHB_REFTAB_DEFERRED ) hb_xgrab( sizeof( HB_REFTAB_DEFERRED ) );
+   p->sz        = sz;
+   p->pNext     = pTab->pDeferred;
+   pTab->pDeferred = p;
+}
 
 /* ---- runtime path override ----
    Set by --reftab=<path> on the command line so transpiler runs over
@@ -177,6 +206,7 @@ const char * hb_refTabMethodKey( const char * szClass, const char * szMember )
 void hb_refTabFree( PHB_REFTAB pTab )
 {
    HB_SIZE i;
+   PHB_REFTAB_DEFERRED pDef;
 
    if( ! pTab )
       return;
@@ -193,6 +223,15 @@ void hb_refTabFree( PHB_REFTAB pTab )
          hb_xfree( e );
          e = pNext;
       }
+   }
+   pDef = pTab->pDeferred;
+   while( pDef )
+   {
+      PHB_REFTAB_DEFERRED pNext = pDef->pNext;
+      if( pDef->sz )
+         hb_xfree( pDef->sz );
+      hb_xfree( pDef );
+      pDef = pNext;
    }
    hb_xfree( pTab );
 }
@@ -357,20 +396,29 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->fConflict )
       return HB_REFINE_ALREADY_CONFLICT;
 
+   /* Agreement check runs BEFORE the mutation branches so that
+      szNewType pointing into pParam->szType itself (recursive call:
+      env for function X was seeded from X's pParams, and the body
+      passes X's own param back to X) cannot trigger a free-then-read
+      UAF. Same content → no-op, regardless of aliasing. */
+   if( pParam->szType && hb_stricmp( pParam->szType, szNewType ) == 0 )
+      return HB_REFINE_OK;
+
    if( ! pParam->szType || hb_stricmp( pParam->szType, "USUAL" ) == 0 ||
        hb_stricmp( pParam->szType, "OBJECT" ) == 0 )
    {
       /* Fresh/untyped/generic-OBJECT slot — adopt the new type.
          OBJECT is upgradeable to a specific class name when the call
-         site passes a constructor-typed variable. */
+         site passes a constructor-typed variable. Defer-free the old
+         allocation: the type-inference env in the enclosing
+         hb_astPropagate may have seeded a pointer to it and would
+         otherwise dangle. */
+      char * szDup = hb_refTabDup( szNewType );
       if( pParam->szType )
-         hb_xfree( pParam->szType );
-      pParam->szType = hb_refTabDup( szNewType );
+         hb_refTabDefer( pTab, pParam->szType );
+      pParam->szType = szDup;
       return HB_REFINE_REFINED;
    }
-
-   if( hb_stricmp( pParam->szType, szNewType ) == 0 )
-      return HB_REFINE_OK;   /* agreement */
 
    /* One side OBJECT, the other a specific class: keep the specific
       class. OBJECT is just "I don't know the class" from Hungarian
@@ -380,8 +428,9 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       return HB_REFINE_OK;   /* incoming OBJECT doesn't override */
 
    /* Genuine disagreement: freeze the slot as USUAL with fConflict set
-      so later refinements stop trying. The old type is discarded. */
-   hb_xfree( pParam->szType );
+      so later refinements stop trying. Defer-free the old allocation
+      for the same reason as above. */
+   hb_refTabDefer( pTab, pParam->szType );
    pParam->szType    = hb_refTabDup( "USUAL" );
    pParam->fConflict = HB_TRUE;
    return HB_REFINE_CONFLICT;
@@ -430,6 +479,28 @@ HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName )
       return HB_FALSE;
    e = hb_refTabFindEntry( pTab, szName, NULL );
    return e && e->fIsClass;
+}
+
+void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return;
+   e = hb_refTabFindOrCreate( pTab, szName );
+   e->fIsClass      = HB_TRUE;
+   e->fClassDynamic = HB_TRUE;
+   e->fDefined      = HB_TRUE;
+   if( e->nParams < 0 )
+      e->nParams = 0;
+}
+
+HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fClassDynamic;
 }
 
 void hb_refTabMarkCalledVarargs( PHB_REFTAB pTab, const char * szName )
@@ -503,7 +574,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
       return HB_FALSE;
    fprintf( fp, "# Harbour transpiler user-function signature table\n" );
    fprintf( fp, "# Format: NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...\n" );
-   fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, - = none\n" );
+   fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, D = dynamic class (extends HbDynamicObject), - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
    fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, - = none\n" );
@@ -523,11 +594,12 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
          if( e->fDefined )
          {
             int p;
-            char fnFlags[ 5 ];
+            char fnFlags[ 6 ];
             int  fnK = 0;
             if( e->fVariadic )      fnFlags[ fnK++ ] = 'V';
             if( e->fCalledVarargs ) fnFlags[ fnK++ ] = 'S';
             if( e->fIsClass )       fnFlags[ fnK++ ] = 'K';
+            if( e->fClassDynamic )  fnFlags[ fnK++ ] = 'D';
             if( fnK == 0 )          fnFlags[ fnK++ ] = '-';
             fnFlags[ fnK ] = '\0';
             fprintf( fp, "%s\t%s\t%s\t%d",
@@ -635,10 +707,11 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          continue;
       {
          /* FLAGS is a string of letters: V (variadic), S (called with
-            `...` spread), K (klass), - */
+            `...` spread), K (klass), D (dynamic klass), - */
          char * c;
-         HB_BOOL fIsClass = HB_FALSE;
-         HB_BOOL fSpread  = HB_FALSE;
+         HB_BOOL fIsClass   = HB_FALSE;
+         HB_BOOL fSpread    = HB_FALSE;
+         HB_BOOL fClassDyn  = HB_FALSE;
          fVariadic = HB_FALSE;
          for( c = fields[ 1 ]; *c; c++ )
          {
@@ -648,8 +721,12 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                fSpread = HB_TRUE;
             else if( *c == 'K' || *c == 'k' )
                fIsClass = HB_TRUE;
+            else if( *c == 'D' || *c == 'd' )
+               fClassDyn = HB_TRUE;
          }
-         if( fIsClass )
+         if( fClassDyn )
+            hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
+         else if( fIsClass )
             hb_refTabMarkClass( pTab, fields[ 0 ] );
          if( fSpread )
             hb_refTabMarkCalledVarargs( pTab, fields[ 0 ] );
@@ -748,6 +825,107 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
                                HB_SCANCTX * pCtx );
 static void hb_refTabScanStmt( PHB_REFTAB pTab, PHB_AST_NODE pStmt,
                                HB_SCANCTX * pCtx );
+
+/* Detect obj:&(name) macro-send anywhere in an expression tree. The
+   emitter uses this to flag classes that need an HbDynamicObject base
+   (so runtime member resolution works for ::&(name) patterns). We run
+   the same detection at scan time and record the result in the reftab
+   so callers in OTHER .prg files see the class as `dynamic`-typed. */
+static HB_BOOL hb_refTabExprHasMacroSend( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_SEND:
+         if( pExpr->value.asMessage.pMessage &&
+             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
+            return HB_TRUE;
+         if( hb_refTabExprHasMacroSend( pExpr->value.asMessage.pObject ) )
+            return HB_TRUE;
+         if( hb_refTabExprHasMacroSend( pExpr->value.asMessage.pParms ) )
+            return HB_TRUE;
+         break;
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR p = pExpr->value.asList.pExprList;
+         while( p )
+         {
+            if( hb_refTabExprHasMacroSend( p ) )
+               return HB_TRUE;
+            p = p->pNext;
+         }
+         break;
+      }
+      default:
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+         {
+            if( hb_refTabExprHasMacroSend( pExpr->value.asOperator.pLeft ) )
+               return HB_TRUE;
+            if( hb_refTabExprHasMacroSend( pExpr->value.asOperator.pRight ) )
+               return HB_TRUE;
+         }
+         break;
+   }
+   return HB_FALSE;
+}
+
+static HB_BOOL hb_refTabBlockHasMacroSend( PHB_AST_NODE pBlock )
+{
+   PHB_AST_NODE pStmt;
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return HB_FALSE;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            if( hb_refTabExprHasMacroSend( pStmt->value.asExprStmt.pExpr ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_RETURN:
+            if( hb_refTabExprHasMacroSend( pStmt->value.asReturn.pExpr ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+         case HB_AST_MEMVAR:
+         case HB_AST_PRIVATE:
+         case HB_AST_PUBLIC:
+            if( hb_refTabExprHasMacroSend( pStmt->value.asVar.pInit ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_IF:
+            if( hb_refTabExprHasMacroSend( pStmt->value.asIf.pCondition ) )
+               return HB_TRUE;
+            if( hb_refTabBlockHasMacroSend( pStmt->value.asIf.pThen ) )
+               return HB_TRUE;
+            if( hb_refTabBlockHasMacroSend( pStmt->value.asIf.pElse ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_DOWHILE:
+            if( hb_refTabBlockHasMacroSend( pStmt->value.asWhile.pBody ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_FOR:
+            if( hb_refTabBlockHasMacroSend( pStmt->value.asFor.pBody ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_FOREACH:
+            if( hb_refTabBlockHasMacroSend( pStmt->value.asForEach.pBody ) )
+               return HB_TRUE;
+            break;
+         default:
+            break;
+      }
+   }
+   return HB_FALSE;
+}
 
 /* If szName matches a parameter of the enclosing function, mark that
    slot nilable. No-op if there is no enclosing function or the name
@@ -1288,6 +1466,14 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                   if( e )
                      e->fVariadic = HB_TRUE;
                }
+
+               /* If this method body uses ::&(name) macro member access,
+                  mark the enclosing class as dynamic so cross-file
+                  callers emit references to it as `dynamic` (runtime
+                  dispatch covers the arbitrary member names). */
+               if( szClass && pFunc->value.asFunc.pBody &&
+                   hb_refTabBlockHasMacroSend( pFunc->value.asFunc.pBody ) )
+                  hb_refTabMarkClassDynamic( pTab, szClass );
             }
          }
          else if( pCompFunc && pFunc->value.asFunc.pBody )

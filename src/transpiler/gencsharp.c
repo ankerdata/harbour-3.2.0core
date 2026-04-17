@@ -353,7 +353,13 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "Dictionary<dynamic, dynamic>";
    if( hb_stricmp( szHbType, "BLOCK" ) == 0 )
       return "dynamic";
-   /* Class name or unknown — pass through as-is */
+   /* Class name — widen to `dynamic` when the class extends
+      HbDynamicObject so unknown member names compile. Applies to
+      ORM-style base classes (SQLtTable, Table, FUNCTIONS) whose
+      concrete subclasses define runtime-only columns. */
+   if( s_pRefTab && hb_refTabIsClassDynamic( s_pRefTab, szHbType ) )
+      return "dynamic";
+   /* Otherwise a specific class name — pass through as-is */
    return szHbType;
 }
 
@@ -369,6 +375,199 @@ static const char * hb_csScopeStr( int iScope )
 
 /* Translate a Harbour INIT value string to C# syntax.
    Returns a static buffer — use immediately or copy. */
+/* Textual translation of a Harbour INLINE-method body into C#. The
+   body comes from hb_clsCollectLine (the class parser captures
+   everything after the INLINE keyword verbatim), so we re-walk it
+   character by character applying the minimum-viable substitutions:
+     ::name       → this.name          (Self:member shorthand)
+     :=           → =                  (Harbour assignment)
+     .T./.t./.F./.f. → true/false      (logical literals, word-bounded)
+   Anything else passes through. The result is C# source; the caller
+   decides between expression-body (`=> expr`) and block-body (for
+   sequence expressions with top-level commas — this helper does not
+   try to split; see hb_csInlineHasTopLevelComma). Buffer is 1 KB which
+   covers every INLINE body seen in the easipos corpus. */
+static HB_BOOL hb_csInlineIsIdCh( char c )
+{
+   return ( c >= 'A' && c <= 'Z' ) || ( c >= 'a' && c <= 'z' ) ||
+          ( c >= '0' && c <= '9' ) || c == '_';
+}
+
+static const char * hb_csTranslateInline( const char * szVal )
+{
+   static char s_szBuf[ 1024 ];
+   HB_SIZE      nIn, nOut = 0;
+   HB_SIZE      nLen;
+   const char * p;
+
+   if( ! szVal )
+      return szVal;
+
+   /* Strip outer parens and surrounding whitespace */
+   while( *szVal == ' ' || *szVal == '\t' )
+      szVal++;
+   nLen = strlen( szVal );
+   while( nLen > 0 &&
+          ( szVal[ nLen - 1 ] == ' ' || szVal[ nLen - 1 ] == '\t' ) )
+      nLen--;
+
+   /* Strip trailing `// ...` line comment — the PP can leave this in the
+      raw INLINE text and it would otherwise collide with the `;` we
+      append at the emit site. Only strip if it sits outside any string
+      literal (a `//` inside `"..."` is data, not a comment). */
+   {
+      HB_SIZE i;
+      HB_BOOL fInStr = HB_FALSE;
+      char    cStrQ = '\0';
+      for( i = 0; i + 1 < nLen; i++ )
+      {
+         if( fInStr )
+         {
+            if( szVal[ i ] == cStrQ )
+               fInStr = HB_FALSE;
+            continue;
+         }
+         if( szVal[ i ] == '"' || szVal[ i ] == '\'' )
+         {
+            fInStr = HB_TRUE;
+            cStrQ = szVal[ i ];
+            continue;
+         }
+         if( szVal[ i ] == '/' && szVal[ i + 1 ] == '/' )
+         {
+            while( i > 0 && ( szVal[ i - 1 ] == ' ' || szVal[ i - 1 ] == '\t' ) )
+               i--;
+            nLen = i;
+            break;
+         }
+      }
+   }
+
+   if( nLen >= 2 && szVal[ 0 ] == '(' && szVal[ nLen - 1 ] == ')' )
+   {
+      /* Only strip if these really are outer parens (balanced) */
+      int    depth = 0;
+      HB_SIZE i;
+      HB_BOOL fOuter = HB_TRUE;
+      for( i = 0; i < nLen; i++ )
+      {
+         if( szVal[ i ] == '(' )
+            depth++;
+         else if( szVal[ i ] == ')' )
+         {
+            depth--;
+            if( depth == 0 && i + 1 < nLen )
+            {
+               fOuter = HB_FALSE;
+               break;
+            }
+         }
+      }
+      if( fOuter )
+      {
+         szVal++;
+         nLen -= 2;
+      }
+   }
+
+   p = szVal;
+   for( nIn = 0; nIn < nLen && nOut < sizeof( s_szBuf ) - 32; nIn++ )
+   {
+      /* `{}` → `Array.Empty<dynamic>()` — Harbour empty array
+         literal. C# `{}` in expression context is a block. */
+      if( p[ nIn ] == '{' && nIn + 1 < nLen && p[ nIn + 1 ] == '}' )
+      {
+         memcpy( s_szBuf + nOut, "Array.Empty<dynamic>()", 22 );
+         nOut += 22;
+         nIn++;
+         continue;
+      }
+      /* ::name → this.name */
+      if( p[ nIn ] == ':' && nIn + 1 < nLen && p[ nIn + 1 ] == ':' )
+      {
+         memcpy( s_szBuf + nOut, "this.", 5 );
+         nOut += 5;
+         nIn++;   /* skip the second ':' */
+         continue;
+      }
+      /* := → = (assignment, rewriting only when not followed by '=') */
+      if( p[ nIn ] == ':' && nIn + 1 < nLen && p[ nIn + 1 ] == '=' )
+      {
+         s_szBuf[ nOut++ ] = '=';
+         nIn++;
+         continue;
+      }
+      /* .T. .t. .F. .f. — word-bounded logical literals */
+      if( p[ nIn ] == '.' && nIn + 2 < nLen && p[ nIn + 2 ] == '.' &&
+          ( p[ nIn + 1 ] == 'T' || p[ nIn + 1 ] == 't' ||
+            p[ nIn + 1 ] == 'F' || p[ nIn + 1 ] == 'f' ) )
+      {
+         HB_BOOL fVal = ( p[ nIn + 1 ] == 'T' || p[ nIn + 1 ] == 't' );
+         if( nIn == 0 || ! hb_csInlineIsIdCh( p[ nIn - 1 ] ) )
+         {
+            const char * szLit = fVal ? "true" : "false";
+            HB_SIZE nL = fVal ? 4 : 5;
+            memcpy( s_szBuf + nOut, szLit, nL );
+            nOut += nL;
+            nIn += 2;   /* skip T/F and trailing '.' */
+            continue;
+         }
+      }
+      /* self / Self (word-bounded) → this */
+      if( ( p[ nIn ] == 's' || p[ nIn ] == 'S' ) && nIn + 3 < nLen &&
+          ( p[ nIn + 1 ] == 'e' || p[ nIn + 1 ] == 'E' ) &&
+          ( p[ nIn + 2 ] == 'l' || p[ nIn + 2 ] == 'L' ) &&
+          ( p[ nIn + 3 ] == 'f' || p[ nIn + 3 ] == 'F' ) &&
+          ( nIn + 4 == nLen || ! hb_csInlineIsIdCh( p[ nIn + 4 ] ) ) &&
+          ( nIn == 0 || ! hb_csInlineIsIdCh( p[ nIn - 1 ] ) ) )
+      {
+         memcpy( s_szBuf + nOut, "this", 4 );
+         nOut += 4;
+         nIn += 3;   /* skip "elf", outer ++ skips 's' */
+         continue;
+      }
+      s_szBuf[ nOut++ ] = p[ nIn ];
+   }
+   s_szBuf[ nOut ] = '\0';
+   return s_szBuf;
+}
+
+/* True if szVal has a comma at paren-depth 0 (outside any nested call
+   or subexpression). Determines whether an INLINE body is a single
+   expression (`=> expr`) or a sequence of statements (block body). */
+static HB_BOOL hb_csInlineHasTopLevelComma( const char * szVal )
+{
+   int depth = 0;
+   HB_BOOL fInStr = HB_FALSE;
+   char cStrQ = '\0';
+
+   if( ! szVal )
+      return HB_FALSE;
+   while( *szVal )
+   {
+      char c = *szVal++;
+      if( fInStr )
+      {
+         if( c == cStrQ )
+            fInStr = HB_FALSE;
+         continue;
+      }
+      if( c == '"' || c == '\'' )
+      {
+         fInStr = HB_TRUE;
+         cStrQ = c;
+         continue;
+      }
+      if( c == '(' || c == '[' || c == '{' )
+         depth++;
+      else if( c == ')' || c == ']' || c == '}' )
+         depth--;
+      else if( c == ',' && depth == 0 )
+         return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
 static const char * hb_csTranslateInit( const char * szVal )
 {
    static char s_szBuf[ 512 ];
@@ -2578,6 +2777,113 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 
    /* Blank line between properties and methods */
    fprintf( yyc, "\n" );
+
+   /* Emit INLINE method declarations. These are METHOD ... INLINE (expr)
+      entries from inside the CLASS...ENDCLASS block; no separate
+      implementation appears later. Translate the captured expression
+      text into C# and emit as expression-body or block-body depending
+      on whether the source uses Harbour's comma-sequence form. */
+   pMember = pClassNode->value.asClass.pMembers;
+   while( pMember )
+   {
+      if( pMember->type == HB_AST_CLASSMETHOD &&
+          pMember->value.asClassMethod.szInline )
+      {
+         const char * szScope = hb_csScopeStr(
+            pMember->value.asClassMethod.iScope );
+         const char * szName  = pMember->value.asClassMethod.szName;
+         const char * szParms = pMember->value.asClassMethod.szParams;
+         /* Translate first, then check top-level comma on the
+            translated output — the raw text still has the outer
+            parens that mask the real top-level of the expression. */
+         const char * szExpr  =
+            hb_csTranslateInline( pMember->value.asClassMethod.szInline );
+         HB_BOOL      fBlock  = hb_csInlineHasTopLevelComma( szExpr );
+
+         hb_csEmitIndent( yyc, 1 );
+         fprintf( yyc, "%s dynamic %s(", szScope, szName );
+         if( szParms && *szParms )
+         {
+            /* szParams is a comma-separated bare identifier list; emit
+               each as `dynamic name = default`. */
+            const char * q = szParms;
+            HB_BOOL fFirst = HB_TRUE;
+            while( *q )
+            {
+               const char * pStart;
+               while( *q == ' ' || *q == ',' )
+                  q++;
+               if( ! *q )
+                  break;
+               pStart = q;
+               while( *q && *q != ',' && *q != ' ' )
+                  q++;
+               if( ! fFirst )
+                  fprintf( yyc, ", " );
+               fprintf( yyc, "dynamic %.*s = default",
+                        ( int ) ( q - pStart ), pStart );
+               fFirst = HB_FALSE;
+            }
+         }
+         fprintf( yyc, ")" );
+         if( fBlock )
+         {
+            /* Sequence expression: Harbour's `(a, b, c)` evaluates a,
+               b, c in order and returns c. Emit as a block that runs
+               each as a statement and returns the last. The translator
+               already gave us a comma-separated C# expression list. */
+            fprintf( yyc, " { " );
+            {
+               const char * q = szExpr;
+               int          depth = 0;
+               HB_BOOL      fInStr = HB_FALSE;
+               char         cStrQ = '\0';
+               const char * pStart = q;
+               HB_BOOL      fLast = HB_FALSE;
+               while( ! fLast )
+               {
+                  char c = *q;
+                  if( c == '\0' )
+                     fLast = HB_TRUE;
+                  if( fInStr )
+                  {
+                     if( c == cStrQ )
+                        fInStr = HB_FALSE;
+                  }
+                  else if( c == '"' || c == '\'' )
+                  {
+                     fInStr = HB_TRUE;
+                     cStrQ = c;
+                  }
+                  else if( c == '(' || c == '[' || c == '{' )
+                     depth++;
+                  else if( c == ')' || c == ']' || c == '}' )
+                     depth--;
+                  if( fLast || ( c == ',' && depth == 0 && ! fInStr ) )
+                  {
+                     int nLen = ( int ) ( q - pStart );
+                     while( nLen > 0 && ( pStart[ 0 ] == ' ' || pStart[ 0 ] == '\t' ) )
+                     {
+                        pStart++;
+                        nLen--;
+                     }
+                     if( fLast )
+                        fprintf( yyc, "return %.*s; ", nLen, pStart );
+                     else
+                        fprintf( yyc, "%.*s; ", nLen, pStart );
+                     pStart = q + 1;
+                  }
+                  if( ! fLast )
+                     q++;
+               }
+            }
+            fprintf( yyc, "}\n" );
+         }
+         else
+            fprintf( yyc, " => %s;\n", szExpr );
+      }
+      pMember = pMember->pNext;
+   }
 
    /* Emit method bodies, skipping ACCESS/ASSIGN implementations */
    pMethod = pClass->pMethods;

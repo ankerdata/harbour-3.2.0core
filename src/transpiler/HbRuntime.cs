@@ -737,6 +737,36 @@ public static partial class HbRuntime
 }
 
 /// <summary>
+/// Harbour's COM automation wrapper. Source calls look like
+/// <c>TOleAuto():New("ADODB.Recordset")</c> — compile-time shape: a class
+/// with a <c>New(string progId)</c> method returning a dynamic COM proxy.
+/// On Windows this would delegate to <c>Type.GetTypeFromProgID</c> +
+/// <c>Activator.CreateInstance</c>; on other platforms there is no COM,
+/// so New throws at call time. Either way the surface is "satisfies the
+/// C# compiler" — runtime behaviour of Harbour ADO code against a modern
+/// .NET data stack is a separate port.
+/// </summary>
+public class TOleAuto
+{
+    private object? _com;
+    public TOleAuto() { }
+    public dynamic New(string progId)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var t = Type.GetTypeFromProgID(progId);
+            if (t == null)
+                throw new PlatformNotSupportedException(
+                    $"ProgID '{progId}' not registered");
+            _com = Activator.CreateInstance(t);
+            return _com!;
+        }
+        throw new PlatformNotSupportedException(
+            "TOleAuto (COM automation) is only supported on Windows");
+    }
+}
+
+/// <summary>
 /// Base class for Harbour classes that use runtime member access
 /// (::&amp;(name) patterns). Backed by a Dictionary so that column
 /// names or dynamically-created properties resolve at runtime.

@@ -158,6 +158,16 @@ extern void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName );
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );
 
+/* Mark szName as a class that extends HbDynamicObject (uses ::&(name)
+   macro member access). The emitter widens parameter and local-variable
+   types from the concrete class name to `dynamic` so callers accessing
+   subclass-specific members on an ORM-style base type (e.g. SQLtTable
+   holding a runtime-defined row schema) compile against the base. */
+extern void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName );
+
+/* Returns HB_TRUE if szName has been marked as a dynamic class. */
+extern HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName );
+
 /* Mark szName as called with `...` spread — i.e. some call site forwards
    the caller's varargs (`...`) as this function's arguments. The C#
    emitter uses this to change the function's signature to

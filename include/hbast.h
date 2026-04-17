@@ -229,6 +229,7 @@ struct _HB_AST_NODE
          const char *   szClass;       /* CLASS name (for implementations after ENDCLASS) */
          const char *   szParams;      /* parameter names as string (for declarations) */
          PHB_AST_NODE   pBody;         /* method body (NULL for declarations) */
+         const char *   szInline;      /* INLINE expression text, or NULL */
          int            iScope;        /* HB_AST_SCOPE_* */
          HB_BOOL        fProcedure;    /* PROCEDURE (no return value) vs METHOD */
       } asClassMethod;
