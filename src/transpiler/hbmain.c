@@ -4405,10 +4405,17 @@ static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuff
                codegen reshuffles them. */
 #ifdef HB_TRANSPILER
             {
-               char * szBase = hb_strupr( hb_strdup( pFileName->szName ) );
-               char * szInit = ( char * ) hb_xgrab( strlen( szBase ) + 10 );
-               hb_strncpy( szInit, "__hbInit_", 9 );
-               hb_strncpy( szInit + 9, szBase, strlen( szBase ) + 1 );
+               /* Use memcpy, not hb_strncpy: the Harbour variant writes
+                  dst[nLen] = '\0' before copying, which would overrun
+                  this allocation (strlen(szBase) + 10 = "__hbInit_" +
+                  name + NUL, exactly). The OOB write fires a macOS
+                  malloc-zone freelist corruption on 22-char basenames
+                  — the 31-byte total lands on a zone boundary. */
+               char *  szBase   = hb_strupr( hb_strdup( pFileName->szName ) );
+               HB_SIZE nBaseLen = strlen( szBase );
+               char *  szInit   = ( char * ) hb_xgrab( nBaseLen + 10 );
+               memcpy( szInit, "__hbInit_", 9 );
+               memcpy( szInit + 9, szBase, nBaseLen + 1 );
                hb_xfree( szBase );
                hb_compFunctionAdd( HB_COMP_PARAM,
                                    hb_compIdentifierNew( HB_COMP_PARAM, szInit, HB_IDENT_FREE ),
