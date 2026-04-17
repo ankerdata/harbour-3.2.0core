@@ -25,6 +25,15 @@
 
 -cflag=-DSQLITE_OMIT_DEPRECATED
 -cflag=-DSQLITE_ENABLE_COLUMN_METADATA
+
+# SQLite3 Multiple Ciphers (encryption) support
+-cflag=-DSQLITE_HAS_CODEC
+-cflag=-DSQLITE_TEMP_STORE=2
+-cflag=-DHAVE_CIPHER_AES_128_CBC=1
+-cflag=-DHAVE_CIPHER_AES_256_CBC=1
+-cflag=-DHAVE_CIPHER_CHACHA20=1
+-cflag=-DHAVE_CIPHER_SQLCIPHER=1
+-cflag=-DHAVE_CIPHER_RC4=1
 -cflag=-D_WIN32_WCE=0x0300{wce}
 # DJGPP and OpenWatcom in DOS aren't correctly recognized by SQLite,
 # so we're forcing the next best available option. This will cause missing
@@ -44,11 +53,15 @@
 
 sqlite3.c
 
-# ORIGIN http://www.sqlite.org/
-# VER    3.8.2
-# URL    http://sqlite.org/2013/sqlite-amalgamation-3080200.zip
+# ORIGIN https://github.com/utelle/SQLite3MultipleCiphers
+# VER    sqlite3mc 2.3.3 / SQLite 3.53.0
+# URL    https://github.com/utelle/SQLite3MultipleCiphers/releases
 # DIFF   sqlite3.diff
 #
-# MAP    sqlite3.c
-# MAP    sqlite3.h
+# MAP    sqlite3.c     (renamed from sqlite3mc_amalgamation.c)
+# MAP    sqlite3.h     (renamed from sqlite3mc_amalgamation.h)
 # MAP    sqlite3ext.h  sqlite3x.h
+#
+# Custom changes re-applied to sqlite3mc_amalgamation.c:
+#   - #pragma GCC diagnostic push/ignored "-Wstringop-overread"/pop
+#     wrapping sqlite3ColumnSetColl() to silence GCC false positive
