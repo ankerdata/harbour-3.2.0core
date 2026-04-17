@@ -251,9 +251,15 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
 
          e->pParams[ i ].szName = hb_refTabDup( szPName ? szPName : "" );
 
-         /* Prefer the prior refined type over a fresh USUAL. */
-         if( ( ! szPType || ! *szPType || hb_stricmp( szPType, "USUAL" ) == 0 ) &&
-             szOldType && hb_stricmp( szOldType, "USUAL" ) != 0 )
+         /* Prefer the prior refined type over a fresh USUAL or OBJECT.
+            OBJECT from Hungarian is just "some object" — a specific
+            class name from call-site refinement should survive. */
+         if( ( ! szPType || ! *szPType ||
+               hb_stricmp( szPType, "USUAL" ) == 0 ||
+               hb_stricmp( szPType, "OBJECT" ) == 0 ) &&
+             szOldType &&
+             hb_stricmp( szOldType, "USUAL" ) != 0 &&
+             hb_stricmp( szOldType, "OBJECT" ) != 0 )
             e->pParams[ i ].szType = hb_refTabDup( szOldType );
          else
             e->pParams[ i ].szType = hb_refTabDup( szPType ? szPType : "USUAL" );
@@ -351,9 +357,12 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->fConflict )
       return HB_REFINE_ALREADY_CONFLICT;
 
-   if( ! pParam->szType || hb_stricmp( pParam->szType, "USUAL" ) == 0 )
+   if( ! pParam->szType || hb_stricmp( pParam->szType, "USUAL" ) == 0 ||
+       hb_stricmp( pParam->szType, "OBJECT" ) == 0 )
    {
-      /* Fresh slot — adopt the new type. */
+      /* Fresh/untyped/generic-OBJECT slot — adopt the new type.
+         OBJECT is upgradeable to a specific class name when the call
+         site passes a constructor-typed variable. */
       if( pParam->szType )
          hb_xfree( pParam->szType );
       pParam->szType = hb_refTabDup( szNewType );
@@ -362,6 +371,13 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
 
    if( hb_stricmp( pParam->szType, szNewType ) == 0 )
       return HB_REFINE_OK;   /* agreement */
+
+   /* One side OBJECT, the other a specific class: keep the specific
+      class. OBJECT is just "I don't know the class" from Hungarian
+      prefix — it shouldn't conflict with a concrete class name that
+      a constructor-typed call site provides. */
+   if( hb_stricmp( szNewType, "OBJECT" ) == 0 )
+      return HB_REFINE_OK;   /* incoming OBJECT doesn't override */
 
    /* Genuine disagreement: freeze the slot as USUAL with fConflict set
       so later refinements stop trying. The old type is discarded. */
@@ -1312,7 +1328,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
             {
                const char * szRetType =
-                  hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab );
+                  hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab, szKeyBuf );
                if( szRetType )
                   hb_refTabSetReturnType( pTab, szKeyBuf, szRetType );
             }
@@ -1321,7 +1337,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
          {
             /* Startup function — still walk for call-site refinement,
                but we're not interested in its return type. */
-            hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab );
+            hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab, NULL );
          }
 
          if( pCompFunc )

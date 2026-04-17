@@ -357,7 +357,8 @@ extern const char * hb_astInferTypeFromInit( const char * szName, const char * s
    pass will simply fall back to "unknown" for cross-file calls. */
 extern const char * hb_astPropagate( PHB_AST_NODE pBody,
                                      PHB_AST_NODE pClassList,
-                                     void * pRefTab );
+                                     void * pRefTab,
+                                     const char * szFuncKey );
 
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );

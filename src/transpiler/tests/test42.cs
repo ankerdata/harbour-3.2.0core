@@ -16,7 +16,7 @@ using static HbRuntime;
 // where a list of field names drives get/set loops.
 
 // #include "hbclass.ch"
-public class Record
+public class Record : HbDynamicObject
 {
     public string cName { get; set; } = "";
     public decimal nValue { get; set; } = 0;

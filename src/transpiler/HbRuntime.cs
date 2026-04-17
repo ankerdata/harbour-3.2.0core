@@ -13,7 +13,7 @@ using System.IO;
 /// hb_csFuncMap in gencsharp.c), so source-level casing variations like
 /// `INT()`, `int()`, `Int()` all resolve to the same method here.
 /// </summary>
-public static class HbRuntime
+public static partial class HbRuntime
 {
     static readonly CultureInfo INV = CultureInfo.InvariantCulture;
 
@@ -733,7 +733,65 @@ public static class HbRuntime
 
     // ---- Dynamic member access (Harbour obj:&(name) macro support) ----
 
-    private static readonly System.Reflection.BindingFlags MemberFlags =
+    // ---- DynamicObject base for ORM-style classes ----
+}
+
+/// <summary>
+/// Base class for Harbour classes that use runtime member access
+/// (::&amp;(name) patterns). Backed by a Dictionary so that column
+/// names or dynamically-created properties resolve at runtime.
+/// Statically-declared properties (from DATA/VAR) take precedence
+/// via the reflection path in TryGetMember/TrySetMember.
+/// </summary>
+public class HbDynamicObject : System.Dynamic.DynamicObject
+{
+    private readonly Dictionary<string, dynamic> _bag =
+        new Dictionary<string, dynamic>(StringComparer.OrdinalIgnoreCase);
+
+    public override bool TryGetMember(System.Dynamic.GetMemberBinder binder, out object result)
+    {
+        var prop = GetType().GetProperty(binder.Name, HbRuntime.MemberFlags);
+        if (prop != null)
+        {
+            result = prop.GetValue(this);
+            return true;
+        }
+        return _bag.TryGetValue(binder.Name, out result);
+    }
+
+    public override bool TrySetMember(System.Dynamic.SetMemberBinder binder, object value)
+    {
+        var prop = GetType().GetProperty(binder.Name, HbRuntime.MemberFlags);
+        if (prop != null)
+        {
+            object coerced = value;
+            if (value != null && prop.PropertyType != typeof(object) &&
+                prop.PropertyType != value.GetType())
+                coerced = Convert.ChangeType(value, prop.PropertyType);
+            prop.SetValue(this, coerced);
+            return true;
+        }
+        _bag[binder.Name] = value;
+        return true;
+    }
+
+    public override bool TryInvokeMember(System.Dynamic.InvokeMemberBinder binder, object[] args, out object result)
+    {
+        var method = GetType().GetMethod(binder.Name, HbRuntime.MemberFlags);
+        if (method != null)
+        {
+            result = method.Invoke(this, args);
+            return true;
+        }
+        result = null;
+        return false;
+    }
+}
+
+public static partial class HbRuntime
+{
+
+    public static readonly System.Reflection.BindingFlags MemberFlags =
         System.Reflection.BindingFlags.Public |
         System.Reflection.BindingFlags.Instance |
         System.Reflection.BindingFlags.IgnoreCase;

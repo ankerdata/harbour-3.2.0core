@@ -1078,7 +1078,7 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
 
    /* Run type propagation before emitting */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL );
 
    /* Emit blank line if there's a gap from previous output */
    if( pFunc->iLine > 0 && s_iLastLine > 0 && pFunc->iLine > s_iLastLine + 1 )

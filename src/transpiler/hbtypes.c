@@ -473,7 +473,11 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
 {
    const char * szCurType = hb_typeEnvGet( pEnv, szVarName );
 
-   if( ! szCurType || strcmp( szCurType, "USUAL" ) == 0 )
+   /* Refine when: unknown, USUAL (untyped), or OBJECT (generic
+      Hungarian `o` prefix). OBJECT is upgradeable to a specific class
+      name when the RHS is a constructor like `Transaction():New()`. */
+   if( ! szCurType || strcmp( szCurType, "USUAL" ) == 0 ||
+       strcmp( szCurType, "OBJECT" ) == 0 )
    {
       const char * szNewType = hb_astInferExprType( pRHS, pEnv );
       if( szNewType && ( ! szCurType || strcmp( szCurType, szNewType ) != 0 ) )
@@ -1010,7 +1014,7 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
  * Returns the inferred return type string, or NULL if it can't be determined.
  */
 const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
-                              void * pRefTab )
+                              void * pRefTab, const char * szFuncKey )
 {
    HB_TYPEENV env;
    PHB_AST_NODE pStmt;
@@ -1022,6 +1026,26 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       return NULL;
 
    hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab );
+
+   /* Seed parameter types from the reftab. When a previous scan pass
+      refined a callee parameter from OBJECT to a specific class (e.g.
+      ecr.prg pushes Transaction for ECRTran:oTransaction), this
+      function's env needs to see that refined type so downstream call
+      sites propagate it further. Without this, each intermediate
+      function re-seeds from Hungarian → OBJECT, breaking the chain. */
+   if( szFuncKey && pRefTab )
+   {
+      int nParams = hb_refTabParamCount( ( PHB_REFTAB ) pRefTab, szFuncKey );
+      int i;
+      for( i = 0; i < nParams; i++ )
+      {
+         const HB_REFPARAM * p = hb_refTabParam( ( PHB_REFTAB ) pRefTab,
+                                                   szFuncKey, i );
+         if( p && p->szName && p->szType &&
+             hb_stricmp( p->szType, "USUAL" ) != 0 )
+            hb_typeEnvSet( &env, p->szName, p->szType );
+      }
+   }
 
    /* Pass 0: Seed class DATA member types from all class definitions.
       This allows SELF:member expressions to resolve to specific types. */

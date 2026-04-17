@@ -2175,8 +2175,88 @@ typedef struct _HB_CS_CLASS
    PHB_AST_NODE          pClassNode;
    HB_CS_METHOD *        pMethods;
    HB_CS_METHOD *        pMethodsLast;
+   HB_BOOL               fDynamic;     /* class uses ::&(name) — needs DynamicObject */
    struct _HB_CS_CLASS * pNext;
 } HB_CS_CLASS;
+
+/* Check if an expression tree contains obj:&(name) macro send.
+   Used to flag classes whose instances need DynamicObject. */
+static HB_BOOL hb_csExprHasMacroSend( PHB_EXPR pExpr )
+{
+   if( ! pExpr ) return HB_FALSE;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_SEND:
+         if( pExpr->value.asMessage.pMessage &&
+             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
+            return HB_TRUE;
+         if( hb_csExprHasMacroSend( pExpr->value.asMessage.pObject ) )
+            return HB_TRUE;
+         if( hb_csExprHasMacroSend( pExpr->value.asMessage.pParms ) )
+            return HB_TRUE;
+         break;
+      case HB_ET_LIST: case HB_ET_ARGLIST: case HB_ET_MACROARGLIST:
+      {
+         PHB_EXPR p = pExpr->value.asList.pExprList;
+         while( p ) { if( hb_csExprHasMacroSend( p ) ) return HB_TRUE; p = p->pNext; }
+         break;
+      }
+      default:
+         if( pExpr->ExprType >= HB_EO_ASSIGN && pExpr->ExprType <= HB_EO_PREDEC )
+         {
+            if( hb_csExprHasMacroSend( pExpr->value.asOperator.pLeft ) ) return HB_TRUE;
+            if( hb_csExprHasMacroSend( pExpr->value.asOperator.pRight ) ) return HB_TRUE;
+         }
+         break;
+   }
+   return HB_FALSE;
+}
+
+static HB_BOOL hb_csBlockHasMacroSend( PHB_AST_NODE pBlock )
+{
+   PHB_AST_NODE pStmt;
+   if( ! pBlock )
+      return HB_FALSE;
+   if( pBlock->type != HB_AST_BLOCK )
+      return HB_FALSE;
+   pStmt = pBlock->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            if( hb_csExprHasMacroSend( pStmt->value.asExprStmt.pExpr ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_RETURN:
+            if( hb_csExprHasMacroSend( pStmt->value.asReturn.pExpr ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_IF:
+            if( hb_csExprHasMacroSend( pStmt->value.asIf.pCondition ) )
+               return HB_TRUE;
+            if( hb_csBlockHasMacroSend( pStmt->value.asIf.pThen ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_DOWHILE:
+            if( hb_csBlockHasMacroSend( pStmt->value.asWhile.pBody ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_FOR:
+            if( hb_csBlockHasMacroSend( pStmt->value.asFor.pBody ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_FOREACH:
+            if( hb_csBlockHasMacroSend( pStmt->value.asForEach.pBody ) )
+               return HB_TRUE;
+            break;
+         default:
+            break;
+      }
+      pStmt = pStmt->pNext;
+   }
+   return HB_FALSE;
+}
 
 /* Find class entry by name (case-insensitive) */
 static HB_CS_CLASS * hb_csFindClass( HB_CS_CLASS * pList, const char * szName )
@@ -2237,7 +2317,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL );
 
    /* Get CLASSMETHOD marker */
    if( pFunc->value.asFunc.pBody &&
@@ -2382,7 +2462,9 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
    HB_CS_METHOD * pMethod;
 
    fprintf( yyc, "public class %s", pClassNode->value.asClass.szName );
-   if( pClassNode->value.asClass.szParent )
+   if( pClass->fDynamic && ! pClassNode->value.asClass.szParent )
+      fprintf( yyc, " : HbDynamicObject" );
+   else if( pClassNode->value.asClass.szParent )
       fprintf( yyc, " : %s", pClassNode->value.asClass.szParent );
    fprintf( yyc, "\n{\n" );
 
@@ -2561,7 +2643,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL );
 
    /* Detect Main entry point */
    if( hb_stricmp( pFunc->value.asFunc.szName, "Main" ) == 0 )
@@ -2831,6 +2913,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                pClass->pClassNode = pStmt;
                pClass->pMethods = NULL;
                pClass->pMethodsLast = NULL;
+               pClass->fDynamic = HB_FALSE;
                pClass->pNext = NULL;
                if( pClassLast )
                {
@@ -2874,7 +2957,13 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                {
                   HB_CS_CLASS * pClass = hb_csFindClass( pClassList, szClassName );
                   if( pClass )
+                  {
                      hb_csAddMethod( pClass, pFunc, pCompFunc );
+                     if( ! pClass->fDynamic &&
+                         pFunc->value.asFunc.pBody &&
+                         hb_csBlockHasMacroSend( pFunc->value.asFunc.pBody ) )
+                        pClass->fDynamic = HB_TRUE;
+                  }
                }
                else if( pFunc->value.asFunc.pBody &&
                         pFunc->value.asFunc.pBody->value.asBlock.pFirst )
