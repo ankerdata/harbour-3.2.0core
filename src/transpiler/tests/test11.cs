@@ -7,13 +7,13 @@ public class Calculator
 {
     public decimal nResult { get; set; } = 0;
 
-    public object New()
+    public dynamic New()
     {
         this.nResult = 0;
         return this;
     }
 
-    public object Add(decimal nValue = default)
+    public dynamic Add(decimal nValue = default)
     {
         this.nResult = this.nResult + nValue;
         HbRuntime.QOUT("nResult=" + HbRuntime.STR(this.nResult));

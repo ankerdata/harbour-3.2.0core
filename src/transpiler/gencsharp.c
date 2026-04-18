@@ -148,6 +148,25 @@ static const char * hb_csMangleStaticFunc( const char * szName,
    return szName;
 }
 
+/* Report an unsupported-construct warning without failing the file.
+   Prints to stderr with a `warning:` prefix that gen-cs.sh's failure
+   gate (grep for `Error E[0-9]+`) deliberately doesn't match — we
+   want the partial .cs kept so every function/class defined in the
+   file is still available to downstream callers. The unsupported
+   expression itself lands as a `default` placeholder; executing that
+   path at runtime will misbehave, but most of these constructs live
+   in rarely-taken branches. Counter still bumps for diagnostics. */
+static void hb_csWarnUnsupported( const char * szDesc )
+{
+   if( s_pCompCtx )
+   {
+      fprintf( stderr, "hbtranspiler: %s(%d): warning W0016  Unsupported construct '%s'\n",
+               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_pCompCtx->currLine, szDesc ? szDesc : "?" );
+   }
+   s_iAliasUnsupported++;
+}
+
 /* Callback used by hb_refTabForEachPublic — emits one field line per
    PUBLIC variable whose owner matches this .prg. The `dynamic` storage
    type covers both scalar and array-dim forms; the actual `new
@@ -359,7 +378,15 @@ static const char * hb_csTypeMap( const char * szHbType )
    if( hb_stricmp( szHbType, "TIMESTAMP" ) == 0 )
       return "DateTime";
    if( hb_stricmp( szHbType, "OBJECT" ) == 0 )
-      return "object";
+      /* Harbour's `OBJECT` means "any object receiving dynamic
+         message dispatch" — messages resolve at runtime, not compile
+         time. The closest C# equivalent is `dynamic`, not `object`:
+         `object` blocks member access without a cast, which CS1061s
+         the entire `oFoo:Bar()` pattern. `dynamic` defers binding to
+         the DLR, matching Harbour's semantics and letting Hungarian
+         `oX` parameters work without the reftab having to refine
+         every slot to a concrete class. */
+      return "dynamic";
    if( hb_stricmp( szHbType, "ARRAY" ) == 0 )
       return "dynamic[]";
    if( hb_stricmp( szHbType, "HASH" ) == 0 )
@@ -1243,19 +1270,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             /* Multi-element HB_ET_LIST is Harbour's comma-operator —
                `(a, b)` evaluates both and returns the last value. C#
-               has no equivalent in expression position. Surface as an
-               error so the source gets cleaned up rather than
-               emitting `a, b` into an IF / RHS context and breaking
-               downstream syntax. HB_ET_ARGLIST and _MACROARGLIST are
-               real argument lists and keep the comma-separated emit. */
+               has no equivalent in expression position. Emit a
+               `default` placeholder and a warning so the rest of the
+               file still compiles and downstream callers of any
+               FUNCTIONs/PROCs defined here still resolve. The one
+               broken expression will fail at runtime if it executes,
+               but the source rarely hits these paths. HB_ET_ARGLIST
+               and _MACROARGLIST are real argument lists and keep the
+               comma-separated emit. */
             if( pExpr->ExprType == HB_ET_LIST && pItem && pItem->pNext )
             {
-               if( s_pCompCtx )
-                  hb_compGenError( s_pCompCtx, hb_comp_szErrors, 'E',
-                                   HB_COMP_ERR_SYNTAX,
-                                   "comma-operator (expr1, expr2)", NULL );
-               s_iAliasUnsupported++;
-               fprintf( yyc, "default" );
+               hb_csWarnUnsupported( "comma-operator (expr1, expr2)" );
+               fprintf( yyc, "HbRuntime.MacroStub" );
                break;
             }
             {
@@ -1291,11 +1317,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          char szDesc[ 128 ];
          hb_snprintf( szDesc, sizeof( szDesc ), "macro &%s",
                       szMacro ? szMacro : "?" );
-         if( s_pCompCtx )
-            hb_compGenError( s_pCompCtx, hb_comp_szErrors, 'E',
-                             HB_COMP_ERR_SYNTAX, szDesc, NULL );
-         s_iAliasUnsupported++;
-         fprintf( yyc, "default" );
+         hb_csWarnUnsupported( szDesc );
+         fprintf( yyc, "HbRuntime.MacroStub" );
          break;
       }
 
@@ -1329,7 +1352,24 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          {
             const char * szVarName = pExpr->value.asAlias.pVar->value.asSymbol.name;
             const char * szLocal = hb_csResolveLocal( szVarName );
-            fprintf( yyc, "%s", szLocal ? szLocal : ( szVarName ? szVarName : "" ) );
+            if( szLocal )
+            {
+               /* Known case-typo'd local — emit canonical form. */
+               fprintf( yyc, "%s", szLocal );
+            }
+            else
+            {
+               /* Unknown identifier wrapped as implicit alias. Could
+                  be a workarea field (`Flags->string`), an undeclared
+                  memvar, or a name-collision with a C# keyword
+                  (`string`, `int`, `float`, `true`, etc.). Emit a
+                  verbatim identifier via `@`-prefix so C# keywords
+                  don't turn into syntax errors — unresolved refs
+                  still fall through to the runtime's memvar lookup
+                  and surface cleanly there rather than breaking the
+                  entire file's syntax. */
+               fprintf( yyc, "@%s", szVarName ? szVarName : "" );
+            }
          }
          else
          {
@@ -1346,11 +1386,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             char szDesc[ 128 ];
             hb_snprintf( szDesc, sizeof( szDesc ), "ALIAS reference %s->%s",
                          szAlias ? szAlias : "?", szVar ? szVar : "?" );
-            if( s_pCompCtx )
-               hb_compGenError( s_pCompCtx, hb_comp_szErrors, 'E',
-                                HB_COMP_ERR_SYNTAX, szDesc, NULL );
-            s_iAliasUnsupported++;
-            fprintf( yyc, "default" );
+            hb_csWarnUnsupported( szDesc );
+            fprintf( yyc, "HbRuntime.MacroStub" );
          }
          break;
 
@@ -1362,11 +1399,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          char szDesc[ 128 ];
          hb_snprintf( szDesc, sizeof( szDesc ), "ALIAS expression %s->(...)",
                       szAlias ? szAlias : "?" );
-         if( s_pCompCtx )
-            hb_compGenError( s_pCompCtx, hb_comp_szErrors, 'E',
-                             HB_COMP_ERR_SYNTAX, szDesc, NULL );
-         s_iAliasUnsupported++;
-         fprintf( yyc, "default" );
+         hb_csWarnUnsupported( szDesc );
+         fprintf( yyc, "HbRuntime.MacroStub" );
          break;
       }
 

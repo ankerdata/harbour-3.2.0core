@@ -645,7 +645,8 @@
       "Bash(clang -o /tmp/hbtranspiler-*:*)",
       "Bash(bash src/transpiler/tests/verify.sh:*)",
       "Bash(bash src/transpiler/tests/runtests.sh:*)",
-      "Bash(python3 -c \"import json; json.load\\(open\\('/Users/alexstrickland/dev/harbour-core/.claude/settings.json'\\)\\); print\\('OK'\\)\")"
+      "Bash(python3 -c \"import json; json.load\\(open\\('/Users/alexstrickland/dev/harbour-core/.claude/settings.json'\\)\\); print\\('OK'\\)\")",
+      "Bash(bash errors/run.sh)"
     ],
     "additionalDirectories": [
       "/tmp",

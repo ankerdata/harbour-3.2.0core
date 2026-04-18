@@ -17,13 +17,13 @@ public class Person : Inherited
     public DateOnly dBirth { get; set; }
     public bool lActive { get; set; } = true;
     public dynamic[] aItems { get; set; } = Array.Empty<dynamic>();
-    public object oParent { get; set; }
+    public dynamic oParent { get; set; }
     public Dictionary<dynamic, dynamic> hConfig { get; set; }
     public dynamic bCallback { get; set; }
     public dynamic xUnknown { get; set; }
     public static decimal nCount { get; set; } = 0;
 
-    public object New()
+    public dynamic New()
     {
         HbRuntime.QOUT("New called");
         return this;
@@ -47,7 +47,7 @@ public static partial class Program
         string cResult = default;
         bool lDone = default;
         dynamic[] aBuffer = default;
-        object oConnection = default;
+        dynamic oConnection = default;
         DateOnly dToday = default;
         Dictionary<dynamic, dynamic> hSettings = default;
         dynamic bAction = default;

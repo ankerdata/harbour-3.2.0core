@@ -21,19 +21,19 @@ public class Numbers
 {
     public decimal nTotal { get; set; } = 0;
 
-    public object New()
+    public dynamic New()
     {
         this.nTotal = 0;
         return this;
     }
 
-    public object Add(decimal nValue = default)
+    public dynamic Add(decimal nValue = default)
     {
         this.nTotal = this.nTotal + nValue;
         return this;
     }
 
-    public object Show()
+    public dynamic Show()
     {
         HbRuntime.QOUT("total=" + HbRuntime.STR(this.nTotal));
         return this;

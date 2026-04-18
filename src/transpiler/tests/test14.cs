@@ -11,7 +11,7 @@ public class Animal
     public decimal nLegs { get; set; } = 4;
     public string cSound { get; set; } = "";
 
-    public object New(string cName = default, string cSound = default)
+    public dynamic New(string cName = default, string cSound = default)
     {
         this.cName = cName;
         HbRuntime.QOUT("cName=" + this.cName);
@@ -35,7 +35,7 @@ public class Dog : Animal
 {
     public string cBreed { get; set; } = "";
 
-    public object Init(string cName = default, string cBreed = default)
+    public dynamic Init(string cName = default, string cBreed = default)
     {
         this.cName = cName;
         HbRuntime.QOUT("cName=" + this.cName);

@@ -22,7 +22,7 @@ public class Record : HbDynamicObject
     public decimal nValue { get; set; } = 0;
     public bool lActive { get; set; } = false;
 
-    public object SetByName(string cField = default, dynamic xValue = default)
+    public dynamic SetByName(string cField = default, dynamic xValue = default)
     {
         HbRuntime.SETMEMBER(this, cField, xValue);
         return this;

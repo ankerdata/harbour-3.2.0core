@@ -728,6 +728,17 @@ public static partial class HbRuntime
 
     // ---- Misc ----
 
+    /// <summary>
+    /// Placeholder the transpiler emits in place of unsupported Harbour
+    /// constructs (macros `&name`, workarea ALIAS expressions, comma-
+    /// operator). Typed `dynamic` so it works on both sides of an
+    /// assignment — C#'s `default` can't be an LHS, which would break
+    /// `&cMemvar := expr` → `default = expr`. Executing the path that
+    /// uses it silently discards the value; the transpiler emits a
+    /// `warning W0016` at generation time listing every occurrence.
+    /// </summary>
+    public static dynamic MacroStub;
+
     public static decimal RECNO() => 0;
     public static dynamic DIRECTORY(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
 

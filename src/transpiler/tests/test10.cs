@@ -7,13 +7,13 @@ public class MyObj
 {
     public decimal nValue { get; set; } = 0;
 
-    public object New()
+    public dynamic New()
     {
         this.nValue = 0;
         return this;
     }
 
-    public object SetValue(decimal nVal = default)
+    public dynamic SetValue(decimal nVal = default)
     {
         this.nValue = nVal;
         HbRuntime.QOUT("nValue=" + HbRuntime.STR(this.nValue));

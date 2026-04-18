@@ -19,12 +19,12 @@ public class Person : Inherited
     public dynamic FullName { get; set; }
         protected string cSecret { get; set; } = "hidden";
 
-    public object New()
+    public dynamic New()
     {
         return this;
     }
 
-    public object SetAge(decimal nAge = default)
+    public dynamic SetAge(decimal nAge = default)
     {
         this.nAge = nAge;
         HbRuntime.QOUT("nAge=" + HbRuntime.STR(this.nAge));

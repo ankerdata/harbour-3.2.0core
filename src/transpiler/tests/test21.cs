@@ -20,12 +20,12 @@ using static HbRuntime;
 public class Calculator
 {
 
-    public object New()
+    public dynamic New()
     {
         return this;
     }
 
-    public object Adjust(ref decimal nValue)
+    public dynamic Adjust(ref decimal nValue)
     {
         nValue = nValue * 2;
         return this;

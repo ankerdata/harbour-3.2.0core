@@ -9,19 +9,19 @@ public class Names
 {
     public string cAll { get; set; } = "";
 
-    public object New()
+    public dynamic New()
     {
         this.cAll = "";
         return this;
     }
 
-    public object Add(string cValue = default)
+    public dynamic Add(string cValue = default)
     {
         this.cAll = this.cAll + cValue + " ";
         return this;
     }
 
-    public object Show()
+    public dynamic Show()
     {
         HbRuntime.QOUT("all=" + this.cAll);
         return this;
