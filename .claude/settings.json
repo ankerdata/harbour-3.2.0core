@@ -646,7 +646,14 @@
       "Bash(bash src/transpiler/tests/verify.sh:*)",
       "Bash(bash src/transpiler/tests/runtests.sh:*)",
       "Bash(python3 -c \"import json; json.load\\(open\\('/Users/alexstrickland/dev/harbour-core/.claude/settings.json'\\)\\); print\\('OK'\\)\")",
-      "Bash(bash errors/run.sh)"
+      "Bash(bash errors/run.sh)",
+      "Bash(cd /Users/alexstrickland/dev/easipos/EasiPosX echo \"=== Bare @func refs \\(function pointers via Harbour's @-operator\\) ===\" grep -rhE \"\\(\\\\:=|=|,|\\\\\\(\\)\\\\s*@[A-Za-z_][A-Za-z0-9_]*\\\\b\" --include=\"*.prg\")",
+      "Read(//Users/alexstrickland/dev/harbour-core/=== All local vars starting with p/**)",
+      "Read(//Users/alexstrickland/dev/harbour-core/=== count of p-prefixed DATA/**)",
+      "Bash(cd /Users/alexstrickland/dev/easipos/EasiPosX echo \"=== patterns where @func is a value \\(not @byref\\) ===\")",
+      "Read(//Users/alexstrickland/dev/harbour-core/=== hash/**)",
+      "Read(//Users/alexstrickland/dev/harbour-core/=== p/**)",
+      "Read(//Users/alexstrickland/dev/easipos-transpiled/**)"
     ],
     "additionalDirectories": [
       "/tmp",

@@ -450,6 +450,19 @@ static const char * hb_csTranslateInline( const char * szVal )
    if( ! szVal )
       return szVal;
 
+   /* If the INLINE body contains `->` it's a workarea-ALIAS
+      expression — unsupported in C#. Short-circuit the whole method
+      body to a stub; otherwise our textual `::` / `:=` rewrites
+      produce `(this.alias).->( ... )` which breaks C# syntax. This
+      mirrors the hb_csWarnUnsupported treatment the regular emitter
+      uses for HB_ET_ALIASEXPR (see the HB_ET_ALIASEXPR case). The
+      method still exists so cross-file references compile; calling
+      it at runtime no-ops. */
+   if( strstr( szVal, "->" ) )
+   {
+      return "HbRuntime.MacroStub";
+   }
+
    /* Strip outer parens and surrounding whitespace */
    while( *szVal == ' ' || *szVal == '\t' )
       szVal++;
@@ -952,7 +965,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_FUNREF:
-         fprintf( yyc, "%s", pExpr->value.asSymbol.name );
+         /* Harbour's `@FuncName()` — a first-class function reference
+            used in dispatch tables, hash values, LOCAL assignments.
+            C# won't convert a method group to `dynamic` directly, so
+            we route through HbRuntime.FuncPtr which reflects on
+            Program and returns a cached `Func<dynamic[], dynamic>`.
+            The delegate handles arity mismatch and default values at
+            call time — caller invokes via dynamic dispatch or
+            HbRuntime.EVAL and the args-splat lambda takes care of
+            the rest. */
+         fprintf( yyc, "HbRuntime.FuncPtr(\"%s\")",
+                  pExpr->value.asSymbol.name ? pExpr->value.asSymbol.name : "" );
          break;
 
       case HB_ET_REFERENCE:

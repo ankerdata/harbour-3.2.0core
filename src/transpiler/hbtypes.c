@@ -52,6 +52,11 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
          return "HASH";
 
       case HB_ET_CODEBLOCK:
+      case HB_ET_FUNREF:
+         /* `@FuncName()` produces a function reference — callable via
+            HbRuntime.EVAL or direct DLR dispatch. Same emit shape as
+            a codeblock (both are `Func<dynamic[], dynamic>` at the
+            edge, `dynamic` after hb_csTypeMap), so share the type. */
          return "BLOCK";
 
       case HB_ET_SELF:
@@ -133,6 +138,13 @@ static const char * hb_astInferFromPrefix( const char * szName )
             case 'b': return "BLOCK";
             case 't': return "TIMESTAMP";
             case 'x': return "USUAL";
+            /* `p`/`P` is used for two related concepts in the easipos
+               corpus — function pointers (`@Foo()` return values) and
+               opaque handles (DB/socket/statement pointers). BLOCK is
+               Harbour's callable type; it maps to C# `dynamic` in
+               hb_csTypeMap, which supports both calls (via DLR) and
+               opaque storage. */
+            case 'p': return "BLOCK";
          }
       }
    }

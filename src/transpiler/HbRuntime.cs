@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 
 /// <summary>
 /// Harbour runtime function implementations for transpiled C# code.
@@ -741,6 +742,95 @@ public static partial class HbRuntime
 
     public static decimal RECNO() => 0;
     public static dynamic DIRECTORY(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
+
+    // ---- Function-reference resolution (Harbour's @FunName() operator) ----
+
+    /// <summary>
+    /// Cache of name → callable delegate so dispatch-table patterns like
+    /// <c>{ TABLEFILE =&gt; @TableDetailDef() }</c> don't reflect on every
+    /// invocation. Keyed case-insensitively (Harbour convention).
+    /// </summary>
+    private static readonly Dictionary<string, Func<dynamic[], dynamic>> s_funcPtrCache =
+        new Dictionary<string, Func<dynamic[], dynamic>>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Return a callable <c>Func&lt;dynamic[], dynamic&gt;</c> for the
+    /// named static method on the merged <c>Program</c> partial class.
+    /// The transpiler emits <c>@FuncName()</c> as a call to this helper
+    /// so that method groups — which C# won't convert to <c>dynamic</c>
+    /// directly — become first-class values suitable for hash entries,
+    /// array elements, and <c>LOCAL pFunc := @Foo()</c> assignments.
+    /// Missing methods return a sentinel that throws when invoked —
+    /// matches Harbour's runtime-failure semantics for a bad @ref.
+    /// </summary>
+    public static Func<dynamic[], dynamic> FuncPtr(string methodName)
+    {
+        if (methodName == null) return _ => null;
+        if (s_funcPtrCache.TryGetValue(methodName, out var cached)) return cached;
+
+        // Look up on Program. We assume the transpiled code lives in a
+        // single `public static partial class Program` merged across
+        // every .prg file's partial contribution. If someone builds a
+        // multi-program executable, the lookup here will miss and
+        // callers get the throwing sentinel.
+        var programType = Type.GetType("Program")
+            ?? System.Reflection.Assembly.GetExecutingAssembly().GetType("Program")
+            ?? System.AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("Program"))
+                .FirstOrDefault(t => t != null);
+
+        System.Reflection.MethodInfo method = null;
+        if (programType != null)
+        {
+            method = programType.GetMethod(methodName,
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Static |
+                System.Reflection.BindingFlags.IgnoreCase);
+        }
+
+        Func<dynamic[], dynamic> result;
+        if (method == null)
+        {
+            result = _ => throw new MissingMethodException(
+                $"HbRuntime.FuncPtr: no static method '{methodName}' on Program");
+        }
+        else
+        {
+            var parms = method.GetParameters();
+            result = args =>
+            {
+                args ??= System.Array.Empty<dynamic>();
+                var invokeArgs = new object[parms.Length];
+                for (int i = 0; i < parms.Length; i++)
+                {
+                    if (i < args.Length)
+                    {
+                        var val = args[i];
+                        // Convert.ChangeType handles the common
+                        // numeric/string/bool coercions; null passes
+                        // through unchanged.
+                        if (val != null && !parms[i].ParameterType.IsAssignableFrom(val.GetType()))
+                        {
+                            try { val = Convert.ChangeType(val, parms[i].ParameterType, INV); }
+                            catch { /* leave as-is; Invoke may still accept via boxing */ }
+                        }
+                        invokeArgs[i] = val;
+                    }
+                    else if (parms[i].HasDefaultValue)
+                        invokeArgs[i] = parms[i].DefaultValue;
+                    else
+                        invokeArgs[i] = parms[i].ParameterType.IsValueType
+                            ? Activator.CreateInstance(parms[i].ParameterType)
+                            : null;
+                }
+                return method.Invoke(null, invokeArgs);
+            };
+        }
+
+        s_funcPtrCache[methodName] = result;
+        return result;
+    }
 
     // ---- Dynamic member access (Harbour obj:&(name) macro support) ----
 
