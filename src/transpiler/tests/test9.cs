@@ -6,7 +6,7 @@ using static HbRuntime;
 // #include "hbclass.ch"
 public class Inherited
 {
-    public static decimal nVersion = 1.0m;
+    public static decimal nVersion { get; set; } = 1.0m;
 
 }
 
@@ -21,7 +21,7 @@ public class Person : Inherited
     public Dictionary<dynamic, dynamic> hConfig { get; set; }
     public dynamic bCallback { get; set; }
     public dynamic xUnknown { get; set; }
-    public static decimal nCount = 0;
+    public static decimal nCount { get; set; } = 0;
 
     public object New()
     {

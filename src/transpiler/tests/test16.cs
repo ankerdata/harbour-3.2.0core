@@ -8,10 +8,10 @@ public static partial class Program
     static string test16_cLabel = "count";
     static dynamic test16_nPriv;
     static dynamic test16_cPrivName;
-    static dynamic test16_nPub;
-    static dynamic test16_cPubName;
     static decimal test16_nStatic = 10;
     static string test16_cStaticLabel = "static";
+    public static dynamic nPub;
+    public static dynamic cPubName;
     public static decimal Counter()
     {
         test16_nCount = test16_nCount + 1;
@@ -24,15 +24,15 @@ public static partial class Program
     {
         test16_nPriv = 42;
         test16_cPrivName = "secret";
-        test16_nPub = 100;
-        test16_cPubName = "global";
+        nPub = 100;
+        cPubName = "global";
 
         HbRuntime.QOUT("nStatic=" + HbRuntime.STR(test16_nStatic));
         HbRuntime.QOUT("cStaticLabel=" + test16_cStaticLabel);
         HbRuntime.QOUT("nPriv=" + HbRuntime.STR(test16_nPriv));
         HbRuntime.QOUT("cPrivName=" + test16_cPrivName);
-        HbRuntime.QOUT("nPub=" + HbRuntime.STR(test16_nPub));
-        HbRuntime.QOUT("cPubName=" + test16_cPubName);
+        HbRuntime.QOUT("nPub=" + HbRuntime.STR(nPub));
+        HbRuntime.QOUT("cPubName=" + cPubName);
 
         Counter();
         Counter();
@@ -44,8 +44,8 @@ public static partial class Program
         test16_nPriv = test16_nPriv + 1;
         HbRuntime.QOUT("nPriv=" + HbRuntime.STR(test16_nPriv));
 
-        test16_nPub = test16_nPub - 10;
-        HbRuntime.QOUT("nPub=" + HbRuntime.STR(test16_nPub));
+        nPub = nPub - 10;
+        HbRuntime.QOUT("nPub=" + HbRuntime.STR(nPub));
 
         return;
     }

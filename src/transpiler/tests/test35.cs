@@ -15,20 +15,20 @@ using static HbRuntime;
 // actually creates and initializes the memvar at runtime.
 public static partial class Program
 {
-    static dynamic test35_gCount;
+    public static dynamic gCount;
     public static void Main(string[] args)
     {
-        test35_gCount = 0;
+        gCount = 0;
         Bump();
         Bump();
         Bump();
-        HbRuntime.QOUT("count=" + HbRuntime.STR(test35_gCount));
+        HbRuntime.QOUT("count=" + HbRuntime.STR(gCount));
         return;
     }
 
     public static void Bump()
     {
-        test35_gCount++;
+        gCount++;
         return;
     }
 }

@@ -372,6 +372,13 @@ static const char * hb_csTypeMap( const char * szHbType )
       concrete subclasses define runtime-only columns. */
    if( s_pRefTab && hb_refTabIsClassDynamic( s_pRefTab, szHbType ) )
       return "dynamic";
+   /* TOleAuto is HbRuntime's COM-automation wrapper; its .New()
+      returns a dynamic COM proxy whose member names (Fields, Open,
+      CursorLocation, MoveNext, …) are defined by the instantiated
+      ProgID at runtime, not on the stub. Widening to `dynamic` at
+      every use site lets the COM call sites compile. */
+   if( hb_stricmp( szHbType, "TOleAuto" ) == 0 )
+      return "dynamic";
    /* Otherwise a specific class name — pass through as-is */
    return szHbType;
 }
@@ -1864,17 +1871,16 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
             /* PUBLIC name[size] — the field is declared in the owning
                .prg's Program-partial, so here we only emit the runtime
-               array allocation. Skipped when a MEMVAR with the same
-               name exists in this file: that path owns the storage as
-               <FileBase>_<name> and we don't want to write to a
-               different (unmangled) field. */
+               array allocation. A same-name MEMVAR in this file is
+               fine: its mangled field is skipped (see the Program-
+               partial emit) and all references bind to the bare PUBLIC
+               field. */
             if( pNode->type == HB_AST_PUBLIC &&
                 pNode->value.asVar.fArrayDim &&
                 pNode->value.asVar.pInit &&
                 ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
                   pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) &&
-                s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) &&
-                ! hb_csIsFileMemvar( szName ) )
+                s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) )
             {
                PHB_EXPR pDim = pNode->value.asVar.pInit->value.asList.pExprList;
                hb_csEmitIndent( yyc, iIndent );
@@ -1889,12 +1895,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
             /* Plain `PUBLIC name` or `PUBLIC name := expr` on a PUBLIC
                that we registered in the reftab: emit as assignment to
-               the shared Program-scope field (no local decl). Skip
-               when a MEMVAR with the same name exists — that path is
-               already handled below (assign to the mangled field). */
+               the shared Program-scope field (no local decl). */
             if( pNode->type == HB_AST_PUBLIC &&
-                s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) &&
-                ! hb_csIsFileMemvar( szName ) )
+                s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) )
             {
                if( pNode->value.asVar.pInit )
                {
@@ -2778,7 +2781,11 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
          switch( pMember->value.asClassData.iKind )
          {
             case HB_AST_DATA_CLASS:
-               fprintf( yyc, "%s static %s %s",
+               /* C# static auto-property — matches the shape of the
+                  instance branch below, just with `static` added. The
+                  { get;[ set;] } terminates the declaration; the
+                  post-switch init block follows with ` = <val>;`. */
+               fprintf( yyc, "%s static %s %s { get; set; }",
                         szScope,
                         hb_csTypeMap( szType ),
                         pMember->value.asClassData.szName );
@@ -3479,11 +3486,16 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      /* File-scope MEMVAR: emit a shared `dynamic` field
                         under the partial class. Mangled with file base
                         to avoid CS0102 when another .prg also MEMVARs
-                        the same name. Skip if a previous function in
-                        this file already MEMVAR'd the same name
-                        (CS0102 within the same file). */
+                        the same name. Skipped when the name is a
+                        registered PUBLIC — the PUBLIC owner emits a
+                        bare `public static dynamic <name>;` field and
+                        every file's references bind to that instead
+                        (see HB_ET_VARIABLE emission). Mangled MEMVAR
+                        fields shadowed by PUBLICs would leave half the
+                        references undefined. */
                      const char * szMName = pStmt->value.asVar.szName;
-                     if( ! hb_csIsFileMemvar( szMName ) )
+                     if( ! hb_csIsFileMemvar( szMName ) &&
+                         ! ( s_pRefTab && hb_refTabIsPublic( s_pRefTab, szMName ) ) )
                      {
                         hb_csAddFileMemvar( szMName );
                         hb_csEmitIndent( yyc, 1 );

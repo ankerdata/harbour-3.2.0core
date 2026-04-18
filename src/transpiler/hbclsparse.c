@@ -306,10 +306,38 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             continue;
          }
 
-         /* DATA / VAR / CLASSDATA / CLASS VAR */
+         /* `CLASS VAR name` / `CLASS DATA name` — two-word form that
+            the PP tokenizer splits into separate CLASS + VAR/DATA
+            tokens. Equivalent to `CLASSVAR` / `CLASSDATA`. Promote
+            the current token to VAR/DATA and mark iKind below. */
+         {
+            HB_BOOL fClassPrefix = HB_FALSE;
+            if( hb_clsTokenIs( pToken, "CLASS" ) )
+            {
+               PHB_PP_TOKEN pNext = pToken->pNext;
+               if( pNext &&
+                   ( hb_clsTokenIs( pNext, "VAR" ) ||
+                     hb_clsTokenIs( pNext, "DATA" ) ) )
+               {
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );   /* consume CLASS, now at VAR/DATA */
+                  fClassPrefix = HB_TRUE;
+               }
+            }
+
+         /* DATA / VAR / CLASSDATA / CLASS VAR / ACCESS / ASSIGN, plus
+            the hbclass.ch shorthand forms PROTECT and EXPORT, which
+            expand to `PROTECTED: VAR <name>` / `EXPORTED: VAR <name>`.
+            We don't load hbclass.ch (the PP rules there trigger
+            recursive includes that hang the parser); handling the
+            shorthands natively here is the alternative. Without this,
+            `PROTECT oEasiCdSOR` and `EXPORT oWnd` lines silently fall
+            through the unknown-token branch and the class is left
+            without those DATA members — ~368 such declarations in
+            the easipos corpus. */
          if( hb_clsTokenIs( pToken, "DATA" ) || hb_clsTokenIs( pToken, "VAR" ) ||
              hb_clsTokenIs( pToken, "CLASSDATA" ) || hb_clsTokenIs( pToken, "CLASSVAR" ) ||
-             hb_clsTokenIs( pToken, "ACCESS" ) || hb_clsTokenIs( pToken, "ASSIGN" ) )
+             hb_clsTokenIs( pToken, "ACCESS" ) || hb_clsTokenIs( pToken, "ASSIGN" ) ||
+             hb_clsTokenIs( pToken, "PROTECT" ) || hb_clsTokenIs( pToken, "EXPORT" ) )
          {
             PHB_AST_NODE pData;
             const char * szDataName;
@@ -319,12 +347,18 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             int iMemberScope = iScope;
             HB_BOOL fReadOnly = HB_FALSE;
 
-            if( hb_clsTokenIs( pToken, "CLASSDATA" ) || hb_clsTokenIs( pToken, "CLASSVAR" ) )
+            if( fClassPrefix ||
+                hb_clsTokenIs( pToken, "CLASSDATA" ) ||
+                hb_clsTokenIs( pToken, "CLASSVAR" ) )
                iKind = HB_AST_DATA_CLASS;
             else if( hb_clsTokenIs( pToken, "ACCESS" ) )
                iKind = HB_AST_DATA_ACCESS;
             else if( hb_clsTokenIs( pToken, "ASSIGN" ) )
                iKind = HB_AST_DATA_ASSIGN;
+            else if( hb_clsTokenIs( pToken, "PROTECT" ) )
+               iMemberScope = HB_AST_SCOPE_PROTECTED;
+            else if( hb_clsTokenIs( pToken, "EXPORT" ) )
+               iMemberScope = HB_AST_SCOPE_EXPORTED;
 
             pToken = hb_clsNextToken( HB_COMP_PARAM );
             szDataName = hb_clsSaveId( HB_COMP_PARAM, pToken );
@@ -475,6 +509,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             /* Skip unknown line */
             hb_clsSkipLine( HB_COMP_PARAM, pToken );
          }
+         }  /* close fClassPrefix scope */
       }
    }
 
