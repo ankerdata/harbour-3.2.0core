@@ -432,11 +432,29 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( hb_stricmp( szNewType, "OBJECT" ) == 0 )
       return HB_REFINE_OK;   /* incoming OBJECT doesn't override */
 
-   /* Genuine disagreement: freeze the slot as USUAL with fConflict set
-      so later refinements stop trying. Defer-free the old allocation
-      for the same reason as above. */
-   hb_refTabDefer( pTab, pParam->szType );
-   pParam->szType    = hb_refTabDup( "USUAL" );
+   /* Genuine disagreement: freeze the slot with fConflict set so
+      later refinements stop trying. If BOTH types are class names
+      (mixed-case identifiers from PRG source), fall back to OBJECT
+      rather than USUAL — both sides at least agree on "it's an
+      object, just not which class". Pure-uppercase built-in types
+      (NUMERIC, STRING, LOGICAL, …) disagreeing with each other —
+      or with a class — widens to USUAL as before. Without this,
+      USUAL:C settled here would flip to OBJECT:C on the very next
+      scan pass (hb_refTabAddFunc re-applies Hungarian 'o' over
+      USUAL), costing one extra pass to reach convergence.
+      Defer-free the old allocation for the same reason as above. */
+   {
+      const char * c;
+      HB_BOOL fOldClass = HB_FALSE;
+      HB_BOOL fNewClass = HB_FALSE;
+      for( c = pParam->szType; *c; c++ )
+         if( *c >= 'a' && *c <= 'z' ) { fOldClass = HB_TRUE; break; }
+      for( c = szNewType; *c; c++ )
+         if( *c >= 'a' && *c <= 'z' ) { fNewClass = HB_TRUE; break; }
+      hb_refTabDefer( pTab, pParam->szType );
+      pParam->szType = hb_refTabDup(
+         ( fOldClass && fNewClass ) ? "OBJECT" : "USUAL" );
+   }
    pParam->fConflict = HB_TRUE;
    return HB_REFINE_CONFLICT;
 }
@@ -638,10 +656,20 @@ const HB_REFPARAM * hb_refTabParam( PHB_REFTAB pTab,
 
 /* ---- persistence ---- */
 
+static int hb_refTabCmpEntryByName( const void * a, const void * b )
+{
+   const PHB_REFENTRY ea = *( const PHB_REFENTRY * ) a;
+   const PHB_REFENTRY eb = *( const PHB_REFENTRY * ) b;
+   return strcmp( ea->szName, eb->szName );
+}
+
 HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
 {
-   FILE *  fp;
-   HB_SIZE i;
+   FILE *          fp;
+   HB_SIZE         i;
+   HB_SIZE         nEntries = 0;
+   HB_SIZE         nCap     = 0;
+   PHB_REFENTRY *  ppSorted = NULL;
 
    if( ! pTab || ! szPath )
       return HB_FALSE;
@@ -658,10 +686,35 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
    fprintf( fp, "#\n" );
    fprintf( fp, "# THIS FILE IS GENERATED — see `hbtranspiler -GF`\n" );
 
+   /* Collect defined entries then sort by name. Hash-table bucket +
+      linked-list order depends on insertion sequence, which isn't
+      stable between scan passes — sorting gives a deterministic
+      file so md5-based convergence checks actually work. */
    for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
    {
       PHB_REFENTRY e = pTab->buckets[ i ];
       while( e )
+      {
+         if( e->fDefined )
+         {
+            if( nEntries == nCap )
+            {
+               nCap = nCap ? nCap * 2 : 256;
+               ppSorted = ( PHB_REFENTRY * ) hb_xrealloc(
+                  ppSorted, nCap * sizeof( PHB_REFENTRY ) );
+            }
+            ppSorted[ nEntries++ ] = e;
+         }
+         e = e->pNext;
+      }
+   }
+   if( nEntries > 1 )
+      qsort( ppSorted, nEntries, sizeof( PHB_REFENTRY ),
+             hb_refTabCmpEntryByName );
+
+   for( i = 0; i < nEntries; i++ )
+   {
+      PHB_REFENTRY e = ppSorted[ i ];
       {
          /* Skip stub entries that only have flags and no registered
             definition — they would round-trip as zero-arg functions,
@@ -711,9 +764,10 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
             }
             fprintf( fp, "\n" );
          }
-         e = e->pNext;
       }
    }
+   if( ppSorted )
+      hb_xfree( ppSorted );
    fclose( fp );
    return HB_TRUE;
 }
