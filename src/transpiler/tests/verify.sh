@@ -33,6 +33,12 @@ run_step() {
 # -GS pass internally and doesn't need an equivalent here.
 run_step "runtests"  runtests.sh
 
+# Reftab determinism: two pre-scans over identical input must produce
+# byte-identical hbreftab.tab output (md5-convergence invariant for
+# the easipos scan loop). Runs after runtests so a broken transpiler
+# build surfaces there first.
+run_step "verifyreftab" verifyreftab.sh
+
 # Build: one target per source.
 run_step "buildprg"  buildprg.sh
 run_step "buildhb"   buildhb.sh
