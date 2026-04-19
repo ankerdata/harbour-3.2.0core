@@ -34,6 +34,9 @@
 #include "hbcomp.h"
 #include "hbast.h"
 #include "hbset.h"
+#ifdef HB_TRANSPILER
+#include "hbhbxcanon.h"
+#endif
 
 static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuffer, int iStartLine );
 static HB_BOOL hb_compRegisterFunc( HB_COMP_DECL, PHB_HFUNC pFunc, HB_BOOL fError );
@@ -114,6 +117,14 @@ int hb_compMainExt( int argc, const char * const argv[],
 
       /* Prepare the table of identifiers */
       hb_compIdentifierOpen( HB_COMP_PARAM );
+
+#ifdef HB_TRANSPILER
+      /* Pre-load the canonical-name map from core + contrib .hbx
+         files in standard locations before any -GS run. --hbx=<path>
+         from the command line still works as an additional source
+         for non-standard layouts. */
+      hb_hbxCanonAutoLoad();
+#endif
    }
 
    if( szSource )

@@ -36,6 +36,17 @@ HB_EXTERN_BEGIN
    open+parse, HB_FALSE if the file is missing or unreadable. */
 extern HB_BOOL hb_hbxCanonLoad( const char * szPath );
 
+/* Load every *.hbx file in szDir (one level). When fRecurse is true,
+   also descend one level into subdirectories — the shape used by
+   contrib where each package keeps its .hbx in its own subdir.
+   Missing dir returns 0, not an error. */
+extern HB_SIZE hb_hbxCanonLoadDir( const char * szDir, HB_BOOL fRecurse );
+
+/* Load core + contrib .hbx files from standard install and dev
+   locations. Called once at transpiler startup. Directories that
+   don't exist are silently skipped. */
+extern void hb_hbxCanonAutoLoad( void );
+
 /* Return the canonical spelling for szName's lowercased form, or
    NULL if no entry exists. Caller should substitute the return
    value for szName when non-NULL; otherwise leave the identifier

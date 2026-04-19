@@ -15,6 +15,8 @@
 #include "hbcomp.h"
 #include "hbhbxcanon.h"
 #include <ctype.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 typedef struct
 {
@@ -159,6 +161,77 @@ HB_BOOL hb_hbxCanonLoad( const char * szPath )
    }
    fclose( fh );
    return HB_TRUE;
+}
+
+/* Walk szDir (one level) and load every *.hbx file found. Used both
+   for the canonical include/ directory and for the contrib parent
+   where each .hbx sits one level down in its package subdir. The
+   fRecurse flag turns on the second-level walk so contrib/<lib>/<lib>.hbx
+   gets picked up when called with the contrib root. Returns the
+   number of files successfully loaded (zero on missing dir is not
+   an error — auto-load callers silently accept that). */
+HB_SIZE hb_hbxCanonLoadDir( const char * szDir, HB_BOOL fRecurse )
+{
+   DIR *           dp;
+   struct dirent * de;
+   HB_SIZE         nLoaded = 0;
+   char            szPath[ HB_PATH_MAX ];
+
+   if( ! szDir || ! *szDir )
+      return 0;
+   dp = opendir( szDir );
+   if( ! dp )
+      return 0;
+
+   while( ( de = readdir( dp ) ) != NULL )
+   {
+      struct stat st;
+      HB_SIZE     nLen;
+
+      if( de->d_name[ 0 ] == '.' )
+         continue;
+      hb_snprintf( szPath, sizeof( szPath ), "%s/%s", szDir, de->d_name );
+      if( stat( szPath, &st ) != 0 )
+         continue;
+      if( S_ISDIR( st.st_mode ) )
+      {
+         if( fRecurse )
+            nLoaded += hb_hbxCanonLoadDir( szPath, HB_FALSE );
+         continue;
+      }
+      if( ! S_ISREG( st.st_mode ) )
+         continue;
+      nLen = strlen( de->d_name );
+      if( nLen < 5 ||
+          strcmp( de->d_name + nLen - 4, ".hbx" ) != 0 )
+         continue;
+      if( hb_hbxCanonLoad( szPath ) )
+         nLoaded++;
+   }
+   closedir( dp );
+   return nLoaded;
+}
+
+/* Auto-load all .hbx files from standard locations. Called once at
+   transpiler startup. Searches two layouts:
+
+   1. Install: /opt/harbour/include/harbour/*.hbx (core tags) plus
+      /opt/harbour/contrib/<lib>/<lib>.hbx (each contrib package).
+   2. Dev / cwd-relative: include/*.hbx plus contrib/<lib>/<lib>.hbx.
+
+   Missing directories are silently skipped — the canonicaliser
+   simply has fewer entries. Explicit --hbx=<path> still works for
+   non-standard layouts and adds to whatever auto-load found. */
+void hb_hbxCanonAutoLoad( void )
+{
+   /* Install layout (binary lives somewhere like /opt/harbour/bin). */
+   hb_hbxCanonLoadDir( "/opt/harbour/include/harbour", HB_FALSE );
+   hb_hbxCanonLoadDir( "/opt/harbour/contrib",         HB_TRUE  );
+
+   /* Dev layout: cwd is the harbour-core repo root (scripts run
+      from there, and the test suite cds there before invoking). */
+   hb_hbxCanonLoadDir( "include",                      HB_FALSE );
+   hb_hbxCanonLoadDir( "contrib",                      HB_TRUE  );
 }
 
 const char * hb_hbxCanonLookup( const char * szName )

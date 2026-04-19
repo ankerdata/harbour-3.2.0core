@@ -34,14 +34,13 @@ cp "$REPO_ROOT/src/transpiler/HbRuntime.cs" "$CSEXE/HbRuntime/HbRuntime.cs"
 # (params + by-ref usage) so the C# emitter has cross-file information
 # when it runs in pass 2. Without this, e.g. test19a's Swap parameters
 # would not get the `ref` modifier, because the @ args live in test19b.
-HBX="$REPO_ROOT/include/harbour.hbx"
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" --hbx="$HBX" -I"$REPO_ROOT/include" "$f" -GF -q 2>/dev/null
+   "$TRANSPILER" -I"$REPO_ROOT/include" "$f" -GF -q 2>/dev/null
 done
 
 # Pass 2 — regenerate all .cs files with the populated table.
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" --hbx="$HBX" -I"$REPO_ROOT/include" "$f" -GS -q 2>/dev/null
+   "$TRANSPILER" -I"$REPO_ROOT/include" "$f" -GS -q 2>/dev/null
 done
 
 # Build one test case. First arg is the dest project name; remaining
