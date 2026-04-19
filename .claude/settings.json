@@ -656,7 +656,30 @@
       "Read(//Users/alexstrickland/dev/easipos-transpiled/**)",
       "Bash(grep -l \"public static.*MyErase\" */*.cs)",
       "Bash(grep -l \"static dynamic MyErase\\\\|static.*MyErase\" */*.cs)",
-      "Bash(sort -u wc -l /tmp/w0016.txt echo \"---\" head /tmp/w0016.txt)"
+      "Bash(sort -u wc -l /tmp/w0016.txt echo \"---\" head /tmp/w0016.txt)",
+      "Bash(chmod +x src/transpiler/tests/verifyreftab.sh)",
+      "Bash(bash src/transpiler/tests/verifyreftab.sh)",
+      "Bash(bin/hbtranspiler -Iinclude /tmp/hbx_probe.prg -GS -q -o/tmp/)",
+      "Bash(bin/hbtranspiler -Iinclude --hbx=include/harbour.hbx /tmp/hbx_probe.prg -GS -q -o/tmp/)",
+      "Bash(sort -u wc -l /tmp/hbruntime_methods.txt head -20 /tmp/hbruntime_methods.txt)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core diff --stat HEAD -- src/transpiler/gencsharp.c)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core show HEAD:src/transpiler/gencsharp.c)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core show HEAD:src/transpiler/HbRuntime.cs)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core log --oneline -5 src/transpiler/gencsharp.c src/transpiler/HbRuntime.cs)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core log -p --all -S 'HbRuntime.QOut' -- src/transpiler/gencsharp.c)",
+      "Bash(sort -u wc -l /tmp/missing_hbruntime.txt echo --- head -30 /tmp/missing_hbruntime.txt)",
+      "Bash(sort -rn wc -l /tmp/missing_hbruntime2.txt echo --- head -30 /tmp/missing_hbruntime2.txt)",
+      "Bash(sort -rn wc -l /tmp/missing_final.txt head -40 /tmp/missing_final.txt)",
+      "Bash(jq -r '.permissions.allow[]' /Users/alexstrickland/dev/harbour-core/.claude/settings.json wc -l /tmp/allow_existing.txt)",
+      "Bash(bash src/transpiler/tests/buildhb.sh)",
+      "Bash(bash src/transpiler/tests/comparehb.sh)",
+      "Bash(bash src/transpiler/tests/runcs.sh)",
+      "Bash(bash src/transpiler/tests/runhb.sh)",
+      "Bash(cp src/transpiler/harbour.yyc src/transpiler/harboury.c)",
+      "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/gen-cs.sh:*)",
+      "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/scan.sh:*)",
+      "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/build.sh:*)",
+      "Bash(git check-ignore *)"
     ],
     "additionalDirectories": [
       "/tmp",
@@ -665,7 +688,8 @@
       "/Users/alexstrickland/dev/easipos/EasiPosX/easiutil",
       "/Users/alexstrickland/dev/harbour-core/src/transpiler/tests/hbexe",
       "/Users/alexstrickland/dev/harbour-core/src/transpiler/tests/csexe",
-      "/Users/alexstrickland/dev/harbour-core/src/transpiler/tests/prgexe"
+      "/Users/alexstrickland/dev/harbour-core/src/transpiler/tests/prgexe",
+      "/Users/alexstrickland/dev/harbour-core/notes/gen"
     ]
   }
 }
