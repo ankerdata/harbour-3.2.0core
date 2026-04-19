@@ -679,7 +679,9 @@
       "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/gen-cs.sh:*)",
       "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/scan.sh:*)",
       "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/build.sh:*)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(file /opt/harbour/bin/contrib.hbr echo ---)",
+      "Bash(sort -rn head -15 /tmp/missing_after_contrib.txt echo \"total unique: $\\(wc -l < /tmp/missing_after_contrib.txt\\)\")"
     ],
     "additionalDirectories": [
       "/tmp",
