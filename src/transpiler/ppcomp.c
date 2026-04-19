@@ -458,7 +458,19 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
       hb_pp_setComments( HB_COMP_PARAM->pLex->pPP, HB_TRUE );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "std.ch" );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "common.ch" );
+
+      /* Add the built-in dynamic defines (__HARBOUR__, __ARCH32BIT__,
+         …) AND any -D / -undef from the cmdline or env BEFORE
+         setStdBase. setStdBase marks the current rule list as the
+         "standard" (persistent) set; per-file hb_pp_reset() then
+         strips everything NOT in that set. So anything added after
+         setStdBase gets wiped on the first source reset and
+         `#ifdef ECR` / `#ifdef __HARBOUR__` comes back false. */
+      hb_pp_initDynDefines( HB_COMP_PARAM->pLex->pPP, ! HB_COMP_PARAM->fNoArchDefs );
+      hb_compChkSetDefines( HB_COMP_PARAM );
+
       hb_pp_setStdBase( HB_COMP_PARAM->pLex->pPP );
+
       /* Set callback to capture #include/#define directives into AST */
       {
          HB_PP_STATE * pPP = ( HB_PP_STATE * ) HB_COMP_PARAM->pLex->pPP;

@@ -33,7 +33,7 @@ public class Bag
 
 public static partial class Program
 {
-    static string test39_s_cStatic = HbRuntime.CHR(27) + "02" + HbRuntime.CHR(1);
+    static string test39___hbInit_TEST39_s_cStatic = HbRuntime.CHR(27) + "02" + HbRuntime.CHR(1);
     public static void Main(string[] args)
     {
         string cLocal = "ab" + "cd";
@@ -43,7 +43,7 @@ public static partial class Program
 
         HbRuntime.QOUT("local:  " + cLocal);
         HbRuntime.QOUT("llen:   " + HbRuntime.STR(HbRuntime.LEN(cPayload), 4));
-        HbRuntime.QOUT("static: " + HbRuntime.STR(HbRuntime.LEN(test39_s_cStatic), 4));
+        HbRuntime.QOUT("static: " + HbRuntime.STR(HbRuntime.LEN(test39___hbInit_TEST39_s_cStatic), 4));
         HbRuntime.QOUT("class:  " + oB.cHello);
         HbRuntime.QOUT("hsize:  " + HbRuntime.STR(HbRuntime.LEN(hEmpty), 4));
         HbRuntime.QOUT("hclas:  " + HbRuntime.STR(HbRuntime.LEN(oB.hTable), 4));
