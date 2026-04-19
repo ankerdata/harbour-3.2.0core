@@ -27,18 +27,18 @@ using static Program;
 // to the emitted C# signature.
 public static partial class Program
 {
-    static decimal test33___hbInit_TEST33_snState = 0;
+    static decimal test33_snState = 0;
     public static void Main(string[] args)
     {
         Bump();
         Bump();
-        HbRuntime.QOUT(Greet("Alex", true, "!"));
+        HbRuntime.QOut(Greet("Alex", true, "!"));
         return;
     }
 
     public static void Bump()
     {
-        test33___hbInit_TEST33_snState++;
+        test33_snState++;
         return;
 
         // The last function in the file — the one the bug dropped params on.

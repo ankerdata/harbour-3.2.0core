@@ -11,7 +11,7 @@ public static partial class Program
 {
     public static string HelperCallerB()
     {
-        return "41b: " + test41b_Helper() + ", " + HbRuntime.STR(test41b_HelperNum(), 4);
+        return "41b: " + test41b_Helper() + ", " + HbRuntime.Str(test41b_HelperNum(), 4);
     }
 
     public static string test41b_Helper()

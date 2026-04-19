@@ -24,7 +24,7 @@ public class Names
 
     public dynamic Show()
     {
-        HbRuntime.QOUT("all=" + this.cAll);
+        HbRuntime.QOut("all=" + this.cAll);
         return this;
     }
 }

@@ -27,7 +27,7 @@ public static partial class Program
         {
         }
 
-        HbRuntime.QOUT("body: " + (lBodyRan ? "yes" : "no"));
+        HbRuntime.QOut("body: " + (lBodyRan ? "yes" : "no"));
 
         return;
     }

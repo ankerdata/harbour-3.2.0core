@@ -24,19 +24,19 @@ public static partial class Program
         // DATE literal → DateOnly(1970, 1, 1)
         DateOnly dBirth = new DateOnly(1970, 1, 1);
         // DATE() → DateOnly
-        DateOnly dToday = HbRuntime.DATE();
+        DateOnly dToday = HbRuntime.Date();
         string cFormatted = default;
 
-        cFormatted = HbRuntime.DTOS(dBirth);
-        HbRuntime.QOUT("birth:", cFormatted);
+        cFormatted = HbRuntime.DToS(dBirth);
+        HbRuntime.QOut("birth:", cFormatted);
 
         if (dToday >= dBirth)
         {
-            HbRuntime.QOUT("chronology holds");
+            HbRuntime.QOut("chronology holds");
         }
         else
         {
-            HbRuntime.QOUT("time flows backwards");
+            HbRuntime.QOut("time flows backwards");
         }
 
         return;

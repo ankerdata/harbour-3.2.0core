@@ -15,9 +15,9 @@ public class Animal
     public dynamic New(string cName = default, string cSound = default)
     {
         this.cName = cName;
-        HbRuntime.QOUT("cName=" + this.cName);
+        HbRuntime.QOut("cName=" + this.cName);
         this.cSound = cSound;
-        HbRuntime.QOUT("cSound=" + this.cSound);
+        HbRuntime.QOut("cSound=" + this.cSound);
         return this;
     }
 
@@ -28,7 +28,7 @@ public class Animal
 
     public string Describe()
     {
-        return this.cName + " has " + HbRuntime.STR(this.nLegs) + " legs";
+        return this.cName + " has " + HbRuntime.Str(this.nLegs) + " legs";
     }
 }
 
@@ -39,9 +39,9 @@ public class Dog : Animal
     public dynamic Init(string cName = default, string cBreed = default)
     {
         this.cName = cName;
-        HbRuntime.QOUT("cName=" + this.cName);
+        HbRuntime.QOut("cName=" + this.cName);
         this.cBreed = cBreed;
-        HbRuntime.QOUT("cBreed=" + this.cBreed);
+        HbRuntime.QOut("cBreed=" + this.cBreed);
         return this;
     }
 
@@ -58,10 +58,10 @@ public static partial class Program
         Animal oAnimal = (Animal)new Animal().New("Cat", "Meow");
         Dog oDog = (Dog)new Dog().Init("Rex", "Labrador");
 
-        HbRuntime.QOUT("Speak=" + oAnimal.Speak());
-        HbRuntime.QOUT("Describe=" + oAnimal.Describe());
-        HbRuntime.QOUT("Speak=" + oDog.Speak());
-        HbRuntime.QOUT("DescribeFull=" + oDog.DescribeFull());
+        HbRuntime.QOut("Speak=" + oAnimal.Speak());
+        HbRuntime.QOut("Describe=" + oAnimal.Describe());
+        HbRuntime.QOut("Speak=" + oDog.Speak());
+        HbRuntime.QOut("DescribeFull=" + oDog.DescribeFull());
 
         return;
     }

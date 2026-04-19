@@ -36,7 +36,7 @@ public class Numbers
 
     public dynamic Show()
     {
-        HbRuntime.QOUT("total=" + HbRuntime.STR(this.nTotal));
+        HbRuntime.QOut("total=" + HbRuntime.Str(this.nTotal));
         return this;
     }
 }

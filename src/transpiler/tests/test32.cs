@@ -38,9 +38,9 @@ public static partial class Program
     {
         // #command match + trailing line comment.
         // not a set - __SetCentury
-        HbRuntime.__SETCENTURY("ON");
+        HbRuntime.__SetCentury("ON");
         // needed for ASORT
-        HbRuntime.SET(_SET_EXACT, "ON");
+        HbRuntime.Set(_SET_EXACT, "ON");
 
         Probe(1, true);
         Probe(2);
@@ -63,11 +63,11 @@ public static partial class Program
         }
         if (lReady == true)
         {
-            HbRuntime.QOUT("kind=" + HbRuntime.LTRIM(HbRuntime.STR(nKind)) + " ready=Y");
+            HbRuntime.QOut("kind=" + HbRuntime.LTrim(HbRuntime.Str(nKind)) + " ready=Y");
         }
         else
         {
-            HbRuntime.QOUT("kind=" + HbRuntime.LTRIM(HbRuntime.STR(nKind)) + " ready=N");
+            HbRuntime.QOut("kind=" + HbRuntime.LTrim(HbRuntime.Str(nKind)) + " ready=N");
         }
 
         return;

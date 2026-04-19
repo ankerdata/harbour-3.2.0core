@@ -32,14 +32,14 @@ using static Program;
 // mangling mechanics and the TIMESTAMP map for a single file.
 public static partial class Program
 {
-    static decimal test26_BumpCounter_nCounter = 0;
+    static decimal test26_nCounter = 0;
     public static void Main(string[] args)
     {
         // Hungarian prefix `dDate` → hb_astInferType returns "DATE" →
         // hb_csTypeMap returns "DateOnly". Date() returns DateOnly too,
         // so the assignment compiles cleanly. Separately, tStamp's
         // TIMESTAMP → DateTime mapping is covered by test27.
-        DateOnly dDate = HbRuntime.DATE();
+        DateOnly dDate = HbRuntime.Date();
         decimal i = default;
 
         // Exercise function-scope STATIC mangling three times to confirm
@@ -47,21 +47,21 @@ public static partial class Program
         // the same class field.
         for (i = 1; i <= 3; i++)
         {
-            HbRuntime.QOUT("bump:  " + HbRuntime.STR(BumpCounter(), 4));
+            HbRuntime.QOut("bump:  " + HbRuntime.Str(BumpCounter(), 4));
         }
 
-        HbRuntime.QOUT("total: " + HbRuntime.STR(BumpCounter(), 4));
+        HbRuntime.QOut("total: " + HbRuntime.Str(BumpCounter(), 4));
 
         // Use dDate so C# doesn't warn-as-error about an unused local.
         // Empty(date()) is .F. for today; both Harbour and HbRuntime.EMPTY
         // return false for a non-null DateOnly, so output matches.
-        if (HbRuntime.EMPTY(dDate))
+        if (HbRuntime.Empty(dDate))
         {
-            HbRuntime.QOUT("dDate: empty");
+            HbRuntime.QOut("dDate: empty");
         }
         else
         {
-            HbRuntime.QOUT("dDate: nonempty");
+            HbRuntime.QOut("dDate: nonempty");
         }
 
         return;
@@ -71,7 +71,7 @@ public static partial class Program
     }
     public static decimal BumpCounter()
     {
-        test26_BumpCounter_nCounter = test26_BumpCounter_nCounter + 1;
-        return test26_BumpCounter_nCounter;
+        test26_nCounter = test26_nCounter + 1;
+        return test26_nCounter;
     }
 }

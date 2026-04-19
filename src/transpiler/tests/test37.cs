@@ -28,24 +28,24 @@ public static partial class Program
     {
         Widget oW = new Widget();
 
-        HbRuntime.QOUT("count: " + HbRuntime.STR(oW.nCount, 4));
-        HbRuntime.QOUT("name:  " + "[" + oW.cName + "]");
+        HbRuntime.QOut("count: " + HbRuntime.Str(oW.nCount, 4));
+        HbRuntime.QOut("name:  " + "[" + oW.cName + "]");
         if (oW.lEnabled)
         {
-            HbRuntime.QOUT("enabled: yes");
+            HbRuntime.QOut("enabled: yes");
         }
         else
         {
-            HbRuntime.QOUT("enabled: no");
+            HbRuntime.QOut("enabled: no");
         }
 
         if (oW.lHidden)
         {
-            HbRuntime.QOUT("hidden: yes");
+            HbRuntime.QOut("hidden: yes");
         }
         else
         {
-            HbRuntime.QOUT("hidden: no");
+            HbRuntime.QOut("hidden: no");
         }
 
         return;

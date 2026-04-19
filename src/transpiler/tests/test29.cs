@@ -41,16 +41,16 @@ public static partial class Program
         switch (cCmd)
         {
             case SHUT:
-                HbRuntime.QOUT("shutting down");
+                HbRuntime.QOut("shutting down");
                 break;
             case HALT:
-                HbRuntime.QOUT("halting");
+                HbRuntime.QOut("halting");
                 break;
             case RUN:
-                HbRuntime.QOUT("running");
+                HbRuntime.QOut("running");
                 break;
             default:
-                HbRuntime.QOUT("unknown: " + cCmd);
+                HbRuntime.QOut("unknown: " + cCmd);
                 break;
         }
 

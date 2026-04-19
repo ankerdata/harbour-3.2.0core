@@ -26,7 +26,7 @@ public class Person : Inherited
 
     public dynamic New()
     {
-        HbRuntime.QOUT("New called");
+        HbRuntime.QOut("New called");
         return this;
     }
 }
@@ -58,10 +58,10 @@ public static partial class Program
         dynamic counter = default;
         dynamic Temp = default;
 
-        HbRuntime.QOUT("nCount=" + HbRuntime.STR(nCount));
-        HbRuntime.QOUT("nPrice=" + HbRuntime.STR(nPrice, 10, 2));
-        HbRuntime.QOUT("cName=" + cName);
-        HbRuntime.QOUT("lFound=" + (lFound ? ".T." : ".F."));
+        HbRuntime.QOut("nCount=" + HbRuntime.Str(nCount));
+        HbRuntime.QOut("nPrice=" + HbRuntime.Str(nPrice, 10, 2));
+        HbRuntime.QOut("cName=" + cName);
+        HbRuntime.QOut("lFound=" + (lFound ? ".T." : ".F."));
 
         return;
     }

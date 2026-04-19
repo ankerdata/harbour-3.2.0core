@@ -33,20 +33,20 @@ public class Bag
 
 public static partial class Program
 {
-    static string test39___hbInit_TEST39_s_cStatic = HbRuntime.CHR(27) + "02" + HbRuntime.CHR(1);
+    static string test39_s_cStatic = HbRuntime.Chr(27) + "02" + HbRuntime.Chr(1);
     public static void Main(string[] args)
     {
         string cLocal = "ab" + "cd";
-        string cPayload = HbRuntime.CHR(16) + HbRuntime.CHR(4);
+        string cPayload = HbRuntime.Chr(16) + HbRuntime.Chr(4);
         Dictionary<dynamic, dynamic> hEmpty = new Dictionary<dynamic, dynamic> {  };
         Bag oB = new Bag();
 
-        HbRuntime.QOUT("local:  " + cLocal);
-        HbRuntime.QOUT("llen:   " + HbRuntime.STR(HbRuntime.LEN(cPayload), 4));
-        HbRuntime.QOUT("static: " + HbRuntime.STR(HbRuntime.LEN(test39___hbInit_TEST39_s_cStatic), 4));
-        HbRuntime.QOUT("class:  " + oB.cHello);
-        HbRuntime.QOUT("hsize:  " + HbRuntime.STR(HbRuntime.LEN(hEmpty), 4));
-        HbRuntime.QOUT("hclas:  " + HbRuntime.STR(HbRuntime.LEN(oB.hTable), 4));
+        HbRuntime.QOut("local:  " + cLocal);
+        HbRuntime.QOut("llen:   " + HbRuntime.Str(HbRuntime.Len(cPayload), 4));
+        HbRuntime.QOut("static: " + HbRuntime.Str(HbRuntime.Len(test39_s_cStatic), 4));
+        HbRuntime.QOut("class:  " + oB.cHello);
+        HbRuntime.QOut("hsize:  " + HbRuntime.Str(HbRuntime.Len(hEmpty), 4));
+        HbRuntime.QOut("hclas:  " + HbRuntime.Str(HbRuntime.Len(oB.hTable), 4));
 
         return;
     }

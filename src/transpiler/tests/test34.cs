@@ -17,7 +17,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic oError = HbRuntime.ERRORNEW();
+        dynamic oError = HbRuntime.ErrorNew();
 
         oError.severity = 3;
         oError.genCode = 42;
@@ -27,13 +27,13 @@ public static partial class Program
         oError.canRetry = false;
         oError.canDefault = true;
 
-        HbRuntime.QOUT("severity:    " + HbRuntime.STR(oError.severity, 4));
-        HbRuntime.QOUT("genCode:     " + HbRuntime.STR(oError.genCode, 4));
-        HbRuntime.QOUT("subSystem:   " + oError.subSystem);
-        HbRuntime.QOUT("description: " + oError.description);
-        HbRuntime.QOUT("canRetry:    " + (oError.canRetry ? "yes" : "no"));
-        HbRuntime.QOUT("canDefault:  " + (oError.canDefault ? "yes" : "no"));
-        HbRuntime.QOUT("classname:   " + oError.classname());
+        HbRuntime.QOut("severity:    " + HbRuntime.Str(oError.severity, 4));
+        HbRuntime.QOut("genCode:     " + HbRuntime.Str(oError.genCode, 4));
+        HbRuntime.QOut("subSystem:   " + oError.subSystem);
+        HbRuntime.QOut("description: " + oError.description);
+        HbRuntime.QOut("canRetry:    " + (oError.canRetry ? "yes" : "no"));
+        HbRuntime.QOut("canDefault:  " + (oError.canDefault ? "yes" : "no"));
+        HbRuntime.QOut("classname:   " + oError.classname());
         return;
     }
 }

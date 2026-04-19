@@ -14,7 +14,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        HbRuntime.QOUT("QuadrupleIt(5)=" + HbRuntime.STR(QuadrupleIt(5)));
+        HbRuntime.QOut("QuadrupleIt(5)=" + HbRuntime.Str(QuadrupleIt(5)));
         return;
     }
 }

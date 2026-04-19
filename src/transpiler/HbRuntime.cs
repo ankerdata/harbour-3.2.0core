@@ -12,18 +12,18 @@ using System.Linq;
 /// canonical form in src/transpiler/hbfuncs.tab. The C# transpiler
 /// uppercases every HbRuntime-remapped call at emit time (see
 /// hb_csFuncMap in gencsharp.c), so source-level casing variations like
-/// `INT()`, `int()`, `Int()` all resolve to the same method here.
+/// `Int()`, `int()`, `Int()` all resolve to the same method here.
 /// </summary>
 public static partial class HbRuntime
 {
     static readonly CultureInfo INV = CultureInfo.InvariantCulture;
 
     // ---- Codeblock dispatch ----
-    // Harbour codeblocks emit as Func<dynamic[], dynamic>, so EVAL just
+    // Harbour codeblocks emit as Func<dynamic[], dynamic>, so Eval just
     // packs the trailing args into the array and invokes. Delegate
     // fallback covers blocks that survived as a plain delegate (e.g.
     // typed fixed-arity lambdas) via DynamicInvoke.
-    public static dynamic EVAL(dynamic block, params dynamic[] args)
+    public static dynamic Eval(dynamic block, params dynamic[] args)
     {
         if (block is Func<dynamic[], dynamic> fa) return fa(args);
         if (block is Delegate d) return d.DynamicInvoke(args);
@@ -35,7 +35,7 @@ public static partial class HbRuntime
     // Harbour's `?` / `??` commands separate comma-delimited args
     // with a single space in the output. "hi", n prints as "hi 3"
     // (space between label and value), not "hi3".
-    public static void QOUT(params dynamic[] args)
+    public static void QOut(params dynamic[] args)
     {
         Console.WriteLine();
         for (int i = 0; i < args.Length; i++)
@@ -45,7 +45,7 @@ public static partial class HbRuntime
         }
     }
 
-    public static void QQOUT(params dynamic[] args)
+    public static void QQOut(params dynamic[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
@@ -55,11 +55,11 @@ public static partial class HbRuntime
     }
 
     static string Fmt(dynamic a) =>
-        a is decimal d ? STR(d) : Convert.ToString(a, INV);
+        a is decimal d ? Str(d) : Convert.ToString(a, INV);
 
     // ---- Numeric functions ----
 
-    public static string STR(decimal? nOrNull, decimal nWidth = 10, decimal nDec = -1)
+    public static string Str(decimal? nOrNull, decimal nWidth = 10, decimal nDec = -1)
     {
         // Accepts nullable decimals so transpiled code can pass parameters
         // marked nilable in the by-ref table without an explicit cast.
@@ -79,43 +79,43 @@ public static partial class HbRuntime
         return s.PadLeft(iWidth);
     }
 
-    public static decimal VAL(string s)
+    public static decimal Val(string s)
     {
         decimal.TryParse(s, NumberStyles.Any, INV, out decimal result);
         return result;
     }
 
-    public static decimal INT(decimal n) => Math.Truncate(n);
-    public static decimal ROUND(decimal n, decimal nDec = 0) => Math.Round(n, (int)nDec);
-    public static decimal ABS(decimal n) => Math.Abs(n);
-    public static decimal MAX(decimal a, decimal b) => Math.Max(a, b);
-    public static decimal MIN(decimal a, decimal b) => Math.Min(a, b);
-    public static decimal MOD(decimal a, decimal b) => a % b;
-    public static decimal SQRT(decimal n) => (decimal)Math.Sqrt((double)n);
-    public static decimal LOG(decimal n) => (decimal)Math.Log((double)n);
-    public static decimal EXP(decimal n) => (decimal)Math.Exp((double)n);
+    public static decimal Int(decimal n) => Math.Truncate(n);
+    public static decimal Round(decimal n, decimal nDec = 0) => Math.Round(n, (int)nDec);
+    public static decimal Abs(decimal n) => Math.Abs(n);
+    public static decimal Max(decimal a, decimal b) => Math.Max(a, b);
+    public static decimal Min(decimal a, decimal b) => Math.Min(a, b);
+    public static decimal Mod(decimal a, decimal b) => a % b;
+    public static decimal Sqrt(decimal n) => (decimal)Math.Sqrt((double)n);
+    public static decimal Log(decimal n) => (decimal)Math.Log((double)n);
+    public static decimal Exp(decimal n) => (decimal)Math.Exp((double)n);
 
     // ---- String functions ----
 
-    public static decimal LEN(dynamic x)
+    public static decimal Len(dynamic x)
     {
         if (x is string s) return s.Length;
         if (x is Array a) return a.Length;
         return 0;
     }
 
-    public static string UPPER(string s) => s.ToUpper();
-    public static string LOWER(string s) => s.ToLower();
-    public static string TRIM(string s) => s.TrimEnd();
-    public static string RTRIM(string s) => s.TrimEnd();
-    public static string LTRIM(string s) => s.TrimStart();
-    public static string ALLTRIM(string s) => s.Trim();
-    public static string SPACE(decimal n) => new string(' ', (int)n);
-    public static string REPLICATE(string s, decimal n) => string.Concat(System.Linq.Enumerable.Repeat(s, (int)n));
-    public static string CHR(decimal n) => ((char)(int)n).ToString();
-    public static decimal ASC(string s) => s.Length > 0 ? (decimal)s[0] : 0;
+    public static string Upper(string s) => s.ToUpper();
+    public static string Lower(string s) => s.ToLower();
+    public static string Trim(string s) => s.TrimEnd();
+    public static string RTrim(string s) => s.TrimEnd();
+    public static string LTrim(string s) => s.TrimStart();
+    public static string AllTrim(string s) => s.Trim();
+    public static string Space(decimal n) => new string(' ', (int)n);
+    public static string Replicate(string s, decimal n) => string.Concat(System.Linq.Enumerable.Repeat(s, (int)n));
+    public static string Chr(decimal n) => ((char)(int)n).ToString();
+    public static decimal Asc(string s) => s.Length > 0 ? (decimal)s[0] : 0;
 
-    public static string SUBSTR(string s, decimal nStart, decimal nLen = -1)
+    public static string SubStr(string s, decimal nStart, decimal nLen = -1)
     {
         // Harbour is 1-based
         int iStart = Math.Max((int)nStart - 1, 0);
@@ -126,22 +126,22 @@ public static partial class HbRuntime
         return s.Substring(iStart, iLen);
     }
 
-    public static string LEFT(string s, decimal n) => SUBSTR(s, 1, n);
-    public static string RIGHT(string s, decimal n) { int i = (int)n; return i >= s.Length ? s : s.Substring(s.Length - i); }
+    public static string Left(string s, decimal n) => SubStr(s, 1, n);
+    public static string Right(string s, decimal n) { int i = (int)n; return i >= s.Length ? s : s.Substring(s.Length - i); }
 
-    public static decimal AT(string cSearch, string cString) =>
+    public static decimal At(string cSearch, string cString) =>
         (decimal)(cString.IndexOf(cSearch, StringComparison.Ordinal) + 1);
 
-    public static decimal RAT(string cSearch, string cString) =>
+    public static decimal RAt(string cSearch, string cString) =>
         (decimal)(cString.LastIndexOf(cSearch, StringComparison.Ordinal) + 1);
 
-    public static string PADL(string s, decimal nLen, string cFill = " ") =>
+    public static string PadL(string s, decimal nLen, string cFill = " ") =>
         s.Length >= (int)nLen ? s : s.PadLeft((int)nLen, cFill[0]);
 
-    public static string PADR(string s, decimal nLen, string cFill = " ") =>
+    public static string PadR(string s, decimal nLen, string cFill = " ") =>
         s.Length >= (int)nLen ? s : s.PadRight((int)nLen, cFill[0]);
 
-    public static string PADC(string s, decimal nLen, string cFill = " ")
+    public static string PadC(string s, decimal nLen, string cFill = " ")
     {
         int iLen = (int)nLen;
         if (s.Length >= iLen) return s;
@@ -149,10 +149,10 @@ public static partial class HbRuntime
         return s.PadLeft(s.Length + nLeft, cFill[0]).PadRight(iLen, cFill[0]);
     }
 
-    public static string STRTRAN(string cString, string cSearch, string cReplace = "") =>
+    public static string StrTran(string cString, string cSearch, string cReplace = "") =>
         cString.Replace(cSearch, cReplace);
 
-    public static string STUFF(string cString, decimal nStart, decimal nDel, string cInsert)
+    public static string Stuff(string cString, decimal nStart, decimal nDel, string cInsert)
     {
         int iStart = Math.Max((int)nStart - 1, 0);
         int iDel = (int)nDel;
@@ -160,13 +160,13 @@ public static partial class HbRuntime
         return cString.Substring(0, iStart) + cInsert + cString.Substring(Math.Min(iStart + iDel, cString.Length));
     }
 
-    public static string TRANSFORM(dynamic val, string cMask) => Convert.ToString(val, INV);
-    public static string STRZERO(decimal n, decimal nLen = 10, decimal nDec = 0) =>
+    public static string Transform(dynamic val, string cMask) => Convert.ToString(val, INV);
+    public static string StrZero(decimal n, decimal nLen = 10, decimal nDec = 0) =>
         n.ToString("F" + (int)nDec, INV).PadLeft((int)nLen, '0');
 
     // ---- Logical functions ----
 
-    public static bool EMPTY(dynamic val)
+    public static bool Empty(dynamic val)
     {
         if (val == null) return true;
         if (val is decimal d) return d == 0;
@@ -176,25 +176,25 @@ public static partial class HbRuntime
         return false;
     }
 
-    public static bool ISDIGIT(string s) => s.Length > 0 && char.IsDigit(s[0]);
-    public static bool ISALPHA(string s) => s.Length > 0 && char.IsLetter(s[0]);
-    public static bool ISUPPER(string s) => s.Length > 0 && char.IsUpper(s[0]);
-    public static bool ISLOWER(string s) => s.Length > 0 && char.IsLower(s[0]);
+    public static bool IsDigit(string s) => s.Length > 0 && char.IsDigit(s[0]);
+    public static bool IsAlpha(string s) => s.Length > 0 && char.IsLetter(s[0]);
+    public static bool IsUpper(string s) => s.Length > 0 && char.IsUpper(s[0]);
+    public static bool IsLower(string s) => s.Length > 0 && char.IsLower(s[0]);
 
     // ---- Date functions ----
-    // Harbour DATE → C# DateOnly (no time component). Harbour TIMESTAMP
+    // Harbour Date → C# DateOnly (no time component). Harbour TIMESTAMP
     // maps to C# DateTime via the transpiler's type map.
 
-    public static DateOnly DATE() => DateOnly.FromDateTime(DateTime.Today);
-    public static DateOnly CTOD(string s) { DateTime.TryParse(s, out DateTime d); return DateOnly.FromDateTime(d); }
-    public static DateOnly STOD(string s) { DateTime.TryParseExact(s, "yyyyMMdd", INV, DateTimeStyles.None, out DateTime d); return DateOnly.FromDateTime(d); }
-    public static string DTOC(DateOnly d) => d.ToString("MM/dd/yyyy", INV);
-    public static string DTOS(DateOnly d) => d.ToString("yyyyMMdd", INV);
-    public static string TIME() => DateTime.Now.ToString("HH:mm:ss", INV);
+    public static DateOnly Date() => DateOnly.FromDateTime(DateTime.Today);
+    public static DateOnly CToD(string s) { DateTime.TryParse(s, out DateTime d); return DateOnly.FromDateTime(d); }
+    public static DateOnly SToD(string s) { DateTime.TryParseExact(s, "yyyyMMdd", INV, DateTimeStyles.None, out DateTime d); return DateOnly.FromDateTime(d); }
+    public static string DToC(DateOnly d) => d.ToString("MM/dd/yyyy", INV);
+    public static string DToS(DateOnly d) => d.ToString("yyyyMMdd", INV);
+    public static string Time() => DateTime.Now.ToString("HH:mm:ss", INV);
 
     // ---- Terminal ----
 
-    public static void SETCOLOR(string cColor) { }
+    public static void SetColor(string cColor) { }
 
     // ---- Array functions ----
     // Harbour arrays map to C# dynamic[] or List<dynamic>. Because dynamic[]
@@ -204,13 +204,13 @@ public static partial class HbRuntime
     // dynamic and dispatch on the runtime shape: List<dynamic> resizes in
     // place; arrays are rebuilt into a new array and returned.
 
-    public static dynamic AADD(dynamic arr, dynamic val)
+    public static dynamic AAdd(dynamic arr, dynamic val)
     {
         if (arr is List<dynamic> list) { list.Add(val); return val; }
         return val;
     }
 
-    public static dynamic ASIZE(dynamic arr, decimal nLen)
+    public static dynamic ASize(dynamic arr, decimal nLen)
     {
         int n = (int)nLen;
         if (arr is List<dynamic> list)
@@ -221,14 +221,14 @@ public static partial class HbRuntime
         return arr;
     }
 
-    public static dynamic ACLONE(dynamic arr)
+    public static dynamic AClone(dynamic arr)
     {
         if (arr is List<dynamic> list) return new List<dynamic>(list);
         if (arr is Array a) { var copy = (Array)a.Clone(); return copy; }
         return arr;
     }
 
-    public static decimal ASCAN(dynamic arr, dynamic val)
+    public static decimal AScan(dynamic arr, dynamic val)
     {
         if (arr is List<dynamic> list)
         {
@@ -238,17 +238,17 @@ public static partial class HbRuntime
         return 0;
     }
 
-    public static dynamic AEVAL(dynamic arr, dynamic block)
+    public static dynamic AEval(dynamic arr, dynamic block)
     {
         if (arr is List<dynamic> list)
         {
             for (int i = 0; i < list.Count; i++)
-                EVAL(block, list[i], (decimal)(i + 1));
+                Eval(block, list[i], (decimal)(i + 1));
         }
         return arr;
     }
 
-    public static dynamic ADEL(dynamic arr, decimal nPos)
+    public static dynamic ADel(dynamic arr, decimal nPos)
     {
         if (arr is List<dynamic> list)
         {
@@ -258,7 +258,7 @@ public static partial class HbRuntime
         return arr;
     }
 
-    public static dynamic AINS(dynamic arr, decimal nPos)
+    public static dynamic AIns(dynamic arr, decimal nPos)
     {
         if (arr is List<dynamic> list)
         {
@@ -270,7 +270,7 @@ public static partial class HbRuntime
 
     // ---- Type inspection ----
 
-    public static string VALTYPE(dynamic x)
+    public static string ValType(dynamic x)
     {
         if (x is null) return "U";
         if (x is string) return "C";
@@ -283,7 +283,7 @@ public static partial class HbRuntime
         return "O";
     }
 
-    public static decimal PCOUNT() => 0;  // varargs path uses hbva.Length directly
+    public static decimal PCount() => 0;  // varargs path uses hbva.Length directly
 
     // ---- Defaults helper (hb_default) ----
     // Harbour's hb_default( @var, val ) sets var to val if NIL. Without
@@ -311,19 +311,19 @@ public static partial class HbRuntime
 
     // ---- Time ----
 
-    public static decimal SECONDS() =>
+    public static decimal Seconds() =>
         (decimal)(DateTime.Now - DateTime.Today).TotalSeconds;
 
     // ---- File I/O ----
     // Very simple handle table mapping decimal -> FileStream. Real Harbour
-    // returns -1 on failure; FERROR() returns the last OS errno. We only
+    // returns -1 on failure; FError() returns the last OS errno. We only
     // track "did the last op fail" as 0 / 1.
 
     static readonly Dictionary<int, FileStream> s_files = new();
     static int s_nextHandle = 1;
     static int s_lastError = 0;
 
-    public static decimal FOPEN(string cFile, decimal nMode = 0)
+    public static decimal FOpen(string cFile, decimal nMode = 0)
     {
         try
         {
@@ -339,7 +339,7 @@ public static partial class HbRuntime
         catch { s_lastError = 1; return -1; }
     }
 
-    public static decimal FCREATE(string cFile, decimal nAttr = 0)
+    public static decimal FCreate(string cFile, decimal nAttr = 0)
     {
         try
         {
@@ -352,7 +352,7 @@ public static partial class HbRuntime
         catch { s_lastError = 1; return -1; }
     }
 
-    public static bool FCLOSE(decimal nHandle)
+    public static bool FClose(decimal nHandle)
     {
         if (s_files.TryGetValue((int)nHandle, out var fs))
         {
@@ -363,7 +363,7 @@ public static partial class HbRuntime
         return false;
     }
 
-    public static decimal FREAD(decimal nHandle, ref string cBuf, decimal nBytes)
+    public static decimal FRead(decimal nHandle, ref string cBuf, decimal nBytes)
     {
         if (!s_files.TryGetValue((int)nHandle, out var fs)) { s_lastError = 1; return 0; }
         byte[] b = new byte[(int)nBytes];
@@ -372,7 +372,7 @@ public static partial class HbRuntime
         return read;
     }
 
-    public static decimal FWRITE(decimal nHandle, string cBuf, decimal nBytes = -1)
+    public static decimal FWrite(decimal nHandle, string cBuf, decimal nBytes = -1)
     {
         if (!s_files.TryGetValue((int)nHandle, out var fs)) { s_lastError = 1; return 0; }
         byte[] b = System.Text.Encoding.UTF8.GetBytes(cBuf);
@@ -381,7 +381,7 @@ public static partial class HbRuntime
         return n;
     }
 
-    public static decimal FSEEK(decimal nHandle, decimal nOffset, decimal nOrigin = 0)
+    public static decimal FSeek(decimal nHandle, decimal nOffset, decimal nOrigin = 0)
     {
         if (!s_files.TryGetValue((int)nHandle, out var fs)) { s_lastError = 1; return 0; }
         SeekOrigin o = (int)nOrigin switch
@@ -393,17 +393,17 @@ public static partial class HbRuntime
         return (decimal)fs.Seek((long)nOffset, o);
     }
 
-    public static decimal FERROR() => s_lastError;
+    public static decimal FError() => s_lastError;
 
-    public static bool FILE(string cFile) => System.IO.File.Exists(cFile);
+    public static bool File(string cFile) => System.IO.File.Exists(cFile);
 
-    public static string MEMOREAD(string cFile)
+    public static string MemoRead(string cFile)
     {
         try { return System.IO.File.ReadAllText(cFile); }
         catch { return ""; }
     }
 
-    public static bool MEMOWRIT(string cFile, string cData)
+    public static bool MemoWrit(string cFile, string cData)
     {
         try { System.IO.File.WriteAllText(cFile, cData); return true; }
         catch { return false; }
@@ -414,12 +414,12 @@ public static partial class HbRuntime
     static DateTime AsDT(dynamic d) => d is DateOnly dd ? dd.ToDateTime(TimeOnly.MinValue)
                                      : d is DateTime dt ? dt
                                      : default;
-    public static decimal YEAR(dynamic d) => AsDT(d).Year;
-    public static decimal MONTH(dynamic d) => AsDT(d).Month;
-    public static decimal DAY(dynamic d) => AsDT(d).Day;
-    public static decimal DOW(dynamic d) => (decimal)((int)AsDT(d).DayOfWeek + 1);
-    public static string CDOW(dynamic d) => AsDT(d).ToString("dddd", INV);
-    public static string CMONTH(dynamic d) => AsDT(d).ToString("MMMM", INV);
+    public static decimal Year(dynamic d) => AsDT(d).Year;
+    public static decimal Month(dynamic d) => AsDT(d).Month;
+    public static decimal Day(dynamic d) => AsDT(d).Day;
+    public static decimal DoW(dynamic d) => (decimal)((int)AsDT(d).DayOfWeek + 1);
+    public static string CDoW(dynamic d) => AsDT(d).ToString("dddd", INV);
+    public static string CMonth(dynamic d) => AsDT(d).ToString("MMMM", INV);
 
     // ---- Type predicates ----
 
@@ -439,30 +439,30 @@ public static partial class HbRuntime
     // ---- Hash helpers ----
 
     static System.Collections.IDictionary AsDict(dynamic h) => h as System.Collections.IDictionary;
-    public static dynamic HB_HGETDEF(dynamic h, dynamic key, dynamic def = null)
+    public static dynamic hb_HGetDef(dynamic h, dynamic key, dynamic def = null)
     {
         var d = AsDict(h);
         return (d != null && d.Contains(key)) ? d[key] : def;
     }
-    public static bool HB_HHASKEY(dynamic h, dynamic key)
+    public static bool hb_HHasKey(dynamic h, dynamic key)
     {
         var d = AsDict(h);
         return d != null && d.Contains(key);
     }
-    public static decimal HB_HDEL(dynamic h, dynamic key)
+    public static decimal hb_HDel(dynamic h, dynamic key)
     {
         var d = AsDict(h);
         if (d != null && d.Contains(key)) d.Remove(key);
         return 0;
     }
-    public static dynamic HB_HKEYS(dynamic h)
+    public static dynamic hb_HKeys(dynamic h)
     {
         var r = new List<dynamic>();
         var d = AsDict(h);
         if (d != null) foreach (var k in d.Keys) r.Add(k);
         return r;
     }
-    public static dynamic HB_HVALUES(dynamic h)
+    public static dynamic hb_HValues(dynamic h)
     {
         var r = new List<dynamic>();
         var d = AsDict(h);
@@ -472,18 +472,18 @@ public static partial class HbRuntime
 
     // ---- Array extras ----
 
-    public static dynamic AFILL(dynamic arr, dynamic val)
+    public static dynamic AFill(dynamic arr, dynamic val)
     {
         if (arr is List<dynamic> list) for (int i = 0; i < list.Count; i++) list[i] = val;
         return arr;
     }
 
-    public static dynamic ASORT(dynamic arr, dynamic nStart = null, dynamic nCount = null, dynamic block = null)
+    public static dynamic ASort(dynamic arr, dynamic nStart = null, dynamic nCount = null, dynamic block = null)
     {
         if (arr is List<dynamic> list)
         {
             if (block is Delegate)
-                list.Sort((a, b) => ((bool)EVAL(block, a, b)) ? -1 : 1);
+                list.Sort((a, b) => ((bool)Eval(block, a, b)) ? -1 : 1);
             else
                 list.Sort((a, b) => Comparer<dynamic>.Default.Compare(a, b));
         }
@@ -528,7 +528,7 @@ public static partial class HbRuntime
     // common.ch
     public const string CRLF = "\r\n";
 
-    // ---- SET() ----
+    // ---- Set() ----
     // Harbour's Set( _SET_XXX [, newVal] ) reads/writes a setting. Keyed on
     // the numeric _SET_* identifier. Returns the prior value.
 
@@ -544,14 +544,14 @@ public static partial class HbRuntime
         [(int)_SET_CENTURY]    = false,
     };
 
-    public static dynamic SET(decimal nSet, dynamic newVal = null)
+    public static dynamic Set(decimal nSet, dynamic newVal = null)
     {
         int key = (int)nSet;
         s_sets.TryGetValue(key, out dynamic prev);
         if (newVal is not null)
         {
             /* Normalize "ON"/"OFF" → bool when the existing slot is
-               bool-typed. Harbour's `SET EXACT ON` lexer route STRSMARTs
+               bool-typed. Harbour's `Set EXACT ON` lexer route STRSMARTs
                the keyword into a string literal that Set() receives. */
             if (prev is bool && newVal is string)
                 s_sets[key] = AsOnOff(newVal);
@@ -562,7 +562,7 @@ public static partial class HbRuntime
     }
 
     /* Harbour's Set() / __SetCentury() accept either a bool or the
-       strings "ON"/"OFF" (because the #command rules for SET ... ON/OFF
+       strings "ON"/"OFF" (because the #command rules for Set ... ON/OFF
        STRSMART the keyword into a string literal). Normalize to bool. */
     static bool AsOnOff(dynamic val, bool fallback = false)
     {
@@ -572,7 +572,7 @@ public static partial class HbRuntime
         return fallback;
     }
 
-    public static bool __SETCENTURY(dynamic val = null)
+    public static bool __SetCentury(dynamic val = null)
     {
         bool prev = s_sets[(int)_SET_CENTURY] is bool pb && pb;
         if (val is not null) s_sets[(int)_SET_CENTURY] = AsOnOff(val);
@@ -584,16 +584,16 @@ public static partial class HbRuntime
     // Dictionary<object, object> of mutexes so the transpiled code can
     // hold them as dynamic.
 
-    public static dynamic HB_MUTEXCREATE() => new object();
+    public static dynamic hb_mutexCreate() => new object();
 
-    public static bool HB_MUTEXLOCK(dynamic mtx, dynamic nTimeout = null)
+    public static bool hb_mutexLock(dynamic mtx, dynamic nTimeout = null)
     {
         if (mtx is null) return false;
         System.Threading.Monitor.Enter(mtx);
         return true;
     }
 
-    public static bool HB_MUTEXUNLOCK(dynamic mtx)
+    public static bool hb_mutexUnlock(dynamic mtx)
     {
         if (mtx is null) return false;
         try { System.Threading.Monitor.Exit(mtx); return true; }
@@ -639,7 +639,7 @@ public static partial class HbRuntime
     // bin2i: 2-byte little-endian signed → numeric.
     // i2bin: numeric → 2-byte little-endian signed string.
 
-    public static decimal BIN2L(string s)
+    public static decimal Bin2L(string s)
     {
         if (s is null || s.Length < 4) return 0;
         int v = (byte)s[0] | ((byte)s[1] << 8) | ((byte)s[2] << 16) | ((byte)s[3] << 24);
@@ -654,14 +654,14 @@ public static partial class HbRuntime
         return new string(b);
     }
 
-    public static decimal BIN2I(string s)
+    public static decimal Bin2I(string s)
     {
         if (s is null || s.Length < 2) return 0;
         short v = (short)((byte)s[0] | ((byte)s[1] << 8));
         return v;
     }
 
-    public static string I2BIN(decimal n)
+    public static string I2Bin(decimal n)
     {
         ushort v = (ushort)(short)(int)n;
         char[] b = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF) };
@@ -721,7 +721,7 @@ public static partial class HbRuntime
         public string classname() => "ERROR";
     }
 
-    public static dynamic ERRORNEW() => new HbError();
+    public static dynamic ErrorNew() => new HbError();
     /* Object `.classname()` fallback for arbitrary objects — Harbour allows
        it on anything. Real port would use `GetType().Name`. */
     public static string CLASSNAME(dynamic o) =>
@@ -740,8 +740,8 @@ public static partial class HbRuntime
     /// </summary>
     public static dynamic MacroStub;
 
-    public static decimal RECNO() => 0;
-    public static dynamic DIRECTORY(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
+    public static decimal RecNo() => 0;
+    public static dynamic Directory(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
 
     // ---- Function-reference resolution (Harbour's @FunName() operator) ----
 

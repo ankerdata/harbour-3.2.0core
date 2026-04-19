@@ -52,17 +52,17 @@ public static partial class Program
         // Bug A — every source-level casing variation of the same builtins.
         // Post-fix all four variants emit as `HbRuntime.STR` / `.UPPER` /
         // `.LEN` / `.INT`, matching the UPPERCASE HbRuntime.cs methods.
-        HbRuntime.QOUT("pi:     " + HbRuntime.STR(PI, 8, 2));
-        HbRuntime.QOUT("magic:  " + HbRuntime.STR(MAGIC, 8));
-        HbRuntime.QOUT("upper:  " + HbRuntime.UPPER(cName));
-        HbRuntime.QOUT("upper2: " + HbRuntime.UPPER(cName));
-        HbRuntime.QOUT("str:    " + HbRuntime.STR(MAGIC, 8));
-        HbRuntime.QOUT("len:    " + HbRuntime.STR(HbRuntime.LEN(cName), 4));
-        HbRuntime.QOUT("int:    " + HbRuntime.STR(HbRuntime.INT(PI + 0.7m), 4));
-        HbRuntime.QOUT("INT:    " + HbRuntime.STR(HbRuntime.INT(PI + 0.7m), 4));
+        HbRuntime.QOut("pi:     " + HbRuntime.Str(PI, 8, 2));
+        HbRuntime.QOut("magic:  " + HbRuntime.Str(MAGIC, 8));
+        HbRuntime.QOut("upper:  " + HbRuntime.Upper(cName));
+        HbRuntime.QOut("upper2: " + HbRuntime.Upper(cName));
+        HbRuntime.QOut("str:    " + HbRuntime.Str(MAGIC, 8));
+        HbRuntime.QOut("len:    " + HbRuntime.Str(HbRuntime.Len(cName), 4));
+        HbRuntime.QOut("int:    " + HbRuntime.Str(HbRuntime.Int(PI + 0.7m), 4));
+        HbRuntime.QOut("INT:    " + HbRuntime.Str(HbRuntime.Int(PI + 0.7m), 4));
 
         // Bug C — round-trip the backslash #define through string concat.
-        HbRuntime.QOUT("sep:    " + "a" + SEPARATOR + "b");
+        HbRuntime.QOut("sep:    " + "a" + SEPARATOR + "b");
 
         return;
 

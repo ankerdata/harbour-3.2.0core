@@ -11,9 +11,9 @@ public static partial class Program
         decimal nA = 1;
         decimal nB = 2;
 
-        HbRuntime.QOUT("before: a=" + HbRuntime.STR(nA) + " b=" + HbRuntime.STR(nB));
+        HbRuntime.QOut("before: a=" + HbRuntime.Str(nA) + " b=" + HbRuntime.Str(nB));
         Swap(ref nA, ref nB);
-        HbRuntime.QOUT("after:  a=" + HbRuntime.STR(nA) + " b=" + HbRuntime.STR(nB));
+        HbRuntime.QOut("after:  a=" + HbRuntime.Str(nA) + " b=" + HbRuntime.Str(nB));
 
         return;
     }

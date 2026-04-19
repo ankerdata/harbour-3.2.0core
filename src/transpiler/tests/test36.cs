@@ -41,22 +41,22 @@ public static partial class Program
         // inserting unwanted parens around statement-position assigns.
 
         nA = 10;
-        HbRuntime.QOUT("plain: nA=" + HbRuntime.STR(nA, 3));
+        HbRuntime.QOut("plain: nA=" + HbRuntime.Str(nA, 3));
 
         nA = Fetch();
-        HbRuntime.QOUT("from-call: nA=" + HbRuntime.STR(nA, 3));
+        HbRuntime.QOut("from-call: nA=" + HbRuntime.Str(nA, 3));
 
         // Chained assignment — `nC := nD := nE := 7` assigns 7 to all
         // three, right-to-left. Emitted C# needs the nested assign to
         // survive as an expression, which is a separate code path from
         // the top-level statement.
         nC = (nD = (nE = 7));
-        HbRuntime.QOUT("chain: " + HbRuntime.STR(nC, 3) + HbRuntime.STR(nD, 3) + HbRuntime.STR(nE, 3));
+        HbRuntime.QOut("chain: " + HbRuntime.Str(nC, 3) + HbRuntime.Str(nD, 3) + HbRuntime.Str(nE, 3));
 
         // Compound assignment as a statement (no surrounding comparison).
         nA += 5;
         nA *= 2;
-        HbRuntime.QOUT("compound: nA=" + HbRuntime.STR(nA, 3));
+        HbRuntime.QOut("compound: nA=" + HbRuntime.Str(nA, 3));
 
         // --- Assignment-inside-expression (the original paren case) ---
 
@@ -64,32 +64,32 @@ public static partial class Program
         // branch reads the captured value.
         if ((nVal = Fetch()) > 3)
         {
-            HbRuntime.QOUT("fetched=" + HbRuntime.STR(nVal, 3) + " branch=big");
+            HbRuntime.QOut("fetched=" + HbRuntime.Str(nVal, 3) + " branch=big");
         }
         else
         {
-            HbRuntime.QOUT("fetched=" + HbRuntime.STR(nVal, 3) + " branch=small");
+            HbRuntime.QOut("fetched=" + HbRuntime.Str(nVal, 3) + " branch=small");
         }
 
         // Reset nA then compound-assign in a comparison.
         nA = 0;
         if ((nA += 2) > 1)
         {
-            HbRuntime.QOUT("nA=" + HbRuntime.STR(nA, 3) + " branch=big");
+            HbRuntime.QOut("nA=" + HbRuntime.Str(nA, 3) + " branch=big");
         }
         else
         {
-            HbRuntime.QOUT("nA=" + HbRuntime.STR(nA, 3) + " branch=small");
+            HbRuntime.QOut("nA=" + HbRuntime.Str(nA, 3) + " branch=small");
         }
 
         // Assignment inside a boolean combined expression.
         if ((nB = Fetch()) > 3 && nB < 10)
         {
-            HbRuntime.QOUT("nB=" + HbRuntime.STR(nB, 3) + " in-range");
+            HbRuntime.QOut("nB=" + HbRuntime.Str(nB, 3) + " in-range");
         }
         else
         {
-            HbRuntime.QOUT("nB=" + HbRuntime.STR(nB, 3) + " out-of-range");
+            HbRuntime.QOut("nB=" + HbRuntime.Str(nB, 3) + " out-of-range");
         }
 
         return;

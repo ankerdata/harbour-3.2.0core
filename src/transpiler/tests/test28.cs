@@ -21,12 +21,12 @@ using static Program;
 // Chr()+string), and 7 others.
 public static partial class Program
 {
-    static string test28_Main_scCRLF = HbRuntime.CHR(13) + HbRuntime.CHR(10);
-    static decimal test28_Main_snBase = 10 * 2 + 2;
+    static string test28_scCRLF = HbRuntime.Chr(13) + HbRuntime.Chr(10);
+    static decimal test28_snBase = 10 * 2 + 2;
     public static void Main(string[] args)
     {
-        HbRuntime.QOUT("crlf:  " + HbRuntime.LTRIM(HbRuntime.STR(HbRuntime.LEN(test28_Main_scCRLF))));
-        HbRuntime.QOUT("base:  " + HbRuntime.LTRIM(HbRuntime.STR(test28_Main_snBase)));
+        HbRuntime.QOut("crlf:  " + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Len(test28_scCRLF))));
+        HbRuntime.QOut("base:  " + HbRuntime.LTrim(HbRuntime.Str(test28_snBase)));
         return;
     }
 }

@@ -25,8 +25,8 @@ public static partial class Program
         Foo oF = new Foo();
         Bar oB = new Bar();
 
-        HbRuntime.QOUT("Foo:nA = " + HbRuntime.STR(oF.nA, 4));
-        HbRuntime.QOUT("Bar:nB = " + HbRuntime.STR(oB.nB, 4));
+        HbRuntime.QOut("Foo:nA = " + HbRuntime.Str(oF.nA, 4));
+        HbRuntime.QOut("Bar:nB = " + HbRuntime.Str(oB.nB, 4));
 
         return;
     }

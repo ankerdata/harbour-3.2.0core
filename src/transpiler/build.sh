@@ -19,7 +19,7 @@ clang -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   src/transpiler/hbast.c src/transpiler/hbclsparse.c \
   src/transpiler/hbcomp.c src/transpiler/hbmain.c \
   src/transpiler/hbtypes.c src/transpiler/hbreftab.c \
-  src/transpiler/hbdefinemap.c \
+  src/transpiler/hbdefinemap.c src/transpiler/hbhbxcanon.c \
   src/transpiler/hbfunctab.c src/transpiler/ppcomp.c \
   src/transpiler/pcodestubs.c src/transpiler/harboury.c \
   src/common/expropt2.c \

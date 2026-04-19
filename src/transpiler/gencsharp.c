@@ -15,6 +15,7 @@
 #include "hbreftab.h"
 #include "hbfunctab.h"
 #include "hbdefinemap.h"
+#include "hbhbxcanon.h"
 
 /* Forward declarations */
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
@@ -986,9 +987,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_FUNCALL:
          {
             const char * szName = NULL;
+            const char * szCanon = NULL;
             if( pExpr->value.asFunCall.pFunName &&
                 pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
                szName = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+
+            /* Canonicalise casing via harbour.hbx (if loaded). Runs
+               before everything else so szName reflects the canonical
+               spelling from here on. hb_hbxCanonLookup returns NULL
+               for user identifiers (locals, file STATICs, etc.) so
+               they pass through unchanged. */
+            if( szName )
+            {
+               szCanon = hb_hbxCanonLookup( szName );
+               if( szCanon )
+                  szName = szCanon;
+            }
 
             /* hb_AParams() inside a spread-receiving function body is
                literally the `hbva` array we already bound at the top
@@ -1013,6 +1027,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   fprintf( yyc, "%s", hb_csMangleStaticFunc( szName,
                                          szMangledBuf, sizeof( szMangledBuf ) ) );
                }
+               else if( szCanon )
+               {
+                  /* Canonicalised names from hbx are always routed
+                     through HbRuntime. That sidesteps two collisions
+                     that a bare emit would hit: (1) names matching
+                     .NET BCL types (`Array`, `Type`, `Version`) cause
+                     CS1955 "not invocable member"; (2) hb_-prefixed
+                     runtime fns aren't globals in any namespace, so a
+                     bare `hb_bitAnd(...)` CS0103s. HbRuntime owns the
+                     cross-cutting implementation of both groups. */
+                  fprintf( yyc, "HbRuntime.%s", szCanon );
+               }
                else
                   fprintf( yyc, "%s", hb_csFuncMap( szName ) );
             }
@@ -1025,7 +1051,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_FUNNAME:
-         fprintf( yyc, "%s", pExpr->value.asSymbol.name );
+         {
+            const char * szName = pExpr->value.asSymbol.name;
+            const char * szCanon = hb_hbxCanonLookup( szName );
+            fprintf( yyc, "%s", szCanon ? szCanon : szName );
+         }
          break;
 
       case HB_ET_SEND:

@@ -42,34 +42,34 @@ public static partial class Program
         // comment on IF line
         if (x == 1)
         {
-            HbRuntime.QOUT("one");
+            HbRuntime.QOut("one");
             // comment on ELSE line — the headliner
         }
         else
         {
-            HbRuntime.QOUT("other");
+            HbRuntime.QOut("other");
         }
         // comment on ENDIF line
 
         if (x == 1)
         {
-            HbRuntime.QOUT("case one");
+            HbRuntime.QOut("case one");
         }
         else
         {
             // comment on OTHERWISE
-            HbRuntime.QOUT("case other");
+            HbRuntime.QOut("case other");
         }
         // comment on ENDCASE
 
         // comment on FOR
-        for (n = 1; n <= HbRuntime.LEN(aCodes); n++)
+        for (n = 1; n <= HbRuntime.Len(aCodes); n++)
         {
-            HbRuntime.QOUT(aCodes[(int)(n) - 1]);
+            HbRuntime.QOut(aCodes[(int)(n) - 1]);
             // comment on NEXT
         }
 
-        HbRuntime.QOUT("array len:", HbRuntime.LEN(aCodes));
+        HbRuntime.QOut("array len:", HbRuntime.Len(aCodes));
         return;
     }
 }

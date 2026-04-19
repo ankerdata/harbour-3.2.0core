@@ -17,7 +17,7 @@ public class Calculator
     public dynamic Add(decimal nValue = default)
     {
         this.nResult = this.nResult + nValue;
-        HbRuntime.QOUT("nResult=" + HbRuntime.STR(this.nResult));
+        HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
         return this;
     }
 
@@ -29,13 +29,13 @@ public class Calculator
     public void Reset()
     {
         this.nResult = 0;
-        HbRuntime.QOUT("nResult=" + HbRuntime.STR(this.nResult));
+        HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
         return;
     }
 
     public void Display(string cLabel = default)
     {
-        HbRuntime.QOUT(cLabel + ": " + HbRuntime.STR(this.nResult));
+        HbRuntime.QOut(cLabel + ": " + HbRuntime.Str(this.nResult));
         return;
     }
 }
@@ -45,17 +45,17 @@ public static partial class Program
     public static decimal CalcTotal(decimal nA = default, decimal nB = default, decimal nC = default)
     {
         decimal nResult = nA + nB;
-        HbRuntime.QOUT("nResult=" + HbRuntime.STR(nResult));
+        HbRuntime.QOut("nResult=" + HbRuntime.Str(nResult));
         nResult = nResult + nC;
-        HbRuntime.QOUT("nResult=" + HbRuntime.STR(nResult));
+        HbRuntime.QOut("nResult=" + HbRuntime.Str(nResult));
         return nResult;
     }
 
     public static string FormatPrice(decimal nPrice = default, string cCurrency = default)
     {
         decimal nFinal = nPrice * 1.15m;
-        HbRuntime.QOUT("nFinal=" + HbRuntime.STR(nFinal, 10, 2));
-        return cCurrency + " " + HbRuntime.STR(nFinal, 10, 2);
+        HbRuntime.QOut("nFinal=" + HbRuntime.Str(nFinal, 10, 2));
+        return cCurrency + " " + HbRuntime.Str(nFinal, 10, 2);
     }
 
     public static void Main(string[] args)
@@ -66,8 +66,8 @@ public static partial class Program
         oCalc.Add(20);
         oCalc.Display("Total");
 
-        HbRuntime.QOUT("CalcTotal=" + HbRuntime.STR(CalcTotal(1, 2, 3)));
-        HbRuntime.QOUT("FormatPrice=" + FormatPrice(9.99m, "$"));
+        HbRuntime.QOut("CalcTotal=" + HbRuntime.Str(CalcTotal(1, 2, 3)));
+        HbRuntime.QOut("FormatPrice=" + FormatPrice(9.99m, "$"));
 
         return;
     }

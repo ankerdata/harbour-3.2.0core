@@ -15,19 +15,19 @@ public static partial class Program
         // Single line comment
         // trailing comment
         decimal x = 5;
-        HbRuntime.QOUT("x=" + HbRuntime.STR(x));
+        HbRuntime.QOut("x=" + HbRuntime.Str(x));
         // Star comment
         // Old comment
         /*x for sex is NB*/
         // dBASE commentd
         x = x + 1;
-        HbRuntime.QOUT("x=" + HbRuntime.STR(x));
+        HbRuntime.QOut("x=" + HbRuntime.Str(x));
 
         /* Standalone
       multi-line comment */
-        HbRuntime.SETCOLOR("\"W/B\"");
+        HbRuntime.SetColor("\"W/B\"");
 
-        HbRuntime.QOUT("Amazing success!");
+        HbRuntime.QOut("Amazing success!");
 
         return;
     }

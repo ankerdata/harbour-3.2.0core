@@ -39,25 +39,25 @@ public class Record : HbDynamicObject
         decimal i = default;
         dynamic xVal = default;
         string cType = default;
-        for (i = 1; i <= HbRuntime.LEN(aFields); i++)
+        for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
             xVal = HbRuntime.GETMEMBER(this, aFields[(int)(i) - 1]);
-            cType = HbRuntime.VALTYPE(xVal);
+            cType = HbRuntime.ValType(xVal);
             if (cType == "C")
             {
-                HbRuntime.QOUT(aFields[(int)(i) - 1] + ": " + xVal);
+                HbRuntime.QOut(aFields[(int)(i) - 1] + ": " + xVal);
             }
             else if (cType == "N")
             {
-                HbRuntime.QOUT(aFields[(int)(i) - 1] + ": " + HbRuntime.STR(xVal, 4));
+                HbRuntime.QOut(aFields[(int)(i) - 1] + ": " + HbRuntime.Str(xVal, 4));
             }
             else if (cType == "L")
             {
-                HbRuntime.QOUT(aFields[(int)(i) - 1] + ": " + (xVal ? "T" : "F"));
+                HbRuntime.QOut(aFields[(int)(i) - 1] + ": " + (xVal ? "T" : "F"));
             }
             else
             {
-                HbRuntime.QOUT(aFields[(int)(i) - 1] + ": ?");
+                HbRuntime.QOut(aFields[(int)(i) - 1] + ": ?");
             }
         }
 
@@ -76,7 +76,7 @@ public static partial class Program
         oRec.cName = "hello";
         oRec.nValue = 42;
         oRec.lActive = true;
-        HbRuntime.QOUT("direct: " + oRec.cName + ", " + HbRuntime.STR(oRec.nValue, 4) + ", " + (oRec.lActive ? "T" : "F"));
+        HbRuntime.QOut("direct: " + oRec.cName + ", " + HbRuntime.Str(oRec.nValue, 4) + ", " + (oRec.lActive ? "T" : "F"));
 
         // Write via dynamic member (SETMEMBER)
         oRec.SetByName("cName", "world");
@@ -84,7 +84,7 @@ public static partial class Program
         oRec.SetByName("lActive", false);
 
         // Read via dynamic member (GETMEMBER)
-        HbRuntime.QOUT("dynamic: " + oRec.GetByName("cName") + ", " + HbRuntime.STR(oRec.GetByName("nValue"), 4) + ", " + (oRec.GetByName("lActive") ? "T" : "F"));
+        HbRuntime.QOut("dynamic: " + oRec.GetByName("cName") + ", " + HbRuntime.Str(oRec.GetByName("nValue"), 4) + ", " + (oRec.GetByName("lActive") ? "T" : "F"));
 
         // Iterate fields by name (DumpFields uses GETMEMBER in a loop)
         oRec.DumpFields(aFields);

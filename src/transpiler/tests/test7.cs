@@ -12,7 +12,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         string cVersion = APP_VERSION;
-        HbRuntime.QOUT("cVersion=" + cVersion);
+        HbRuntime.QOut("cVersion=" + cVersion);
 
         return;
     }

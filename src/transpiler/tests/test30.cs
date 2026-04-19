@@ -43,7 +43,7 @@ public static partial class Program
             nHits++;
         }
 
-        HbRuntime.QOUT("hits: " + HbRuntime.LTRIM(HbRuntime.STR(nHits)));
+        HbRuntime.QOut("hits: " + HbRuntime.LTrim(HbRuntime.Str(nHits)));
         return;
     }
 }
