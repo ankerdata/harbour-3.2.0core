@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 10: CLASS methods, STATIC local, WITH OBJECT
 // #include "hbclass.ch"

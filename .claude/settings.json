@@ -653,7 +653,10 @@
       "Bash(cd /Users/alexstrickland/dev/easipos/EasiPosX echo \"=== patterns where @func is a value \\(not @byref\\) ===\")",
       "Read(//Users/alexstrickland/dev/harbour-core/=== hash/**)",
       "Read(//Users/alexstrickland/dev/harbour-core/=== p/**)",
-      "Read(//Users/alexstrickland/dev/easipos-transpiled/**)"
+      "Read(//Users/alexstrickland/dev/easipos-transpiled/**)",
+      "Bash(grep -l \"public static.*MyErase\" */*.cs)",
+      "Bash(grep -l \"static dynamic MyErase\\\\|static.*MyErase\" */*.cs)",
+      "Bash(sort -u wc -l /tmp/w0016.txt echo \"---\" head /tmp/w0016.txt)"
     ],
     "additionalDirectories": [
       "/tmp",

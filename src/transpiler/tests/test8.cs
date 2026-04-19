@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 8: All comment types with code interspersed
 public static partial class Program

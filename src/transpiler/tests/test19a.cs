@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 19a + 19b: cross-file by-ref scan demo.
 //

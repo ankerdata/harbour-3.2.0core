@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 27: DATE → DateOnly and TIMESTAMP → DateTime type maps plus
 // literal date emission.

@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 23: DEFAULT command — Harbour's idiomatic shorthand for
 // optional parameters. Defined in common.ch as an #xcommand:

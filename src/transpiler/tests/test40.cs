@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 40: BEGIN SEQUENCE / END SEQUENCE with no RECOVER/ALWAYS.
 //

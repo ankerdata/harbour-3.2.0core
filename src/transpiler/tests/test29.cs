@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 29: SWITCH ... CASE against #define symbols.
 //

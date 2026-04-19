@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 4: SWITCH/CASE/OTHERWISE/EXIT
 public static partial class Program

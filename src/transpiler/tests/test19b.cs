@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 19b: calls Swap (defined in test19a.prg) with @ args.
 // See test19a.prg for the cross-file scan workflow this test exercises.

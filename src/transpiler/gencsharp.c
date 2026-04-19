@@ -3442,6 +3442,16 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    if( pClassList && pClassList->pNext )
       fprintf( yyc, "using System.Collections.Generic;\n" );
    fprintf( yyc, "using static HbRuntime;\n" );
+   /* `using static Program;` pulls the merged partial-class static
+      members into file scope so class methods (which live in their
+      own `public class Foo {}` and don't inherit Program's member
+      lookup) can call cross-file free functions like SetErrorCode,
+      ConstructORMTable, hb_eol, etc. without qualification. Self-
+      references from the Program partial resolve directly, so no
+      ambiguity. Ambiguity between Program and HbRuntime members
+      (same bare name in both) would surface as CS0229 — none in the
+      current corpus but worth noting if it happens later. */
+   fprintf( yyc, "using static Program;\n" );
    fprintf( yyc, "\n" );
 
    /* HbRuntime.cs must be present in the output directory.

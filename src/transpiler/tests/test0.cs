@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 0: Comments (all types), SET COLOR, basic LOCAL assignment
 public static partial class Program

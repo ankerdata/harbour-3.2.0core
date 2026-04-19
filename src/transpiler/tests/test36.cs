@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 36: source-level parens around ASSIGN survive to C#.
 //

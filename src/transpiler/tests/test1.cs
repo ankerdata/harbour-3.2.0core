@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 1: PROCEDURE, LOCAL declarations, simple arithmetic
 public static partial class Program

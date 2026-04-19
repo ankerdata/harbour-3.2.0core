@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 35: file-scope MEMVAR declaration round-trip.
 //

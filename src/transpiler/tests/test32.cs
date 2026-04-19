@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 32: PP command-rule matching with trailing `//` comments.
 //

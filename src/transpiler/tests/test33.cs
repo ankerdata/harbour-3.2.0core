@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 33: regression for the dropped-PARAM parser bug.
 //

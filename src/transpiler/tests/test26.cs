@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 26: TIMESTAMP type map + per-file STATIC var name mangling.
 //

@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 5: FOR with STEP, FOR counting down, FOR EACH DESCEND
 public static partial class Program

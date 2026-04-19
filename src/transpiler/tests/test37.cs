@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 37: class DATA INIT with trailing line comment.
 //

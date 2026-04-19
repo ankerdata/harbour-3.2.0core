@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using static HbRuntime;
+using static Program;
 
 // Test 6: CLASS inheritance, DATA/CLASSDATA, ACCESS/ASSIGN, scope modifiers
 // #include "hbclass.ch"

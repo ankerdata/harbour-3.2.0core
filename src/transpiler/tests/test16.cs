@@ -1,5 +1,6 @@
 using System;
 using static HbRuntime;
+using static Program;
 
 // Test 16: STATIC, PUBLIC, and PRIVATE declarations with type inference
 public static partial class Program
