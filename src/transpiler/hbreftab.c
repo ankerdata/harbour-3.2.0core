@@ -130,6 +130,30 @@ static char * hb_refTabDup( const char * sz )
    return r;
 }
 
+/* True iff sz names one of the built-in scalar type tags emitted by
+   the type propagator. USUAL/OBJECT are intentionally absent — the
+   conflict branch filters them upstream. Anything not on this list
+   is treated as a user class name. */
+static HB_BOOL hb_refTabIsScalarType( const char * sz )
+{
+   return sz && (
+      hb_stricmp( sz, "NUMERIC"   ) == 0 ||
+      hb_stricmp( sz, "STRING"    ) == 0 ||
+      hb_stricmp( sz, "LOGICAL"   ) == 0 ||
+      hb_stricmp( sz, "DATE"      ) == 0 ||
+      hb_stricmp( sz, "TIMESTAMP" ) == 0 ||
+      hb_stricmp( sz, "ARRAY"     ) == 0 ||
+      hb_stricmp( sz, "HASH"      ) == 0 ||
+      hb_stricmp( sz, "BLOCK"     ) == 0 ||
+      hb_stricmp( sz, "CODEBLOCK" ) == 0 ||
+      hb_stricmp( sz, "CHARACTER" ) == 0 ||
+      hb_stricmp( sz, "INTEGER"   ) == 0 ||
+      hb_stricmp( sz, "DECIMAL"   ) == 0 ||
+      hb_stricmp( sz, "NIL"       ) == 0 ||
+      hb_stricmp( sz, "SYMBOL"    ) == 0 ||
+      hb_stricmp( sz, "POINTER"   ) == 0 );
+}
+
 static PHB_REFENTRY hb_refTabFindEntry( PHB_REFTAB pTab, const char * szName,
                                         HB_SIZE * pSlot )
 {
@@ -433,27 +457,20 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       return HB_REFINE_OK;   /* incoming OBJECT doesn't override */
 
    /* Genuine disagreement: freeze the slot with fConflict set so
-      later refinements stop trying. If BOTH types are class names
-      (mixed-case identifiers from PRG source), fall back to OBJECT
-      rather than USUAL — both sides at least agree on "it's an
-      object, just not which class". Pure-uppercase built-in types
-      (NUMERIC, STRING, LOGICAL, …) disagreeing with each other —
-      or with a class — widens to USUAL as before. Without this,
-      USUAL:C settled here would flip to OBJECT:C on the very next
-      scan pass (hb_refTabAddFunc re-applies Hungarian 'o' over
+      later refinements stop trying. If NEITHER side is a built-in
+      scalar tag, both are class names — fall back to OBJECT rather
+      than USUAL, since both sides at least agree on "it's an object,
+      just not which class". A scalar tag disagreeing with anything —
+      another scalar or a class — widens to USUAL. Without the class
+      branch, USUAL:C settled here would flip to OBJECT:C on the very
+      next scan pass (hb_refTabAddFunc re-applies Hungarian 'o' over
       USUAL), costing one extra pass to reach convergence.
       Defer-free the old allocation for the same reason as above. */
    {
-      const char * c;
-      HB_BOOL fOldClass = HB_FALSE;
-      HB_BOOL fNewClass = HB_FALSE;
-      for( c = pParam->szType; *c; c++ )
-         if( *c >= 'a' && *c <= 'z' ) { fOldClass = HB_TRUE; break; }
-      for( c = szNewType; *c; c++ )
-         if( *c >= 'a' && *c <= 'z' ) { fNewClass = HB_TRUE; break; }
+      HB_BOOL fBothClass = ! hb_refTabIsScalarType( pParam->szType ) &&
+                           ! hb_refTabIsScalarType( szNewType );
       hb_refTabDefer( pTab, pParam->szType );
-      pParam->szType = hb_refTabDup(
-         ( fOldClass && fNewClass ) ? "OBJECT" : "USUAL" );
+      pParam->szType = hb_refTabDup( fBothClass ? "OBJECT" : "USUAL" );
    }
    pParam->fConflict = HB_TRUE;
    return HB_REFINE_CONFLICT;
