@@ -49,3 +49,10 @@ build.log
 
 # Built transpiler binary (produced by src/transpiler/build.sh)
 /bin/hbtranspiler
+
+# Transpiler scratch state — rebuilt every scan pass, read only by
+# the same run's emit. Content is a function of the test .prg set,
+# so tracking it produces noisy diffs without adding any assertion
+# value beyond what the .prg change itself says. Determinism is
+# covered by src/transpiler/tests/verifyreftab.sh.
+/src/transpiler/hbreftab.tab
