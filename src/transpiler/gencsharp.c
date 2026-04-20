@@ -1503,6 +1503,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                /* Known case-typo'd local — emit canonical form. */
                fprintf( yyc, "%s", szLocal );
             }
+            else if( hb_csIsFileStatic( szVarName ) )
+            {
+               /* File-scope STATIC the parser auto-wrapped as an
+                  implicit alias (happens for indexed references
+                  like `saPOSList[i]` — parser doesn't consult the
+                  file-static registry). Same recovery as the case-
+                  typo'd local above; emit the mangled field name
+                  instead of the @-prefix syntactic-survival branch. */
+               fprintf( yyc, "%s_%s", s_szFileBase,
+                        hb_csFileStaticCanon( szVarName ) );
+            }
+            else if( hb_csIsFileMemvar( szVarName ) )
+            {
+               fprintf( yyc, "%s_%s", s_szFileBase,
+                        hb_csFileMemvarCanon( szVarName ) );
+            }
             else
             {
                /* Unknown identifier wrapped as implicit alias. Could
