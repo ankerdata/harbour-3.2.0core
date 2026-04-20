@@ -681,7 +681,12 @@
       "Bash(bash /Users/alexstrickland/dev/easipos-transpiled/scripts/build.sh:*)",
       "Bash(git check-ignore *)",
       "Bash(file /opt/harbour/bin/contrib.hbr echo ---)",
-      "Bash(sort -rn head -15 /tmp/missing_after_contrib.txt echo \"total unique: $\\(wc -l < /tmp/missing_after_contrib.txt\\)\")"
+      "Bash(sort -rn head -15 /tmp/missing_after_contrib.txt echo \"total unique: $\\(wc -l < /tmp/missing_after_contrib.txt\\)\")",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core status --short)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core add include/hbreftab.h src/transpiler/hbreftab.c src/transpiler/gencsharp.c)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core commit -m ' *)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core add .claude/settings.json)",
+      "Bash(git -C /Users/alexstrickland/dev/harbour-core log --oneline -6)"
     ],
     "additionalDirectories": [
       "/tmp",
