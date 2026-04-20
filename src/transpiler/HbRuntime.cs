@@ -605,25 +605,25 @@ public static partial class HbRuntime
     // Thread.Sleep. Enough for transpiled code to compile and run
     // headless tests.
 
-    public static decimal WAPI_SLEEP(decimal nMs)
+    public static decimal wapi_Sleep(decimal nMs)
     {
         System.Threading.Thread.Sleep((int)nMs);
         return 0;
     }
 
-    public static decimal WAPI_MESSAGEBOX(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0)
+    public static decimal wapi_MessageBox(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0)
     {
         Console.WriteLine($"[MessageBox] {cCaption}: {cText}");
         return 1;  // IDOK
     }
 
-    public static decimal WAPI_MESSAGEBOXTIMEOUT(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0, decimal wLang = 0, decimal nMs = 0)
+    public static decimal wapi_MessageBoxTimeout(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0, decimal wLang = 0, decimal nMs = 0)
     {
         Console.WriteLine($"[MessageBox] {cCaption}: {cText}");
         return 1;
     }
 
-    public static void WAPI_OUTPUTDEBUGSTRING(string cText) => Console.Error.WriteLine(cText);
+    public static void wapi_OutputDebugString(string cText) => Console.Error.WriteLine(cText);
 
     // ---- Win32 RGB helpers (easiutil/getrgbvalue.c) ----
 

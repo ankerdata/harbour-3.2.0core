@@ -44,8 +44,12 @@ extern HB_SIZE hb_hbxCanonLoadDir( const char * szDir, HB_BOOL fRecurse );
 
 /* Load core + contrib .hbx files from standard install and dev
    locations. Called once at transpiler startup. Directories that
-   don't exist are silently skipped. */
-extern void hb_hbxCanonAutoLoad( void );
+   don't exist are silently skipped. szExePath (typically argv[0])
+   is used to resolve layouts relative to the binary location —
+   e.g. `<bin>/hbtranspiler` looks for `<bin>/../include/*.hbx`
+   and `<bin>/../contrib/<lib>/<lib>.hbx`. NULL/bare name skips
+   that path. */
+extern void hb_hbxCanonAutoLoad( const char * szExePath );
 
 /* Return the canonical spelling for szName's lowercased form, or
    NULL if no entry exists. Caller should substitute the return

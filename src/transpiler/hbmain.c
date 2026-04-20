@@ -120,10 +120,12 @@ int hb_compMainExt( int argc, const char * const argv[],
 
 #ifdef HB_TRANSPILER
       /* Pre-load the canonical-name map from core + contrib .hbx
-         files in standard locations before any -GS run. --hbx=<path>
+         files in standard locations before any -GS run. argv[0]
+         lets the loader find a dev checkout's hbx files even when
+         cwd points at a separate output tree (easipos). --hbx=<path>
          from the command line still works as an additional source
          for non-standard layouts. */
-      hb_hbxCanonAutoLoad();
+      hb_hbxCanonAutoLoad( argc > 0 ? argv[ 0 ] : NULL );
 #endif
    }
 

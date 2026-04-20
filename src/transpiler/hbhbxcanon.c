@@ -222,14 +222,38 @@ HB_SIZE hb_hbxCanonLoadDir( const char * szDir, HB_BOOL fRecurse )
    Missing directories are silently skipped — the canonicaliser
    simply has fewer entries. Explicit --hbx=<path> still works for
    non-standard layouts and adds to whatever auto-load found. */
-void hb_hbxCanonAutoLoad( void )
+void hb_hbxCanonAutoLoad( const char * szExePath )
 {
    /* Install layout (binary lives somewhere like /opt/harbour/bin). */
    hb_hbxCanonLoadDir( "/opt/harbour/include/harbour", HB_FALSE );
    hb_hbxCanonLoadDir( "/opt/harbour/contrib",         HB_TRUE  );
 
-   /* Dev layout: cwd is the harbour-core repo root (scripts run
-      from there, and the test suite cds there before invoking). */
+   /* Binary-relative layout: the transpiler is typically invoked by
+      absolute path from a script (scripts/gen-cs.sh sets TRANS to
+      the full bin path). Walk <bin>/../include and <bin>/../contrib
+      so a dev checkout layout picks up its own hbx files even when
+      cwd points elsewhere (e.g. easipos-transpiled runs gen-cs from
+      its own root, not from harbour-core). */
+   if( szExePath && strchr( szExePath, '/' ) )
+   {
+      const char * slash = strrchr( szExePath, '/' );
+      HB_SIZE      nBinDir = ( HB_SIZE ) ( slash - szExePath );
+      char         szPrefix[ HB_PATH_MAX ];
+      if( nBinDir + 12 < sizeof( szPrefix ) )
+      {
+         memcpy( szPrefix, szExePath, nBinDir );
+         hb_strncpy( szPrefix + nBinDir, "/../include",
+                     sizeof( szPrefix ) - nBinDir - 1 );
+         hb_hbxCanonLoadDir( szPrefix, HB_FALSE );
+         hb_strncpy( szPrefix + nBinDir, "/../contrib",
+                     sizeof( szPrefix ) - nBinDir - 1 );
+         hb_hbxCanonLoadDir( szPrefix, HB_TRUE );
+      }
+   }
+
+   /* Dev layout fallback: cwd-relative, for when neither the install
+      nor the binary-relative path applied (e.g. test runner cds into
+      the repo root before invoking a freshly-built binary). */
    hb_hbxCanonLoadDir( "include",                      HB_FALSE );
    hb_hbxCanonLoadDir( "contrib",                      HB_TRUE  );
 }
