@@ -43,3 +43,9 @@ obj
 .vscode
 *.code-workspace
 build.log
+
+# Claude Code session data (transcripts, settings)
+/.claude/
+
+# Built transpiler binary (produced by src/transpiler/build.sh)
+/bin/hbtranspiler
