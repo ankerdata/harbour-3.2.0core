@@ -24,14 +24,11 @@ using static Program;
 // across 9 files.
 public static partial class Program
 {
-    const string SHUT = @"SHUTDOWN";
-    const string HALT = @"HALT";
-    const string RUN = @"RUN";
     public static void Main(string[] args)
     {
-        Dispatch(SHUT);
-        Dispatch(HALT);
-        Dispatch(RUN);
+        Dispatch(Test29PrgConst.SHUT);
+        Dispatch(Test29PrgConst.HALT);
+        Dispatch(Test29PrgConst.RUN);
         Dispatch("UNKNOWN");
         return;
     }
@@ -40,13 +37,13 @@ public static partial class Program
     {
         switch (cCmd)
         {
-            case SHUT:
+            case Test29PrgConst.SHUT:
                 HbRuntime.QOut("shutting down");
                 break;
-            case HALT:
+            case Test29PrgConst.HALT:
                 HbRuntime.QOut("halting");
                 break;
-            case RUN:
+            case Test29PrgConst.RUN:
                 HbRuntime.QOut("running");
                 break;
             default:

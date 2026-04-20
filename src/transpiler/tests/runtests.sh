@@ -13,12 +13,12 @@ FAIL=0
 # makes cross-file by-ref data available to single-file transpiles
 # (see test19a.prg for the canonical example).
 for f in "$SCRIPTDIR"/test*.prg; do
-   "$TRANSPILER" -I"$ROOTDIR/include" "$f" -GF -q > /dev/null 2>&1
+   "$TRANSPILER" -I"$ROOTDIR/include" -I"$SCRIPTDIR" "$f" -GF -q > /dev/null 2>&1
 done
 
 for f in "$SCRIPTDIR"/test*.prg; do
    name=$(basename "$f" .prg)
-   "$TRANSPILER" -I"$ROOTDIR/include" "$f" -GT 2>/dev/null
+   "$TRANSPILER" -I"$ROOTDIR/include" -I"$SCRIPTDIR" "$f" -GT 2>/dev/null
    if [ $? -eq 0 ]; then
       echo "PASS: $name"
       PASS=$((PASS + 1))

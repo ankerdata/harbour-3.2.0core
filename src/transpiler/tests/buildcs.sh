@@ -35,12 +35,30 @@ cp "$REPO_ROOT/src/transpiler/HbRuntime.cs" "$CSEXE/HbRuntime/HbRuntime.cs"
 # when it runs in pass 2. Without this, e.g. test19a's Swap parameters
 # would not get the `ref` modifier, because the @ args live in test19b.
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" -I"$REPO_ROOT/include" "$f" -GF -q 2>/dev/null
+   "$TRANSPILER" -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" "$f" -GF -q 2>/dev/null
 done
 
+# Pass 1.5 — harvest literal #defines from any test*.ch headers into
+# per-source Const classes under defines/. The transpiler's parser
+# runs with setNoInclude so header-origin defines would otherwise
+# emit as bare identifiers (CS0103). gen-defines produces a
+# defines_map.txt that -GS reads via --defines-map and a
+# <Name>Const.cs per contributing header. Needed for test44; no-op
+# for the rest of the suite since only test44.ch has defines.
+DEFINES_DIR="$SCRIPT_DIR/defines"
+rm -rf "$DEFINES_DIR"
+python3 "$REPO_ROOT/src/transpiler/tools/gendefines.py" \
+   --include-dir "$SCRIPT_DIR" \
+   --src-dir     "$SCRIPT_DIR" \
+   --output-dir  "$DEFINES_DIR" > /dev/null 2>&1
+DEFINES_MAP="$DEFINES_DIR/defines_map.txt"
+
 # Pass 2 — regenerate all .cs files with the populated table.
+MAP_OPT=""
+[ -s "$DEFINES_MAP" ] && MAP_OPT="--defines-map=$DEFINES_MAP"
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" -I"$REPO_ROOT/include" "$f" -GS -q 2>/dev/null
+   "$TRANSPILER" $MAP_OPT -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" \
+      "$f" -GS -q 2>/dev/null
 done
 
 # Build one test case. First arg is the dest project name; remaining
@@ -81,6 +99,14 @@ EOF
    for src in "$@"; do
       cp "$src" "$projdir/$(basename "$src")"
    done
+   # Include every harvested Const class so references emitted as
+   # `<Name>Const.FOO` in this test's .cs resolve. Cheap: each Const
+   # class is a few `public const` lines, no runtime cost.
+   if [ -d "$DEFINES_DIR" ]; then
+      for d in "$DEFINES_DIR"/*.cs; do
+         [ -f "$d" ] && cp "$d" "$projdir/$(basename "$d")"
+      done
+   fi
 
    local out
    # --no-dependencies: skip the HbRuntime rebuild that's already

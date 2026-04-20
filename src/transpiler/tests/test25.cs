@@ -42,9 +42,6 @@ using static Program;
 // Bug C — string #define with an embedded backslash
 public static partial class Program
 {
-    const decimal PI = 3.14m; // pi-ish, inline comment exercises the split
-    const decimal MAGIC = 42; // the answer, plus a trailing comment
-    const string SEPARATOR = @"\";
     public static void Main(string[] args)
     {
         string cName = "harbour";
@@ -52,17 +49,17 @@ public static partial class Program
         // Bug A — every source-level casing variation of the same builtins.
         // Post-fix all four variants emit as `HbRuntime.STR` / `.UPPER` /
         // `.LEN` / `.INT`, matching the UPPERCASE HbRuntime.cs methods.
-        HbRuntime.QOut("pi:     " + HbRuntime.Str(PI, 8, 2));
-        HbRuntime.QOut("magic:  " + HbRuntime.Str(MAGIC, 8));
+        HbRuntime.QOut("pi:     " + HbRuntime.Str(Test25PrgConst.PI, 8, 2));
+        HbRuntime.QOut("magic:  " + HbRuntime.Str(Test25PrgConst.MAGIC, 8));
         HbRuntime.QOut("upper:  " + HbRuntime.Upper(cName));
         HbRuntime.QOut("upper2: " + HbRuntime.Upper(cName));
-        HbRuntime.QOut("str:    " + HbRuntime.Str(MAGIC, 8));
+        HbRuntime.QOut("str:    " + HbRuntime.Str(Test25PrgConst.MAGIC, 8));
         HbRuntime.QOut("len:    " + HbRuntime.Str(HbRuntime.Len(cName), 4));
-        HbRuntime.QOut("int:    " + HbRuntime.Str(HbRuntime.Int(PI + 0.7m), 4));
-        HbRuntime.QOut("INT:    " + HbRuntime.Str(HbRuntime.Int(PI + 0.7m), 4));
+        HbRuntime.QOut("int:    " + HbRuntime.Str(HbRuntime.Int(Test25PrgConst.PI + 0.7m), 4));
+        HbRuntime.QOut("INT:    " + HbRuntime.Str(HbRuntime.Int(Test25PrgConst.PI + 0.7m), 4));
 
         // Bug C — round-trip the backslash #define through string concat.
-        HbRuntime.QOut("sep:    " + "a" + SEPARATOR + "b");
+        HbRuntime.QOut("sep:    " + "a" + Test25PrgConst.SEPARATOR + "b");
 
         return;
 
