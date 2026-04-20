@@ -831,17 +831,28 @@ static const char * hb_csFuncMap( const char * szName )
    static char s_szBuf[ 128 ];
    const char * szPrefix;
 
-   /* ToString() is used throughout easipos source as a synonym for
-      Harbour Str() — dev idiom from someone coming from C#. It's
-      undeclared in any .hbx and there's no Harbour stdlib entry; at
-      runtime it would crash. Emitting it bare produces CS1501 in C#
-      because `object.ToString()` takes zero args, not one. Route it
-      to an explicit HbRuntime.ToString helper (same shape as Str)
-      so the runtime name matches the source call. Method-call
-      `obj:ToString()` sites go through HB_ET_SEND, not this path,
-      so a genuine class method named ToString is unaffected. */
+   /* ToString() collides with object.ToString() inherited by every
+      emitted class, so a bare `ToString(x)` call resolves to the
+      zero-arg instance method and fails with CS1501. Qualify to
+      avoid the shadow:
+        - if a user PROCEDURE/FUNCTION ToString is declared in the
+          corpus (reftab will have the entry), emit `Program.ToString`
+          so the user's implementation wins. The call-site static
+          `using static Program` isn't enough because the instance
+          method takes precedence; the explicit `Program.` qualifier
+          sidesteps that.
+        - otherwise fall back to a thin HbRuntime.ToString stub
+          (delegates to Str) so the number-to-string idiom used by
+          easipos authors coming from C# keeps compiling even in
+          trees that don't ship a ToString.prg.
+      Method-call sites (`obj:ToString()`) go through HB_ET_SEND,
+      not this path, so a genuine class method is unaffected. */
    if( hb_stricmp( szName, "ToString" ) == 0 )
+   {
+      if( s_pRefTab && hb_refTabParamCount( s_pRefTab, "ToString" ) >= 0 )
+         return "Program.ToString";
       return "HbRuntime.ToString";
+   }
 
    szPrefix = hb_funcTabPrefix( szName );
    if( szPrefix )
