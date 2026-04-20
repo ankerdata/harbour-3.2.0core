@@ -15,7 +15,12 @@
 
 typedef struct HB_REFENTRY_
 {
-   char *                szName;       /* lowercased name (owned) */
+   char *                szName;       /* declaration-site casing, owned.
+                                          Lookup is hb_stricmp so casing
+                                          doesn't affect matching, but the
+                                          C# emitter uses this verbatim to
+                                          collapse mixed-case call sites
+                                          onto the single declared form. */
    char *                szReturnType; /* inferred return type, or NULL (owned) */
    char *                szPublicOwner;/* if fIsPublic: base filename of first .prg that declared PUBLIC szName (owned) */
    int                   nParams;      /* declared parameter count, -1 = unknown */
@@ -179,7 +184,7 @@ static PHB_REFENTRY hb_refTabFindOrCreate( PHB_REFTAB pTab, const char * szName 
    if( ! e )
    {
       e            = ( PHB_REFENTRY ) hb_xgrabz( sizeof( HB_REFENTRY ) );
-      e->szName    = hb_refTabDupLower( szName );
+      e->szName    = hb_refTabDup( szName );
       e->nParams   = -1;            /* unknown until a definition is registered */
       e->pNext     = pTab->buckets[ slot ];
       pTab->buckets[ slot ] = e;
@@ -279,6 +284,17 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
       return;
 
    e = hb_refTabFindOrCreate( pTab, szName );
+
+   /* Overwrite szName with the declaration-site casing. Prior stub
+      entries (created by a by-ref mark at a call site) recorded
+      whatever spelling the call site used; the real definition
+      wins and becomes the canonical form that the C# emitter will
+      use to collapse mixed-case call-site references. */
+   if( e->szName && strcmp( e->szName, szName ) != 0 )
+   {
+      hb_refTabDefer( pTab, e->szName );
+      e->szName = hb_refTabDup( szName );
+   }
 
    /* Preserve any refined per-slot types from a prior registration
       (typically loaded from disk or refined by an earlier scan in
@@ -657,6 +673,15 @@ HB_BOOL hb_refTabIsVariadic( PHB_REFTAB pTab, const char * szFunc )
       return HB_FALSE;
    e = hb_refTabFindEntry( pTab, szFunc, NULL );
    return e ? e->fVariadic : HB_FALSE;
+}
+
+const char * hb_refTabFuncCanon( PHB_REFTAB pTab, const char * szFunc )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szFunc )
+      return szFunc;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   return e && e->szName ? e->szName : szFunc;
 }
 
 const HB_REFPARAM * hb_refTabParam( PHB_REFTAB pTab,

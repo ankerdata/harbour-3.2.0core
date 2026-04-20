@@ -74,6 +74,23 @@ static HB_BOOL hb_csIsFileStatic( const char * szName )
    return HB_FALSE;
 }
 
+/* Return the registered (declaration-site) casing for szName, or
+   szName itself when no match. Callers use this to emit a consistent
+   spelling regardless of the call-site casing in the source — Harbour
+   identifiers are case-insensitive but C# isn't, so a mixed-cased
+   reference (`oPlu` vs `oPLU`) needs to collapse to whatever the
+   STATIC declaration emitted. */
+static const char * hb_csFileStaticCanon( const char * szName )
+{
+   int i;
+   if( ! szName )
+      return szName;
+   for( i = 0; i < s_iFileStaticCount; i++ )
+      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
+         return s_pFileStatics[ i ];
+   return szName;
+}
+
 static void hb_csAddFileStatic( const char * szName )
 {
    if( ! szName || s_iFileStaticCount >= HB_CS_MAX_FILE_STATICS )
@@ -137,13 +154,23 @@ static void hb_csAddFileStaticFunc( const char * szName )
 
 /* Return the mangled name `<FileBase>_<szName>` in a caller-supplied
    buffer when szName is a STATIC function in this file; otherwise
-   return szName unchanged. */
+   return szName unchanged. The mangle uses the declaration-site
+   casing so call sites with drifted case (MyDBUSEAREA vs MyDBUseArea
+   for one declared STATIC FUNCTION) collapse to a single C# name. */
 static const char * hb_csMangleStaticFunc( const char * szName,
                                            char * szBuf, size_t nBufSize )
 {
    if( hb_csIsFileStaticFunc( szName ) && s_szFileBase[ 0 ] )
    {
-      hb_snprintf( szBuf, nBufSize, "%s_%s", s_szFileBase, szName );
+      const char * szCanon = szName;
+      int i;
+      for( i = 0; i < s_iFileStaticFuncCount; i++ )
+         if( hb_stricmp( s_pFileStaticFuncs[ i ], szName ) == 0 )
+         {
+            szCanon = s_pFileStaticFuncs[ i ];
+            break;
+         }
+      hb_snprintf( szBuf, nBufSize, "%s_%s", s_szFileBase, szCanon );
       return szBuf;
    }
    return szName;
@@ -190,6 +217,19 @@ static HB_BOOL hb_csIsFileMemvar( const char * szName )
       if( hb_stricmp( s_pFileMemvars[ i ], szName ) == 0 )
          return HB_TRUE;
    return HB_FALSE;
+}
+
+/* Declaration-site casing for a file-scope MEMVAR. See
+   hb_csFileStaticCanon for the rationale. */
+static const char * hb_csFileMemvarCanon( const char * szName )
+{
+   int i;
+   if( ! szName )
+      return szName;
+   for( i = 0; i < s_iFileMemvarCount; i++ )
+      if( hb_stricmp( s_pFileMemvars[ i ], szName ) == 0 )
+         return s_pFileMemvars[ i ];
+   return szName;
 }
 
 static void hb_csAddFileMemvar( const char * szName )
@@ -917,9 +957,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_VARREF:
          {
             const char * szVarName = pExpr->value.asSymbol.name;
+            const char * szLocal   = hb_csResolveLocal( szVarName );
             if( hb_stricmp( szVarName, "Self" ) == 0 )
                fprintf( yyc, "this" );
-            else if( hb_csResolveLocal( szVarName ) == NULL &&
+            else if( szLocal == NULL &&
                      s_pRefTab && hb_refTabIsPublic( s_pRefTab, szVarName ) )
             {
                /* PUBLIC variable reference — the owning .prg emits a
@@ -929,34 +970,48 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   mangling branches: a `MEMVAR aX` declaration in a
                   file that also references a PUBLIC `aX` should hit
                   the shared public field, not an isolated per-file
-                  mangled shadow. */
+                  mangled shadow. Emits the caller's casing — PUBLIC
+                  canonicalisation would need an API on hb_refTab to
+                  fetch the declared name; currently a bool probe. */
                fprintf( yyc, "%s", szVarName );
             }
-            else if( hb_csResolveLocal( szVarName ) == NULL &&
-                     hb_csIsFileStatic( szVarName ) )
+            else if( szLocal == NULL && hb_csIsFileStatic( szVarName ) )
             {
                /* File-scope STATIC reference — rewrite to the mangled
                   class field name to dodge cross-file collisions.
                   A local with the same name in the current scope
-                  shadows the static, matching Harbour's rule. */
-               fprintf( yyc, "%s_%s", s_szFileBase, szVarName );
+                  shadows the static, matching Harbour's rule. Use the
+                  declaration-site casing so cross-function references
+                  with drifted case collapse onto the single field
+                  name (Harbour is case-insensitive; C# isn't). */
+               fprintf( yyc, "%s_%s", s_szFileBase,
+                        hb_csFileStaticCanon( szVarName ) );
             }
-            else if( hb_csResolveLocal( szVarName ) == NULL &&
-                     hb_csIsFileMemvar( szVarName ) )
+            else if( szLocal == NULL && hb_csIsFileMemvar( szVarName ) )
             {
                /* File-scope MEMVAR reference — same file-base mangling
                   as STATIC. Locals still shadow. */
-               fprintf( yyc, "%s_%s", s_szFileBase, szVarName );
+               fprintf( yyc, "%s_%s", s_szFileBase,
+                        hb_csFileMemvarCanon( szVarName ) );
+            }
+            else if( szLocal )
+            {
+               /* Local or parameter — emit the spelling captured at
+                  the declaration site. Harbour source commonly drifts
+                  case across references (oPLU vs oPlu) against a
+                  single LOCAL/PARAMETER declaration; collapsing to
+                  the declared form here eliminates the whole class
+                  of CS0103 that would otherwise surface per-reference
+                  (each mis-cased call site is a distinct C# name). */
+               fprintf( yyc, "%s", szLocal );
             }
             else
             {
                /* Last-resort: a bare name that didn't resolve as a
                   local/static/memvar. Ask the defines map whether it
                   belongs to a per-source Const class (generated by
-                  gendefines.py) and qualify the reference if so.
-                  Local-owner rows shadow the global table. */
-               const char * szDefClass = hb_csResolveLocal( szVarName ) == NULL
-                  ? hb_defineMapLookup( szVarName ) : NULL;
+                  gendefines.py) and qualify the reference if so. */
+               const char * szDefClass = hb_defineMapLookup( szVarName );
                if( szDefClass )
                   fprintf( yyc, "%s.%s", szDefClass, szVarName );
                else
@@ -1040,7 +1095,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   fprintf( yyc, "HbRuntime.%s", szCanon );
                }
                else
-                  fprintf( yyc, "%s", hb_csFuncMap( szName ) );
+               {
+                  /* User function — hb_csFuncMap passes bare names
+                     through unchanged, so for cross-file calls we
+                     additionally collapse to the reftab's declaration-
+                     site casing. Without this, a FUNCTION MyDBUseArea
+                     called elsewhere as MyDBUSEAREA() emits two
+                     distinct C# names and one loses to CS0103. */
+                  const char * szMapped = hb_csFuncMap( szName );
+                  if( szMapped == szName && s_pRefTab )
+                     szMapped = hb_refTabFuncCanon( s_pRefTab, szName );
+                  fprintf( yyc, "%s", szMapped );
+               }
             }
             else
                hb_csEmitExpr( pExpr->value.asFunCall.pFunName, yyc, HB_FALSE );
@@ -1054,6 +1120,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          {
             const char * szName = pExpr->value.asSymbol.name;
             const char * szCanon = hb_hbxCanonLookup( szName );
+            if( ! szCanon && s_pRefTab )
+               szCanon = hb_refTabFuncCanon( s_pRefTab, szName );
             fprintf( yyc, "%s", szCanon ? szCanon : szName );
          }
          break;

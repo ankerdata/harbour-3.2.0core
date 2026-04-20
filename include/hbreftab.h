@@ -217,6 +217,13 @@ extern int hb_refTabParamCount( PHB_REFTAB pTab, const char * szFunc );
 /* Returns HB_TRUE if the function is registered as variadic. */
 extern HB_BOOL hb_refTabIsVariadic( PHB_REFTAB pTab, const char * szFunc );
 
+/* Return the declaration-site spelling of szFunc (the first casing
+   registered with hb_refTabAddFunc), or szFunc itself when the
+   function isn't in the table. Used by the C# emitter to collapse
+   mixed-case call sites to the single name the declaration emitted —
+   Harbour is case-insensitive but C# isn't. */
+extern const char * hb_refTabFuncCanon( PHB_REFTAB pTab, const char * szFunc );
+
 /* Returns the parameter at the given position, or NULL if out of range
    or the function is unknown. The returned pointer is owned by the
    table — do not free it. */
