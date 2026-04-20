@@ -468,9 +468,16 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    /* One side OBJECT, the other a specific class: keep the specific
       class. OBJECT is just "I don't know the class" from Hungarian
       prefix — it shouldn't conflict with a concrete class name that
-      a constructor-typed call site provides. */
-   if( hb_stricmp( szNewType, "OBJECT" ) == 0 )
-      return HB_REFINE_OK;   /* incoming OBJECT doesn't override */
+      a constructor-typed call site provides. BUT: if the existing
+      type is a scalar (NUMERIC/STRING/…), incoming OBJECT is a real
+      type disagreement and must fall through to the conflict
+      resolver below. Silently keeping the scalar would lock the
+      slot to a type that its users treat as an object — the mistake
+      cascades across files via call-site propagation and produces
+      CS1061 (:member on decimal) at emit time. */
+   if( hb_stricmp( szNewType, "OBJECT" ) == 0 &&
+       ! hb_refTabIsScalarType( pParam->szType ) )
+      return HB_REFINE_OK;   /* incoming OBJECT doesn't override a class */
 
    /* Genuine disagreement: freeze the slot with fConflict set so
       later refinements stop trying. If NEITHER side is a built-in
