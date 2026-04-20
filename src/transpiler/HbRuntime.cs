@@ -79,6 +79,15 @@ public static partial class HbRuntime
         return s.PadLeft(iWidth);
     }
 
+    // ToString() is a recurring easipos idiom for Harbour's Str() —
+    // a C#-influenced habit among the contributors. The transpiler
+    // routes bare `ToString(x)` call sites here (see hb_csFuncMap in
+    // gencsharp.c). Same formatting contract as Str so the two are
+    // interchangeable; kept under its own name to keep source and
+    // emit visually aligned.
+    public static string ToString(decimal? nOrNull, decimal nWidth = 10, decimal nDec = -1) =>
+        Str(nOrNull, nWidth, nDec);
+
     public static decimal Val(string s)
     {
         decimal.TryParse(s, NumberStyles.Any, INV, out decimal result);

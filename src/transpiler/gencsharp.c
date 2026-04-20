@@ -829,7 +829,21 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
 static const char * hb_csFuncMap( const char * szName )
 {
    static char s_szBuf[ 128 ];
-   const char * szPrefix = hb_funcTabPrefix( szName );
+   const char * szPrefix;
+
+   /* ToString() is used throughout easipos source as a synonym for
+      Harbour Str() — dev idiom from someone coming from C#. It's
+      undeclared in any .hbx and there's no Harbour stdlib entry; at
+      runtime it would crash. Emitting it bare produces CS1501 in C#
+      because `object.ToString()` takes zero args, not one. Route it
+      to an explicit HbRuntime.ToString helper (same shape as Str)
+      so the runtime name matches the source call. Method-call
+      `obj:ToString()` sites go through HB_ET_SEND, not this path,
+      so a genuine class method named ToString is unaffected. */
+   if( hb_stricmp( szName, "ToString" ) == 0 )
+      return "HbRuntime.ToString";
+
+   szPrefix = hb_funcTabPrefix( szName );
    if( szPrefix )
    {
       char szUpper[ 128 ];
