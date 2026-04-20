@@ -3391,6 +3391,113 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
+
+   /* If the canonical signature has any ref param, emit a short
+      overload that takes only the prefix of params preceding the
+      first ref, all defaulted to null. The Harbour idiom is
+      `FUNCTION Foo(a, @b) hb_default(@b, 0)` (the `@` on b marks it
+      by-ref) where most callers pass Foo(a) -- leaving b NIL
+      inside the callee -- and only a few pass Foo(a, @b). In C#,
+      ref params are required; the short overload lets the
+      majority of sites compile by supplying dummy storage for the
+      tail and forwarding to the canonical. No-`@` callers with
+      arity between iFirstRef and wParamCount still fail (they
+      would need an even shorter overload per arity, skipped here
+      to avoid method-bloat). Main and spread-receivers don't
+      participate. */
+   if( ! fIsMain )
+   {
+      const char * szFnName = pFunc->value.asFunc.szName;
+      HB_BOOL fSpreadCallee = hb_refTabIsCalledVarargs( s_pRefTab, szFnName );
+      int iFirstRef = -1;
+      int iMax = ( int ) pCompFunc->wParamCount;
+      int k;
+      for( k = 0; k < iMax; k++ )
+      {
+         if( hb_refTabIsRef( s_pRefTab, szFnName, k ) )
+         {
+            iFirstRef = k;
+            break;
+         }
+      }
+      if( iFirstRef > 0 && ! fSpreadCallee )
+      {
+         char szMangledBuf[ 256 ];
+         const char * szEmitName =
+            hb_csMangleStaticFunc( szFnName, szMangledBuf, sizeof( szMangledBuf ) );
+         PHB_HVAR pP;
+
+         fprintf( yyc, "\n" );
+         hb_csEmitIndent( yyc, iIndent );
+         fprintf( yyc, "public static " );
+         fprintf( yyc, "%s",
+                  pFunc->value.asFunc.fProcedure ? "void" : "dynamic" );
+         fprintf( yyc, " %s(", szEmitName );
+         pP = pFunc->value.asFunc.pParams;
+         for( k = 0; pP && k < iFirstRef; k++ )
+         {
+            if( k > 0 )
+               fprintf( yyc, ", " );
+            fprintf( yyc, "dynamic %s = null", pP->szName );
+            pP = pP->pNext;
+         }
+         fprintf( yyc, ")\n" );
+         hb_csEmitIndent( yyc, iIndent );
+         fprintf( yyc, "{\n" );
+         /* Dummy locals for every slot the short overload elides.
+            Typed to match the canonical signature so `ref _argK`
+            binds — C# `ref` is invariant, a `ref dynamic` cell
+            won't satisfy a `ref bool` parameter. Same slot-type
+            lookup the canonical-emit loop used. */
+         {
+            PHB_HVAR pQ = pFunc->value.asFunc.pParams;
+            int j;
+            for( j = 0; pQ && j < iFirstRef; j++ )
+               pQ = pQ->pNext;
+            for( k = iFirstRef; k < iMax; k++ )
+            {
+               const HB_REFPARAM * pP =
+                  hb_refTabParam( s_pRefTab, szFnName, k );
+               const char * szSlotType = NULL;
+               if( pP && pP->szType &&
+                   hb_stricmp( pP->szType, "USUAL" ) != 0 )
+                  szSlotType = pP->szType;
+               if( ! szSlotType && pQ )
+                  szSlotType = hb_astInferType( pQ->szName, NULL );
+               hb_csEmitIndent( yyc, iIndent + 1 );
+               fprintf( yyc, "%s _arg%d = default;\n",
+                        hb_csTypeMap( szSlotType ), k );
+               if( pQ )
+                  pQ = pQ->pNext;
+            }
+         }
+         hb_csEmitIndent( yyc, iIndent + 1 );
+         if( ! pFunc->value.asFunc.fProcedure )
+            fprintf( yyc, "return " );
+         fprintf( yyc, "%s(", szEmitName );
+         pP = pFunc->value.asFunc.pParams;
+         for( k = 0; pP && k < iFirstRef; k++ )
+         {
+            if( k > 0 )
+               fprintf( yyc, ", " );
+            fprintf( yyc, "%s", pP->szName );
+            pP = pP->pNext;
+         }
+         for( k = iFirstRef; k < iMax; k++ )
+         {
+            if( k > 0 )
+               fprintf( yyc, ", " );
+            if( hb_refTabIsRef( s_pRefTab, szFnName, k ) )
+               fprintf( yyc, "ref _arg%d", k );
+            else
+               fprintf( yyc, "_arg%d", k );
+         }
+         fprintf( yyc, ");\n" );
+         hb_csEmitIndent( yyc, iIndent );
+         fprintf( yyc, "}\n" );
+      }
+   }
+
    s_szCurrentFunc[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
 }
