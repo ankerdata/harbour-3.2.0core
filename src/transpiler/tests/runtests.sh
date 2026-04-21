@@ -7,6 +7,7 @@ ROOTDIR="$(cd "$SCRIPTDIR/../../.." && pwd)"
 TRANSPILER="${1:-$ROOTDIR/bin/hbtranspiler}"
 HBOUT="$SCRIPTDIR/hbout"
 CSOUT="$SCRIPTDIR/csout"
+PRELOAD="$SCRIPTDIR/preload.txt"
 PASS=0
 FAIL=0
 
@@ -18,17 +19,25 @@ FAIL=0
 # the new locations.
 mkdir -p "$HBOUT" "$CSOUT"
 
+# Shared preload list (optional). test47 uses it to exercise the
+# filter; other tests are unaffected because their sources don't
+# reference the names declared in preload headers. Only pass the
+# flag when the file is present, so older checkouts of the tree
+# still work with a newer transpiler binary.
+PRELOAD_OPT=()
+[ -f "$PRELOAD" ] && PRELOAD_OPT=(--preload-list="$PRELOAD")
+
 # Whole-codebase pre-scan: populate hbreftab.tab with signature
 # information for every test*.prg before any -GT runs. This is what
 # makes cross-file by-ref data available to single-file transpiles
 # (see test19a.prg for the canonical example).
 for f in "$SCRIPTDIR"/test*.prg; do
-   "$TRANSPILER" -I"$ROOTDIR/include" -I"$SCRIPTDIR" "$f" -GF -q > /dev/null 2>&1
+   "$TRANSPILER" "${PRELOAD_OPT[@]}" -I"$ROOTDIR/include" -I"$SCRIPTDIR" "$f" -GF -q > /dev/null 2>&1
 done
 
 for f in "$SCRIPTDIR"/test*.prg; do
    name=$(basename "$f" .prg)
-   "$TRANSPILER" -I"$ROOTDIR/include" -I"$SCRIPTDIR" -o"$HBOUT/" "$f" -GT 2>/dev/null
+   "$TRANSPILER" "${PRELOAD_OPT[@]}" -I"$ROOTDIR/include" -I"$SCRIPTDIR" -o"$HBOUT/" "$f" -GT 2>/dev/null
    if [ $? -eq 0 ]; then
       echo "PASS: $name"
       PASS=$((PASS + 1))

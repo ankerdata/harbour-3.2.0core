@@ -8,7 +8,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TRANSPILER="$REPO_ROOT/bin/hbtranspiler"
 CSEXE="$SCRIPT_DIR/csexe"
 CSOUT="$SCRIPT_DIR/csout"
+PRELOAD="$SCRIPT_DIR/preload.txt"
 mkdir -p "$CSOUT"
+
+# Optional project-wide preload list — same convention as runtests.sh.
+# See tests/preload.txt and tests/test47.ch for the filter semantics.
+PRELOAD_OPT=()
+[ -f "$PRELOAD" ] && PRELOAD_OPT=(--preload-list="$PRELOAD")
 
 JOBS="${1:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 RESULTS_DIR="$CSEXE/.results"
@@ -37,7 +43,7 @@ cp "$REPO_ROOT/src/transpiler/HbRuntime.cs" "$CSEXE/HbRuntime/HbRuntime.cs"
 # when it runs in pass 2. Without this, e.g. test19a's Swap parameters
 # would not get the `ref` modifier, because the @ args live in test19b.
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" "$f" -GF -q 2>/dev/null
+   "$TRANSPILER" "${PRELOAD_OPT[@]}" -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" "$f" -GF -q 2>/dev/null
 done
 
 # Pass 1.5 — harvest literal #defines from any test*.ch headers into
@@ -61,7 +67,7 @@ DEFINES_MAP="$DEFINES_DIR/defines_map.txt"
 MAP_OPT=""
 [ -s "$DEFINES_MAP" ] && MAP_OPT="--defines-map=$DEFINES_MAP"
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" $MAP_OPT -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" \
+   "$TRANSPILER" "${PRELOAD_OPT[@]}" $MAP_OPT -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" \
       -o"$CSOUT/" "$f" -GS -q 2>/dev/null
 done
 

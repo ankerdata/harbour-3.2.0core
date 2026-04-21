@@ -1,0 +1,15 @@
+# Preload list for the transpiler test suite — consumed by
+# --preload-list in runtests.sh and buildcs.sh.
+#
+# Each line names a .ch whose `#define`s should register globally
+# (in addition to the baked-in std.ch + common.ch). See test47.ch
+# for the filter semantics — rewrite rules (#xcommand / #xtranslate
+# / #command / #translate) and macro-defines (`NAME(x) ...`) are
+# dropped, and `#ifdef` / `#else` / `#endif` flow control is
+# evaluated by the PP against the current define table.
+#
+# Missing files warn (W0019) but don't abort, so this list can be
+# shared across tests even when individual .ch inputs are added or
+# renamed without coordinating script changes.
+
+test47.ch
