@@ -229,6 +229,18 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          hb_hbxCanonLoad( szSwPtr + 6 );
          szSwPtr += strlen( szSwPtr );
       }
+      else if( strncmp( szSwPtr + 2, "preload-list=", 13 ) == 0 )
+      {
+         /* --preload-list=<path> names a text file whose lines list
+            additional .ch headers to feed through hb_pp_readRules at
+            startup, on top of the baked-in std.ch + common.ch. Lets
+            a project inject its own standard rules (e.g. hbcom.ch)
+            without patching the transpiler. Missing files inside the
+            list warn but don't abort — see ppcomp.c. */
+         extern void hb_compPreloadListSetPath( const char * szPath );
+         hb_compPreloadListSetPath( szSwPtr + 15 );
+         szSwPtr += strlen( szSwPtr );
+      }
 #endif
    }
    else if( HB_ISOPTSEP( *szSwPtr ) )

@@ -47,7 +47,40 @@
 #define _HB_PP_INTERNAL
 #include "hbcomp.h"
 #ifdef HB_TRANSPILER
+#include <stdio.h>
+#include <string.h>
 #include "hbast.h"
+
+/* Optional path to a project-specific preload list. Set via
+   --preload-list=<path> on the command line. The file names one
+   header per line; each is fed to hb_pp_readRules after the baked-in
+   std.ch + common.ch defaults, extending the standard rule set
+   without patching the transpiler. Lines starting with '#' and
+   blank lines are ignored. Missing files inside the list warn but
+   don't abort the compile — "soft" is the point.
+
+   While s_fPreloadSoftErrors is set, hb_pp_ErrorGen rewrites any
+   non-warning errors raised by the preprocessor into warnings so a
+   missing header file or a malformed preload doesn't take the whole
+   compile down. Cleared immediately after the preload loop. */
+static char    s_szPreloadListPath[ HB_PATH_MAX ] = { 0 };
+static HB_BOOL s_fPreloadSoftErrors = HB_FALSE;
+
+void hb_compPreloadListSetPath( const char * szPath )
+{
+   if( ! szPath || ! *szPath )
+   {
+      s_szPreloadListPath[ 0 ] = '\0';
+      return;
+   }
+   hb_strncpy( s_szPreloadListPath, szPath,
+               sizeof( s_szPreloadListPath ) - 1 );
+}
+
+const char * hb_compPreloadListGetPath( void )
+{
+   return s_szPreloadListPath[ 0 ] ? s_szPreloadListPath : NULL;
+}
 #endif
 
 static void hb_pp_ErrorGen( void * cargo,
@@ -61,6 +94,27 @@ static void hb_pp_ErrorGen( void * cargo,
 
    HB_COMP_PARAM->currLine = hb_pp_line( HB_COMP_PARAM->pLex->pPP );
    HB_COMP_PARAM->currModule = hb_pp_fileName( HB_COMP_PARAM->pLex->pPP );
+#ifdef HB_TRANSPILER
+   /* Soft mode (preload list): a missing header file or a malformed
+      rule inside one should not abort the compile. Print a W0019
+      summary directly so the user sees *which* preload entry failed,
+      then swallow the error — don't call hb_compGenError, so
+      iErrorCount stays at zero and the compile continues. The
+      compiler warning channel isn't used here because PP error
+      messages have no leading level digit (unlike PP warnings), and
+      hb_compGenWarning would misread that as a malformed warning. */
+   if( s_fPreloadSoftErrors && cPrefix != 'W' )
+   {
+      fprintf( stderr,
+               "hbtranspiler: warning W0019  "
+               "Preload rule load failed: %s\n",
+               szParam1 ? szParam1 : "(unknown)" );
+      HB_COMP_PARAM->fError = HB_FALSE;
+      HB_COMP_PARAM->currLine = iCurrLine;
+      HB_COMP_PARAM->currModule = currModule;
+      return;
+   }
+#endif
    if( cPrefix == 'W' )
       hb_compGenWarning( HB_COMP_PARAM, szMsgTable, cPrefix, iErrorCode, szParam1, szParam2 );
    else
@@ -458,6 +512,58 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
       hb_pp_setComments( HB_COMP_PARAM->pLex->pPP, HB_TRUE );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "std.ch" );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "common.ch" );
+
+      /* Project-supplied preload list (soft extension of the baked-in
+         std.ch + common.ch set). Each line names another .ch whose
+         #xcommands / #defines should register globally. Errors on
+         individual entries are downgraded to warnings (see the
+         s_fPreloadSoftErrors gate in hb_pp_ErrorGen) — the whole point
+         of the list is to tolerate per-environment header availability
+         differences without failing the compile. */
+      {
+         const char * szPath = hb_compPreloadListGetPath();
+         if( szPath && *szPath )
+         {
+            FILE * fp = hb_fopen( szPath, "r" );
+            if( fp )
+            {
+               char line[ 512 ];
+               s_fPreloadSoftErrors = HB_TRUE;
+               while( fgets( line, sizeof( line ), fp ) )
+               {
+                  char * p = line;
+                  char * q;
+                  while( *p == ' ' || *p == '\t' )
+                     p++;
+                  if( *p == '\0' || *p == '#' ||
+                      *p == '\n' || *p == '\r' )
+                     continue;
+                  for( q = p; *q; q++ )
+                  {
+                     if( *q == '\n' || *q == '\r' || *q == '#' )
+                     {
+                        *q = '\0';
+                        break;
+                     }
+                  }
+                  q = p + strlen( p );
+                  while( q > p && ( q[ -1 ] == ' ' || q[ -1 ] == '\t' ) )
+                     *--q = '\0';
+                  if( *p == '\0' )
+                     continue;
+                  hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, p );
+               }
+               s_fPreloadSoftErrors = HB_FALSE;
+               fclose( fp );
+            }
+            else
+            {
+               fprintf( stderr,
+                        "hbtranspiler: warning W0019  "
+                        "Preload list '%s' could not be opened\n", szPath );
+            }
+         }
+      }
 
       /* Add the built-in dynamic defines (__HARBOUR__, __ARCH32BIT__,
          …) AND any -D / -undef from the cmdline or env BEFORE
