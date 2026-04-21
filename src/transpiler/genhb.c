@@ -659,7 +659,26 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_LOCAL:
          hb_astEmitIndent( yyc, iIndent );
          fprintf( yyc, "LOCAL %s", pNode->value.asVar.szName );
-         if( pNode->value.asVar.pInit )
+         if( pNode->value.asVar.fArrayDim &&
+             pNode->value.asVar.pInit &&
+             ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+               pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
+         {
+            /* `LOCAL name[dim1][dim2]...` — round-trip to the
+               sized-declaration syntax, not `:= { dim1, dim2 }`.
+               The grammar now adds this node with pInit = ARGLIST of
+               dim expressions; emitting `:=` here would reintroduce
+               it as a scalar-array init and change semantics. */
+            PHB_EXPR pDim = pNode->value.asVar.pInit->value.asList.pExprList;
+            while( pDim )
+            {
+               fprintf( yyc, "[" );
+               hb_astEmitExpr( pDim, yyc, HB_FALSE );
+               fprintf( yyc, "]" );
+               pDim = pDim->pNext;
+            }
+         }
+         else if( pNode->value.asVar.pInit )
          {
             fprintf( yyc, " := " );
             hb_astEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
@@ -692,7 +711,24 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   pNode->type == HB_AST_STATIC ? "STATIC" :
                   pNode->type == HB_AST_PUBLIC ? "PUBLIC" : "PRIVATE",
                   pNode->value.asVar.szName );
-         if( pNode->value.asVar.pInit )
+         if( pNode->value.asVar.fArrayDim &&
+             pNode->value.asVar.pInit &&
+             ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+               pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
+         {
+            /* `STATIC / PUBLIC / PRIVATE name[dim1][dim2]...` — round
+               trip to the sized syntax. See HB_AST_LOCAL above for
+               rationale. */
+            PHB_EXPR pDim = pNode->value.asVar.pInit->value.asList.pExprList;
+            while( pDim )
+            {
+               fprintf( yyc, "[" );
+               hb_astEmitExpr( pDim, yyc, HB_FALSE );
+               fprintf( yyc, "]" );
+               pDim = pDim->pNext;
+            }
+         }
+         else if( pNode->value.asVar.pInit )
          {
             fprintf( yyc, " := " );
             hb_astEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );

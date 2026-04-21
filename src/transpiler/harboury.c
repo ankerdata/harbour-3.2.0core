@@ -5622,16 +5622,26 @@ yyreduce:
   case 404:
 #line 1190 "harbour.y" /* yacc.c:1646  */
     {
-                  /* `PUBLIC name[size]` / `PRIVATE name[size]` — record
-                     the declaration in the AST, marking the node as an
-                     array-dim so the emitter allocates `new dynamic[N]`
-                     rather than treating the DimList as a comma-sequence
-                     init. Only PUBLIC / PRIVATE are captured here:
-                     LOCAL / STATIC / MEMVAR with the `[size]` syntax
-                     have been working through hb_compVariableDim's
-                     PCODE path (which the transpiler ignores) — adding
-                     them to the AST now would break existing emission
-                     that treats their pInit as a scalar expression. */
+                  /* `PUBLIC` / `PRIVATE` / `STATIC` / `LOCAL` `name[size]`
+                     — record the declaration in the AST, marking the
+                     node fArrayDim so the emitter allocates `new
+                     dynamic[N]` rather than treating the DimList as a
+                     comma-sequence init.
+
+                     The previous policy excluded STATIC / LOCAL here
+                     because the emitters didn't handle fArrayDim for
+                     those scopes; easipos hit that head-on:
+                     `STATIC aKPStatus[M][N]` file-scope and `LOCAL
+                     aConfirm[N]` function-scope declarations both
+                     disappeared from the AST entirely, leaving body
+                     references to the bare name which C# then
+                     CS0103'd across every use. Adding these here pairs
+                     with the new fArrayDim branches in gencsharp.c's
+                     file-scope walker and HB_AST_LOCAL emitter.
+
+                     MEMVAR with `[size]` is still deferred — uncommon
+                     in practice and MEMVAR AST emission has its own
+                     mangling path that would need separate work. */
 #ifdef HB_TRANSPILER
                   if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC )
                   {
@@ -5641,6 +5651,16 @@ yyreduce:
                   else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PRIVATE )
                   {
                      hb_astAddPrivate( HB_COMP_PARAM, (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM->currLine );
+                     hb_astMarkLastVarArrayDim( HB_COMP_PARAM );
+                  }
+                  else if( HB_COMP_PARAM->iVarScope & HB_VSCOMP_STATIC )
+                  {
+                     hb_astAddStatic( HB_COMP_PARAM, (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM->currLine );
+                     hb_astMarkLastVarArrayDim( HB_COMP_PARAM );
+                  }
+                  else if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_LOCAL )
+                  {
+                     hb_astAddLocal( HB_COMP_PARAM, (yyvsp[-2].string), (yyvsp[-1].asExpr), HB_COMP_PARAM->currLine );
                      hb_astMarkLastVarArrayDim( HB_COMP_PARAM );
                   }
 #endif

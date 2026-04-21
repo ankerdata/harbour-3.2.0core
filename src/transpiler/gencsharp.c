@@ -1573,6 +1573,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                /* Known case-typo'd local — emit canonical form. */
                fprintf( yyc, "%s", szLocal );
             }
+            else if( s_pRefTab && hb_refTabIsPublic( s_pRefTab, szVarName ) )
+            {
+               /* PUBLIC variable that the parser auto-wrapped as a
+                  `MEMVAR->aName` alias because hb_compVariableFind
+                  doesn't resolve PUBLICs at parse time. The PUBLIC
+                  owner emits a bare `public static dynamic <name>;`
+                  field, so references — including this alias-wrapped
+                  one — must bind bare. Prioritised over the
+                  IsFileMemvar branch because that registry
+                  double-duties as a PUBLIC-owner dedup set (see the
+                  HB_AST_PUBLIC walker below), which would otherwise
+                  steer PUBLIC refs into the file-mangled path and
+                  CS0103 (`hwfinit_aHWFlag` when the field is plain
+                  `aHWFlag`). */
+               fprintf( yyc, "%s", szVarName );
+            }
             else if( hb_csIsFileStatic( szVarName ) )
             {
                /* File-scope STATIC the parser auto-wrapped as an
@@ -2024,6 +2040,30 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             else
                szType = hb_astInferType( pNode->value.asVar.szName,
                                           pNode->value.asVar.pInit );
+
+            /* `LOCAL name[dim1][dim2]...` — emitted by the grammar
+               as an HB_AST_LOCAL with fArrayDim + pInit = ARGLIST of
+               dims. Allocate a jagged dynamic[] sized by the first
+               dim; inner dims get filled lazily (matching Harbour's
+               runtime-grown array semantics). Same shape as the
+               file-scope STATIC fArrayDim branch above. */
+            if( pNode->value.asVar.fArrayDim &&
+                pNode->value.asVar.pInit &&
+                ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+                  pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
+            {
+               PHB_EXPR pDim =
+                  pNode->value.asVar.pInit->value.asList.pExprList;
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "dynamic[] %s = new dynamic[(int)(",
+                        pNode->value.asVar.szName );
+               if( pDim )
+                  hb_csEmitExpr( pDim, yyc, HB_FALSE );
+               else
+                  fprintf( yyc, "0" );
+               fprintf( yyc, ")];\n" );
+               break;
+            }
 
             if( pNode->value.asVar.pInit )
             {
@@ -3837,6 +3877,42 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       }
    }
 
+   /* Pre-pass: register every file-scope STATIC name into the
+      csFileStatic table *before* any class method body emits. The
+      main walker (below — the one that also emits the
+      `static dynamic <file>_<name>` class fields) runs AFTER the
+      classes are emitted, so method-local statics weren't in the
+      registry yet when their body references were walked by
+      HB_ET_VARIABLE. Body refs then fell through to the bare-name
+      branch while the field declaration ultimately emitted with the
+      `<file>_<name>` mangling, and the two stopped matching.
+      MEMVAR intentionally stays out of this pre-pass: the main
+      walker's MEMVAR field-emit is guarded by
+      `! hb_csIsFileMemvar(name)` as its dedup check, so a pre-pass
+      registration would make the main walker think the field was
+      already declared and skip it (test16 exercises this). MEMVAR
+      body-ref ordering isn't affected because MEMVARs are captured
+      at the function-body's MEMVAR directive, not at method-local
+      statics. */
+   {
+      PHB_AST_NODE pF = HB_COMP_PARAM->ast.pFuncList;
+      while( pF )
+      {
+         if( pF->type == HB_AST_FUNCTION && pF->value.asFunc.pBody &&
+             pF->value.asFunc.pBody->type == HB_AST_BLOCK )
+         {
+            PHB_AST_NODE pStmt = pF->value.asFunc.pBody->value.asBlock.pFirst;
+            while( pStmt )
+            {
+               if( pStmt->type == HB_AST_STATIC )
+                  hb_csAddFileStatic( pStmt->value.asVar.szName );
+               pStmt = pStmt->pNext;
+            }
+         }
+         pF = pF->pNext;
+      }
+   }
+
    /* Emit class definitions with their methods */
    {
       HB_CS_CLASS * pClass = pClassList;
@@ -3847,6 +3923,19 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          pClass = pClass->pNext;
       }
    }
+
+   /* Force the Program partial to open when there are file-scope
+      statics to declare, even if every function in the file is a
+      class method (fHasStandalone would otherwise stay false and
+      the partial block — which is where the
+      `static <type> <file>_<name>` field declarations go — never
+      opens). Happens in library files like ccio.prg where every
+      function is `METHOD ... CLASS ...` and a `static aErrs := {...}`
+      inside a method still needs a class-level field to hold it.
+      Harmless when no file-statics exist — the pre-pass leaves
+      s_iFileStaticCount at 0 and this short-circuits. */
+   if( s_iFileStaticCount > 0 )
+      fHasStandalone = HB_TRUE;
 
    /* Emit standalone functions in a static class */
    if( fHasStandalone )
@@ -3897,18 +3986,46 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         pStmt->value.asVar.szAlias :
                         hb_astInferType( pStmt->value.asVar.szName,
                                           pStmt->value.asVar.pInit );
+                     HB_BOOL fArrayDim = pStmt->value.asVar.fArrayDim &&
+                        pStmt->value.asVar.pInit &&
+                        ( pStmt->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+                          pStmt->value.asVar.pInit->ExprType == HB_ET_LIST );
                      hb_csAddFileStatic( pStmt->value.asVar.szName );
                      hb_csEmitIndent( yyc, 1 );
-                     fprintf( yyc, "static %s %s_%s",
-                              hb_csTypeMap( szType ),
-                              s_szFileBase,
-                              pStmt->value.asVar.szName );
-                     if( pStmt->value.asVar.pInit )
+                     if( fArrayDim )
                      {
-                        fprintf( yyc, " = " );
-                        hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
+                        /* `STATIC name[dim1][dim2]...` — allocate a
+                           jagged dynamic[] sized by the first dim.
+                           Inner dims get nulls until assigned, matching
+                           Harbour's semantics (callers can grow them
+                           via ASize or by direct index assignment into
+                           a resizable list). szType from Hungarian is
+                           usually "ARRAY"; force `dynamic[]` so the
+                           C# field type matches `new dynamic[N]`. */
+                        PHB_EXPR pDim =
+                           pStmt->value.asVar.pInit->value.asList.pExprList;
+                        fprintf( yyc, "static dynamic[] %s_%s = new dynamic[(int)(",
+                                 s_szFileBase,
+                                 pStmt->value.asVar.szName );
+                        if( pDim )
+                           hb_csEmitExpr( pDim, yyc, HB_FALSE );
+                        else
+                           fprintf( yyc, "0" );
+                        fprintf( yyc, ")];\n" );
                      }
-                     fprintf( yyc, ";\n" );
+                     else
+                     {
+                        fprintf( yyc, "static %s %s_%s",
+                                 hb_csTypeMap( szType ),
+                                 s_szFileBase,
+                                 pStmt->value.asVar.szName );
+                        if( pStmt->value.asVar.pInit )
+                        {
+                           fprintf( yyc, " = " );
+                           hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
+                        }
+                        fprintf( yyc, ";\n" );
+                     }
                   }
                   else if( pStmt->type == HB_AST_MEMVAR )
                   {
