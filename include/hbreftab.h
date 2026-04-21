@@ -230,6 +230,11 @@ extern const char * hb_refTabFuncCanon( PHB_REFTAB pTab, const char * szFunc );
 extern const HB_REFPARAM * hb_refTabParam( PHB_REFTAB pTab,
                                            const char * szFunc, int iPos );
 
+/* Returns the observed call-site arity bitmap: bit n set means at least
+   one caller passed the function exactly n positional arguments. Used
+   by the C# emitter to skip short overloads no caller actually uses. */
+extern HB_U64 hb_refTabCallArities( PHB_REFTAB pTab, const char * szFunc );
+
 /* ---- AST scanner ---- */
 
 /* Walk the program (AST function list + compiler function list, walked

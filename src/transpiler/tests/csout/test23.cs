@@ -28,8 +28,10 @@ public static partial class Program
         return;
     }
 
-    public static void Greet(string? cName = null, bool? lFormal = null)
+    public static void Greet(params dynamic[] hbva)
     {
+        dynamic cName = hbva.Length > 0 ? hbva[0] : null;
+        dynamic lFormal = hbva.Length > 1 ? hbva[1] : null;
         if (cName == null)
         {
             cName = "world";

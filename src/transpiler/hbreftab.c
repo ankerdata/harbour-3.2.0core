@@ -6,6 +6,8 @@
  * Copyright 2026 harbour.github.io
  */
 
+#include <stdlib.h>          /* strtoull for the A=<hex> arity bitmap */
+
 #include "hbcomp.h"
 #include "hbast.h"
 #include "hbreftab.h"
@@ -34,6 +36,11 @@ typedef struct HB_REFENTRY_
    HB_REFPARAM *         pParams;      /* nParams entries (NULL if unknown) */
    HB_U64                bitmap;       /* by-ref bitmap, bit n = arg n is by-ref */
    HB_U64                nilbits;      /* nilable bitmap, bit n = slot n is nilable */
+   HB_U64                bitCallArities; /* observed call-site arities: bit n = a
+                                           caller passed n args. Lets the emitter
+                                           skip the short overload when every
+                                           caller already uses the canonical full
+                                           arity, avoiding dead methods. */
    struct HB_REFENTRY_ * pNext;
 } HB_REFENTRY, * PHB_REFENTRY;
 
@@ -316,6 +323,23 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
             fOldConflict[ i ] = pOld[ i ].fConflict;
       }
 
+      /* Multi-def arity disagreement: same name declared in two .prg
+         files with different parameter counts (e.g. EcrDir has a
+         zero-arg and a one-arg flavour). The reftab holds one entry
+         per name, so the second definition's AddFunc call overwrites
+         the first — call sites matching the clobbered signature then
+         surface as bogus CS1501 / W0018. Fold the two by taking the
+         wider arity and marking the entry variadic; the emitter
+         widens the C# sig to `params dynamic[]` and both caller
+         shapes resolve. */
+      int iSuppliedParams = nParams;
+      if( e->fDefined && nOld != nParams )
+      {
+         if( nOld > nParams )
+            nParams = nOld;
+         fVariadic = HB_TRUE;
+      }
+
       e->nParams   = nParams;
       e->fVariadic = fVariadic;
       e->fDefined  = HB_TRUE;
@@ -326,12 +350,20 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
 
       for( i = 0; i < nParams; i++ )
       {
-         const char * szPName = ppNames ? ppNames[ i ] : NULL;
-         const char * szPType = ppTypes ? ppTypes[ i ] : NULL;
+         /* Only pull from ppNames/ppTypes for slots the caller
+            actually supplied. When we widened via the multi-def
+            merge, trailing slots fall back to whatever the old
+            entry had. */
+         const char * szPName = ( ppNames && i < iSuppliedParams ) ? ppNames[ i ] : NULL;
+         const char * szPType = ( ppTypes && i < iSuppliedParams ) ? ppTypes[ i ] : NULL;
          const char * szOldType = NULL;
 
          if( pOld && i < nOld )
+         {
             szOldType = pOld[ i ].szType;
+            if( i >= iSuppliedParams && pOld[ i ].szName )
+               szPName = pOld[ i ].szName;
+         }
 
          e->pParams[ i ].szName = hb_refTabDup( szPName ? szPName : "" );
 
@@ -682,6 +714,15 @@ HB_BOOL hb_refTabIsVariadic( PHB_REFTAB pTab, const char * szFunc )
    return e ? e->fVariadic : HB_FALSE;
 }
 
+HB_U64 hb_refTabCallArities( PHB_REFTAB pTab, const char * szFunc )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szFunc )
+      return 0;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   return e ? e->bitCallArities : 0;
+}
+
 const char * hb_refTabFuncCanon( PHB_REFTAB pTab, const char * szFunc )
 {
    PHB_REFENTRY e;
@@ -811,6 +852,14 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                         e->pParams[ p ].szType,
                         flags );
             }
+            /* Optional trailing "A=<hex>" field carries the observed
+               call-site arity bitmap. Omitted when no call sites were
+               seen (bit 0 set is a real 0-arg call, not absence). Old
+               loaders ignore unknown tail fields; new loaders key off
+               the `A=` prefix. */
+            if( e->bitCallArities )
+               fprintf( fp, "\tA=%llx",
+                        ( unsigned long long ) e->bitCallArities );
             fprintf( fp, "\n" );
          }
       }
@@ -991,6 +1040,20 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             for( i = 0; i < nParams && i < pe->nParams; i++ )
                if( cons[ i ] )
                   pe->pParams[ i ].fConflict = HB_TRUE;
+         }
+      }
+      /* Trailing optional fields. Currently only `A=<hex>` — the
+         observed call-site arity bitmap. Tolerates unknown prefixes so
+         future tags can be added without breaking loaders in the
+         field. */
+      for( i = 4 + nParams; i < nFields; i++ )
+      {
+         if( fields[ i ][ 0 ] == 'A' && fields[ i ][ 1 ] == '=' )
+         {
+            PHB_REFENTRY pe = hb_refTabFindEntry( pTab, fields[ 0 ], NULL );
+            if( pe )
+               pe->bitCallArities = ( HB_U64 ) strtoull(
+                  fields[ i ] + 2, NULL, 16 );
          }
       }
    }
@@ -1222,15 +1285,27 @@ static HB_BOOL hb_refTabIsVariadicProbe( const char * szName )
 
 /* Walk an HB_ET_LIST/HB_ET_ARGLIST argument list and:
      1) mark positions where the arg is HB_ET_VARREF/HB_ET_REFERENCE
-     2) recurse into each arg expression so nested calls are scanned too */
+     2) recurse into each arg expression so nested calls are scanned too
+     3) record the observed call arity (bitCallArities bit) so the
+        emitter can skip a short overload no caller ever uses */
 static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
                                   PHB_EXPR pParms, HB_SCANCTX * pCtx )
 {
    PHB_EXPR pArg;
-   int      iPos = 0;
+   int      iPos      = 0;
+   int      iLastReal = -1;   /* last non-NONE slot; trailing gaps don't count */
 
    if( ! pParms )
+   {
+      /* Bare `Foo()` — zero-arg call site. Record arity 0 so the
+         emitter knows callers use the shortest form. */
+      if( szFunc )
+      {
+         PHB_REFENTRY e = hb_refTabFindOrCreate( pTab, szFunc );
+         e->bitCallArities |= ( HB_U64 ) 1;
+      }
       return;
+   }
 
    if( pParms->ExprType == HB_ET_LIST ||
        pParms->ExprType == HB_ET_ARGLIST )
@@ -1260,6 +1335,7 @@ static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
       {
          if( szFunc )
             hb_refTabMarkCalledVarargs( pTab, szFunc );
+         iLastReal = iPos;
          pArg = pArg->pNext;
          iPos++;
          continue;
@@ -1277,8 +1353,17 @@ static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
       }
       else
          hb_refTabScanExpr( pTab, pArg, pCtx );
+      iLastReal = iPos;
       pArg = pArg->pNext;
       iPos++;
+   }
+
+   /* Record the effective call arity — trailing HB_ET_NONE slots are
+      dropped to match what hb_csEmitCallArgs emits. */
+   if( szFunc && iLastReal + 1 < HB_REFTAB_MAXPARAM )
+   {
+      PHB_REFENTRY e = hb_refTabFindOrCreate( pTab, szFunc );
+      e->bitCallArities |= ( ( HB_U64 ) 1 ) << ( iLastReal + 1 );
    }
 }
 
@@ -1287,6 +1372,16 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
 {
    if( ! pExpr )
       return;
+
+   /* A bare `...` anywhere in the body — in an array literal
+      (`aArgs := { ... }`), inside any expression, etc. — means the
+      enclosing function captures varargs. It's distinct from the
+      call-site case `foo(...)` (handled in hb_refTabScanArgList),
+      which marks the *callee* as called-with-spread. */
+   if( pCtx && pExpr->ExprType == HB_ET_ARGLIST &&
+       pExpr->value.asList.reference &&
+       ! pExpr->value.asList.pExprList )
+      pCtx->fVariadic = HB_TRUE;
 
    switch( pExpr->ExprType )
    {

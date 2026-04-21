@@ -1267,11 +1267,17 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
 
    HB_SYMBOL_UNUSED( HB_COMP_PARAM );
 
-   /* Build output filename with .hb extension.
+   /* Build output filename with .prg extension — transpiled Harbour
+      is a .prg by construction (round-trips through the same compiler
+      front-end) and keeping the extension lets hbmk2 consume it
+      directly, no rename hop needed. The old .hb extension existed to
+      distinguish transpiled output from source when both lived in the
+      same directory; test runs now put them in a separate `hbout/` so
+      the disambiguation is unnecessary.
       Use -o output path if specified, otherwise use source file's directory. */
    {
       PHB_FNAME pOut = hb_fsFNameSplit( HB_COMP_PARAM->szFile );
-      pFileName->szExtension = ".hb";
+      pFileName->szExtension = ".prg";
       if( HB_COMP_PARAM->pOutPath && HB_COMP_PARAM->pOutPath->szPath )
          pFileName->szPath = HB_COMP_PARAM->pOutPath->szPath;
       else if( pOut->szPath )

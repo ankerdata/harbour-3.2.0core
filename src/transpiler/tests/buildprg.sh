@@ -14,7 +14,7 @@ for f in "$SCRIPTDIR"/test*.prg; do
    # test19a/test19b and test20a/test20b are multi-file pairs handled
    # as single test19 / test20 builds below.
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b|test45a|test45b|test46a|test46b) continue ;;
    esac
    hbmk2 "$f" -o"$SCRIPTDIR/prgexe/$name" -gtcgi -q 2>/dev/null
    if [ $? -eq 0 ]; then
@@ -81,6 +81,22 @@ if [ -f "$SCRIPTDIR/test41a.prg" ] && [ -f "$SCRIPTDIR/test41b.prg" ]; then
       FAIL=$((FAIL + 1))
    fi
 fi
+
+# test45 + test46: short-overload emission pairs. See test45a.prg /
+# test46a.prg for the C# side; these just compile the Harbour baseline.
+for pair in 45 46; do
+   if [ -f "$SCRIPTDIR/test${pair}a.prg" ] && [ -f "$SCRIPTDIR/test${pair}b.prg" ]; then
+      hbmk2 "$SCRIPTDIR/test${pair}a.prg" "$SCRIPTDIR/test${pair}b.prg" \
+            -o"$SCRIPTDIR/prgexe/test${pair}" -gtcgi -q 2>/dev/null
+      if [ $? -eq 0 ]; then
+         echo "PASS: test${pair}"
+         PASS=$((PASS + 1))
+      else
+         echo "FAIL: test${pair}"
+         FAIL=$((FAIL + 1))
+      fi
+   fi
+done
 
 echo ""
 echo "Results: $PASS compiled, $FAIL failed"

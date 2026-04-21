@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TRANSPILER="$REPO_ROOT/bin/hbtranspiler"
 CSEXE="$SCRIPT_DIR/csexe"
+CSOUT="$SCRIPT_DIR/csout"
+mkdir -p "$CSOUT"
 
 JOBS="${1:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 RESULTS_DIR="$CSEXE/.results"
@@ -53,12 +55,14 @@ python3 "$REPO_ROOT/src/transpiler/tools/gendefines.py" \
    --output-dir  "$DEFINES_DIR" > /dev/null 2>&1
 DEFINES_MAP="$DEFINES_DIR/defines_map.txt"
 
-# Pass 2 — regenerate all .cs files with the populated table.
+# Pass 2 — regenerate all .cs files with the populated table. Output
+# goes into csout/ rather than next to each .prg so the tests/ tree
+# stays legible (a git status ignores the transpiled outputs).
 MAP_OPT=""
 [ -s "$DEFINES_MAP" ] && MAP_OPT="--defines-map=$DEFINES_MAP"
 for f in "$SCRIPT_DIR"/test*.prg; do
    "$TRANSPILER" $MAP_OPT -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" \
-      "$f" -GS -q 2>/dev/null
+      -o"$CSOUT/" "$f" -GS -q 2>/dev/null
 done
 
 # Build one test case. First arg is the dest project name; remaining
@@ -134,19 +138,19 @@ schedule() {
 }
 
 # Single-file tests — skip multi-file pair members (handled below).
-for f in "$SCRIPT_DIR"/test*.cs; do
+for f in "$CSOUT"/test*.cs; do
    name=$(basename "$f" .cs)
    case "$name" in
-      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b) continue ;;
+      test19a|test19b|test20a|test20b|test22a|test22b|test41a|test41b|test45a|test45b|test46a|test46b) continue ;;
    esac
    schedule "$name" "$f"
 done
 
 # Multi-file pair tests: both .cs files in one project named without
 # the a/b suffix (test19a + test19b → test19).
-for pair in 19 20 22 41; do
-   a="$SCRIPT_DIR/test${pair}a.cs"
-   b="$SCRIPT_DIR/test${pair}b.cs"
+for pair in 19 20 22 41 45 46; do
+   a="$CSOUT/test${pair}a.cs"
+   b="$CSOUT/test${pair}b.cs"
    [ -f "$a" ] && [ -f "$b" ] && schedule "test${pair}" "$a" "$b"
 done
 

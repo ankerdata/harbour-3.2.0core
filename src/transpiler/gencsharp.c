@@ -25,6 +25,12 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
 
 /* Track last source line for blank line preservation */
 static int s_iLastLine = 0;
+/* Source line of the statement currently being emitted. Updated at the
+   top of every hb_csEmitNode so anything fired from inside an
+   expression walk (e.g. W0018 extra-arg warnings) can attach a source
+   coordinate. s_pCompCtx->currLine is stuck at end-of-file during
+   codegen so it can't be used for this. */
+static int s_iCurrentStmtLine = 0;
 /* Counter for workarea-ALIAS references encountered while emitting the
    current file. Reset at the top of hb_compGenCSharp, inspected at the
    end. We surface them as HB_COMP_ERR_SYNTAX so the file fails codegen
@@ -193,6 +199,66 @@ static void hb_csWarnUnsupported( const char * szDesc )
                s_pCompCtx->currLine, szDesc ? szDesc : "?" );
    }
    s_iAliasUnsupported++;
+}
+
+/* Count argument slots in a call-site parameter list. Empty call
+   `Foo()` has pParms->asList.pExprList == NULL or a single sentinel
+   HB_ET_NONE — both yield 0. Middle gaps in `Foo(a, , c)` count as
+   slots (Harbour pads them to NIL); trailing gaps `Foo(a, , , )` are
+   dropped to match hb_csEmitCallArgs's truncation so the warning
+   uses the same arity the emit does. */
+static int hb_csCountCallArgs( PHB_EXPR pParms )
+{
+   PHB_EXPR pHead;
+   PHB_EXPR pItem;
+   int      iLastReal = -1;
+   int      iPos;
+
+   if( ! pParms )
+      return 0;
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pHead = pParms->value.asList.pExprList;
+   else
+      pHead = pParms;
+   for( pItem = pHead, iPos = 0; pItem; pItem = pItem->pNext, iPos++ )
+   {
+      if( pItem->ExprType != HB_ET_NONE )
+         iLastReal = iPos;
+   }
+   return iLastReal + 1;
+}
+
+/* Warn when szFunc is a known user function and the call passes more
+   positional args than the declaration takes. Harbour silently drops
+   the extras at runtime; C# surfaces them as CS1501 "no overload takes
+   N arguments". Flagging at emit-time gives the user a per-call-site
+   list in source-file coordinates instead of transpiled-.cs ones.
+   Variadic and called-with-spread callees are exempt: both accept an
+   arbitrary trailing list. */
+static void hb_csWarnExtraArgs( const char * szFunc, PHB_EXPR pParms )
+{
+   int iDeclared;
+   int iPassed;
+
+   if( ! szFunc || ! s_pRefTab )
+      return;
+   iDeclared = hb_refTabParamCount( s_pRefTab, szFunc );
+   if( iDeclared < 0 )
+      return;  /* not a known user function */
+   if( hb_refTabIsVariadic( s_pRefTab, szFunc ) ||
+       hb_refTabIsCalledVarargs( s_pRefTab, szFunc ) )
+      return;
+   iPassed = hb_csCountCallArgs( pParms );
+   if( iPassed > iDeclared && s_pCompCtx )
+   {
+      fprintf( stderr,
+               "hbtranspiler: %s(%d): warning W0018  "
+               "Call to '%s' passes %d args but declaration takes %d\n",
+               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_iCurrentStmtLine, szFunc, iPassed, iDeclared );
+   }
 }
 
 /* Callback used by hb_refTabForEachPublic — emits one field line per
@@ -1131,6 +1197,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   if( szMapped == szName && s_pRefTab )
                      szMapped = hb_refTabFuncCanon( s_pRefTab, szName );
                   fprintf( yyc, "%s", szMapped );
+                  /* Flag call sites that pass more args than the
+                     declaration takes — that's a source-level bug
+                     Harbour tolerates but C# rejects as CS1501. */
+                  hb_csWarnExtraArgs( szName, pExpr->value.asFunCall.pParms );
                }
             }
             else
@@ -1838,6 +1908,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 {
    if( ! pNode )
       return;
+
+   if( pNode->iLine > 0 )
+      s_iCurrentStmtLine = pNode->iLine;
 
    /* Blank line preservation */
    switch( pNode->type )
@@ -3309,13 +3382,16 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       int iLastRef = -1;
       HB_BOOL fWantDefaults = ! fIsMain;
       /* A callee reached via `...` spread from a codeblock gets its
-         signature widened to `params dynamic[] hbva`. The original
-         param names are re-bound from the array inside the body so
-         existing body references keep working. Skipped when any slot
-         is by-ref (C# `params` can't combine with `ref`) — those calls
-         fall back to the reflection path in HbRuntime.EVAL. */
+         signature widened to `params dynamic[] hbva`. Same for a
+         self-declared variadic: `function Foo(...)` (with body using
+         `{ ... }` or bare `...`) that has no named params. The
+         original param names (if any) are re-bound from the array
+         inside the body so existing body references keep working.
+         Skipped when any slot is by-ref (C# `params` can't combine
+         with `ref`) — those calls fall back to reflection. */
       HB_BOOL fSpread = ! fIsMain &&
-                        hb_refTabIsCalledVarargs( s_pRefTab, szFnName );
+                        ( hb_refTabIsCalledVarargs( s_pRefTab, szFnName ) ||
+                          hb_refTabIsVariadic      ( s_pRefTab, szFnName ) );
 
       if( fWantDefaults )
       {
@@ -3381,7 +3457,8 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       re-bind the original named params from the array so references
       in the body keep working. */
    if( ! fIsMain &&
-       hb_refTabIsCalledVarargs( s_pRefTab, pFunc->value.asFunc.szName ) )
+       ( hb_refTabIsCalledVarargs( s_pRefTab, pFunc->value.asFunc.szName ) ||
+         hb_refTabIsVariadic      ( s_pRefTab, pFunc->value.asFunc.szName ) ) )
    {
       PHB_HVAR pSlot;
       int k = 0;
@@ -3420,7 +3497,16 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       arity between iFirstRef and wParamCount still fail (they
       would need an even shorter overload per arity, skipped here
       to avoid method-bloat). Main and spread-receivers don't
-      participate. */
+      participate.
+
+      We only emit when the reftab's observed call-arity bitmap shows
+      at least one caller actually passed fewer than iFirstRef args.
+      Without the guard, every ref-taking function gets a dead short
+      overload (e.g. LoadAFlag, whose callers all pass the full
+      arity). The bitmap is populated during the -GF scan pass; a
+      transpile that skipped scanning falls back to always emitting,
+      since bitCallArities == 0 can't distinguish "never called" from
+      "never scanned". */
    if( ! fIsMain )
    {
       const char * szFnName = pFunc->value.asFunc.szName;
@@ -3436,7 +3522,19 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             break;
          }
       }
-      if( iFirstRef > 0 && ! fSpreadCallee )
+      {
+         HB_U64 bitArities = hb_refTabCallArities( s_pRefTab, szFnName );
+         /* Short overload declares iFirstRef params, each with `=
+            default`, so it accepts every arity from 0 through
+            iFirstRef inclusive. Mask covers bits 0..iFirstRef. When
+            the reftab recorded any such arity, at least one caller
+            needs the short overload; otherwise skip it to avoid
+            emitting dead methods. */
+         HB_U64 shortMask = iFirstRef >= 0
+            ? ( ( ( HB_U64 ) 1 ) << ( iFirstRef + 1 ) ) - 1 : 0;
+         HB_BOOL fHasShortCaller =
+            bitArities == 0 || ( bitArities & shortMask ) != 0;
+      if( iFirstRef > 0 && ! fSpreadCallee && fHasShortCaller )
       {
          char szMangledBuf[ 256 ];
          const char * szEmitName =
@@ -3452,9 +3550,26 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          pP = pFunc->value.asFunc.pParams;
          for( k = 0; pP && k < iFirstRef; k++ )
          {
+            /* Match the canonical signature's typing per slot:
+               reftab's refined type first, then Hungarian inference,
+               then dynamic fallback. Using `dynamic %s = null` here
+               (the original emission) collapsed every typed slot back
+               to dynamic, surprising readers of the generated code
+               and hiding type mismatches the canonical would have
+               caught. */
+            const HB_REFPARAM * pRefSlot =
+               hb_refTabParam( s_pRefTab, szFnName, k );
+            const char * szSlotType = NULL;
+            const char * szCsType;
+            if( pRefSlot && pRefSlot->szType &&
+                hb_stricmp( pRefSlot->szType, "USUAL" ) != 0 )
+               szSlotType = pRefSlot->szType;
+            if( ! szSlotType )
+               szSlotType = hb_astInferType( pP->szName, NULL );
+            szCsType = hb_csTypeMap( szSlotType );
             if( k > 0 )
                fprintf( yyc, ", " );
-            fprintf( yyc, "dynamic %s = null", pP->szName );
+            fprintf( yyc, "%s %s = default", szCsType, pP->szName );
             pP = pP->pNext;
          }
          fprintf( yyc, ")\n" );
@@ -3511,6 +3626,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          fprintf( yyc, ");\n" );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "}\n" );
+      }
       }
    }
 
