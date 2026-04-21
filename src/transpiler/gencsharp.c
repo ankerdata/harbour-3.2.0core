@@ -2653,9 +2653,26 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_COMMENT:
-         hb_csEmitIndent( yyc, iIndent );
          {
             const char * szText = pNode->value.asComment.szText;
+            /* The by-ref convention marker (a block comment
+               containing just `@`) tags a parameter for the reftab
+               scanner at parse time. By the C# emit pass the reftab
+               has already consumed the signal and the canonical
+               signature carries `ref` on the right slots, so the
+               comment has no residual purpose. Drop it rather than
+               forwarding an orphan marker into the emitted method
+               body where it's just noise. The .hb emitter keeps
+               the marker because the Harbour baseline scanner
+               re-reads it on round-trip. szText arrives with the
+               block-comment delimiters intact; char-by-char test
+               below so we don't embed them literally in the
+               enclosing block comment. */
+            if( szText[ 0 ] == '/' && szText[ 1 ] == '*' &&
+                szText[ 2 ] == '@' && szText[ 3 ] == '*' &&
+                szText[ 4 ] == '/' && szText[ 5 ] == '\0' )
+               break;
+            hb_csEmitIndent( yyc, iIndent );
             /* Convert Harbour-specific comment styles to C# // */
             if( szText[ 0 ] == '*' && szText[ 1 ] == ' ' )
                fprintf( yyc, "//%s\n", szText + 1 );
