@@ -49,6 +49,7 @@
 #ifdef HB_TRANSPILER
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>        /* getpid, unlink for preload scratch files */
 #include "hbast.h"
 
 /* Optional path to a project-specific preload list. Set via
@@ -80,6 +81,152 @@ void hb_compPreloadListSetPath( const char * szPath )
 const char * hb_compPreloadListGetPath( void )
 {
    return s_szPreloadListPath[ 0 ] ? s_szPreloadListPath : NULL;
+}
+
+/* Find `szHeader` along pState's include path (or absolute). Writes
+   the resolved path into szBuf. Returns HB_TRUE on hit. Used by the
+   preload loader, which consumes headers directly rather than through
+   hb_pp_readRules so it can filter to `#define` lines only. */
+static HB_BOOL hb_compPreloadResolve( PHB_PP_STATE pState,
+                                      const char * szHeader,
+                                      char * szBuf, size_t nBufSize )
+{
+   FILE * fp;
+   HB_PATHNAMES * pPath;
+   PHB_FNAME pFileName;
+   char szMerged[ HB_PATH_MAX ];
+
+   if( ! szHeader || ! *szHeader )
+      return HB_FALSE;
+
+   /* Try the name as given — handles absolute and cwd-relative paths. */
+   fp = hb_fopen( szHeader, "r" );
+   if( fp )
+   {
+      fclose( fp );
+      hb_strncpy( szBuf, szHeader, nBufSize - 1 );
+      return HB_TRUE;
+   }
+
+   /* Fall through to the PP include-path walk. Default .ch extension
+      matches hb_pp_readRules' behaviour — listing `hbcom` resolves
+      the same as listing `hbcom.ch`. */
+   pFileName = hb_fsFNameSplit( szHeader );
+   if( ! pFileName->szExtension )
+      pFileName->szExtension = ".ch";
+
+   for( pPath = pState->pIncludePath; pPath; pPath = pPath->pNext )
+   {
+      pFileName->szPath = pPath->szPath;
+      hb_fsFNameMerge( szMerged, pFileName );
+      fp = hb_fopen( szMerged, "r" );
+      if( fp )
+      {
+         fclose( fp );
+         hb_strncpy( szBuf, szMerged, nBufSize - 1 );
+         hb_xfree( pFileName );
+         return HB_TRUE;
+      }
+   }
+
+   hb_xfree( pFileName );
+   return HB_FALSE;
+}
+
+/* Read szPath and write a filtered copy to szFilteredPath containing
+   only the directives that make sense for a preload context:
+
+     pass through:  #define NAME VALUE   (non-macro)
+                    #ifdef / #ifndef     (flow control)
+                    #else / #elif / #endif
+     dropped:       #xcommand / #xtranslate / #command / #translate
+                    (rewrite rules — the whole reason the preload list
+                     exists is to keep these out. A caller that wants
+                     rule expansion should `#include` the header from
+                     source normally; the transpiler's setNoInclude
+                     means that's a no-op for emitted output anyway.)
+                    #include   (chained preloads would pull in rewrite
+                                rules by the back door)
+                    #pragma
+                    #define NAME(x) ...  (macro shape — becomes a
+                                          rewrite rule in the PP)
+                    body lines           (headers shouldn't have any)
+
+   The PP itself evaluates our pass-through flow-control against its
+   own define table, so we don't need to track `#ifdef` state here —
+   just preserve the directives. Returns HB_FALSE if the source can't
+   be opened. */
+static HB_BOOL hb_compPreloadFilter( const char * szPath,
+                                     const char * szFilteredPath )
+{
+   FILE * fpIn;
+   FILE * fpOut;
+   char   line[ 4096 ];
+
+   fpIn = hb_fopen( szPath, "r" );
+   if( ! fpIn )
+      return HB_FALSE;
+   fpOut = hb_fopen( szFilteredPath, "w" );
+   if( ! fpOut )
+   {
+      fclose( fpIn );
+      return HB_FALSE;
+   }
+
+   while( fgets( line, sizeof( line ), fpIn ) )
+   {
+      char * p = line;
+
+      /* Non-directive lines are always dropped from a preload source:
+         a .ch intended for include-expansion can have PROCEDURE bodies
+         or free-floating expressions, but in a preload context those
+         would reach hb_pp_tokenGet as top-level tokens and either
+         produce junk rules or trip the tokenizer. Only directives
+         survive the filter. */
+      while( *p == ' ' || *p == '\t' )
+         p++;
+      if( *p != '#' )
+         continue;
+      p++;
+      while( *p == ' ' || *p == '\t' )
+         p++;
+
+      /* Pass through flow-control and #define (non-macro); drop
+         everything else. `#elif` isn't emitted by the Harbour PP for
+         .ch rule files but is cheap to allow for forward-compat. */
+      if( strncmp( p, "ifdef",  5 ) == 0 ||
+          strncmp( p, "ifndef", 6 ) == 0 ||
+          strncmp( p, "else",   4 ) == 0 ||
+          strncmp( p, "elif",   4 ) == 0 ||
+          strncmp( p, "endif",  5 ) == 0 )
+      {
+         fputs( line, fpOut );
+         continue;
+      }
+      if( strncmp( p, "define", 6 ) == 0 &&
+          ( p[ 6 ] == ' ' || p[ 6 ] == '\t' ) )
+      {
+         char * q = p + 6;
+         while( *q == ' ' || *q == '\t' )
+            q++;
+         /* Skip the name to detect macro-shape `NAME(...)`. */
+         while( ( *q >= 'A' && *q <= 'Z' ) ||
+                ( *q >= 'a' && *q <= 'z' ) ||
+                ( *q >= '0' && *q <= '9' ) ||
+                *q == '_' )
+            q++;
+         if( *q == '(' )
+            continue;   /* macro define — the preload list forbids these */
+         fputs( line, fpOut );
+         continue;
+      }
+      /* Everything else dropped: #xcommand, #xtranslate, #command,
+         #translate, #include, #pragma, #undef, ... */
+   }
+
+   fclose( fpIn );
+   fclose( fpOut );
+   return HB_TRUE;
 }
 #endif
 
@@ -513,13 +660,27 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "std.ch" );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "common.ch" );
 
+      /* Add the built-in dynamic defines and any -D / -undef flags
+         BEFORE running the preload filter, so preload headers'
+         `#ifdef ECR` / `#ifndef XYZ` see the command-line -D state.
+         These calls normally live just before setStdBase, but the
+         preload loop needs their effect; moving them up costs
+         nothing — the preload and setStdBase both sit in the same
+         window between rule registration and the first source. */
+      hb_pp_initDynDefines( HB_COMP_PARAM->pLex->pPP, ! HB_COMP_PARAM->fNoArchDefs );
+      hb_compChkSetDefines( HB_COMP_PARAM );
+
       /* Project-supplied preload list (soft extension of the baked-in
          std.ch + common.ch set). Each line names another .ch whose
-         #xcommands / #defines should register globally. Errors on
-         individual entries are downgraded to warnings (see the
-         s_fPreloadSoftErrors gate in hb_pp_ErrorGen) — the whole point
-         of the list is to tolerate per-environment header availability
-         differences without failing the compile. */
+         `#define` lines should register globally — `#xcommand`,
+         `#xtranslate`, and friends are deliberately ignored. The
+         list is meant for header *constants* that the transpiler
+         would otherwise miss (setNoInclude stops header text flowing
+         into the parser); letting arbitrary rewrite rules in would
+         reintroduce the surprise-expansion problem hbclass.ch was
+         excluded to avoid.
+         Soft: a missing file or a bad define on a line warns (W0019)
+         but doesn't fail the transpile. */
       {
          const char * szPath = hb_compPreloadListGetPath();
          if( szPath && *szPath )
@@ -533,6 +694,7 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
                {
                   char * p = line;
                   char * q;
+                  char szResolved[ HB_PATH_MAX ];
                   while( *p == ' ' || *p == '\t' )
                      p++;
                   if( *p == '\0' || *p == '#' ||
@@ -551,7 +713,45 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
                      *--q = '\0';
                   if( *p == '\0' )
                      continue;
-                  hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, p );
+                  if( ! hb_compPreloadResolve( HB_COMP_PARAM->pLex->pPP,
+                                               p, szResolved,
+                                               sizeof( szResolved ) ) )
+                  {
+                     fprintf( stderr,
+                              "hbtranspiler: warning W0019  "
+                              "Preload header '%s' not found in include path\n",
+                              p );
+                     continue;
+                  }
+                  /* Filter the header to a scratch file containing only
+                     define + flow-control directives, then hand that
+                     to hb_pp_readRules. Skipping the direct
+                     hb_pp_addDefine path avoids a tokenizer-state bug
+                     where injecting a define bare (outside a file
+                     context) left later call sites confused. The
+                     scratch file lives in the system temp dir and is
+                     unlinked immediately after consumption. */
+                  {
+                     char szTmp[ HB_PATH_MAX ];
+                     static unsigned s_iPreloadSeq = 0;
+                     hb_snprintf( szTmp, sizeof( szTmp ),
+                                  "%s/hbpreload_%u_%u.ch",
+                                  P_tmpdir ? P_tmpdir : "/tmp",
+                                  ( unsigned ) getpid(),
+                                  ++s_iPreloadSeq );
+                     if( hb_compPreloadFilter( szResolved, szTmp ) )
+                     {
+                        hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, szTmp );
+                        unlink( szTmp );
+                     }
+                     else
+                     {
+                        fprintf( stderr,
+                                 "hbtranspiler: warning W0019  "
+                                 "Preload header '%s' could not be filtered\n",
+                                 p );
+                     }
+                  }
                }
                s_fPreloadSoftErrors = HB_FALSE;
                fclose( fp );
@@ -565,16 +765,13 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
          }
       }
 
-      /* Add the built-in dynamic defines (__HARBOUR__, __ARCH32BIT__,
-         …) AND any -D / -undef from the cmdline or env BEFORE
-         setStdBase. setStdBase marks the current rule list as the
-         "standard" (persistent) set; per-file hb_pp_reset() then
-         strips everything NOT in that set. So anything added after
-         setStdBase gets wiped on the first source reset and
-         `#ifdef ECR` / `#ifdef __HARBOUR__` comes back false. */
-      hb_pp_initDynDefines( HB_COMP_PARAM->pLex->pPP, ! HB_COMP_PARAM->fNoArchDefs );
-      hb_compChkSetDefines( HB_COMP_PARAM );
-
+      /* setStdBase marks the current rule list as the "standard"
+         (persistent) set; per-file hb_pp_reset() then strips
+         everything NOT in that set. So the dynamic defines, -D
+         flags, and preload-list defines all need to be registered
+         above this line — otherwise they get wiped on the first
+         source reset and `#ifdef ECR` / `#ifdef __HARBOUR__` comes
+         back false. */
       hb_pp_setStdBase( HB_COMP_PARAM->pLex->pPP );
 
       /* Set callback to capture #include/#define directives into AST */
