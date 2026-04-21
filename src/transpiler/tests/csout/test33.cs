@@ -27,7 +27,7 @@ using static Program;
 // to the emitted C# signature.
 public static partial class Program
 {
-    static decimal test33_snState = 0;
+    public static decimal test33_snState = 0;
     public static void Main(string[] args)
     {
         Bump();

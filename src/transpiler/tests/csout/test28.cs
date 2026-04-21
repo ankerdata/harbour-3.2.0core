@@ -21,8 +21,8 @@ using static Program;
 // Chr()+string), and 7 others.
 public static partial class Program
 {
-    static string test28_scCRLF = HbRuntime.Chr(13) + HbRuntime.Chr(10);
-    static decimal test28_snBase = 10 * 2 + 2;
+    public static string test28_scCRLF = HbRuntime.Chr(13) + HbRuntime.Chr(10);
+    public static decimal test28_snBase = 10 * 2 + 2;
     public static void Main(string[] args)
     {
         HbRuntime.QOut("crlf:  " + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Len(test28_scCRLF))));

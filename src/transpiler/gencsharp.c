@@ -4001,10 +4001,20 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                            via ASize or by direct index assignment into
                            a resizable list). szType from Hungarian is
                            usually "ARRAY"; force `dynamic[]` so the
-                           C# field type matches `new dynamic[N]`. */
+                           C# field type matches `new dynamic[N]`.
+                           `public static` (not just `static`) so
+                           methods of sibling classes in the same file
+                           — which are emitted outside the Program
+                           partial — can qualify as `Program.<field>`.
+                           Harbour STATIC is file-scope private, but
+                           since the transpiler's file-base mangling
+                           already makes the name unique across the
+                           whole project, widening to `public` only
+                           affects IDE-level lookup and costs nothing
+                           at runtime. */
                         PHB_EXPR pDim =
                            pStmt->value.asVar.pInit->value.asList.pExprList;
-                        fprintf( yyc, "static dynamic[] %s_%s = new dynamic[(int)(",
+                        fprintf( yyc, "public static dynamic[] %s_%s = new dynamic[(int)(",
                                  s_szFileBase,
                                  pStmt->value.asVar.szName );
                         if( pDim )
@@ -4015,7 +4025,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      }
                      else
                      {
-                        fprintf( yyc, "static %s %s_%s",
+                        fprintf( yyc, "public static %s %s_%s",
                                  hb_csTypeMap( szType ),
                                  s_szFileBase,
                                  pStmt->value.asVar.szName );
@@ -4045,7 +4055,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      {
                         hb_csAddFileMemvar( szMName );
                         hb_csEmitIndent( yyc, 1 );
-                        fprintf( yyc, "static dynamic %s_%s;\n",
+                        /* `public static` so sibling-class methods
+                           can qualify as `Program.<field>`; see the
+                           STATIC emit above for rationale. */
+                        fprintf( yyc, "public static dynamic %s_%s;\n",
                                  s_szFileBase, szMName );
                      }
                   }

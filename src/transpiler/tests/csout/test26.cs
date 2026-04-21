@@ -32,7 +32,7 @@ using static Program;
 // mangling mechanics and the TIMESTAMP map for a single file.
 public static partial class Program
 {
-    static decimal test26_nCounter = 0;
+    public static decimal test26_nCounter = 0;
     public static void Main(string[] args)
     {
         // Hungarian prefix `dDate` → hb_astInferType returns "DATE" →

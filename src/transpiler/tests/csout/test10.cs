@@ -24,7 +24,7 @@ public class MyObj
 
 public static partial class Program
 {
-    static decimal test10_nCounter = 0;
+    public static decimal test10_nCounter = 0;
     public static void Main(string[] args)
     {
         MyObj oObj = new MyObj();

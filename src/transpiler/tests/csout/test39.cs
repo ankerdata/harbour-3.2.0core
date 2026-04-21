@@ -33,7 +33,7 @@ public class Bag
 
 public static partial class Program
 {
-    static string test39_s_cStatic = HbRuntime.Chr(27) + "02" + HbRuntime.Chr(1);
+    public static string test39_s_cStatic = HbRuntime.Chr(27) + "02" + HbRuntime.Chr(1);
     public static void Main(string[] args)
     {
         string cLocal = "ab" + "cd";

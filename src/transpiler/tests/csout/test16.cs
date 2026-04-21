@@ -5,12 +5,12 @@ using static Program;
 // Test 16: STATIC, PUBLIC, and PRIVATE declarations with type inference
 public static partial class Program
 {
-    static decimal test16_nCount = 0;
-    static string test16_cLabel = "count";
-    static dynamic test16_nPriv;
-    static dynamic test16_cPrivName;
-    static decimal test16_nStatic = 10;
-    static string test16_cStaticLabel = "static";
+    public static decimal test16_nCount = 0;
+    public static string test16_cLabel = "count";
+    public static dynamic test16_nPriv;
+    public static dynamic test16_cPrivName;
+    public static decimal test16_nStatic = 10;
+    public static string test16_cStaticLabel = "static";
     public static dynamic nPub;
     public static dynamic cPubName;
     public static decimal Counter()
