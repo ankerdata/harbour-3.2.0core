@@ -261,6 +261,74 @@ static void hb_csWarnExtraArgs( const char * szFunc, PHB_EXPR pParms )
    }
 }
 
+/* Warn when szFunc is a known user function with ref parameters and
+   the call passes a non-@ argument at a position reftab marks as
+   by-ref. Harbour's by-ref convention marker in the declaration
+   (the @-prefix-in-a-comment form) is documentation only; the
+   caller's `@` is what actually enables mutation, and Harbour
+   silently copy-passes when the caller omits it. C# is stricter:
+   once any caller uses `@` (putting the param in the reftab's ref
+   bitmap, which the emitter renders as `ref T`), every call site
+   must pass with `ref`. Non-`@` callers then fail CS1620 "Argument
+   N must be passed with the 'ref' keyword". The warning gives the
+   user a per-call-site punch list keyed on the original .prg
+   coordinates; fixing either the declaration (drop the convention
+   marker) or adding `@` at the call site clears the C# error. */
+static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
+{
+   int iDeclared;
+   PHB_EXPR pHead;
+   PHB_EXPR pItem;
+   int iPos = 0;
+   int iFirstMissing = -1;   /* earliest ref slot passed without @ */
+
+   if( ! szFunc || ! s_pRefTab || ! pParms )
+      return;
+   iDeclared = hb_refTabParamCount( s_pRefTab, szFunc );
+   if( iDeclared <= 0 )
+      return;
+   if( hb_refTabIsVariadic( s_pRefTab, szFunc ) ||
+       hb_refTabIsCalledVarargs( s_pRefTab, szFunc ) )
+      return;  /* spread callees don't have positional ref slots */
+
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pHead = pParms->value.asList.pExprList;
+   else
+      pHead = pParms;
+
+   for( pItem = pHead; pItem; pItem = pItem->pNext, iPos++ )
+   {
+      if( pItem->ExprType == HB_ET_NONE )
+         continue;
+      if( iPos >= iDeclared )
+         break;
+      if( ! hb_refTabIsRef( s_pRefTab, szFunc, iPos ) )
+         continue;
+      /* Caller wrote `@var` when the arg is HB_ET_VARREF; an lvalue
+         that decays to by-ref arrives as HB_ET_REFERENCE. Either
+         satisfies the ref requirement. */
+      if( pItem->ExprType == HB_ET_VARREF ||
+          pItem->ExprType == HB_ET_REFERENCE )
+         continue;
+      if( iFirstMissing < 0 )
+         iFirstMissing = iPos;
+   }
+
+   /* One warning per call site — the first missing position is
+      enough to locate the bug; chasing every offending position in
+      the same call would bloat the log without telling the user
+      anything new (fixing one usually means re-checking the rest
+      of the call anyway). */
+   if( iFirstMissing >= 0 && s_pCompCtx )
+      fprintf( stderr,
+               "hbtranspiler: %s(%d): warning W0020  "
+               "Call to '%s' omits '@' on ref parameter #%d\n",
+               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_iCurrentStmtLine, szFunc, iFirstMissing + 1 );
+}
+
 /* Callback used by hb_refTabForEachPublic — emits one field line per
    PUBLIC variable whose owner matches this .prg. The `dynamic` storage
    type covers both scalar and array-dim forms; the actual `new
@@ -1201,6 +1269,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      declaration takes — that's a source-level bug
                      Harbour tolerates but C# rejects as CS1501. */
                   hb_csWarnExtraArgs( szName, pExpr->value.asFunCall.pParms );
+                  /* Flag calls that pass a bare arg where reftab
+                     says the slot is ref (inconsistent `@` usage
+                     across call sites — C# rejects as CS1620). */
+                  hb_csWarnMissingRef( szName, pExpr->value.asFunCall.pParms );
                }
             }
             else
