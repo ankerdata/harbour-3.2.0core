@@ -404,6 +404,31 @@ static const char * hb_csResolveLocal( const char * szName )
    return NULL;
 }
 
+/* True if szName is declared as a method-level local (HB_AST_LOCAL) in
+   the current function body. Used by HB_AST_FOREACH emit to detect the
+   shadow case where a loop variable reuses an already-declared local —
+   in which case the foreach must rename its inner iterator and assign
+   to the outer. The function body is an HB_AST_BLOCK wrapping the
+   statement list via pFirst. */
+static HB_BOOL hb_csIsMethodLocal( const char * szName )
+{
+   PHB_AST_NODE pNode;
+   if( ! szName || ! s_pCurrentFuncNode )
+      return HB_FALSE;
+   pNode = s_pCurrentFuncNode->value.asFunc.pBody;
+   if( pNode && pNode->type == HB_AST_BLOCK )
+      pNode = pNode->value.asBlock.pFirst;
+   while( pNode )
+   {
+      if( pNode->type == HB_AST_LOCAL &&
+          pNode->value.asVar.szName &&
+          hb_stricmp( pNode->value.asVar.szName, szName ) == 0 )
+         return HB_TRUE;
+      pNode = pNode->pNext;
+   }
+   return HB_FALSE;
+}
+
 /* Returns HB_TRUE if pExpr is a "naked" boolean condition that needs
    wrapping with `== true` for C# to accept it. The case we care about
    is a single nilable parameter (from the active function) used as a
@@ -708,12 +733,15 @@ static const char * hb_csTranslateInline( const char * szVal )
    p = szVal;
    for( nIn = 0; nIn < nLen && nOut < sizeof( s_szBuf ) - 32; nIn++ )
    {
-      /* `{}` → `Array.Empty<dynamic>()` — Harbour empty array
-         literal. C# `{}` in expression context is a block. */
+      /* `{}` → `System.Array.Empty<dynamic>()` — Harbour empty array
+         literal. C# `{}` in expression context is a block. Fully
+         qualified because HbRuntimeStubs declares a NIE stub named
+         `Array`, which `using static HbRuntime;` pulls into scope and
+         shadows the System.Array type. */
       if( p[ nIn ] == '{' && nIn + 1 < nLen && p[ nIn + 1 ] == '}' )
       {
-         memcpy( s_szBuf + nOut, "Array.Empty<dynamic>()", 22 );
-         nOut += 22;
+         memcpy( s_szBuf + nOut, "System.Array.Empty<dynamic>()", 29 );
+         nOut += 29;
          nIn++;
          continue;
       }
@@ -759,6 +787,51 @@ static const char * hb_csTranslateInline( const char * szVal )
          memcpy( s_szBuf + nOut, "this", 4 );
          nOut += 4;
          nIn += 3;   /* skip "elf", outer ++ skips 's' */
+         continue;
+      }
+      /* Identifier token: look up in hbfuncs.tab. If it's a Harbour
+         built-in with a namespace prefix, emit `Prefix.UPPERCASE` so
+         the call resolves at C# compile time. Mirrors hb_csFuncMap's
+         treatment of HB_ET_FUNCALL — needed here because class VAR
+         INIT values and INLINE bodies come through as raw text, not
+         AST, so the normal emitter path doesn't touch them. */
+      if( ( ( p[ nIn ] >= 'A' && p[ nIn ] <= 'Z' ) ||
+            ( p[ nIn ] >= 'a' && p[ nIn ] <= 'z' ) ||
+            p[ nIn ] == '_' ) &&
+          ( nIn == 0 || ! hb_csInlineIsIdCh( p[ nIn - 1 ] ) ) )
+      {
+         HB_SIZE nIdStart = nIn;
+         HB_SIZE nIdLen;
+         char    szId[ 128 ];
+         const char * szPrefix;
+         while( nIn < nLen && hb_csInlineIsIdCh( p[ nIn ] ) )
+            nIn++;
+         nIdLen = nIn - nIdStart;
+         if( nIdLen < sizeof( szId ) )
+         {
+            memcpy( szId, p + nIdStart, nIdLen );
+            szId[ nIdLen ] = '\0';
+            szPrefix = hb_funcTabPrefix( szId );
+            if( szPrefix )
+            {
+               const char * szCanon = hb_funcTabCanonName( szId );
+               HB_SIZE j;
+               if( ! szCanon ) szCanon = szId;
+               for( j = 0; szPrefix[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                  s_szBuf[ nOut++ ] = szPrefix[ j ];
+               if( nOut < sizeof( s_szBuf ) - 1 )
+                  s_szBuf[ nOut++ ] = '.';
+               for( j = 0; szCanon[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                  s_szBuf[ nOut++ ] = szCanon[ j ];
+            }
+            else
+            {
+               HB_SIZE j;
+               for( j = 0; j < nIdLen && nOut < sizeof( s_szBuf ) - 1; j++ )
+                  s_szBuf[ nOut++ ] = szId[ j ];
+            }
+         }
+         nIn--;   /* outer loop `nIn++` advances past last id char */
          continue;
       }
       s_szBuf[ nOut++ ] = p[ nIn ];
@@ -863,9 +936,10 @@ static const char * hb_csTranslateInit( const char * szVal )
    if( hb_stricmp( szVal, "NIL" ) == 0 )
       return "null";
 
-   /* {} → empty array */
+   /* {} → empty array (fully qualified — see comment in the char-scan
+      branch above for why System.Array is needed). */
    if( strcmp( szVal, "{}" ) == 0 )
-      return "Array.Empty<dynamic>()";
+      return "System.Array.Empty<dynamic>()";
 
    /* { => } → empty hash. Match with any whitespace between tokens. */
    {
@@ -898,7 +972,10 @@ static const char * hb_csTranslateInit( const char * szVal )
       }
    }
 
-   return szVal;
+   /* Fall through to the INLINE translator for general expressions:
+      handles identifier remapping via hbfuncs.tab so `SPACE(30)` →
+      `HbRuntime.SPACE(30)` and `ctod("")` → `HbRuntime.CTOD("")`. */
+   return hb_csTranslateInline( szVal );
 }
 
 /* ---- Helpers ---- */
@@ -991,12 +1068,14 @@ static const char * hb_csFuncMap( const char * szName )
    szPrefix = hb_funcTabPrefix( szName );
    if( szPrefix )
    {
-      char szUpper[ 128 ];
-      HB_SIZE i;
-      for( i = 0; szName[ i ] && i < sizeof( szUpper ) - 1; i++ )
-         szUpper[ i ] = ( char ) HB_TOUPPER( ( HB_UCHAR ) szName[ i ] );
-      szUpper[ i ] = '\0';
-      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szUpper );
+      /* Use the canonical name recorded in hbfuncs.tab — that matches
+         the actual method declared in HbRuntime.cs (C# is case-
+         sensitive; Harbour is not, so the source-site spelling is
+         unreliable). Fall back to the source name if for some reason
+         the canonical isn't there. */
+      const char * szCanon = hb_funcTabCanonName( szName );
+      if( ! szCanon ) szCanon = szName;
+      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szCanon );
       return s_szBuf;
    }
    return szName;
@@ -1410,6 +1489,35 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             fprintf( yyc, ")" );
             break;
          }
+         /* `::Super:Method(args)` — calling a parent-class method via
+            Harbour's inheritance Super keyword. Emit as C# `base.Method(args)`.
+            Detected by an inner SEND chain: outer pObject is SEND with
+            pObject=Self and szMessage=Super.
+            Exception: `::Super:className()` / `::Super:ClassName()` —
+            keep the HbSuperRef path so it returns BaseType.Name rather
+            than the runtime type name (C#'s GetType() always returns
+            the runtime type even via a base-class cast). */
+         if( pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_SEND &&
+             pExpr->value.asMessage.pObject->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+             hb_stricmp( pExpr->value.asMessage.pObject->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 &&
+             pExpr->value.asMessage.pObject->value.asMessage.szMessage &&
+             hb_stricmp( pExpr->value.asMessage.pObject->value.asMessage.szMessage, "Super" ) == 0 &&
+             pExpr->value.asMessage.szMessage &&
+             hb_stricmp( pExpr->value.asMessage.szMessage, "className" ) != 0 &&
+             hb_stricmp( pExpr->value.asMessage.szMessage, "ClassName" ) != 0 )
+         {
+            fprintf( yyc, "base.%s", pExpr->value.asMessage.szMessage );
+            if( pExpr->value.asMessage.pParms )
+            {
+               fprintf( yyc, "(" );
+               hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
+                                  pExpr->value.asMessage.pParms, yyc );
+               fprintf( yyc, ")" );
+            }
+            break;
+         }
          if( pExpr->value.asMessage.pObject )
          {
             /* Self:member → this.member */
@@ -1437,6 +1545,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
                                pExpr->value.asMessage.pParms, yyc );
             fprintf( yyc, ")" );
+         }
+         else if( pExpr->value.asMessage.szMessage &&
+                  ( hb_stricmp( pExpr->value.asMessage.szMessage, "Super" ) == 0 ||
+                    hb_stricmp( pExpr->value.asMessage.szMessage, "className" ) == 0 ) )
+         {
+            /* Harbour: `obj:Super`, `obj:className` — bare (no parens) forms
+               of built-in OO helpers. In C# these resolve to extension
+               methods on `object` (HbObjectExtensions), which need parens
+               to invoke. Without this the emit would be a property access
+               that doesn't exist. */
+            fprintf( yyc, "()" );
          }
          break;
 
@@ -2179,60 +2298,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             else
             {
-               /* No initializer — check if this variable is used as a
-                  foreach iterator or catch variable, in which case skip
-                  the declaration (it will be declared by foreach/catch) */
-               HB_BOOL fSkip = HB_FALSE;
-               HB_BOOL fUsedInFor = HB_FALSE;
-               const char * szVarName = pNode->value.asVar.szName;
-               PHB_AST_NODE pSibling = pNode->pNext;
-
-               /* First check if variable is used as a FOR loop counter */
-               while( pSibling )
-               {
-                  if( pSibling->type == HB_AST_FOR &&
-                      hb_stricmp( pSibling->value.asFor.szVar, szVarName ) == 0 )
-                  {
-                     fUsedInFor = HB_TRUE;
-                     break;
-                  }
-                  pSibling = pSibling->pNext;
-               }
-
-               /* Only suppress if used in foreach/catch and NOT in a FOR loop */
-               pSibling = pNode->pNext;
-               while( pSibling && ! fSkip && ! fUsedInFor )
-               {
-                  if( pSibling->type == HB_AST_FOREACH &&
-                      pSibling->value.asForEach.pVar )
-                  {
-                     PHB_EXPR pFEVar = pSibling->value.asForEach.pVar;
-                     const char * szFEName = NULL;
-                     /* Unwrap ARGLIST/LIST wrapper if present */
-                     if( ( pFEVar->ExprType == HB_ET_ARGLIST ||
-                           pFEVar->ExprType == HB_ET_LIST ) &&
-                         pFEVar->value.asList.pExprList )
-                        pFEVar = pFEVar->value.asList.pExprList;
-                     if( pFEVar->ExprType == HB_ET_VARIABLE ||
-                         pFEVar->ExprType == HB_ET_VARREF )
-                        szFEName = pFEVar->value.asSymbol.name;
-                     if( szFEName &&
-                         hb_stricmp( szFEName, szVarName ) == 0 )
-                        fSkip = HB_TRUE;
-                  }
-                  if( pSibling->type == HB_AST_BEGINSEQ &&
-                      pSibling->value.asSeq.szRecoverVar &&
-                      hb_stricmp( pSibling->value.asSeq.szRecoverVar,
-                                  szVarName ) == 0 )
-                     fSkip = HB_TRUE;
-                  pSibling = pSibling->pNext;
-               }
-               if( ! fSkip )
-               {
-                  hb_csEmitIndent( yyc, iIndent );
-                  fprintf( yyc, "%s %s = default;\n", hb_csTypeMap( szType ),
-                           pNode->value.asVar.szName );
-               }
+               /* No initializer — always emit the local. Later FOREACH
+                  / catch statements whose loop variable shadows this
+                  local are handled in their own emit paths (HB_AST_FOREACH
+                  renames via __hb_fe_<name> and assigns to the outer). */
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "%s %s = default;\n", hb_csTypeMap( szType ),
+                        pNode->value.asVar.szName );
             }
          }
          break;
@@ -2450,6 +2522,42 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_FOREACH:
+         {
+            /* If the loop variable name matches a method-level local,
+               emit with a renamed inner iterator and assign-to-outer to
+               avoid CS0136 (shadowing a local in a parent scope). */
+            PHB_EXPR pFEVar = pNode->value.asForEach.pVar;
+            const char * szFEName = NULL;
+            if( pFEVar )
+            {
+               PHB_EXPR pUnwrap = pFEVar;
+               if( ( pUnwrap->ExprType == HB_ET_ARGLIST ||
+                     pUnwrap->ExprType == HB_ET_LIST ) &&
+                   pUnwrap->value.asList.pExprList )
+                  pUnwrap = pUnwrap->value.asList.pExprList;
+               if( pUnwrap->ExprType == HB_ET_VARIABLE ||
+                   pUnwrap->ExprType == HB_ET_VARREF )
+                  szFEName = pUnwrap->value.asSymbol.name;
+            }
+            if( szFEName && hb_csIsMethodLocal( szFEName ) )
+            {
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "foreach (dynamic __hb_fe_%s in ", szFEName );
+               hb_csEmitExpr( pNode->value.asForEach.pEnum, yyc, HB_FALSE );
+               if( pNode->value.asForEach.iDir < 0 )
+                  fprintf( yyc, ".Reverse()" );
+               fprintf( yyc, ")\n" );
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "{\n" );
+               hb_csEmitIndent( yyc, iIndent + 1 );
+               fprintf( yyc, "%s = __hb_fe_%s;\n", szFEName, szFEName );
+               if( pNode->value.asForEach.pBody )
+                  hb_csEmitBlock( pNode->value.asForEach.pBody, yyc, iIndent + 1 );
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "}\n" );
+               break;
+            }
+         }
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "foreach (dynamic " );
          hb_csEmitExpr( pNode->value.asForEach.pVar, yyc, HB_FALSE );
@@ -2592,15 +2700,24 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          fprintf( yyc, "}\n" );
          if( pNode->value.asSeq.pRecover )
          {
+            const char * szRecVar = pNode->value.asSeq.szRecoverVar;
+            HB_BOOL fShadow = szRecVar && hb_csIsMethodLocal( szRecVar );
             hb_csEmitIndent( yyc, iIndent );
-            if( pNode->value.asSeq.szRecoverVar )
-               fprintf( yyc, "catch (Exception %s)\n",
-                        pNode->value.asSeq.szRecoverVar );
+            if( szRecVar )
+               fprintf( yyc, "catch (Exception %s%s)\n",
+                        fShadow ? "__hb_rec_" : "", szRecVar );
             else
                fprintf( yyc, "catch\n" );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "{\n" );
             s_iLastLine = 0;
+            /* Shadow-case: assign the caught exception to the outer
+               method-level local so its references resolve. */
+            if( fShadow )
+            {
+               hb_csEmitIndent( yyc, iIndent + 1 );
+               fprintf( yyc, "%s = __hb_rec_%s;\n", szRecVar, szRecVar );
+            }
             hb_csEmitBlock( pNode->value.asSeq.pRecover, yyc, iIndent + 1 );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "}\n" );

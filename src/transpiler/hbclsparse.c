@@ -285,9 +285,16 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             the transpiler doesn't load. Source files using `END CLASS`
             must be changed to `ENDCLASS` before transpiling. */
 
-         /* Scope section headers: EXPORTED/VISIBLE, PROTECTED, HIDDEN */
+         /* Scope section headers: EXPORTED/VISIBLE, PROTECTED, HIDDEN.
+            Bare `EXPORT` is ambiguous — it's also the hbclass.ch shorthand
+            `EXPORT <DataName>`. Treat as section header only when alone on
+            the line (followed by `:` or EOL); otherwise fall through to
+            the data-member branch below. */
          if( hb_clsTokenIs( pToken, "EXPORTED" ) || hb_clsTokenIs( pToken, "VISIBLE" ) ||
-             hb_clsTokenIs( pToken, "EXPORT" ) )
+             ( hb_clsTokenIs( pToken, "EXPORT" ) &&
+               ( hb_clsTokenIsEOL( pToken->pNext ) ||
+                 ( pToken->pNext && pToken->pNext->value &&
+                   pToken->pNext->value[ 0 ] == ':' ) ) ) )
          {
             iScope = HB_AST_SCOPE_EXPORTED;
             hb_clsSkipLine( HB_COMP_PARAM, hb_clsNextToken( HB_COMP_PARAM ) );

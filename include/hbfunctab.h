@@ -34,6 +34,12 @@ extern const char * hb_funcTabPrefix( const char * szName );
    unknown / void. */
 extern const char * hb_funcTabReturnType( const char * szName );
 
+/* Returns the canonical casing of szName as recorded in hbfuncs.tab
+   (case-insensitive lookup). NULL if the name is not in the table.
+   Used by the C# emitter so the generated call matches the actual
+   method name in HbRuntime.cs (C# is case-sensitive). */
+extern const char * hb_funcTabCanonName( const char * szName );
+
 /* Free the loaded table. Optional — safe to leak at process exit. */
 extern void         hb_funcTabFree( void );
 

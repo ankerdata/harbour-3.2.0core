@@ -54,9 +54,11 @@ public static partial class Program
 
     public static void Echo(params dynamic[] hbva)
     {
+        dynamic xArg = default;
         decimal nIdx = 1;
-        foreach (dynamic xArg in hbva)
+        foreach (dynamic __hb_fe_xArg in hbva)
         {
+            xArg = __hb_fe_xArg;
             HbRuntime.QOut("arg " + HbRuntime.LTrim(HbRuntime.Str(nIdx)) + ": " + xArg);
             nIdx++;
         }

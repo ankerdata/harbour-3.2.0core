@@ -75,17 +75,29 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 # ---------------------------------------------------------------------------
 
 DEF_RE   = re.compile(r'^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.+?)\s*$')
-MACRO_RE = re.compile(r'^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(')
+# Function-like macro: `NAME(` with NO whitespace — that distinguishes
+# it from `#define NAME (expr)` which is an expression-valued constant
+# (parens around an expression are common to avoid operator-precedence
+# surprises at substitution sites).
+MACRO_RE = re.compile(r'^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\(')
 
 NUM_RE      = re.compile(r'^-?(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)$')
 STR_RE      = re.compile(r'^"(.*)"$')
 EXPR_RE     = re.compile(r'^[\s\d.()+\-*/%xA-Fa-f]+$')
 CHR_CALL_RE = re.compile(r'^\s*chr\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
+SPACE_RE    = re.compile(r'^\s*space\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
+REPL_RE     = re.compile(
+    r'^\s*replicate\s*\(\s*(?:"(.)"|chr\s*\(\s*(\d+)\s*\))\s*,\s*(\d+)\s*\)\s*$',
+    re.IGNORECASE)
 BOOL_RE     = re.compile(r'^\.([TtFf])\.$')
 
 
 def strip_trailing_comment(v: str) -> str:
-    """Strip `//` or `&&` comments after a value, outside string literals."""
+    """Strip `//`, `&&`, and `/* ... */` comments after a value, outside
+    string literals. Many easipos headers annotate numeric defines with
+    a block comment (`#define GENERIC_WRITE 1073741824 /* 0x40000000L */`);
+    without block-comment stripping the numeric literal never matches
+    NUM_RE and the define is silently dropped."""
     out = []
     in_str = False
     i = 0
@@ -98,6 +110,12 @@ def strip_trailing_comment(v: str) -> str:
             break
         elif not in_str and c == '&' and i + 1 < len(v) and v[i + 1] == '&':
             break
+        elif not in_str and c == '/' and i + 1 < len(v) and v[i + 1] == '*':
+            end = v.find('*/', i + 2)
+            if end == -1:
+                break                     # unterminated — drop the rest
+            i = end + 2
+            continue
         else:
             out.append(c)
         i += 1
@@ -133,6 +151,17 @@ def parse_value(raw: str) -> Optional[Tuple[str, object]]:
     chr_val = try_chr_expr(v)
     if chr_val is not None:
         return ('string', chr_val)
+
+    # `space(N)` → string of N spaces.
+    m = SPACE_RE.match(v)
+    if m:
+        return ('string', ' ' * int(m.group(1)))
+
+    # `replicate("x", N)` or `replicate(chr(N), N)` → N copies of char.
+    m = REPL_RE.match(v)
+    if m:
+        ch = m.group(1) if m.group(1) is not None else chr(int(m.group(2)))
+        return ('string', ch * int(m.group(3)))
 
     if NUM_RE.match(v):
         if v.lower().lstrip('-').startswith('0x'):
@@ -215,6 +244,85 @@ def extract_defines(content: str) -> Dict[str, Tuple[str, object]]:
     return out
 
 
+def extract_raw_defines(content: str) -> Dict[str, str]:
+    """Parse every #define NAME VALUE line, return {name: raw_value}.
+    Used by the cross-reference resolver — we keep unparseable values
+    so a second pass can substitute identifiers and retry."""
+    out: Dict[str, str] = {}
+    for line in content.splitlines():
+        if MACRO_RE.match(line):
+            continue
+        m = DEF_RE.match(line)
+        if not m:
+            continue
+        name, rawval = m.group(1), m.group(2)
+        if name in out:
+            continue
+        out[name] = strip_trailing_comment(rawval).strip()
+    return out
+
+
+# Matches an identifier `(NAME)` or bare `NAME` surrounded by non-word
+# chars in an expression — lets the resolver swap in known constant
+# values before re-parsing. Bare-word boundary handled via lookarounds.
+IDENT_IN_EXPR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\b')
+
+
+def resolve_cross_refs(
+    raw_by_file: Dict[str, Dict[str, str]],
+    already_parsed: Dict[str, Dict[str, Tuple[str, object]]]
+) -> None:
+    """Iteratively resolve #define expressions that reference other
+    #defines (e.g. `ITEMCONSOL (NOITEMFIELDS + 1)` where NOITEMFIELDS
+    is also a #define). Mutates `already_parsed` in place — newly
+    resolved values land in the same per-file bucket as their raw entry.
+
+    Algorithm: keep a global map of already-known numeric literals
+    (first-wins across files, matching existing `resolve_header_globals`
+    behaviour). Each iteration walks every still-unresolved raw entry
+    and tries substituting every identifier reference with its known
+    decimal value, then re-running `parse_value`. Stops when no new
+    entry is resolved in a full pass (fixpoint) or after a generous
+    iteration cap."""
+    known: Dict[str, object] = {}
+    for file_defs in already_parsed.values():
+        for name, (kind, val) in file_defs.items():
+            if kind == 'decimal' and name not in known:
+                known[name] = val
+
+    unresolved = [
+        (basename, name, raw)
+        for basename, defs in raw_by_file.items()
+        for name, raw in defs.items()
+        if name not in already_parsed.get(basename, {})
+    ]
+
+    for _ in range(8):                         # fixpoint with cap
+        progressed = False
+        still_unresolved = []
+        for basename, name, raw in unresolved:
+            # Substitute identifier references with their known decimal
+            # value. Unknown identifiers are left as-is — parse_value
+            # will reject anything it can't reduce to a literal.
+            def sub(m):
+                ident = m.group(1)
+                if ident in known:
+                    return str(known[ident])
+                return ident
+            substituted = IDENT_IN_EXPR_RE.sub(sub, raw)
+            parsed = parse_value(substituted)
+            if parsed is None:
+                still_unresolved.append((basename, name, raw))
+                continue
+            already_parsed.setdefault(basename, {})[name] = parsed
+            if parsed[0] == 'decimal' and name not in known:
+                known[name] = parsed[1]
+            progressed = True
+        unresolved = still_unresolved
+        if not progressed:
+            break
+
+
 def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str]
              ) -> Tuple[Dict[str, Dict[str, Tuple[str, object]]],
                         Dict[str, Dict[str, Tuple[str, object]]],
@@ -229,6 +337,12 @@ def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str]
     header_defines: Dict[str, Dict[str, Tuple[str, object]]] = {}
     prg_defines: Dict[str, Dict[str, Tuple[str, object]]] = {}
     tokens: Set[str] = set()
+    # Raw (unparsed) defines per file, for cross-reference resolution
+    # below. An entry like `ITEMCONSOL (NOITEMFIELDS + 1)` fails the
+    # first-pass parse; the resolver then substitutes NOITEMFIELDS with
+    # its known decimal value and retries.
+    header_raw: Dict[str, Dict[str, str]] = {}
+    prg_raw: Dict[str, Dict[str, str]] = {}
 
     def scan(path: str) -> None:
         try:
@@ -243,6 +357,12 @@ def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str]
             tokens.update(re.findall(r'\b[A-Za-z_][A-Za-z0-9_]{1,}\b',
                                      content))
         defs = extract_defines(content)
+        raw = extract_raw_defines(content)
+        raw_bucket = (prg_raw if is_prg else header_raw).setdefault(
+            basename, {})
+        for n, v in raw.items():
+            if n not in raw_bucket:
+                raw_bucket[n] = v
         if not defs:
             return
         bucket = (prg_defines if is_prg else header_defines).setdefault(
@@ -255,6 +375,20 @@ def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str]
         scan(path)
     for path in walk_files(src_dirs, ('.ch', '.prg')):
         scan(path)
+
+    # Resolve cross-references: defines whose value references other
+    # #defines (e.g. `ITEMCONSOL (NOITEMFIELDS + 1)`). Run once with
+    # the union of header + prg raws so a prg can reference a header
+    # global. Mutates header_defines/prg_defines in place.
+    combined_raw = {**header_raw, **prg_raw}
+    combined_parsed = {**header_defines, **prg_defines}
+    resolve_cross_refs(combined_raw, combined_parsed)
+    # Split back — header entries may have gained new names.
+    for basename, defs in combined_parsed.items():
+        if basename in header_raw:
+            header_defines[basename] = defs
+        else:
+            prg_defines[basename] = defs
     return header_defines, prg_defines, tokens
 
 

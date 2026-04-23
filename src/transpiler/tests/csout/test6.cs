@@ -4,6 +4,24 @@ using static HbRuntime;
 using static Program;
 
 // Test 6: CLASS inheritance, DATA/CLASSDATA, ACCESS/ASSIGN, scope modifiers
+//
+// Also exercises two regression paths:
+//
+//  - `EXPORT <name>` and `PROTECT <name>` shorthand from hbclass.ch.
+//    The parser used to mis-read bare `EXPORT <name>` as the EXPORTED
+//    section header (which swallows the line), so every EXPORT-prefixed
+//    data member went missing. The fix distinguishes the header form
+//    (followed by `:` or EOL) from the shorthand (followed by an
+//    identifier) — see hbclsparse.c.
+//
+//  - INIT expressions that contain Harbour built-in function calls.
+//    `INIT Space(3)` and `INIT CToD("")` are raw PP text, so they
+//    bypass the normal HB_ET_FUNCALL remap. hb_csTranslateInit now
+//    falls through to the INLINE translator, which walks identifiers
+//    and prefixes built-ins from hbfuncs.tab using canonical casing
+//    (→ `HbRuntime.Space`, `HbRuntime.CToD`). Without the canonical-
+//    casing path the emit was `HbRuntime.SPACE` / `HbRuntime.CTOD`
+//    which only compiled thanks to NIE stubs — throwing at runtime.
 // #include "hbclass.ch"
 public class Inherited
 {
@@ -15,10 +33,13 @@ public class Person : Inherited
 {
     public decimal nAge { get; set; } = 0;
     public string cName { get; set; } = "";
-    public DateOnly dBirth { get; set; }
+    public DateOnly dBirth { get; set; } = HbRuntime.CToD( "" );
+    public string cInitials { get; set; } = HbRuntime.Space( 3 );
     public static decimal nCount { get; set; } = 0;
     public dynamic FullName { get; set; }
-        protected string cSecret { get; set; } = "hidden";
+        public string cPublicNotes { get; set; }
+    protected dynamic oContext { get; set; }
+    protected string cSecret { get; set; } = "hidden";
 
     public dynamic New()
     {
@@ -47,6 +68,13 @@ public static partial class Program
 
         oPerson.SetAge(25);
         HbRuntime.QOut("FullName=" + oPerson.FullName);
+
+        // Touch the EXPORT-shorthand member so it's visibly present at
+        // compile AND runtime (the PROTECT counterpart `oContext` is
+        // deliberately only accessed from inside the class).
+        oPerson.cPublicNotes = "hello";
+        HbRuntime.QOut("cPublicNotes=" + oPerson.cPublicNotes);
+        HbRuntime.QOut("cInitials=[" + oPerson.cInitials + "]");
 
         return;
     }

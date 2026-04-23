@@ -10,6 +10,7 @@ public static partial class Program
         decimal i = default;
         decimal nSum = 0;
         dynamic[] aItems = new dynamic[] { "apple", "banana", "cherry" };
+        string cItem = default;
 
         // FOR with STEP
         for (i = 0; i <= 20; i += 5)
@@ -28,8 +29,9 @@ public static partial class Program
         HbRuntime.QOut("nSum after DOWN=" + HbRuntime.Str(nSum));
 
         // FOR EACH with DESCEND
-        foreach (dynamic cItem in aItems.Reverse())
+        foreach (dynamic __hb_fe_cItem in aItems.Reverse())
         {
+            cItem = __hb_fe_cItem;
             nSum = nSum + HbRuntime.Len(cItem);
         }
 

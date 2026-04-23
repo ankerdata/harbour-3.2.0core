@@ -17,7 +17,7 @@ public class Person : Inherited
     public string cName { get; set; } = "";
     public DateOnly dBirth { get; set; }
     public bool lActive { get; set; } = true;
-    public dynamic[] aItems { get; set; } = Array.Empty<dynamic>();
+    public dynamic[] aItems { get; set; } = System.Array.Empty<dynamic>();
     public dynamic oParent { get; set; }
     public Dictionary<dynamic, dynamic> hConfig { get; set; }
     public dynamic bCallback { get; set; }

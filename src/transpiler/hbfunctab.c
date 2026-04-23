@@ -14,7 +14,8 @@
 
 typedef struct HB_FUNCENTRY_
 {
-   char *                 szName;       /* lowercased name (owned) */
+   char *                 szName;       /* lowercased name (owned) — hash key */
+   char *                 szCanon;      /* canonical casing from source row (owned) */
    char *                 szPrefix;     /* namespace prefix or NULL (owned) */
    char *                 szRetType;    /* return type or NULL (owned) */
    struct HB_FUNCENTRY_ * pNext;
@@ -111,8 +112,9 @@ static void hb_funcTabInsert( const char * szName,
    {
       slot = hb_funcTabHash( szName ) & ( HB_FUNCTAB_BUCKETS - 1 );
       e    = ( PHB_FUNCENTRY ) hb_xgrabz( sizeof( HB_FUNCENTRY ) );
-      e->szName = hb_funcTabDupLower( szName, strlen( szName ) );
-      e->pNext  = s_buckets[ slot ];
+      e->szName  = hb_funcTabDupLower( szName, strlen( szName ) );
+      e->szCanon = hb_funcTabDup( szName, strlen( szName ) );
+      e->pNext   = s_buckets[ slot ];
       s_buckets[ slot ] = e;
    }
    if( szRetType )
@@ -233,6 +235,19 @@ const char * hb_funcTabReturnType( const char * szName )
    return e ? e->szRetType : NULL;
 }
 
+/* Returns the canonical casing recorded in hbfuncs.tab for szName, or
+   NULL if the name isn't in the table. The C# emitter uses this to
+   produce calls whose method-name casing matches HbRuntime.cs — C# is
+   case-sensitive, and source sites are routinely mixed-case (SPACE /
+   Space / space all lex the same in Harbour). */
+const char * hb_funcTabCanonName( const char * szName )
+{
+   PHB_FUNCENTRY e;
+   hb_funcTabLoad();
+   e = hb_funcTabFindEntry( szName );
+   return e ? e->szCanon : NULL;
+}
+
 void hb_funcTabFree( void )
 {
    HB_SIZE i;
@@ -243,6 +258,7 @@ void hb_funcTabFree( void )
       {
          PHB_FUNCENTRY pNext = e->pNext;
          if( e->szName )    hb_xfree( e->szName );
+         if( e->szCanon )   hb_xfree( e->szCanon );
          if( e->szPrefix )  hb_xfree( e->szPrefix );
          if( e->szRetType ) hb_xfree( e->szRetType );
          hb_xfree( e );

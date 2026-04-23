@@ -9,7 +9,9 @@ public static partial class Program
     {
         decimal nChoice = 2;
         dynamic[] aItems = new dynamic[] { "apple", "banana", "cherry" };
+        string cItem = default;
         string cResult = "";
+        dynamic oErr = default;
 
         // DO CASE
         if (nChoice == 1)
@@ -29,8 +31,9 @@ public static partial class Program
         }
 
         // FOR EACH
-        foreach (dynamic cItem in aItems)
+        foreach (dynamic __hb_fe_cItem in aItems)
         {
+            cItem = __hb_fe_cItem;
             cResult = cResult + cItem;
         }
 
@@ -42,8 +45,9 @@ public static partial class Program
             cResult = DoSomething();
             HbRuntime.QOut("cResult=" + cResult);
         }
-        catch (Exception oErr)
+        catch (Exception __hb_rec_oErr)
         {
+            oErr = __hb_rec_oErr;
             cResult = "error caught";
             HbRuntime.QOut("cResult=" + cResult);
         }

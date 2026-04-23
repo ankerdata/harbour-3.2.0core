@@ -18,6 +18,7 @@ public static partial class Program
         decimal nPos = default;
         decimal i = default;
         string cName = default;
+        decimal nItem = default;
         string cText = "  Hello World  ";
         string cUpper = default;
         string cTrimmed = default;
@@ -46,8 +47,9 @@ public static partial class Program
 
         // FOR EACH over array
         nTotal = 0;
-        foreach (dynamic nItem in aNumbers)
+        foreach (dynamic __hb_fe_nItem in aNumbers)
         {
+            nItem = __hb_fe_nItem;
             nTotal += nItem;
         }
 

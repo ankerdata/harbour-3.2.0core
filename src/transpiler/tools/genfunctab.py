@@ -182,17 +182,20 @@ def harvest_names() -> dict[str, str]:
 
     return names
 
-def harvest_hbruntime_methods() -> set[str]:
-    """Return the set of public static method names defined in
-    HbRuntime.cs, uppercased. These are the functions the C# emitter
-    must remap with the `HbRuntime.` prefix."""
-    methods: set[str] = set()
+def harvest_hbruntime_methods() -> dict[str, str]:
+    """Return the dict of public static method names defined in
+    HbRuntime.cs, keyed by uppercase name → canonical casing. These
+    are the functions the C# emitter must remap with the `HbRuntime.`
+    prefix; preserving canonical casing matters because C# is case-
+    sensitive and Harbour is not."""
+    methods: dict[str, str] = {}
     if not HBRUNTIME_CS.exists():
         print(f"warning: {HBRUNTIME_CS} not found", file=sys.stderr)
         return methods
     text = HBRUNTIME_CS.read_text(encoding="utf-8", errors="replace")
     for m in RE_HBRUNTIME_METHOD.finditer(text):
-        methods.add(m.group(1).upper())
+        name = m.group(1)
+        methods.setdefault(name.upper(), name)
     return methods
 
 def harvest_doc_types() -> dict[str, str]:
@@ -269,20 +272,26 @@ HEADER = """\
 """
 
 def write_table(path: Path,
-                hbruntime: set[str],
+                hbruntime: dict[str, str],
                 types: dict[str, str]):
     """Emit a row whenever a function has at least one piece of
     information attached: either a prefix (it's implemented in
     HbRuntime.cs) or a return type (parsed from a doc block).
 
     Functions with neither contribute nothing and are omitted; the
-    C# emitter will pass those through unchanged with no type info."""
+    C# emitter will pass those through unchanged with no type info.
+
+    The NAME column preserves canonical casing: if the name exists
+    in HbRuntime.cs we use that casing (so the emitter produces calls
+    that match the actual C# method); otherwise we fall back to the
+    uppercase key (the only thing doc blocks give us)."""
     all_names = set(hbruntime) | set(types.keys())
     rows = []
-    for name in sorted(all_names):
-        rettype = types.get(name) or "-"
-        prefix  = "HbRuntime" if name in hbruntime else "-"
-        rows.append(f"{name}\t{rettype}\t{prefix}")
+    for key in sorted(all_names):
+        canon   = hbruntime.get(key, key)
+        rettype = types.get(key) or "-"
+        prefix  = "HbRuntime" if key in hbruntime else "-"
+        rows.append(f"{canon}\t{rettype}\t{prefix}")
     with path.open("w", encoding="utf-8") as f:
         f.write(HEADER)
         f.write("\n")

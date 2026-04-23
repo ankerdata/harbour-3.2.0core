@@ -660,6 +660,13 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "std.ch" );
       hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, "common.ch" );
 
+      /* Expose a transpiler-mode marker to source .prg files so they
+         can `#ifndef __HB_TRANSPILER__ ... #endif` around constructs
+         the transpiler can't parse (typical offender: Clipper/GUI DSL
+         like `INIT WINDOW ... CONTEXT MENU ...`). Unset under normal
+         hbmk2 builds, so hand-wrapped blocks still compile there. */
+      hb_pp_addDefine( HB_COMP_PARAM->pLex->pPP, "__HB_TRANSPILER__", NULL );
+
       /* Add the built-in dynamic defines and any -D / -undef flags
          BEFORE running the preload filter, so preload headers'
          `#ifdef ECR` / `#ifndef XYZ` see the command-line -D state.
