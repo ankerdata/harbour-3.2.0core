@@ -27,7 +27,7 @@ using static Program;
 public class Bag
 {
     public string cHello { get; set; } = "ab" + "cd";
-    public Dictionary<dynamic, dynamic> hTable { get; set; } = new Dictionary<dynamic, dynamic>();
+    public Dictionary<string, dynamic> hTable { get; set; } = new Dictionary<string, dynamic>();
 
 }
 
@@ -38,7 +38,7 @@ public static partial class Program
     {
         string cLocal = "ab" + "cd";
         string cPayload = HbRuntime.Chr(16) + HbRuntime.Chr(4);
-        Dictionary<dynamic, dynamic> hEmpty = new Dictionary<dynamic, dynamic> {  };
+        Dictionary<string, dynamic> hEmpty = new Dictionary<string, dynamic> {  };
         Bag oB = new Bag();
 
         HbRuntime.QOut("local:  " + cLocal);

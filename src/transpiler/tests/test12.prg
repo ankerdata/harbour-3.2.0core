@@ -35,6 +35,12 @@ FUNCTION Main()
    cResult := IIF( nX > 10, "big", "small" )
    ? "cResult=" + cResult
 
+   // Codeblock — declared above (`bAdd`) and exercised here so the
+   // (Func<dynamic, dynamic, dynamic>) cast we now emit on every
+   // non-variadic block actually runs through both Harbour baseline
+   // (Eval-based) and the C# target (DLR-invoked Func).
+   ? "bAdd(3, 4)=" + Str( Eval( bAdd, 3, 4 ), 10, 2 )
+
    // Nested IIF
    nVal := IIF( nX > 100, 3, IIF( nX > 10, 2, 1 ) )
    ? "nVal=" + Str( nVal, 10, 2 )

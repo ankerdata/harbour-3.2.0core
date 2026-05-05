@@ -66,6 +66,10 @@ static PHB_AST_NODE s_pCurrentFuncNode = NULL;  /* AST node of function currentl
    win (handled in hb_csEmitExpr for HB_ET_VARIABLE). */
 #define HB_CS_MAX_FILE_STATICS 256
 static const char * s_pFileStatics[ HB_CS_MAX_FILE_STATICS ];
+/* Parallel array — Harbour-side type name (NUMERIC/STRING/...) for each
+   file-static, used by the assignment emitter to convert `:= NIL` to
+   `= default` when the LHS is a value type. */
+static const char * s_pFileStaticTypes[ HB_CS_MAX_FILE_STATICS ];
 static int s_iFileStaticCount = 0;
 static char s_szFileBase[ 64 ] = "";
 
@@ -78,6 +82,29 @@ static HB_BOOL hb_csIsFileStatic( const char * szName )
       if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
          return HB_TRUE;
    return HB_FALSE;
+}
+
+/* Return the inferred Harbour-side type name for the file-static
+   szName (NUMERIC, STRING, ARRAY, ...), or NULL if unknown / not
+   a file-static / not registered with a type. */
+static const char * hb_csFileStaticType( const char * szName )
+{
+   int i;
+   if( ! szName )
+      return NULL;
+   for( i = 0; i < s_iFileStaticCount; i++ )
+      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
+         return s_pFileStaticTypes[ i ];
+   return NULL;
+}
+
+static HB_BOOL hb_csIsValueType( const char * szType )
+{
+   return szType && (
+      hb_stricmp( szType, "NUMERIC"   ) == 0 ||
+      hb_stricmp( szType, "LOGICAL"   ) == 0 ||
+      hb_stricmp( szType, "DATE"      ) == 0 ||
+      hb_stricmp( szType, "TIMESTAMP" ) == 0 );
 }
 
 /* Return the registered (declaration-site) casing for szName, or
@@ -108,7 +135,24 @@ static void hb_csAddFileStatic( const char * szName )
       registry unbounded. */
    if( hb_csIsFileStatic( szName ) )
       return;
+   s_pFileStaticTypes[ s_iFileStaticCount ] = NULL;
    s_pFileStatics[ s_iFileStaticCount++ ] = szName;
+}
+
+/* Record (or update) the inferred type for a previously-registered
+   file-static. Tolerates being called before the name was added —
+   silently no-ops in that case. */
+static void hb_csSetFileStaticType( const char * szName, const char * szType )
+{
+   int i;
+   if( ! szName )
+      return;
+   for( i = 0; i < s_iFileStaticCount; i++ )
+      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
+      {
+         s_pFileStaticTypes[ i ] = szType;
+         return;
+      }
 }
 
 /* File-scope MEMVAR declarations. Harbour memvars are globally visible
@@ -590,7 +634,7 @@ static const char * hb_csTypeMap( const char * szHbType )
    if( hb_stricmp( szHbType, "ARRAY" ) == 0 )
       return "dynamic[]";
    if( hb_stricmp( szHbType, "HASH" ) == 0 )
-      return "Dictionary<dynamic, dynamic>";
+      return "Dictionary<string, dynamic>";
    if( hb_stricmp( szHbType, "BLOCK" ) == 0 )
       return "dynamic";
    /* Class name — widen to `dynamic` when the class extends
@@ -953,7 +997,7 @@ static const char * hb_csTranslateInit( const char * szVal )
             p += 2;
             while( *p == ' ' || *p == '\t' ) p++;
             if( *p == '}' && p[ 1 ] == '\0' )
-               return "new Dictionary<dynamic, dynamic>()";
+               return "new Dictionary<string, dynamic>()";
          }
       }
    }
@@ -1561,28 +1605,60 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_ARRAYAT:
          hb_csEmitExpr( pExpr->value.asList.pExprList, yyc, HB_TRUE );
-         /* String keys (hashes) — no index adjustment */
-         if( pExpr->value.asList.pIndex &&
-             pExpr->value.asList.pIndex->ExprType == HB_ET_STRING )
          {
-            fprintf( yyc, "[" );
-            hb_csEmitExpr( pExpr->value.asList.pIndex, yyc, HB_FALSE );
-            fprintf( yyc, "]" );
-         }
-         /* Integer literal index — emit decremented value directly */
-         else if( pExpr->value.asList.pIndex &&
-                  pExpr->value.asList.pIndex->ExprType == HB_ET_NUMERIC &&
-                  pExpr->value.asList.pIndex->value.asNum.NumType == HB_ET_LONG )
-         {
-            fprintf( yyc, "[%" HB_PFS "d]",
-                     pExpr->value.asList.pIndex->value.asNum.val.l - 1 );
-         }
-         /* Variable or expression index — cast and subtract at runtime */
-         else
-         {
-            fprintf( yyc, "[(int)(" );
-            hb_csEmitExpr( pExpr->value.asList.pIndex, yyc, HB_FALSE );
-            fprintf( yyc, ") - 1]" );
+            /* Decide hash-vs-array. Hash if any of:
+                 - the index is a string literal or a string-typed
+                   expression (e.g. `Str(N)`)
+                 - the indexed expression itself looks like a hash
+                   (Hungarian `h` prefix on a variable, or message
+                   name starting with `h`). Dictionary<string, dynamic>
+                   accepts any string key; this lets foreach loop
+                   variables iterating hb_hKeys flow without a cast. */
+            HB_BOOL fHash = HB_FALSE;
+            PHB_EXPR pIdx = pExpr->value.asList.pIndex;
+            PHB_EXPR pLhs = pExpr->value.asList.pExprList;
+            if( pIdx && pIdx->ExprType == HB_ET_STRING )
+               fHash = HB_TRUE;
+            if( ! fHash && pIdx )
+            {
+               const char * szT = hb_astInferType( NULL, pIdx );
+               if( szT && hb_stricmp( szT, "STRING" ) == 0 )
+                  fHash = HB_TRUE;
+            }
+            if( ! fHash && pLhs )
+            {
+               const char * szLhsName = NULL;
+               if( pLhs->ExprType == HB_ET_VARIABLE ||
+                   pLhs->ExprType == HB_ET_VARREF )
+                  szLhsName = pLhs->value.asSymbol.name;
+               else if( pLhs->ExprType == HB_ET_SEND )
+                  szLhsName = pLhs->value.asMessage.szMessage;
+               if( szLhsName &&
+                   ( szLhsName[ 0 ] == 'h' || szLhsName[ 0 ] == 'H' ) &&
+                   szLhsName[ 1 ] >= 'A' && szLhsName[ 1 ] <= 'Z' )
+                  fHash = HB_TRUE;
+            }
+            if( fHash )
+            {
+               fprintf( yyc, "[" );
+               hb_csEmitExpr( pIdx, yyc, HB_FALSE );
+               fprintf( yyc, "]" );
+            }
+            /* Integer literal index — emit decremented value directly */
+            else if( pIdx &&
+                     pIdx->ExprType == HB_ET_NUMERIC &&
+                     pIdx->value.asNum.NumType == HB_ET_LONG )
+            {
+               fprintf( yyc, "[%" HB_PFS "d]",
+                        pIdx->value.asNum.val.l - 1 );
+            }
+            /* Variable or expression index — cast and subtract at runtime */
+            else
+            {
+               fprintf( yyc, "[(int)(" );
+               hb_csEmitExpr( pIdx, yyc, HB_FALSE );
+               fprintf( yyc, ") - 1]" );
+            }
          }
          break;
 
@@ -1605,7 +1681,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_HASH:
          {
             PHB_EXPR pItem;
-            fprintf( yyc, "new Dictionary<dynamic, dynamic> { " );
+            fprintf( yyc, "new Dictionary<string, dynamic> { " );
             pItem = pExpr->value.asList.pExprList;
             while( pItem )
             {
@@ -1896,7 +1972,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
-               fprintf( yyc, "(" );
+               /* Wrap the lambda in an explicit `(Func<dynamic, ..., dynamic>)`
+                  cast. C# can't infer a delegate type when the lambda is
+                  passed to a `dynamic`-typed parameter (CS1660), which is
+                  the common case for HbRuntime helpers like AScan / AEval
+                  that take an arbitrary code block. The arity is taken
+                  from the codeblock's pLocals chain. */
+               int iParamCount = 0;
+               PHB_CBVAR pCount = pExpr->value.asCodeblock.pLocals;
+               while( pCount ) { iParamCount++; pCount = pCount->pNext; }
+               fprintf( yyc, "((Func<" );
+               {
+                  int j;
+                  for( j = 0; j <= iParamCount; j++ )
+                     fprintf( yyc, "dynamic%s", j < iParamCount ? ", " : "" );
+               }
+               fprintf( yyc, ">)(" );
                if( pVar )
                {
                   fprintf( yyc, "(" );
@@ -1914,7 +2005,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, " => " );
                if( pExpr->value.asCodeblock.pExprList )
                   hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
-               fprintf( yyc, ")" );
+               fprintf( yyc, "))" );
             }
          }
          break;
@@ -4231,6 +4322,15 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      }
                      else
                      {
+                        /* Strict-typed emit: do NOT silently rewrite
+                           NIL inits to `default` for value types. A
+                           Hungarian-typed value-type STATIC initialised
+                           to NIL produces `decimal x = null` which C#
+                           rejects (CS0037). Each such site is a source
+                           bug to be cleaned up — pick a real default
+                           (`:= 0`, `:= .F.`) or drop the init. */
+                        hb_csSetFileStaticType(
+                           pStmt->value.asVar.szName, szType );
                         fprintf( yyc, "public static %s %s_%s",
                                  hb_csTypeMap( szType ),
                                  s_szFileBase,

@@ -9,8 +9,8 @@ public static partial class Program
     {
         dynamic[] aNumbers = new dynamic[] { 10, 20, 30, 40, 50 };
         dynamic[] aNames = new dynamic[] { "Alice", "Bob", "Charlie" };
-        Dictionary<dynamic, dynamic> hPerson = new Dictionary<dynamic, dynamic> { { "name", "John" }, { "age", 30 } };
-        Dictionary<dynamic, dynamic> hConfig = new Dictionary<dynamic, dynamic> { { "debug", true }, { "timeout", 60 } };
+        Dictionary<string, dynamic> hPerson = new Dictionary<string, dynamic> { { "name", "John" }, { "age", 30 } };
+        Dictionary<string, dynamic> hConfig = new Dictionary<string, dynamic> { { "debug", true }, { "timeout", 60 } };
         dynamic[] aMatrix = new dynamic[] { new dynamic[] { 1, 2 }, new dynamic[] { 3, 4 }, new dynamic[] { 5, 6 } };
         dynamic[] aEmpty = new dynamic[] {  };
         decimal nTotal = 0;

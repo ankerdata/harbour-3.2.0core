@@ -13,7 +13,7 @@ public static partial class Program
         bool lFlag = true;
         bool lOther = false;
         decimal nVal = default;
-        Func<dynamic, dynamic, dynamic> bAdd = ((a, b) => a + b);
+        Func<dynamic, dynamic, dynamic> bAdd = ((Func<dynamic, dynamic, dynamic>)((a, b) => a + b));
 
         // Compound assignment operators
         nX += 5;
@@ -41,6 +41,12 @@ public static partial class Program
         // IIF expression
         cResult = (nX > 10 ? "big" : "small");
         HbRuntime.QOut("cResult=" + cResult);
+
+        // Codeblock — declared above (`bAdd`) and exercised here so the
+        // (Func<dynamic, dynamic, dynamic>) cast we now emit on every
+        // non-variadic block actually runs through both Harbour baseline
+        // (Eval-based) and the C# target (DLR-invoked Func).
+        HbRuntime.QOut("bAdd(3, 4)=" + HbRuntime.Str(HbRuntime.Eval(bAdd, 3, 4), 10, 2));
 
         // Nested IIF
         nVal = (nX > 100 ? 3 : (nX > 10 ? 2 : 1));

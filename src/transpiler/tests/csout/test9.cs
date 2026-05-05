@@ -19,7 +19,7 @@ public class Person : Inherited
     public bool lActive { get; set; } = true;
     public dynamic[] aItems { get; set; } = System.Array.Empty<dynamic>();
     public dynamic oParent { get; set; }
-    public Dictionary<dynamic, dynamic> hConfig { get; set; }
+    public Dictionary<string, dynamic> hConfig { get; set; }
     public dynamic bCallback { get; set; }
     public dynamic xUnknown { get; set; }
     public static decimal nCount { get; set; } = 0;
@@ -41,7 +41,7 @@ public static partial class Program
         string cName = "hello";
         bool lFound = true;
         dynamic[] aList = new dynamic[] { 1, 2, 3 };
-        Dictionary<dynamic, dynamic> hMap = new Dictionary<dynamic, dynamic> { { "key", "value" } };
+        Dictionary<string, dynamic> hMap = new Dictionary<string, dynamic> { { "key", "value" } };
 
         // Type from Hungarian prefix (no initializer)
         decimal nTotal = default;
@@ -50,7 +50,7 @@ public static partial class Program
         dynamic[] aBuffer = default;
         dynamic oConnection = default;
         DateOnly dToday = default;
-        Dictionary<dynamic, dynamic> hSettings = default;
+        Dictionary<string, dynamic> hSettings = default;
         dynamic bAction = default;
 
         // No prefix, no initializer — fallback

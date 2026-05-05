@@ -112,6 +112,31 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
  *   t  -> TIMESTAMP
  *   x  -> USUAL (explicitly variant)
  */
+static const char * hb_astTypeForPrefixChar( char c )
+{
+   switch( c )
+   {
+      case 'n': return "NUMERIC";
+      case 'c': return "STRING";
+      case 'l': return "LOGICAL";
+      case 'a': return "ARRAY";
+      case 'o': return "OBJECT";
+      case 'd': return "DATE";
+      case 'h': return "HASH";
+      case 'b': return "BLOCK";
+      case 't': return "TIMESTAMP";
+      case 'x': return "USUAL";
+      /* `p`/`P` is used for two related concepts in the easipos
+         corpus — function pointers (`@Foo()` return values) and
+         opaque handles (DB/socket/statement pointers). BLOCK is
+         Harbour's callable type; it maps to C# `dynamic` in
+         hb_csTypeMap, which supports both calls (via DLR) and
+         opaque storage. */
+      case 'p': return "BLOCK";
+   }
+   return NULL;
+}
+
 static const char * hb_astInferFromPrefix( const char * szName )
 {
    if( ! szName || ! szName[ 0 ] )
@@ -126,26 +151,30 @@ static const char * hb_astInferFromPrefix( const char * szName )
          this is Hungarian notation, not just a short variable name */
       if( szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' )
       {
-         switch( szName[ 0 ] )
-         {
-            case 'n': return "NUMERIC";
-            case 'c': return "STRING";
-            case 'l': return "LOGICAL";
-            case 'a': return "ARRAY";
-            case 'o': return "OBJECT";
-            case 'd': return "DATE";
-            case 'h': return "HASH";
-            case 'b': return "BLOCK";
-            case 't': return "TIMESTAMP";
-            case 'x': return "USUAL";
-            /* `p`/`P` is used for two related concepts in the easipos
-               corpus — function pointers (`@Foo()` return values) and
-               opaque handles (DB/socket/statement pointers). BLOCK is
-               Harbour's callable type; it maps to C# `dynamic` in
-               hb_csTypeMap, which supports both calls (via DLR) and
-               opaque storage. */
-            case 'p': return "BLOCK";
-         }
+         const char * szType = hb_astTypeForPrefixChar( szName[ 0 ] );
+         if( szType )
+            return szType;
+      }
+
+      /* easipos STATIC convention: `s<H>Name` — the first `s` signals
+         file-scope STATIC, the second lowercase letter is the real
+         Hungarian prefix (e.g. `snDrawer1Cash` = STATIC NUMERIC,
+         `saFixed1Decln` = STATIC ARRAY, `soWindow` = STATIC OBJECT).
+         Applied to every type — including value types (NUMERIC /
+         LOGICAL / DATE / TIMESTAMP). A Harbour `:= NIL` init on a
+         value-typed STATIC will produce `decimal x = null` which C#
+         rejects (CS0037). That is intentional: every such site is a
+         source bug — the Hungarian prefix promises a value type, the
+         author should pick a real default (`:= 0`, `:= .F.`, etc.) or
+         drop the init entirely. The same applies to `x := NIL` resets
+         and `x == NIL` comparisons elsewhere. */
+      if( szName[ 0 ] == 's' &&
+          szName[ 1 ] >= 'a' && szName[ 1 ] <= 'z' &&
+          szName[ 2 ] >= 'A' && szName[ 2 ] <= 'Z' )
+      {
+         const char * szType = hb_astTypeForPrefixChar( szName[ 1 ] );
+         if( szType )
+            return szType;
       }
    }
 

@@ -241,6 +241,17 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          hb_compPreloadListSetPath( szSwPtr + 15 );
          szSwPtr += strlen( szSwPtr );
       }
+      else if( strncmp( szSwPtr + 2, "var-types=", 10 ) == 0 )
+      {
+         /* --var-types=<path> names a tab-separated NAME<TAB>TYPE file
+            of variable type-hints. Names listed here are accepted by
+            the W0021 Hungarian gate (so short loop counters like
+            `i`/`j`/`k` don't trigger noise) and feed type inference
+            with the declared type. See include/hbvartypes.h. */
+         extern void hb_varTabSetPath( const char * szPath );
+         hb_varTabSetPath( szSwPtr + 12 );
+         szSwPtr += strlen( szSwPtr );
+      }
 #endif
    }
    else if( HB_ISOPTSEP( *szSwPtr ) )
