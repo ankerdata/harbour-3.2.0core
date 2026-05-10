@@ -110,18 +110,29 @@ static char * hb_defMapKeyJoin( const char * szOwner, const char * szName )
 
 /* ---- table ops ---- */
 
-static PHB_DEFENTRY hb_defMapFind( PHB_DEFENTRY * table, const char * szKey )
+static PHB_DEFENTRY hb_defMapFind( PHB_DEFENTRY * table, const char * szKey,
+                                    const char * szExactName )
 {
    HB_SIZE      slot = hb_defMapHash( szKey ) & ( HB_DEFMAP_BUCKETS - 1 );
-   PHB_DEFENTRY e    = table[ slot ];
+   PHB_DEFENTRY e;
+   PHB_DEFENTRY eFallback = NULL;
 
-   while( e )
+   /* Two-pass walk over the bucket: first try to find an entry whose
+      szCanonName matches szExactName byte-for-byte; if none, fall
+      back to the first case-folded match (legacy behaviour for callers
+      that pass an unconventional spelling). */
+   for( e = table[ slot ]; e; e = e->pNext )
    {
       if( strcmp( e->szKey, szKey ) == 0 )
-         return e;
-      e = e->pNext;
+      {
+         if( szExactName && e->szCanonName &&
+             strcmp( e->szCanonName, szExactName ) == 0 )
+            return e;
+         if( ! eFallback )
+            eFallback = e;
+      }
    }
-   return NULL;
+   return eFallback;
 }
 
 static void hb_defMapInsert( PHB_DEFENTRY * table, const char * szOwner,
@@ -131,13 +142,19 @@ static void hb_defMapInsert( PHB_DEFENTRY * table, const char * szOwner,
    HB_SIZE      slot  = hb_defMapHash( szKey ) & ( HB_DEFMAP_BUCKETS - 1 );
    PHB_DEFENTRY e;
 
-   /* First-wins on duplicate keys. The map file is produced by
-      gendefines.py which already resolves conflicts (header/header
-      first-wins, globals separate from locals), so duplicates here
-      are unexpected — silently keep the first and drop the rest. */
+   /* Dedupe on EXACT name (szCanonName), not the case-folded szKey.
+      Two `#define`s with the same case-folded key but different source
+      casing — e.g. fixed.ch's `FixedName` and fixedarr.ch's `FIXEDNAME`
+      — are deliberately distinct symbols in this codebase: each is
+      paired with its own header and consistent caller-side spelling.
+      Collapsing them on case-fold (the prior "first-wins" rule)
+      mapped every `FixedName` reference to FixedarrConst, and emit
+      then produced `FixedarrConst.FixedName` — CS0117 because that
+      class only has FIXEDNAME. */
    for( e = table[ slot ]; e; e = e->pNext )
    {
-      if( strcmp( e->szKey, szKey ) == 0 )
+      if( strcmp( e->szKey, szKey ) == 0 &&
+          e->szCanonName && strcmp( e->szCanonName, szName ) == 0 )
       {
          hb_xfree( szKey );
          return;
@@ -272,21 +289,31 @@ void hb_defineMapLoad( void )
 }
 
 
-/* Internal: find entry in a given table by (owner, name). */
+/* Internal: find entry in a given table by (owner, name). The name
+   is also forwarded to hb_defMapFind so case-collision buckets can
+   be disambiguated by exact case. */
 static PHB_DEFENTRY hb_defMapFindBy( PHB_DEFENTRY * table,
                                       const char * szOwner,
                                       const char * szName )
 {
    char *       szKey = hb_defMapKeyJoin( szOwner, szName );
-   PHB_DEFENTRY e     = hb_defMapFind( table, szKey );
+   PHB_DEFENTRY e     = hb_defMapFind( table, szKey, szName );
    hb_xfree( szKey );
    return e;
 }
 
 const char * hb_defineMapLookup( const char * szName )
 {
+   return hb_defineMapLookupCanon( szName, NULL );
+}
+
+const char * hb_defineMapLookupCanon( const char * szName,
+                                       const char ** pszCanonName )
+{
    PHB_DEFENTRY e;
 
+   if( pszCanonName )
+      *pszCanonName = NULL;
    if( ! szName || ! *szName )
       return NULL;
    if( ! s_fLoaded )
@@ -296,10 +323,18 @@ const char * hb_defineMapLookup( const char * szName )
    {
       e = hb_defMapFindBy( s_locals, s_szCurrentFile, szName );
       if( e )
+      {
+         if( pszCanonName )
+            *pszCanonName = e->szCanonName;
          return e->szClass;
+      }
    }
    e = hb_defMapFindBy( s_globals, "", szName );
-   return e ? e->szClass : NULL;
+   if( ! e )
+      return NULL;
+   if( pszCanonName )
+      *pszCanonName = e->szCanonName;
+   return e->szClass;
 }
 
 HB_BOOL hb_defineMapIsLocalOwned( const char * szName )

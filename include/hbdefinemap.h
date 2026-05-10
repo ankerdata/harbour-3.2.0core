@@ -59,6 +59,14 @@ extern void hb_defineMapSetCurrentFile( const char * szBasename );
    owned by the map; do not free. */
 extern const char * hb_defineMapLookup( const char * szName );
 
+/* Like hb_defineMapLookup but also returns the canonical-cased name
+   (the source spelling registered in the map) via *pszCanonName. The
+   caller should emit `Class.<canon>` so case-collision buckets resolve
+   to the right member — see fixed.ch's `FixedName` (3) vs fixedarr.ch's
+   `FIXEDNAME` (1) for the motivating case. */
+extern const char * hb_defineMapLookupCanon( const char * szName,
+                                              const char ** pszCanonName );
+
 /* Returns HB_TRUE iff the current file has a local entry for NAME —
    i.e. the Const class already declares this define and the emitter
    should skip the inline PPDEFINE const. */
