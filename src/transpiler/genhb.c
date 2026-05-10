@@ -359,21 +359,31 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
-               /* Single-element LIST is a source-level `(expr)`
-                  grouping; propagate fParen so a wrapped ASSIGN can
-                  self-parenthesize. Without this, `(nA += 2) > 1`
-                  round-trips as `nA += 2 > 1` and Harbour misparses
-                  it as `nA += (2 > 1)` — assigning a logical into
-                  nA and crashing downstream. */
+               /* Single-element LIST is either a source-level `(expr)`
+                  grouping or the parser's auto-wrap around IF/WHILE
+                  conditions. When fParen=true (we're nested inside
+                  another op), preserve the parens — the source author
+                  put them there for a reason and Harbour's unary
+                  precedence (e.g. `-` higher than `+`) means
+                  `-(nA + nB)` round-tripping as `-nA + nB` would
+                  evaluate as `(-nA) + nB`, a different value. When
+                  fParen=false (top-level) the wrap is parser
+                  bookkeeping and the parens come from the IF/WHILE
+                  syntax — peel. Multi-element lists are comma-
+                  separated arg lists; no wrap. */
                HB_BOOL fSingle = pItem && ! pItem->pNext;
+               HB_BOOL fEmitParen = fSingle && fParen;
+               if( fEmitParen )
+                  fprintf( yyc, "(" );
                while( pItem )
                {
-                  hb_astEmitExpr( pItem, yyc,
-                                  fSingle ? fParen : HB_FALSE );
+                  hb_astEmitExpr( pItem, yyc, HB_FALSE );
                   pItem = pItem->pNext;
                   if( pItem )
                      fprintf( yyc, ", " );
                }
+               if( fEmitParen )
+                  fprintf( yyc, ")" );
             }
          }
          break;

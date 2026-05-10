@@ -21,24 +21,24 @@ PROCEDURE Main()
 
    /* The headline case: `!` over a comparison whose left side is
       itself a binary op. Three-level nesting. */
-   IF !cPath + aFile[1] == cZipFile
+   IF !(cPath + aFile[1] == cZipFile)
       QOut("different")
    ELSE
       QOut("match")
    ENDIF
 
    /* Negation around an arithmetic expression. */
-   QOut("neg= " + LTrim(Str(-nA + nB)))
+   QOut("neg= " + LTrim(Str(-(nA + nB))))
 
    /* `!` over a logical AND — both sides are comparisons. */
-   IF !nA > 0 .AND. nB > 0
+   IF !(nA > 0 .AND. nB > 0)
       QOut("one zero")
    ELSE
       QOut("both pos")
    ENDIF
 
    /* `!` over a logical OR. */
-   IF !nA == 0 .OR. nB == 0
+   IF !(nA == 0 .OR. nB == 0)
       QOut("neither zero")
    ELSE
       QOut("some zero")
