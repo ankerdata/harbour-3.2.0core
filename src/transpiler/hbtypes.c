@@ -133,6 +133,10 @@ static const char * hb_astTypeForPrefixChar( char c )
          hb_csTypeMap, which supports both calls (via DLR) and
          opaque storage. */
       case 'p': return "BLOCK";
+      /* `f<X>` — function pointer / `@FuncName()` reference. Same C#
+         shape as a code block (`Func<dynamic[], dynamic>` or just
+         `dynamic` after typeMap). */
+      case 'f': return "BLOCK";
    }
    return NULL;
 }

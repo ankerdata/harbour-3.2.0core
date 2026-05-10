@@ -20,6 +20,7 @@
 #include "hbast.h"
 #include "hbreftab.h"
 #include "hbvartypes.h"
+#include "hbdefinemap.h"
 
 /* Hungarian-prefix gate. Names are acceptable when:
      - first character is a recognised type prefix (n/c/l/a/o/d/h/b/t/p)
@@ -35,6 +36,7 @@ static HB_BOOL hb_csCheckIsHungarianChar( char c )
    {
       case 'n': case 'c': case 'l': case 'a': case 'o':
       case 'd': case 'h': case 'b': case 't': case 'p':
+      case 'f':                              /* function pointer */
          return HB_TRUE;
    }
    return HB_FALSE;
@@ -71,14 +73,26 @@ static HB_BOOL hb_csCheckIsHungarian( const char * szName )
    numeric / string / logical / date / array / hash / codeblock
    literal. NIL doesn't count (no type info). Calls hb_astInferType
    with NULL name so the prefix-fallback is skipped; only the
-   expression-side inference is consulted. */
+   expression-side inference is consulted.
+
+   Also accepts a bare identifier reference whose name is a known
+   #define (gendefines.py extracted it into <Class>Const.cs and
+   recorded it in defines_map.txt). The constant's actual type is
+   strongly typed in the emitted const class, so the declaration's
+   type is just as committed as if the source had a literal. */
 static HB_BOOL hb_csCheckInitGivesType( PHB_EXPR pInit )
 {
    const char * szType;
    if( ! pInit )
       return HB_FALSE;
    szType = hb_astInferType( NULL, pInit );
-   return szType && hb_stricmp( szType, "USUAL" ) != 0;
+   if( szType && hb_stricmp( szType, "USUAL" ) != 0 )
+      return HB_TRUE;
+   if( pInit->ExprType == HB_ET_VARIABLE &&
+       pInit->value.asSymbol.name &&
+       hb_defineMapLookup( pInit->value.asSymbol.name ) )
+      return HB_TRUE;
+   return HB_FALSE;
 }
 
 static void hb_csCheckVar( HB_COMP_DECL, const char * szName,
@@ -113,10 +127,19 @@ static void hb_csCheckBlock( HB_COMP_DECL, PHB_AST_NODE pBlock )
          default: break;
       }
       if( szKind )
+      {
+         /* `PUBLIC name[dim1][dim2]` and similar sized-array
+            declarations carry no literal pInit but the AST flags
+            them with fArrayDim — the emitter uses that to allocate
+            `new dynamic[N]`. For the W0021 check that's enough type
+            evidence (ARRAY) to skip the warning. */
+         if( pStmt->value.asVar.fArrayDim )
+            continue;
          hb_csCheckVar( HB_COMP_PARAM,
                         pStmt->value.asVar.szName,
                         pStmt->value.asVar.pInit,
                         pStmt->iLine, szKind );
+      }
    }
 }
 
@@ -124,20 +147,37 @@ static void hb_csCheckHungarian( HB_COMP_DECL )
 {
    PHB_AST_NODE pFunc;
    PHB_AST_NODE pFirst;
+   PHB_HFUNC    pCompFunc;
 
    /* Function-level: parameters + LOCAL/STATIC/MEMVAR/PUBLIC/PRIVATE
       declarations in the body. Harbour requires these at the top of
       the function so the body's first-level statement walk catches
-      them all without recursing into nested control flow. */
+      them all without recursing into nested control flow.
+
+      `pParams` in the AST is actually the compiler's full var list —
+      params *and* locals mixed in declaration order. Only the first
+      wParamCount entries are real parameters; the rest are locals
+      that the body walk handles separately. Step through compiler
+      functions in lockstep to know that count. */
+   pCompFunc = HB_COMP_PARAM->functions.pFirst;
    for( pFunc = HB_COMP_PARAM->ast.pFuncList; pFunc; pFunc = pFunc->pNext )
    {
       PHB_HVAR pVar;
+      int      iParamCount;
+      int      iSeen = 0;
       if( pFunc->type != HB_AST_FUNCTION )
          continue;
-      for( pVar = pFunc->value.asFunc.pParams; pVar; pVar = pVar->pNext )
+      while( pCompFunc && ( pCompFunc->funFlags & HB_FUNF_FILE_DECL ) )
+         pCompFunc = pCompFunc->pNext;
+      iParamCount = pCompFunc ? pCompFunc->wParamCount : 0;
+      for( pVar = pFunc->value.asFunc.pParams;
+           pVar && iSeen < iParamCount;
+           pVar = pVar->pNext, iSeen++ )
          hb_csCheckVar( HB_COMP_PARAM, pVar->szName, NULL,
                         pFunc->iLine, "Parameter" );
       hb_csCheckBlock( HB_COMP_PARAM, pFunc->value.asFunc.pBody );
+      if( pCompFunc )
+         pCompFunc = pCompFunc->pNext;
    }
 
    /* Class-level: DATA / VAR members. CLASS nodes live at the top of
@@ -155,7 +195,13 @@ static void hb_csCheckHungarian( HB_COMP_DECL )
             PHB_AST_NODE pMember = pStmt->value.asClass.pMembers;
             while( pMember )
             {
-               if( pMember->type == HB_AST_CLASSDATA )
+               /* ACCESS / ASSIGN are method-like (have bodies, do
+                  work) rather than data-like, so exempt them from
+                  the Hungarian rule. Only plain DATA / VAR /
+                  CLASSDATA / CLASSVAR slots are checked. */
+               if( pMember->type == HB_AST_CLASSDATA &&
+                   pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
+                   pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )
                {
                   /* Class DATA stores INIT as a raw string; route it
                      through hb_astInferTypeFromInit which understands

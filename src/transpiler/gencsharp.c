@@ -1562,6 +1562,48 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             break;
          }
+         /* `f:exec(args)` — Harbour's invocation syntax for a function
+            pointer (Symbol class method, taken via @FuncName()). C#'s
+            FuncPtr() returns Func<dynamic[],dynamic>, which has no
+            member called `exec`; emitting this as `f.exec(args)` fails
+            at the dynamic binder. Route through HbRuntime.Eval instead,
+            which already covers Func<dynamic[],dynamic>, plain Delegate
+            (via DynamicInvoke), and codeblocks. Symbol:exec lives in
+            Harbour's runtime stdlib and is never user-overridden in
+            our codebase. */
+         if( pExpr->value.asMessage.szMessage &&
+             hb_stricmp( pExpr->value.asMessage.szMessage, "exec" ) == 0 )
+         {
+            fprintf( yyc, "HbRuntime.Eval(" );
+            if( pExpr->value.asMessage.pObject )
+            {
+               if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+                   hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
+                  fprintf( yyc, "this" );
+               else
+                  hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_FALSE );
+            }
+            else if( s_pWithObject )
+               hb_csEmitExpr( s_pWithObject, yyc, HB_FALSE );
+            if( pExpr->value.asMessage.pParms )
+            {
+               PHB_EXPR pArgs = pExpr->value.asMessage.pParms;
+               PHB_EXPR pItem = ( pArgs->ExprType == HB_ET_ARGLIST ||
+                                  pArgs->ExprType == HB_ET_LIST )
+                                ? pArgs->value.asList.pExprList : pArgs;
+               while( pItem )
+               {
+                  if( pItem->ExprType != HB_ET_NONE )
+                  {
+                     fprintf( yyc, ", " );
+                     hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                  }
+                  pItem = pItem->pNext;
+               }
+            }
+            fprintf( yyc, ")" );
+            break;
+         }
          if( pExpr->value.asMessage.pObject )
          {
             /* Self:member → this.member */
