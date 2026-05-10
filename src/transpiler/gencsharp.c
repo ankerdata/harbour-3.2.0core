@@ -374,16 +374,18 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
 }
 
 /* Callback used by hb_refTabForEachPublic — emits one field line per
-   PUBLIC variable whose owner matches this .prg. The `dynamic` storage
-   type covers both scalar and array-dim forms; the actual `new
-   dynamic[N]` allocation happens at the source's `PUBLIC name[size]`
-   statement (see HB_AST_PUBLIC emission), not at the field decl. */
+   PUBLIC variable whose owner matches this .prg. Sized-array forms
+   (`PUBLIC name[size]`) emit as `dynamic[]` so cross-file callers can
+   pass them by-ref to callees declared `ref dynamic[]` (the typical
+   shape for flag-table mutators like LoadAFlag). The runtime
+   allocation (`new dynamic[N]`) still happens at the source's PUBLIC
+   statement — see HB_AST_PUBLIC emission. */
 static void hb_csEmitPublicField( const char * szName, HB_BOOL fArrayDim,
                                    void * userdata )
 {
    FILE * fp = *( FILE ** ) userdata;
-   ( void ) fArrayDim;
-   fprintf( fp, "    public static dynamic %s;\n", szName );
+   fprintf( fp, "    public static dynamic%s %s;\n",
+            fArrayDim ? "[]" : "", szName );
 }
 
 static HB_BOOL hb_csIsFileMemvar( const char * szName )
@@ -4430,10 +4432,17 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         if( szOwner && s_szFileBase &&
                             hb_stricmp( szOwner, s_szFileBase ) == 0 )
                         {
+                           /* Sized-array form (`PUBLIC name[size]`) —
+                              emit as `dynamic[]` so cross-file callers
+                              passing `ref aXxx` to a callee declared
+                              `ref dynamic[]` (the LoadAFlag shape) bind
+                              cleanly. The runtime allocation is still
+                              emitted at the PUBLIC statement site. */
+                           HB_BOOL fArr = pStmt->value.asVar.fArrayDim;
                            hb_csAddFileMemvar( szPName );
                            hb_csEmitIndent( yyc, 1 );
-                           fprintf( yyc, "public static dynamic %s;\n",
-                                    szPName );
+                           fprintf( yyc, "public static dynamic%s %s;\n",
+                                    fArr ? "[]" : "", szPName );
                         }
                      }
                   }
