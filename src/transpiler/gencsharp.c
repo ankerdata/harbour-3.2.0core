@@ -1812,22 +1812,33 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                break;
             }
             {
-               /* A single-element LIST represents a source-level
-                  `(expr)` parenthesization, not a comma list.
-                  Propagate the caller's fParen hint so a wrapped
-                  ASSIGN / compound-assign can self-parenthesize
-                  when it lives inside a higher-precedence parent
-                  like `<`. Multi-element arg lists are comma-separated
-                  and per-child parens aren't needed. */
+               /* A single-element LIST is either:
+                    (a) a source-level `(expr)` parenthesization, OR
+                    (b) the parser's auto-wrap around IF/WHILE/RETURN
+                        conditions, assignment RHS, etc.
+                  We can't tell them apart structurally, but context
+                  resolves it: when fParen=true (we're nested inside
+                  another op), the parens matter — preserve them.
+                  Without preservation, `IF !(a + b == c)` would emit
+                  as `!a + b == c` and the unary `!` would bind only
+                  to `a` (Harbour's .NOT. has low precedence; C#'s !
+                  has highest).
+                  When fParen=false (top level — IF condition, RHS,
+                  arg slot), the wrap is parser bookkeeping; peel it
+                  so we don't emit `if ((cond))`. */
                HB_BOOL fSingle = pItem && ! pItem->pNext;
+               HB_BOOL fEmitParen = fSingle && fParen;
+               if( fEmitParen )
+                  fprintf( yyc, "(" );
                while( pItem )
                {
-                  hb_csEmitExpr( pItem, yyc,
-                                 fSingle ? fParen : HB_FALSE );
+                  hb_csEmitExpr( pItem, yyc, HB_FALSE );
                   pItem = pItem->pNext;
                   if( pItem )
                      fprintf( yyc, ", " );
                }
+               if( fEmitParen )
+                  fprintf( yyc, ")" );
             }
          }
          break;
