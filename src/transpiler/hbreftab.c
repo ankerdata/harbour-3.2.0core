@@ -481,6 +481,18 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->szType && hb_stricmp( pParam->szType, szNewType ) == 0 )
       return HB_REFINE_OK;
 
+   /* `x`-prefix USUAL is sticky. The user picked `x` deliberately as a
+      "could be anything" marker (typically because the body does
+      VALTYPE() dispatch — see MsgResponse(xAnswer1) which accepts
+      both string descm constants and bare D_1Yes numeric literals).
+      Without this guard, call-site refinement would narrow `xFoo` to
+      whatever concrete type the first non-USUAL caller passes, then
+      every other-typed caller surfaces as CS1503 at emit time. */
+   if( pParam->szType && hb_stricmp( pParam->szType, "USUAL" ) == 0 &&
+       pParam->szName &&
+       ( pParam->szName[ 0 ] == 'x' || pParam->szName[ 0 ] == 'X' ) )
+      return HB_REFINE_OK;
+
    if( ! pParam->szType || hb_stricmp( pParam->szType, "USUAL" ) == 0 ||
        hb_stricmp( pParam->szType, "OBJECT" ) == 0 )
    {
