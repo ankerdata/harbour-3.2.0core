@@ -8,7 +8,7 @@ using static Program;
 // #include "hbclass.ch"
 public class Names
 {
-    public string cAll { get; set; } = "";
+    public string cAll = "";
 
     public dynamic New()
     {

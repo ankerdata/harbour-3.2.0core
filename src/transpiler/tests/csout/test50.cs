@@ -30,8 +30,8 @@ using static Program;
 // #include "hbclass.ch"
 public class Widget
 {
-    public string cLabel { get; set; } = "";
-    public dynamic fHook { get; set; }
+    public string cLabel = "";
+    public dynamic fHook;
 
     public dynamic New(string cLabel = default, dynamic fHook = default)
     {

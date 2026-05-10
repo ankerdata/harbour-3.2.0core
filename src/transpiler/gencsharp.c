@@ -3446,14 +3446,21 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 
          hb_csEmitIndent( yyc, 1 );
 
+         /* fField: this branch emits a plain field (no `{ get; set; }`).
+            The post-switch terminator block appends `;` and uses the
+            field syntax for init. ACCESS/ASSIGN and readonly stay as
+            properties — they have method-like behaviour. */
+         {
+         HB_BOOL fField = HB_FALSE;
+
          switch( pMember->value.asClassData.iKind )
          {
             case HB_AST_DATA_CLASS:
-               /* C# static auto-property — matches the shape of the
-                  instance branch below, just with `static` added. The
-                  { get;[ set;] } terminates the declaration; the
-                  post-switch init block follows with ` = <val>;`. */
-               fprintf( yyc, "%s static %s %s { get; set; }",
+               /* CLASSDATA — emit as plain static field. Auto-properties
+                  ({ get; set; }) can't be passed by-ref (CS0206) which
+                  bit objmeminit's bulk LoadStaticField(..., ref X) calls. */
+               fField = HB_TRUE;
+               fprintf( yyc, "%s static %s %s",
                         szScope,
                         hb_csTypeMap( szType ),
                         pMember->value.asClassData.szName );
@@ -3514,28 +3521,42 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                break;
 
             default:
-               /* Instance DATA → auto property */
+               /* Instance DATA — emit as plain field for the same
+                  ref-passability reason as CLASSDATA. Readonly DATA
+                  keeps the `{ get; }` shape: a `readonly` field would
+                  reject all assignments outside the constructor, while
+                  Harbour readonly only blocks the source `:=` syntax. */
                if( pMember->value.asClassData.fReadOnly )
                   fprintf( yyc, "%s %s %s { get; }",
                            szScope,
                            hb_csTypeMap( szType ),
                            pMember->value.asClassData.szName );
                else
-                  fprintf( yyc, "%s %s %s { get; set; }",
+               {
+                  fField = HB_TRUE;
+                  fprintf( yyc, "%s %s %s",
                            szScope,
                            hb_csTypeMap( szType ),
                            pMember->value.asClassData.szName );
+               }
                break;
          }
 
-         /* INIT value → default */
+         /* INIT value → default. Field branches need the `;` terminator;
+            property branches end at `}` and only need a `;` after the
+            init suffix. */
          if( pMember->value.asClassData.szInit &&
              pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
              pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )
+         {
             fprintf( yyc, " = %s;",
                      hb_csTranslateInit( pMember->value.asClassData.szInit ) );
+         }
+         else if( fField )
+            fprintf( yyc, ";" );
 
          fprintf( yyc, "\n" );
+         }
       }
       pMember = pMember->pNext;
    }

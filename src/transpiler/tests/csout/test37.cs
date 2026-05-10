@@ -15,10 +15,10 @@ using static Program;
 // #include "hbclass.ch"
 public class Widget
 {
-    public decimal nCount { get; set; } = 0;
-    public bool lEnabled { get; set; } = true;
-    public bool lHidden { get; set; } = false;
-    public string cName { get; set; } = "";
+    public decimal nCount = 0;
+    public bool lEnabled = true;
+    public bool lHidden = false;
+    public string cName = "";
 
 }
 

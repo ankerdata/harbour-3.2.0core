@@ -939,20 +939,36 @@ public static partial class HbRuntime
     public static dynamic GETMEMBER(object obj, string name)
     {
         if (obj == null || string.IsNullOrEmpty(name)) return null;
-        var prop = obj.GetType().GetProperty(name, MemberFlags);
-        return prop?.GetValue(obj);
+        var t = obj.GetType();
+        var prop = t.GetProperty(name, MemberFlags);
+        if (prop != null) return prop.GetValue(obj);
+        // Class DATA members now emit as plain fields (so they can be
+        // passed by ref). Fall back to a field lookup.
+        var field = t.GetField(name, MemberFlags);
+        return field?.GetValue(obj);
     }
 
     public static void SETMEMBER(object obj, string name, dynamic value)
     {
         if (obj == null || string.IsNullOrEmpty(name)) return;
-        var prop = obj.GetType().GetProperty(name, MemberFlags);
-        if (prop == null) return;
-        object coerced = value;
-        if (value != null && prop.PropertyType != typeof(object) &&
-            prop.PropertyType != value.GetType())
-            coerced = Convert.ChangeType(value, prop.PropertyType);
-        prop.SetValue(obj, coerced);
+        var t = obj.GetType();
+        var prop = t.GetProperty(name, MemberFlags);
+        if (prop != null)
+        {
+            object coerced = value;
+            if (value != null && prop.PropertyType != typeof(object) &&
+                prop.PropertyType != value.GetType())
+                coerced = Convert.ChangeType(value, prop.PropertyType);
+            prop.SetValue(obj, coerced);
+            return;
+        }
+        var field = t.GetField(name, MemberFlags);
+        if (field == null) return;
+        object coercedf = value;
+        if (value != null && field.FieldType != typeof(object) &&
+            field.FieldType != value.GetType())
+            coercedf = Convert.ChangeType(value, field.FieldType);
+        field.SetValue(obj, coercedf);
     }
 
     public static dynamic SENDMSG(object obj, string name, params dynamic[] args)

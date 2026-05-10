@@ -6,7 +6,7 @@ using static Program;
 // #include "hbclass.ch"
 public class Calculator
 {
-    public decimal nResult { get; set; } = 0;
+    public decimal nResult = 0;
 
     public dynamic New()
     {

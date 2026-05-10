@@ -25,21 +25,21 @@ using static Program;
 // #include "hbclass.ch"
 public class Inherited
 {
-    public static decimal nVersion { get; set; } = 1.0m;
+    public static decimal nVersion = 1.0m;
 
 }
 
 public class Person : Inherited
 {
-    public decimal nAge { get; set; } = 0;
-    public string cName { get; set; } = "";
-    public DateOnly dBirth { get; set; } = HbRuntime.CToD( "" );
-    public string cInitials { get; set; } = HbRuntime.Space( 3 );
-    public static decimal nCount { get; set; } = 0;
+    public decimal nAge = 0;
+    public string cName = "";
+    public DateOnly dBirth = HbRuntime.CToD( "" );
+    public string cInitials = HbRuntime.Space( 3 );
+    public static decimal nCount = 0;
     public dynamic FullName { get; set; }
-        public string cPublicNotes { get; set; }
-    protected dynamic oContext { get; set; }
-    protected string cSecret { get; set; } = "hidden";
+        public string cPublicNotes;
+    protected dynamic oContext;
+    protected string cSecret = "hidden";
 
     public dynamic New()
     {

@@ -7,22 +7,22 @@ using static Program;
 // #include "hbclass.ch"
 public class Inherited
 {
-    public static decimal nVersion { get; set; } = 1.0m;
+    public static decimal nVersion = 1.0m;
 
 }
 
 public class Person : Inherited
 {
-    public decimal nAge { get; set; } = 0;
-    public string cName { get; set; } = "";
-    public DateOnly dBirth { get; set; }
-    public bool lActive { get; set; } = true;
-    public dynamic[] aItems { get; set; } = System.Array.Empty<dynamic>();
-    public dynamic oParent { get; set; }
-    public Dictionary<string, dynamic> hConfig { get; set; }
-    public dynamic bCallback { get; set; }
-    public dynamic xUnknown { get; set; }
-    public static decimal nCount { get; set; } = 0;
+    public decimal nAge = 0;
+    public string cName = "";
+    public DateOnly dBirth;
+    public bool lActive = true;
+    public dynamic[] aItems = System.Array.Empty<dynamic>();
+    public dynamic oParent;
+    public Dictionary<string, dynamic> hConfig;
+    public dynamic bCallback;
+    public dynamic xUnknown;
+    public static decimal nCount = 0;
 
     public dynamic New()
     {

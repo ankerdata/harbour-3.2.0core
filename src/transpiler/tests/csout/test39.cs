@@ -26,8 +26,8 @@ using static Program;
 // #include "hbclass.ch"
 public class Bag
 {
-    public string cHello { get; set; } = "ab" + "cd";
-    public Dictionary<string, dynamic> hTable { get; set; } = new Dictionary<string, dynamic>();
+    public string cHello = "ab" + "cd";
+    public Dictionary<string, dynamic> hTable = new Dictionary<string, dynamic>();
 
 }
 

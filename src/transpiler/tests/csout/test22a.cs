@@ -20,7 +20,7 @@ using static Program;
 // #include "hbclass.ch"
 public class Numbers
 {
-    public decimal nTotal { get; set; } = 0;
+    public decimal nTotal = 0;
 
     public dynamic New()
     {

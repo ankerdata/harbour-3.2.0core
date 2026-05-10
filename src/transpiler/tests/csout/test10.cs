@@ -6,7 +6,7 @@ using static Program;
 // #include "hbclass.ch"
 public class MyObj
 {
-    public decimal nValue { get; set; } = 0;
+    public decimal nValue = 0;
 
     public dynamic New()
     {

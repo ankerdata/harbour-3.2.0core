@@ -8,13 +8,13 @@ using static Program;
 // #include "hbclass.ch"
 public class Foo
 {
-    public decimal nA { get; set; } = 1;
+    public decimal nA = 1;
 
 }
 
 public class Bar
 {
-    public decimal nB { get; set; } = 2;
+    public decimal nB = 2;
 
 }
 

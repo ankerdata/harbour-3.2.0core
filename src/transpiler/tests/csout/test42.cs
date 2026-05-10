@@ -19,9 +19,9 @@ using static Program;
 // #include "hbclass.ch"
 public class Record : HbDynamicObject
 {
-    public string cName { get; set; } = "";
-    public decimal nValue { get; set; } = 0;
-    public bool lActive { get; set; } = false;
+    public string cName = "";
+    public decimal nValue = 0;
+    public bool lActive = false;
 
     public dynamic SetByName(string cField = default, dynamic xValue = default)
     {

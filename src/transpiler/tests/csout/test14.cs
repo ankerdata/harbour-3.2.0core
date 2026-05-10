@@ -8,9 +8,9 @@ using static Program;
 // #include "hbclass.ch"
 public class Animal
 {
-    public string cName { get; set; } = "";
-    public decimal nLegs { get; set; } = 4;
-    public string cSound { get; set; } = "";
+    public string cName = "";
+    public decimal nLegs = 4;
+    public string cSound = "";
 
     public dynamic New(string cName = default, string cSound = default)
     {
@@ -34,7 +34,7 @@ public class Animal
 
 public class Dog : Animal
 {
-    public string cBreed { get; set; } = "";
+    public string cBreed = "";
 
     public dynamic Init(string cName = default, string cBreed = default)
     {
