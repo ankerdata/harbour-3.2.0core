@@ -1,5 +1,14 @@
 #include "astype.ch"
-// Test 18: default parameters and middle-gap call sites
+// Test 18: default parameters and middle-gap call sites.
+//
+// `nA` is non-nullable (numeric Hungarian, strict-typing rule). `xB`
+// and `xC` are USUAL (`x` prefix) so they can legitimately be NIL
+// when the caller omits them — the canonical Clipper pattern for
+// truly-optional params. Renaming from the prior `nB`, `nC` matches
+// the strict-typing rule that says Hungarian-typed value params are
+// never NIL: a NIL guard on `nB` would now be unreachable because
+// the C# emit defaults `nB` to 0.
+
 PROCEDURE Main()
 
    Fred(1)
@@ -10,15 +19,15 @@ PROCEDURE Main()
 
 RETURN
 
-PROCEDURE Fred( nA AS NUMERIC, nB AS NUMERIC, nC AS NUMERIC )
+PROCEDURE Fred( nA AS NUMERIC, xB AS NUMERIC, xC AS NUMERIC )
 
    QOut("a=" + Str(nA))
-   IF nB != NIL
-      QOut("b=" + Str(nB))
+   IF xB != NIL
+      QOut("b=" + Str(xB))
    ENDIF
 
-   IF nC != NIL
-      QOut("c=" + Str(nC))
+   IF xC != NIL
+      QOut("c=" + Str(xC))
    ENDIF
 
 RETURN

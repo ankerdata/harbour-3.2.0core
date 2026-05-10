@@ -40,7 +40,7 @@ public static partial class Program
         {
             lFormal = true;
         }
-        if (lFormal == true)
+        if (lFormal)
         {
             HbRuntime.QOut("Good day, " + cName);
         }

@@ -48,7 +48,7 @@ public static partial class Program
         return;
     }
 
-    public static void Probe(decimal? nKind = null, bool? lReady = null)
+    public static void Probe(decimal nKind = default, bool lReady = default)
     {
         // DEFAULT ... TO ... // comment — std.ch translate rule.
         // default kind
@@ -61,7 +61,7 @@ public static partial class Program
         {
             lReady = false;
         }
-        if (lReady == true)
+        if (lReady)
         {
             HbRuntime.QOut("kind=" + HbRuntime.LTrim(HbRuntime.Str(nKind)) + " ready=Y");
         }

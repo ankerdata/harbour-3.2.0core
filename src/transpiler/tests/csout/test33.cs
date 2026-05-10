@@ -43,10 +43,10 @@ public static partial class Program
 
         // The last function in the file — the one the bug dropped params on.
     }
-    public static string Greet(string? cName = null, bool? lExclaim = null, string cSuffix = default)
+    public static string Greet(string? cName = null, bool lExclaim = default, string cSuffix = default)
     {
         string cOut = "Hello " + cName;
-        if (lExclaim == true)
+        if (lExclaim)
         {
             cOut += cSuffix;
         }

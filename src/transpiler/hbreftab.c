@@ -417,6 +417,30 @@ void hb_refTabMark( PHB_REFTAB pTab, const char * szFunc, int iPos )
       e->pParams[ iPos ].fByRef = HB_TRUE;
 }
 
+/* Value-typed Hungarian prefixes — n (numeric), l (logical), d (date),
+   t (datetime). Per Alex's strict-typing preference: a Hungarian-typed
+   value parameter is non-nullable by intent, even if the body has an
+   `if param == NIL` guard. The guard is then a stale Clipper habit
+   the source can clean up; meanwhile every typed callee accepts the
+   Hungarian-typed value cleanly without `decimal? → decimal` CS1503
+   at every call site. Reference-typed prefixes (a/o/h/b/p/f) are
+   excluded — null is a real value for those. `x`/`X` (USUAL) is also
+   excluded since USUAL already maps to dynamic. */
+static HB_BOOL hb_refTabIsValueTypeHungarian( const char * szName )
+{
+   if( ! szName || ! szName[ 0 ] || ! szName[ 1 ] )
+      return HB_FALSE;
+   switch( szName[ 0 ] )
+   {
+      case 'n': case 'N':   /* numeric */
+      case 'l': case 'L':   /* logical */
+      case 'd': case 'D':   /* date    */
+      case 't': case 'T':   /* datetime */
+         return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
 void hb_refTabSetNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
 {
    PHB_REFENTRY e;
@@ -425,6 +449,9 @@ void hb_refTabSetNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
       return;
 
    e = hb_refTabFindOrCreate( pTab, szFunc );
+   if( e->pParams && iPos < e->nParams &&
+       hb_refTabIsValueTypeHungarian( e->pParams[ iPos ].szName ) )
+      return;
    e->nilbits |= ( ( HB_U64 ) 1 ) << iPos;
    if( e->pParams && iPos < e->nParams )
       e->pParams[ iPos ].fNilable = HB_TRUE;
