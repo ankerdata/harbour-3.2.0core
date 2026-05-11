@@ -3322,7 +3322,8 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL,
+                                   s_pCompCtx ? s_pCompCtx->currModule : NULL );
 
    /* Get CLASSMETHOD marker */
    if( pFunc->value.asFunc.pBody &&
@@ -3780,7 +3781,8 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL,
+                                   s_pCompCtx ? s_pCompCtx->currModule : NULL );
 
    /* Detect Main entry point */
    if( hb_stricmp( pFunc->value.asFunc.szName, "Main" ) == 0 )

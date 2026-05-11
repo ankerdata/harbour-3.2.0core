@@ -1894,7 +1894,8 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
             {
                const char * szRetType =
-                  hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab, szKeyBuf );
+                  hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab,
+                                   szKeyBuf, HB_COMP_PARAM->szFile );
                if( szRetType )
                   hb_refTabSetReturnType( pTab, szKeyBuf, szRetType );
             }
@@ -1903,7 +1904,8 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
          {
             /* Startup function — still walk for call-site refinement,
                but we're not interested in its return type. */
-            hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab, NULL );
+            hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab, NULL,
+                             HB_COMP_PARAM->szFile );
          }
 
          if( pCompFunc )

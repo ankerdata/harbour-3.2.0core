@@ -275,14 +275,17 @@ typedef struct
 typedef struct
 {
    HB_TYPEENV_ENTRY entries[ HB_TYPEENV_MAX ];
-   int        count;
-   PHB_REFTAB pRefTab;          /* active user-function table, or NULL */
+   int          count;
+   PHB_REFTAB   pRefTab;        /* active user-function table, or NULL */
+   const char * szFile;         /* source file currently being walked (for warnings) */
 } HB_TYPEENV;
 
-static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab )
+static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
+                            const char * szFile )
 {
    pEnv->count   = 0;
    pEnv->pRefTab = pRefTab;
+   pEnv->szFile  = szFile;
 }
 
 static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
@@ -783,28 +786,27 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
 
             if( r == HB_REFINE_CONFLICT )
             {
-               /* Look up what the slot was before the conflict —
-                  unfortunately by the time we get the CONFLICT
-                  result the slot has already been downgraded to
-                  USUAL, so we can only report the incoming type
-                  that triggered it. That's still useful. */
+               /* Emitted on the first call site that disagrees with
+                  the slot's prior type. Subsequent ALREADY_CONFLICT
+                  results stay silent — every non-USUAL caller against
+                  an already-widened slot would otherwise re-warn
+                  including the type that's actually "right", flooding
+                  the gate with noise. scan.sh accumulates warnings
+                  across passes so the pass-1 emission survives to
+                  convergence.
+
+                  Format matches W0020/W0021 etc. so scan.sh's
+                  warning-capture grep picks it up. */
                const HB_REFPARAM * pP =
                   hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
                const char * szPName = ( pP && pP->szName ) ? pP->szName : "?";
-               if( iLine > 0 )
-                  fprintf( stderr,
-                     "hbtranspiler: warning: line %d: call site passes %s "
-                     "for parameter '%s:%s' but earlier sites had a "
-                     "different type — downgrading to USUAL\n",
-                     iLine, szArgType ? szArgType : "?",
-                     szCallee, szPName );
-               else
-                  fprintf( stderr,
-                     "hbtranspiler: warning: call site passes %s for "
-                     "parameter '%s:%s' but earlier sites had a "
-                     "different type — downgrading to USUAL\n",
-                     szArgType ? szArgType : "?",
-                     szCallee, szPName );
+               const char * szF = pEnv->szFile ? pEnv->szFile : "?";
+               fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0022  "
+                  "Call to '%s' passes %s for parameter '%s' but earlier "
+                  "sites had a different type — downgrading to USUAL\n",
+                  szF, iLine, szCallee,
+                  szArgType ? szArgType : "?", szPName );
             }
          }
       }
@@ -1059,7 +1061,8 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
  * Returns the inferred return type string, or NULL if it can't be determined.
  */
 const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
-                              void * pRefTab, const char * szFuncKey )
+                              void * pRefTab, const char * szFuncKey,
+                              const char * szFile )
 {
    HB_TYPEENV env;
    PHB_AST_NODE pStmt;
@@ -1070,7 +1073,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    if( ! pBody || pBody->type != HB_AST_BLOCK )
       return NULL;
 
-   hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab );
+   hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab, szFile );
 
    /* Seed parameter types from the reftab. When a previous scan pass
       refined a callee parameter from OBJECT to a specific class (e.g.

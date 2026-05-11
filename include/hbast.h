@@ -365,7 +365,8 @@ extern const char * hb_astInferTypeFromInit( const char * szName, const char * s
 extern const char * hb_astPropagate( PHB_AST_NODE pBody,
                                      PHB_AST_NODE pClassList,
                                      void * pRefTab,
-                                     const char * szFuncKey );
+                                     const char * szFuncKey,
+                                     const char * szFile );
 
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
