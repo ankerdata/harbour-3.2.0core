@@ -195,11 +195,38 @@ def parse_value(raw: str) -> Optional[Tuple[str, object]]:
 # Class naming
 # ---------------------------------------------------------------------------
 
+_FILENAME_CASING: Dict[str, str] = {}
+
+
+def load_filename_casing(path: str) -> None:
+    """Populate the global stem → CamelCase map from a casing file.
+
+    Same format consumed by the C transpiler via --filename-casing.
+    Silent no-op if the path is empty / missing — the caller falls
+    back to the on-disk casing.
+    """
+    _FILENAME_CASING.clear()
+    if not path or not os.path.isfile(path):
+        return
+    with open(path) as f:
+        for line in f:
+            s = line.strip()
+            if not s or s.startswith('#'):
+                continue
+            parts = s.split(None, 1)
+            if len(parts) != 2:
+                continue
+            stem, canon = parts
+            _FILENAME_CASING[stem.lower()] = canon
+
+
 def class_name_for(source_basename: str, suffix: str) -> str:
     """Derive a C# class name from a source filename.
 
-    `rmcomm.ch`   → `RmcommConst`
-    `deadbill.prg` → `DeadbillPrgConst`
+    `rmcomm.ch`   → `RmcommConst`           (no map entry)
+    `staticmem.ch` → `StaticMemConst`       (with `staticmem StaticMem`)
+    `deadbill.prg` → `DeadbillPrgConst`     (no map entry)
+    `fplu.prg`    → `FPluPrgConst`          (with `fplu FPlu`)
 
     The `Prg` infix disambiguates the ~20 stem collisions (same-named
     .ch and .prg) in the easipos corpus.
@@ -207,7 +234,7 @@ def class_name_for(source_basename: str, suffix: str) -> str:
     stem, ext = os.path.splitext(os.path.basename(source_basename))
     if not stem:
         return suffix
-    titled = stem[0].upper() + stem[1:]
+    titled = _FILENAME_CASING.get(stem.lower(), stem[0].upper() + stem[1:])
     if ext.lower() == '.prg':
         return titled + 'Prg' + suffix
     return titled + suffix
@@ -523,7 +550,16 @@ def main() -> int:
     ap.add_argument('--class-suffix', default='Const',
                     help='Suffix on class names (default: Const). .prg '
                          'classes get a `Prg` infix before this suffix.')
+    ap.add_argument('--filename-casing', default=None,
+                    help='Path to a stem → CamelCase map (one entry per '
+                         'line, "<stem><TAB><CamelCase>"). Overrides the '
+                         'default upper-first stem casing for Const '
+                         'class names.  Same file consumed by the C '
+                         'transpiler via --filename-casing.')
     args = ap.parse_args()
+
+    if args.filename_casing:
+        load_filename_casing(args.filename_casing)
 
     header_defines, prg_defines, tokens = scan_all(
         args.include_dir, args.src_dir)

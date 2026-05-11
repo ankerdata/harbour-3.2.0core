@@ -50,6 +50,7 @@
 #include "hbreftab.h"
 #include "hbdefinemap.h"
 #include "hbhbxcanon.h"
+#include "hbfilecase.h"
 #endif
 
 static char s_szUndefineMarker[ 1 ] = "";
@@ -219,6 +220,15 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          /* --defines-map=<path> activates the per-source-file const-class
             rewriter. See include/hbdefinemap.h. */
          hb_defineMapSetPath( szSwPtr + 14 );
+         szSwPtr += strlen( szSwPtr );
+      }
+      else if( strncmp( szSwPtr + 2, "filename-casing=", 16 ) == 0 )
+      {
+         /* --filename-casing=<path> overrides on-disk file-stem casing
+            with a curated CamelCase map for derived identifiers
+            (file-scope STATIC prefix, file-mangled STATIC FUNCTION
+            names). See include/hbfilecase.h. */
+         hb_fileCaseSetPath( szSwPtr + 18 );
          szSwPtr += strlen( szSwPtr );
       }
       else if( strncmp( szSwPtr + 2, "hbx=", 4 ) == 0 )

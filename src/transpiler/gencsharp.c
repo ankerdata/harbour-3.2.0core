@@ -16,6 +16,7 @@
 #include "hbfunctab.h"
 #include "hbdefinemap.h"
 #include "hbhbxcanon.h"
+#include "hbfilecase.h"
 
 /* Forward declarations */
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
@@ -4127,7 +4128,14 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          pFileName->szPath = pOut->szPath;
       hb_fsFNameMerge( szFileName, pFileName );
       if( pOut->szName )
-         hb_strncpy( s_szFileBase, pOut->szName, sizeof( s_szFileBase ) - 1 );
+      {
+         /* Project may override with a curated CamelCase via
+            --filename-casing. Falls back to the on-disk stem casing. */
+         const char * szCanon = hb_fileCaseLookup( pOut->szName );
+         hb_strncpy( s_szFileBase,
+                     szCanon ? szCanon : pOut->szName,
+                     sizeof( s_szFileBase ) - 1 );
+      }
       /* Hand the current file's full basename (stem + original
          extension) to the defines map so per-file local rows can
          shadow the globals during lookup. */
