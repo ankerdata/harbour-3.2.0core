@@ -520,12 +520,9 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
        ( pParam->szName[ 0 ] == 'x' || pParam->szName[ 0 ] == 'X' ) )
       return HB_REFINE_OK;
 
-   if( ! pParam->szType || hb_stricmp( pParam->szType, "USUAL" ) == 0 ||
-       hb_stricmp( pParam->szType, "OBJECT" ) == 0 )
+   if( ! pParam->szType || hb_stricmp( pParam->szType, "USUAL" ) == 0 )
    {
-      /* Fresh/untyped/generic-OBJECT slot — adopt the new type.
-         OBJECT is upgradeable to a specific class name when the call
-         site passes a constructor-typed variable. Defer-free the old
+      /* Fresh/untyped slot — adopt the new type. Defer-free the old
          allocation: the type-inference env in the enclosing
          hb_astPropagate may have seeded a pointer to it and would
          otherwise dangle. */
@@ -534,6 +531,31 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
          hb_refTabDefer( pTab, pParam->szType );
       pParam->szType = szDup;
       return HB_REFINE_REFINED;
+   }
+
+   if( hb_stricmp( pParam->szType, "OBJECT" ) == 0 )
+   {
+      /* Hungarian-OBJECT slot: upgrade to a specific class name but
+         REFUSE to downgrade to a scalar. An incoming scalar (STRING,
+         NUMERIC, ARRAY, …) against an `o`-prefixed parameter almost
+         always indicates a caller bug — typically a wrong arg order
+         like `Post(oTx:cName, ...)` against `Post(oTx, cName, ...)`
+         where the propagator otherwise locks the slot to STRING and
+         every legit `oTx:member` usage downstream emits CS1061. Fall
+         through to the conflict resolver so the warning fires and
+         the slot widens to USUAL rather than silently to the
+         wrong-typed scalar. */
+      if( hb_refTabIsScalarType( szNewType ) )
+      {
+         /* deliberate: fall through */
+      }
+      else
+      {
+         char * szDup = hb_refTabDup( szNewType );
+         hb_refTabDefer( pTab, pParam->szType );
+         pParam->szType = szDup;
+         return HB_REFINE_REFINED;
+      }
    }
 
    /* One side OBJECT, the other a specific class: keep the specific
