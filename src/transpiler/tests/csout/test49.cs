@@ -40,9 +40,9 @@ public class Dog : Animal
     public dynamic Identify()
     {
         // form 1
-        HbRuntime.QOut("className=" + this.className());
+        HbRuntime.QOut("className=" + HbRuntime.Upper(this.className()));
         // form 3
-        HbRuntime.QOut("Super-className=" + this.Super().className());
+        HbRuntime.QOut("Super-className=" + HbRuntime.Upper(this.Super().className()));
         // form 4 (inline parent method)
         HbRuntime.QOut("Kind=" + base.Kind());
         return this;
@@ -57,11 +57,11 @@ public static partial class Program
         Animal oAnimal = new Animal();
 
         // form 1
-        HbRuntime.QOut("oAnimal:className()=" + oAnimal.className());
+        HbRuntime.QOut("oAnimal:className()=" + HbRuntime.Upper(oAnimal.className()));
         // form 1
-        HbRuntime.QOut("oDog:className()=" + oDog.className());
+        HbRuntime.QOut("oDog:className()=" + HbRuntime.Upper(oDog.className()));
         // form 2
-        HbRuntime.QOut("oDog:Super():className()=" + oDog.Super().className());
+        HbRuntime.QOut("oDog:Super():className()=" + HbRuntime.Upper(oDog.Super().className()));
 
         oDog.Speak();
         oDog.Identify();

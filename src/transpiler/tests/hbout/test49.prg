@@ -38,9 +38,9 @@ RETURN Self
 
 METHOD Identify() AS OBJECT CLASS Dog
    // form 1
-   QOut("className=" + ::className())
+   QOut("className=" + Upper(::className()))
    // form 3
-   QOut("Super-className=" + ::Super:className())
+   QOut("Super-className=" + Upper(::Super:className()))
    // form 4 (inline parent method)
    QOut("Kind=" + ::Super:Kind())
 RETURN Self
@@ -51,11 +51,11 @@ PROCEDURE Main()
    LOCAL oAnimal := Animal():New() AS OBJECT
 
    // form 1
-   QOut("oAnimal:className()=" + oAnimal:className())
+   QOut("oAnimal:className()=" + Upper(oAnimal:className()))
    // form 1
-   QOut("oDog:className()=" + oDog:className())
+   QOut("oDog:className()=" + Upper(oDog:className()))
    // form 2
-   QOut("oDog:Super():className()=" + oDog:Super():className())
+   QOut("oDog:Super():className()=" + Upper(oDog:Super():className()))
 
    oDog:Speak()
    oDog:Identify()

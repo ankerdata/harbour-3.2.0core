@@ -31,9 +31,9 @@ METHOD Speak() CLASS Dog
 RETURN Self
 
 METHOD Identify() CLASS Dog
-   ? "className=" + ::className()              // form 1
-   ? "Super-className=" + ::Super:className()  // form 3
-   ? "Kind=" + ::Super:Kind()                  // form 4 (inline parent method)
+   ? "className=" + Upper(::className())              // form 1
+   ? "Super-className=" + Upper(::Super:className())  // form 3
+   ? "Kind=" + ::Super:Kind()                         // form 4 (inline parent method)
 RETURN Self
 
 PROCEDURE Main()
@@ -41,9 +41,9 @@ PROCEDURE Main()
    LOCAL oDog := Dog():New()
    LOCAL oAnimal := Animal():New()
 
-   ? "oAnimal:className()=" + oAnimal:className()           // form 1
-   ? "oDog:className()=" + oDog:className()                 // form 1
-   ? "oDog:Super():className()=" + oDog:Super():className() // form 2
+   ? "oAnimal:className()=" + Upper(oAnimal:className())           // form 1
+   ? "oDog:className()=" + Upper(oDog:className())                 // form 1
+   ? "oDog:Super():className()=" + Upper(oDog:Super():className()) // form 2
 
    oDog:Speak()
    oDog:Identify()
