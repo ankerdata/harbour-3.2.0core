@@ -521,6 +521,18 @@ static HB_BOOL hb_csConditionNeedsBoolUnwrap( PHB_EXPR pExpr )
    return HB_FALSE;
 }
 
+/* Harbour builtins that may reallocate their first array argument.
+   The HbRuntime overload takes `ref dynamic[]` so the new array
+   propagates back; the emitter inserts `ref` at the call site. AIns,
+   ADel, AFill, ASort etc. are size-stable and don't need it. */
+static HB_BOOL hb_csIsArrayMutator( const char * szFunc )
+{
+   if( ! szFunc )
+      return HB_FALSE;
+   return hb_stricmp( szFunc, "ASize" ) == 0 ||
+          hb_stricmp( szFunc, "AAdd"  ) == 0;
+}
+
 /* Emit the argument list of a function or method call.
 
    pParms is typically an HB_ET_LIST/HB_ET_ARGLIST whose pExprList holds
@@ -603,6 +615,38 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
 
       if( pItem->ExprType == HB_ET_VARREF )
          fprintf( yyc, "ref " );
+      else if( iPos == 0 && szFunc && hb_csIsArrayMutator( szFunc ) )
+      {
+         /* ASize / AAdd may reallocate the underlying dynamic[]. The
+            HbRuntime overload takes `ref dynamic[]` so the new array
+            propagates back. We can emit `ref` when the source-level
+            first arg is something C# can take by reference: a plain
+            variable, or a field access (`Self:field` → `this.field`,
+            `obj:field` → `obj.field`). DATA emits as public fields
+            (not properties), so ref binds cleanly. Other shapes — a
+            method call (HB_ET_SEND with parms), GETMEMBER, or an array
+            index — can't be ref'd; they fall back to the non-ref
+            overload (silent failure on object[], matching the old
+            pre-ref behavior). */
+         HB_BOOL fRefable = HB_FALSE;
+         if( pItem->ExprType == HB_ET_VARIABLE )
+            fRefable = HB_TRUE;
+         else if( pItem->ExprType == HB_ET_SEND &&
+                  pItem->value.asMessage.szMessage )
+         {
+            PHB_EXPR pSendParms = pItem->value.asMessage.pParms;
+            HB_BOOL fNoParms = ! pSendParms ||
+               ( ( pSendParms->ExprType == HB_ET_LIST ||
+                   pSendParms->ExprType == HB_ET_ARGLIST ||
+                   pSendParms->ExprType == HB_ET_MACROARGLIST ) &&
+                 ( ! pSendParms->value.asList.pExprList ||
+                   pSendParms->value.asList.pExprList->ExprType == HB_ET_NONE ) );
+            if( fNoParms )
+               fRefable = HB_TRUE;
+         }
+         if( fRefable )
+            fprintf( yyc, "ref " );
+      }
       hb_csEmitExpr( pItem, yyc, HB_FALSE );
    }
 }

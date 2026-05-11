@@ -18,7 +18,7 @@ public static partial class Program
     {
         decimal i = default;
 
-        HbRuntime.ASize(aFlag, nCount);
+        HbRuntime.ASize(ref aFlag, nCount);
         for (i = 1; i <= nCount; i++)
         {
             aFlag[(int)(i) - 1] = cFile + "#" + HbRuntime.Str(i, 1);

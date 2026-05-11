@@ -206,73 +206,138 @@ public static partial class HbRuntime
     public static void SetColor(string cColor) { }
 
     // ---- Array functions ----
-    // Harbour arrays map to C# dynamic[] or List<dynamic>. Because dynamic[]
-    // can't be resized, the transpiler-generated code mostly uses List-like
-    // behavior — but the source still writes `aadd()`, `asize()` etc. against
-    // whichever shape the variable happens to be. These helpers accept
-    // dynamic and dispatch on the runtime shape: List<dynamic> resizes in
-    // place; arrays are rebuilt into a new array and returned.
+    // Harbour arrays map to C# dynamic[]. Size-changing mutators (ASize,
+    // AAdd) take `ref dynamic[]` so the reallocated array propagates back;
+    // the transpiler inserts `ref` at the call site. Size-stable mutators
+    // (AIns, ADel, AFill, ASort) shift contents in place.
 
-    public static dynamic AAdd(dynamic arr, dynamic val)
+    public static dynamic AAdd(ref dynamic[] arr, dynamic val)
     {
-        if (arr is List<dynamic> list) { list.Add(val); return val; }
+        int n = arr?.Length ?? 0;
+        Array.Resize(ref arr, n + 1);
+        arr[n] = val;
         return val;
     }
 
-    public static dynamic ASize(dynamic arr, decimal nLen)
+    // `ref dynamic` overload — used when the lvalue's static type is
+    // `dynamic` (a class DATA field without a Hungarian array prefix,
+    // e.g. `protected dynamic array;`). C# `ref` is invariant so a
+    // `ref dynamic` arg won't bind to a `ref dynamic[]` parameter even
+    // though the runtime value is an array. Build a new array, assign
+    // it back through the ref.
+    public static dynamic AAdd(ref dynamic arr, dynamic val)
+    {
+        if (arr is object[] objArr)
+        {
+            int n = objArr.Length;
+            var tmp = new dynamic[n + 1];
+            Array.Copy(objArr, tmp, n);
+            tmp[n] = val;
+            arr = tmp;
+        }
+        else if (arr == null)
+        {
+            arr = new dynamic[] { val };
+        }
+        return val;
+    }
+
+    // Non-ref fallback for call sites the emitter can't pin to an lvalue
+    // (GETMEMBER results, array indices, method-call results). Returns
+    // val to preserve Harbour's AAdd return semantic; the underlying
+    // array isn't actually grown — same silent-failure mode as the
+    // pre-ref-overload runtime. Real fix requires the source to be
+    // restructured to assign through.
+    public static dynamic AAdd(dynamic arr, dynamic val) => val;
+
+    public static dynamic[] ASize(ref dynamic[] arr, decimal nLen)
     {
         int n = (int)nLen;
-        if (arr is List<dynamic> list)
-        {
-            while (list.Count > n) list.RemoveAt(list.Count - 1);
-            while (list.Count < n) list.Add(null);
-        }
+        if (arr == null)
+            arr = new dynamic[n];
+        else
+            Array.Resize(ref arr, n);
         return arr;
+    }
+
+    public static dynamic[] ASize(ref dynamic arr, decimal nLen)
+    {
+        int n = (int)nLen;
+        var tmp = new dynamic[n];
+        if (arr is object[] objArr)
+            Array.Copy(objArr, tmp, Math.Min(objArr.Length, n));
+        arr = tmp;
+        return tmp;
+    }
+
+    // Non-ref fallback. Returns a new resized array but can't update
+    // the caller's variable — caller code that does `aArr := ASize(...)`
+    // still works; `ASize(GETMEMBER(...), n)` as a statement is a
+    // silent no-op for the caller, matching the pre-ref behavior.
+    public static dynamic[] ASize(dynamic arr, decimal nLen)
+    {
+        int n = (int)nLen;
+        if (arr is object[] objArr)
+        {
+            var copy = new dynamic[n];
+            Array.Copy(objArr, copy, Math.Min(objArr.Length, n));
+            return copy;
+        }
+        return new dynamic[n];
     }
 
     public static dynamic AClone(dynamic arr)
     {
-        if (arr is List<dynamic> list) return new List<dynamic>(list);
-        if (arr is Array a) { var copy = (Array)a.Clone(); return copy; }
+        if (arr is object[] objArr) return (dynamic[])objArr.Clone();
         return arr;
     }
 
     public static decimal AScan(dynamic arr, dynamic val)
     {
-        if (arr is List<dynamic> list)
+        if (arr is object[] objArr)
         {
-            for (int i = 0; i < list.Count; i++)
-                if (Equals(list[i], val)) return i + 1;
+            for (int i = 0; i < objArr.Length; i++)
+                if (Equals(objArr[i], val)) return i + 1;
         }
         return 0;
     }
 
     public static dynamic AEval(dynamic arr, dynamic block)
     {
-        if (arr is List<dynamic> list)
+        if (arr is object[] objArr)
         {
-            for (int i = 0; i < list.Count; i++)
-                Eval(block, list[i], (decimal)(i + 1));
+            for (int i = 0; i < objArr.Length; i++)
+                Eval(block, objArr[i], (decimal)(i + 1));
         }
         return arr;
     }
 
     public static dynamic ADel(dynamic arr, decimal nPos)
     {
-        if (arr is List<dynamic> list)
+        if (arr is object[] objArr)
         {
             int i = (int)nPos - 1;
-            if (i >= 0 && i < list.Count) { list.RemoveAt(i); list.Add(null); }
+            if (i >= 0 && i < objArr.Length)
+            {
+                for (int j = i; j < objArr.Length - 1; j++)
+                    objArr[j] = objArr[j + 1];
+                objArr[objArr.Length - 1] = null;
+            }
         }
         return arr;
     }
 
     public static dynamic AIns(dynamic arr, decimal nPos)
     {
-        if (arr is List<dynamic> list)
+        if (arr is object[] objArr)
         {
             int i = (int)nPos - 1;
-            if (i >= 0 && i < list.Count) { list.Insert(i, null); list.RemoveAt(list.Count - 1); }
+            if (i >= 0 && i < objArr.Length)
+            {
+                for (int j = objArr.Length - 1; j > i; j--)
+                    objArr[j] = objArr[j - 1];
+                objArr[i] = null;
+            }
         }
         return arr;
     }
@@ -286,7 +351,7 @@ public static partial class HbRuntime
         if (x is decimal || x is int || x is long || x is double || x is float) return "N";
         if (x is bool) return "L";
         if (x is DateOnly || x is DateTime) return "D";
-        if (x is List<dynamic> || x is Array) return "A";
+        if (x is Array) return "A";
         if (x is Delegate) return "B";
         if (x is System.Collections.IDictionary) return "H";
         return "O";
@@ -437,11 +502,11 @@ public static partial class HbRuntime
     public static bool ISNUMBER(dynamic x) => x is decimal or int or long or double or float;
     public static bool ISLOGICAL(dynamic x) => x is bool;
     public static bool ISDATE(dynamic x) => x is DateOnly or DateTime;
-    public static bool ISARRAY(dynamic x) => x is Array or List<dynamic>;
+    public static bool ISARRAY(dynamic x) => x is Array;
     public static bool ISHASH(dynamic x) => x is System.Collections.IDictionary;
     public static bool ISOBJECT(dynamic x) =>
         x is not null && !(x is string or bool or decimal or int or long or double or float
-                          or DateOnly or DateTime or Array or List<dynamic> or Delegate
+                          or DateOnly or DateTime or Array or Delegate
                           or System.Collections.IDictionary);
     public static bool ISBLOCK(dynamic x) => x is Delegate;
 
@@ -466,16 +531,20 @@ public static partial class HbRuntime
     }
     public static dynamic hb_HKeys(dynamic h)
     {
-        var r = new List<dynamic>();
         var d = AsDict(h);
-        if (d != null) foreach (var k in d.Keys) r.Add(k);
+        if (d == null) return Array.Empty<dynamic>();
+        var r = new dynamic[d.Count];
+        int i = 0;
+        foreach (var k in d.Keys) r[i++] = k;
         return r;
     }
     public static dynamic hb_HValues(dynamic h)
     {
-        var r = new List<dynamic>();
         var d = AsDict(h);
-        if (d != null) foreach (var v in d.Values) r.Add(v);
+        if (d == null) return Array.Empty<dynamic>();
+        var r = new dynamic[d.Count];
+        int i = 0;
+        foreach (var v in d.Values) r[i++] = v;
         return r;
     }
 
@@ -483,18 +552,18 @@ public static partial class HbRuntime
 
     public static dynamic AFill(dynamic arr, dynamic val)
     {
-        if (arr is List<dynamic> list) for (int i = 0; i < list.Count; i++) list[i] = val;
+        if (arr is object[] objArr) for (int i = 0; i < objArr.Length; i++) objArr[i] = val;
         return arr;
     }
 
     public static dynamic ASort(dynamic arr, dynamic nStart = null, dynamic nCount = null, dynamic block = null)
     {
-        if (arr is List<dynamic> list)
+        if (arr is object[] objArr)
         {
             if (block is Delegate)
-                list.Sort((a, b) => ((bool)Eval(block, a, b)) ? -1 : 1);
+                Array.Sort(objArr, (a, b) => ((bool)Eval(block, a, b)) ? -1 : 1);
             else
-                list.Sort((a, b) => Comparer<dynamic>.Default.Compare(a, b));
+                Array.Sort(objArr, (a, b) => Comparer<dynamic>.Default.Compare(a, b));
         }
         return arr;
     }
@@ -750,7 +819,7 @@ public static partial class HbRuntime
     public static dynamic MacroStub;
 
     public static decimal RecNo() => 0;
-    public static dynamic Directory(string cSpec = "*.*", string cAttr = "") => new List<dynamic>();
+    public static dynamic Directory(string cSpec = "*.*", string cAttr = "") => Array.Empty<dynamic>();
 
     // ---- Function-reference resolution (Harbour's @FunName() operator) ----
 
