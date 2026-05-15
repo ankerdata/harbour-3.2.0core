@@ -747,9 +747,30 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
 {
    PHB_EXPR pArg;
    int      iPos = 0;
+   char     szStaticKey[ 256 ];
 
    if( ! szCallee || ! pParms || ! pEnv->pRefTab )
       return;
+
+   /* STATIC functions are registered as `<FileBase>::<Name>` in the
+      reftab to avoid colliding with free functions of the same name
+      in other files. A bare-name call from within that file should
+      refine the file-scoped entry; from outside, fall back to the
+      bare-name (free) entry. Method-style keys (containing "::"
+      already) skip this lookup. */
+   if( pEnv->szFile && ! strstr( szCallee, "::" ) )
+   {
+      PHB_FNAME pSplit = hb_fsFNameSplit( pEnv->szFile );
+      if( pSplit && pSplit->szName )
+      {
+         hb_snprintf( szStaticKey, sizeof( szStaticKey ), "%s::%s",
+                      pSplit->szName, szCallee );
+         if( hb_refTabParamCount( pEnv->pRefTab, szStaticKey ) > 0 )
+            szCallee = szStaticKey;
+      }
+      if( pSplit )
+         hb_xfree( pSplit );
+   }
 
    if( pParms->ExprType == HB_ET_LIST ||
        pParms->ExprType == HB_ET_ARGLIST ||
@@ -955,13 +976,19 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
       {
          /* Method calls — try to compute the receiver's class so the
             refinement keys on Class::Method instead of bare Method.
-            If the receiver type isn't a known class (e.g. dynamic
-            object, function return), fall back to the bare name and
-            preserve the previous behaviour. */
+            When the receiver's class is unknown (Hungarian `o` only
+            tells us OBJECT, not which class) we DON'T fall back to
+            bare-name refinement: a free function with the same name
+            as the method would otherwise have its slot types poisoned
+            by the method's call-site args (e.g. method
+            EasiCdS:PostLoyalty(aTakenBenefits, cBase64PDF) and free
+            PostLoyalty(oTransaction, oPOSStatus) share the bare
+            `PostLoyalty` key, so STRING args bleed into the OBJECT
+            slots). Under-refining is safer than mis-refining. */
          const char * szMethod = pExpr->value.asMessage.szMessage;
          const char * szRecvType = NULL;
          char szKey[ 256 ];
-         const char * szLookup = szMethod;
+         const char * szLookup = NULL;
 
          if( pExpr->value.asMessage.pObject )
             szRecvType = hb_astInferExprType(
@@ -987,8 +1014,9 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
             }
          }
 
-         hb_astRefineArgList( szLookup, pExpr->value.asMessage.pParms,
-                              pEnv, iLine );
+         if( szLookup )
+            hb_astRefineArgList( szLookup, pExpr->value.asMessage.pParms,
+                                 pEnv, iLine );
          hb_astRefineExpr( pExpr->value.asMessage.pObject, pEnv, iLine );
          {
             PHB_EXPR pParms = pExpr->value.asMessage.pParms;

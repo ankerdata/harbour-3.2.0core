@@ -1768,8 +1768,23 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             const char * names[ HB_REFTAB_MAXPARAM ];
             const char * types[ HB_REFTAB_MAXPARAM ];
             const char * szClass = hb_refTabFuncClass( pFunc );
-            const char * szKey   = hb_refTabMethodKey(
-               szClass, pFunc->value.asFunc.szName );
+            /* STATIC free functions get file-scoped reftab keys
+               (`<FileBase>::<Name>`) so two files declaring same-named
+               static helpers don't end up sharing a poisoned slot. */
+            char szStaticKey[ 256 ];
+            const char * szKey;
+            if( ! szClass && ( pCompFunc->cScope & HB_FS_STATIC ) &&
+                HB_COMP_PARAM->pFileName &&
+                HB_COMP_PARAM->pFileName->szName )
+            {
+               hb_snprintf( szStaticKey, sizeof( szStaticKey ),
+                            "%s::%s", HB_COMP_PARAM->pFileName->szName,
+                            pFunc->value.asFunc.szName );
+               szKey = szStaticKey;
+            }
+            else
+               szKey = hb_refTabMethodKey(
+                  szClass, pFunc->value.asFunc.szName );
 
             while( pVar && nParams < nCount && nParams < HB_REFTAB_MAXPARAM )
             {
@@ -1804,8 +1819,22 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             int nCount  = pCompFunc->wParamCount;
             const char * names[ HB_REFTAB_MAXPARAM ];
             const char * szClass = hb_refTabFuncClass( pFunc );
-            const char * szKey   = hb_refTabMethodKey(
-               szClass, pFunc->value.asFunc.szName );
+            /* Mirror pass-1's static-key construction so pass-2 (body
+               scan) refines the same reftab entry. */
+            char szStaticKey[ 256 ];
+            const char * szKey;
+            if( ! szClass && ( pCompFunc->cScope & HB_FS_STATIC ) &&
+                HB_COMP_PARAM->pFileName &&
+                HB_COMP_PARAM->pFileName->szName )
+            {
+               hb_snprintf( szStaticKey, sizeof( szStaticKey ),
+                            "%s::%s", HB_COMP_PARAM->pFileName->szName,
+                            pFunc->value.asFunc.szName );
+               szKey = szStaticKey;
+            }
+            else
+               szKey = hb_refTabMethodKey(
+                  szClass, pFunc->value.asFunc.szName );
             /* hb_refTabMethodKey returns a static buffer when szClass
                is set; copy it before any other call to the helper
                could overwrite it. */
@@ -1888,8 +1917,23 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
              pFunc->value.asFunc.pBody )
          {
             const char * szClass = hb_refTabFuncClass( pFunc );
-            const char * szKey   = hb_refTabMethodKey(
-               szClass, pFunc->value.asFunc.szName );
+            /* Mirror pass-1's static-key construction for the
+               propagation pass so seeded types come from the right
+               entry. */
+            char szStaticKey[ 256 ];
+            const char * szKey;
+            if( ! szClass && ( pCompFunc->cScope & HB_FS_STATIC ) &&
+                HB_COMP_PARAM->pFileName &&
+                HB_COMP_PARAM->pFileName->szName )
+            {
+               hb_snprintf( szStaticKey, sizeof( szStaticKey ),
+                            "%s::%s", HB_COMP_PARAM->pFileName->szName,
+                            pFunc->value.asFunc.szName );
+               szKey = szStaticKey;
+            }
+            else
+               szKey = hb_refTabMethodKey(
+                  szClass, pFunc->value.asFunc.szName );
             char szKeyBuf[ 256 ];
             hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
             {
