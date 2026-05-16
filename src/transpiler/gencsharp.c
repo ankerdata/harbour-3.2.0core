@@ -2201,10 +2201,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else if( pExpr->ExprType == HB_EO_IN )
             {
-               /* a $ b → b.Contains(a) */
-               hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_TRUE );
-               fprintf( yyc, ".Contains(" );
+               /* a $ b → HbRuntime.HbIn(a, b). Dispatches at runtime:
+                  string b → substring, hash b → key containment.
+                  b.Contains(a) only works for strings — a Dictionary
+                  has ContainsKey, not Contains. */
+               fprintf( yyc, "HbRuntime.HbIn(" );
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+               fprintf( yyc, ", " );
+               hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
                fprintf( yyc, ")" );
             }
             else if( pExpr->ExprType == HB_EO_ASSIGN &&
@@ -3960,8 +3964,10 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       inside the callee -- and only a few pass Foo(a, @b). In C#,
       ref params are required; the short overload lets the
       majority of sites compile by supplying dummy storage for the
-      tail and forwarding to the canonical. No-`@` callers with
-      arity between iFirstRef and wParamCount still fail (they
+      tail and forwarding to the canonical. When the first ref is
+      param 0 the prefix is empty and the short overload is
+      parameterless -- exactly the `GetQty()` idiom. No-`@` callers
+      with arity between iFirstRef and wParamCount still fail (they
       would need an even shorter overload per arity, skipped here
       to avoid method-bloat). Main and spread-receivers don't
       participate.
@@ -4001,7 +4007,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             ? ( ( ( HB_U64 ) 1 ) << ( iFirstRef + 1 ) ) - 1 : 0;
          HB_BOOL fHasShortCaller =
             bitArities == 0 || ( bitArities & shortMask ) != 0;
-      if( iFirstRef > 0 && ! fSpreadCallee && fHasShortCaller )
+      if( iFirstRef >= 0 && ! fSpreadCallee && fHasShortCaller )
       {
          char szMangledBuf[ 256 ];
          const char * szEmitName =

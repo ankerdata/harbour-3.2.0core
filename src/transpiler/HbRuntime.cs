@@ -523,6 +523,18 @@ public static partial class HbRuntime
         var d = AsDict(h);
         return d != null && d.Contains(key);
     }
+
+    // Harbour `$` operator: `a $ b` is substring containment when b is
+    // a string, key containment when b is a hash. Dictionary has no
+    // .Contains() — only the non-generic IDictionary.Contains(key).
+    public static bool HbIn(dynamic needle, dynamic haystack)
+    {
+        if (haystack is string s)
+            return s.Contains((string)needle);
+        if (haystack is System.Collections.IDictionary d)
+            return d.Contains(needle);
+        return false;
+    }
     public static decimal hb_HDel(dynamic h, dynamic key)
     {
         var d = AsDict(h);
