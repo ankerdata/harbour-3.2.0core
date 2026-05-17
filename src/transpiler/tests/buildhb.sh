@@ -54,3 +54,6 @@ done
 echo ""
 echo "Results: $PASS compiled, $FAIL failed"
 echo "Executables in: $SCRIPTDIR/hbexe/"
+
+# Exit non-zero on any build failure so verify.sh's run_step sees it.
+[ "$FAIL" -eq 0 ]

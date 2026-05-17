@@ -15,7 +15,7 @@
 CLASS Animal
 
    METHOD Speak()
-   METHOD Kind()
+   METHOD Kind() INLINE "animal"
 
 ENDCLASS
 

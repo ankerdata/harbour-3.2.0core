@@ -66,3 +66,6 @@ fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
+
+# Exit non-zero on any failure so verify.sh's run_step sees it.
+[ "$FAIL" -eq 0 ]

@@ -23,3 +23,6 @@ done
 
 echo ""
 echo "Results: $pass passed, $fail failed"
+
+# Exit non-zero on any failure so verify.sh's run_step sees it.
+[ "$fail" -eq 0 ]

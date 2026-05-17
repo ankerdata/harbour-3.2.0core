@@ -1046,15 +1046,23 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   }
 
                   hb_astEmitIndent( yyc, iIndent + 1 );
+                  fprintf( yyc, "%s %s",
+                           pMember->value.asClassMethod.fProcedure ? "PROCEDURE" : "METHOD",
+                           pMember->value.asClassMethod.szName );
                   if( pMember->value.asClassMethod.szParams )
-                     fprintf( yyc, "%s %s( %s )\n",
-                              pMember->value.asClassMethod.fProcedure ? "PROCEDURE" : "METHOD",
-                              pMember->value.asClassMethod.szName,
+                     fprintf( yyc, "( %s )",
                               pMember->value.asClassMethod.szParams );
                   else
-                     fprintf( yyc, "%s %s()\n",
-                              pMember->value.asClassMethod.fProcedure ? "PROCEDURE" : "METHOD",
-                              pMember->value.asClassMethod.szName );
+                     fprintf( yyc, "()" );
+                  /* An INLINE method carries its body on the
+                     declaration. Dropping the clause leaves the
+                     method declared but never implemented — the
+                     Harbour link then fails on the mangled
+                     CLASS_METHOD symbol. */
+                  if( pMember->value.asClassMethod.szInline )
+                     fprintf( yyc, " INLINE %s",
+                              pMember->value.asClassMethod.szInline );
+                  fprintf( yyc, "\n" );
                }
                pMember = pMember->pNext;
             }
