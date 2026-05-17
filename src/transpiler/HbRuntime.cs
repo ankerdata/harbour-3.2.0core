@@ -977,6 +977,14 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
             result = prop.GetValue(this);
             return true;
         }
+        // Class DATA members emit as plain fields, not properties — a
+        // declared member reached via ((dynamic)this) lands here.
+        var field = GetType().GetField(binder.Name, HbRuntime.MemberFlags);
+        if (field != null)
+        {
+            result = field.GetValue(this);
+            return true;
+        }
         return _bag.TryGetValue(binder.Name, out result);
     }
 
@@ -990,6 +998,16 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
                 prop.PropertyType != value.GetType())
                 coerced = Convert.ChangeType(value, prop.PropertyType);
             prop.SetValue(this, coerced);
+            return true;
+        }
+        var field = GetType().GetField(binder.Name, HbRuntime.MemberFlags);
+        if (field != null)
+        {
+            object coerced = value;
+            if (value != null && field.FieldType != typeof(object) &&
+                field.FieldType != value.GetType())
+                coerced = Convert.ChangeType(value, field.FieldType);
+            field.SetValue(this, coerced);
             return true;
         }
         _bag[binder.Name] = value;

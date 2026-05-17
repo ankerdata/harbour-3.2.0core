@@ -60,6 +60,10 @@ static char s_szCurrentClass[ 128 ] = "";  /* class name of the method currently
                                               being emitted; "" for free functions.
                                               Lets `Self:classvar` emit `Class.var`
                                               instead of `this.var` (CS0176). */
+static HB_BOOL s_fCurrentClassDynamic = HB_FALSE;  /* current class extends
+                                              HbDynamicObject — a `Self:` access
+                                              to an undeclared member routes
+                                              through `((dynamic)this)`. */
 
 /* File-scope STATIC var registry. Harbour STATIC vars are private to
    their declaring .prg file, but every generated .cs file merges into
@@ -573,6 +577,44 @@ static HB_BOOL hb_csIsClassVar( const char * szClass, const char * szMember )
    return HB_FALSE;
 }
 
+/* True when szName is any declared member of class szClass — a DATA
+   member of any kind (VAR / CLASS VAR / ACCESS / ASSIGN) or a METHOD.
+   A `Self:` access to a name that is NOT declared, on a dynamic class,
+   is a runtime (dictionary-backed) member: it must go through
+   `((dynamic)this)` so the DLR reaches HbDynamicObject, not a missing
+   static field (CS1061). Direct class only — a HbDynamicObject class
+   has no parent (see hb_csEmitClass), so there is nothing to inherit. */
+static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! szClass || ! *szClass || ! szName )
+      return HB_FALSE;
+
+   for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+   {
+      if( pStmt->type == HB_AST_CLASS &&
+          pStmt->value.asClass.szName &&
+          hb_stricmp( pStmt->value.asClass.szName, szClass ) == 0 )
+      {
+         PHB_AST_NODE pMember;
+         for( pMember = pStmt->value.asClass.pMembers; pMember;
+              pMember = pMember->pNext )
+         {
+            const char * szMember = NULL;
+            if( pMember->type == HB_AST_CLASSDATA )
+               szMember = pMember->value.asClassData.szName;
+            else if( pMember->type == HB_AST_CLASSMETHOD )
+               szMember = pMember->value.asClassMethod.szName;
+            if( szMember && hb_stricmp( szMember, szName ) == 0 )
+               return HB_TRUE;
+         }
+         return HB_FALSE;
+      }
+   }
+   return HB_FALSE;
+}
+
 /* ---- ref-shim for USUAL-ref parameters ----
 
    C# `ref` is invariant: a `ref decimal` argument cannot bind to a
@@ -980,6 +1022,7 @@ static const char * hb_csTranslateInline( const char * szVal )
          HB_SIZE nIdEnd   = nIdStart;
          char    szId[ 128 ];
          HB_BOOL fClassVar = HB_FALSE;
+         HB_BOOL fDynMember = HB_FALSE;
          while( nIdEnd < nLen && hb_csInlineIsIdCh( p[ nIdEnd ] ) )
             nIdEnd++;
          if( nIdEnd > nIdStart && ( nIdEnd - nIdStart ) < sizeof( szId ) )
@@ -987,6 +1030,9 @@ static const char * hb_csTranslateInline( const char * szVal )
             memcpy( szId, p + nIdStart, nIdEnd - nIdStart );
             szId[ nIdEnd - nIdStart ] = '\0';
             fClassVar = hb_csIsClassVar( s_szCurrentClass, szId );
+            if( ! fClassVar && s_fCurrentClassDynamic &&
+                ! hb_csIsDeclaredMember( s_szCurrentClass, szId ) )
+               fDynMember = HB_TRUE;
          }
          if( fClassVar && strlen( s_szCurrentClass ) < 32 )
          {
@@ -994,6 +1040,12 @@ static const char * hb_csTranslateInline( const char * szVal )
             memcpy( s_szBuf + nOut, s_szCurrentClass, nC );
             nOut += nC;
             s_szBuf[ nOut++ ] = '.';
+         }
+         else if( fDynMember )
+         {
+            /* undeclared member of a dynamic class → ((dynamic)this). */
+            memcpy( s_szBuf + nOut, "((dynamic)this).", 16 );
+            nOut += 16;
          }
          else
          {
@@ -1819,15 +1871,21 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          }
          if( pExpr->value.asMessage.pObject )
          {
-            /* Self:member → this.member, except a CLASS VAR (static),
-               which must be Class.member or C# rejects it (CS0176). */
+            /* Self:member → this.member, with two exceptions:
+               - a CLASS VAR (static) must be Class.member (CS0176);
+               - on a dynamic class, a member that isn't declared is a
+                 runtime (dictionary-backed) member — route it through
+                 `((dynamic)this)` so the DLR reaches HbDynamicObject
+                 rather than a missing static field (CS1061). */
             if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
                 hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
             {
-               if( pExpr->value.asMessage.szMessage &&
-                   hb_csIsClassVar( s_szCurrentClass,
-                                    pExpr->value.asMessage.szMessage ) )
+               const char * szMsg = pExpr->value.asMessage.szMessage;
+               if( szMsg && hb_csIsClassVar( s_szCurrentClass, szMsg ) )
                   fprintf( yyc, "%s", s_szCurrentClass );
+               else if( szMsg && s_fCurrentClassDynamic &&
+                        ! hb_csIsDeclaredMember( s_szCurrentClass, szMsg ) )
+                  fprintf( yyc, "((dynamic)this)" );
                else
                   fprintf( yyc, "this" );
             }
@@ -3729,6 +3787,11 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
       method-body emitter. */
    hb_strncpy( s_szCurrentClass, pClassNode->value.asClass.szName,
                sizeof( s_szCurrentClass ) - 1 );
+   /* Mirrors the `: HbDynamicObject` condition above: only a dynamic
+      class with no parent gets the DynamicObject base, so only there
+      can `((dynamic)this)` reach a dictionary-backed member. */
+   s_fCurrentClassDynamic =
+      pClass->fDynamic && ! pClassNode->value.asClass.szParent;
 
    /* Emit DATA members as properties or fields */
    pMember = pClassNode->value.asClass.pMembers;
@@ -4025,6 +4088,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 
    fprintf( yyc, "}\n" );
    s_szCurrentClass[ 0 ] = '\0';
+   s_fCurrentClassDynamic = HB_FALSE;
 }
 
 /* Emit a standalone function as a static method */
