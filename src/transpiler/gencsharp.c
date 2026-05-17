@@ -534,6 +534,83 @@ static HB_BOOL hb_csIsArrayMutator( const char * szFunc )
           hb_stricmp( szFunc, "AAdd"  ) == 0;
 }
 
+/* ---- ref-shim for USUAL-ref parameters ----
+
+   C# `ref` is invariant: a `ref decimal` argument cannot bind to a
+   `ref dynamic` parameter. Harbour's polymorphic by-ref params (an
+   x-prefixed slot marked by-ref) emit as `ref dynamic`, yet callers
+   routinely pass a typed lvalue by reference: LoadStaticField(row,
+   @oStatus:nConsec), POSBrowse(..., @nSelection). The fix is a
+   per-call shim: copy the typed lvalue into a `dynamic` temp, pass
+   the temp by ref, copy it back. Only viable in statement context,
+   where the temp and copies can live in a brace block (see the
+   HB_AST_EXPRSTMT handler). */
+
+#define HB_CS_MAXSHIM 64
+
+/* When non-NULL during a funcall emit, s_aRefShim[iPos] != 0 means
+   argument iPos must be emitted as `ref _hbref<iPos>` — the dynamic
+   temp was already declared by the enclosing brace block. Consumed
+   (and cleared) by hb_csEmitCallArgs so nested calls don't inherit it. */
+static const HB_BOOL * s_aRefShim = NULL;
+
+/* Fill pfShim[0..iMax) for each @arg slot of pCall whose reftab param
+   is by-ref and USUAL (→ `ref dynamic` in the emit, which a typed
+   `ref` argument can't satisfy). Returns the shim count. */
+static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
+{
+   const char * szFunc = NULL;
+   PHB_EXPR pHead, pItem;
+   int iPos, iCount = 0;
+
+   for( iPos = 0; iPos < iMax; iPos++ )
+      pfShim[ iPos ] = HB_FALSE;
+
+   if( ! pCall || pCall->ExprType != HB_ET_FUNCALL || ! s_pRefTab )
+      return 0;
+   if( pCall->value.asFunCall.pFunName &&
+       pCall->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+      szFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
+   if( ! szFunc )
+      return 0;
+
+   pHead = pCall->value.asFunCall.pParms;
+   if( pHead && ( pHead->ExprType == HB_ET_LIST ||
+                  pHead->ExprType == HB_ET_ARGLIST ||
+                  pHead->ExprType == HB_ET_MACROARGLIST ) )
+      pHead = pHead->value.asList.pExprList;
+
+   for( pItem = pHead, iPos = 0; pItem && iPos < iMax;
+        pItem = pItem->pNext, iPos++ )
+   {
+      const HB_REFPARAM * pP;
+      /* @var (HB_ET_VARREF) or @obj:field / @arr[i] (HB_ET_REFERENCE) */
+      if( pItem->ExprType != HB_ET_VARREF &&
+          pItem->ExprType != HB_ET_REFERENCE )
+         continue;
+      pP = hb_refTabParam( s_pRefTab, szFunc, iPos );
+      if( ! pP || ! pP->fByRef )
+         continue;
+      /* A typed param emits `ref decimal` etc. and binds directly;
+         only USUAL (or untyped) yields the invariant `ref dynamic`. */
+      if( pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+         continue;
+      pfShim[ iPos ] = HB_TRUE;
+      iCount++;
+   }
+   return iCount;
+}
+
+/* Emit the lvalue under an @arg item — HB_ET_VARREF wraps a plain
+   variable, HB_ET_REFERENCE a field access or array element. */
+static void hb_csEmitRefTarget( PHB_EXPR pItem, FILE * yyc )
+{
+   if( pItem->ExprType == HB_ET_REFERENCE )
+      hb_csEmitExpr( pItem->value.asReference, yyc, HB_FALSE );
+   else  /* HB_ET_VARREF */
+      hb_csEmitExpr( pItem, yyc, HB_FALSE );
+}
+
 /* Emit the argument list of a function or method call.
 
    pParms is typically an HB_ET_LIST/HB_ET_ARGLIST whose pExprList holds
@@ -561,6 +638,10 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    int      iPos;
    HB_BOOL  fFirst = HB_TRUE;
    HB_BOOL  fNamed = HB_FALSE;
+   /* Consume the ref-shim map set by the enclosing HB_AST_EXPRSTMT
+      handler, then clear it so nested funcall args don't inherit it. */
+   const HB_BOOL * aShim = s_aRefShim;
+   s_aRefShim = NULL;
 
    if( ! pParms )
       return;
@@ -612,6 +693,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
             positional — which is only correct if there are no more
             gaps after this one. We accept the risk: unknown functions
             aren't in the table. */
+      }
+
+      /* Shimmed slot: the enclosing block declared `dynamic _hbref<iPos>`
+         seeded from the typed lvalue — pass that by ref, not the arg. */
+      if( aShim && iPos < HB_CS_MAXSHIM && aShim[ iPos ] )
+      {
+         fprintf( yyc, "ref _hbref%d", iPos );
+         continue;
       }
 
       if( pItem->ExprType == HB_ET_VARREF )
@@ -2388,6 +2477,81 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                fprintf( yyc, ";\n" );
             }
             break;
+         }
+         /* ref-shim: a call statement passing a typed lvalue by-ref to
+            a `ref dynamic` (USUAL) parameter. C# ref invariance rejects
+            it directly, so wrap the call in a brace block that copies
+            each such lvalue through a `dynamic` temp and back. Covers a
+            bare call `Foo(@x)` and a plain `var := Foo(@x)`; richer LHS
+            / expression-context calls fall through to the plain emit. */
+         {
+            PHB_EXPR pCall     = NULL;
+            PHB_EXPR pAsgnLeft = NULL;
+            if( pStmtExpr && pStmtExpr->ExprType == HB_ET_FUNCALL )
+               pCall = pStmtExpr;
+            else if( pStmtExpr && pStmtExpr->ExprType == HB_EO_ASSIGN &&
+                     pStmtExpr->value.asOperator.pLeft &&
+                     pStmtExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
+                     pStmtExpr->value.asOperator.pRight &&
+                     pStmtExpr->value.asOperator.pRight->ExprType == HB_ET_FUNCALL )
+            {
+               pCall     = pStmtExpr->value.asOperator.pRight;
+               pAsgnLeft = pStmtExpr->value.asOperator.pLeft;
+            }
+            if( pCall )
+            {
+               HB_BOOL aShim[ HB_CS_MAXSHIM ];
+               int iShims = hb_csCollectRefShims( pCall, aShim, HB_CS_MAXSHIM );
+               if( iShims > 0 )
+               {
+                  PHB_EXPR pHead = pCall->value.asFunCall.pParms;
+                  PHB_EXPR pArg;
+                  int iArg;
+                  if( pHead && ( pHead->ExprType == HB_ET_LIST ||
+                                 pHead->ExprType == HB_ET_ARGLIST ||
+                                 pHead->ExprType == HB_ET_MACROARGLIST ) )
+                     pHead = pHead->value.asList.pExprList;
+
+                  hb_csEmitIndent( yyc, iIndent );
+                  fprintf( yyc, "{\n" );
+                  /* dynamic temps, seeded from the typed lvalues */
+                  for( pArg = pHead, iArg = 0; pArg;
+                       pArg = pArg->pNext, iArg++ )
+                  {
+                     if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
+                     {
+                        hb_csEmitIndent( yyc, iIndent + 1 );
+                        fprintf( yyc, "dynamic _hbref%d = ", iArg );
+                        hb_csEmitRefTarget( pArg, yyc );
+                        fprintf( yyc, ";\n" );
+                     }
+                  }
+                  /* the call — hb_csEmitCallArgs swaps in `ref _hbrefN` */
+                  hb_csEmitIndent( yyc, iIndent + 1 );
+                  if( pAsgnLeft )
+                  {
+                     hb_csEmitExpr( pAsgnLeft, yyc, HB_FALSE );
+                     fprintf( yyc, " = " );
+                  }
+                  s_aRefShim = aShim;
+                  hb_csEmitExpr( pCall, yyc, HB_FALSE );
+                  fprintf( yyc, ";\n" );
+                  /* copy the temps back into the lvalues */
+                  for( pArg = pHead, iArg = 0; pArg;
+                       pArg = pArg->pNext, iArg++ )
+                  {
+                     if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
+                     {
+                        hb_csEmitIndent( yyc, iIndent + 1 );
+                        hb_csEmitRefTarget( pArg, yyc );
+                        fprintf( yyc, " = _hbref%d;\n", iArg );
+                     }
+                  }
+                  hb_csEmitIndent( yyc, iIndent );
+                  fprintf( yyc, "}\n" );
+                  break;
+               }
+            }
          }
          hb_csEmitIndent( yyc, iIndent );
          hb_csEmitExpr( pStmtExpr, yyc, HB_FALSE );
