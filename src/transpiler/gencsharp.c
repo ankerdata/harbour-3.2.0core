@@ -56,6 +56,10 @@ static PHB_AST_NODE s_pCurrentFuncNode = NULL;  /* AST node of function currentl
                                                    when resolving identifier
                                                    references the parser wrapped
                                                    as implicit memvar aliases. */
+static char s_szCurrentClass[ 128 ] = "";  /* class name of the method currently
+                                              being emitted; "" for free functions.
+                                              Lets `Self:classvar` emit `Class.var`
+                                              instead of `this.var` (CS0176). */
 
 /* File-scope STATIC var registry. Harbour STATIC vars are private to
    their declaring .prg file, but every generated .cs file merges into
@@ -534,6 +538,41 @@ static HB_BOOL hb_csIsArrayMutator( const char * szFunc )
           hb_stricmp( szFunc, "AAdd"  ) == 0;
 }
 
+/* True when szMember is a CLASS VAR (CLASSDATA — a static, class-level
+   member) of class szClass. A `Self:` access to such a member must
+   emit `Class.member`, not `this.member`: the field is emitted static
+   and C# rejects an instance reference to it (CS0176). Only the
+   directly-named class is searched — inherited class vars (rare) fall
+   through to the plain `this.` emit. */
+static HB_BOOL hb_csIsClassVar( const char * szClass, const char * szMember )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! szClass || ! *szClass || ! szMember )
+      return HB_FALSE;
+
+   for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+   {
+      if( pStmt->type == HB_AST_CLASS &&
+          pStmt->value.asClass.szName &&
+          hb_stricmp( pStmt->value.asClass.szName, szClass ) == 0 )
+      {
+         PHB_AST_NODE pMember;
+         for( pMember = pStmt->value.asClass.pMembers; pMember;
+              pMember = pMember->pNext )
+         {
+            if( pMember->type == HB_AST_CLASSDATA &&
+                pMember->value.asClassData.iKind == HB_AST_DATA_CLASS &&
+                pMember->value.asClassData.szName &&
+                hb_stricmp( pMember->value.asClassData.szName, szMember ) == 0 )
+               return HB_TRUE;
+         }
+         return HB_FALSE;
+      }
+   }
+   return HB_FALSE;
+}
+
 /* ---- ref-shim for USUAL-ref parameters ----
 
    C# `ref` is invariant: a `ref decimal` argument cannot bind to a
@@ -925,11 +964,35 @@ static const char * hb_csTranslateInline( const char * szVal )
          nIn++;
          continue;
       }
-      /* ::name → this.name */
+      /* ::name → this.name, or Class.name for a CLASS VAR (static) —
+         an instance reference to a static member is CS0176. Peek the
+         identifier after `::` and check it against the current class. */
       if( p[ nIn ] == ':' && nIn + 1 < nLen && p[ nIn + 1 ] == ':' )
       {
-         memcpy( s_szBuf + nOut, "this.", 5 );
-         nOut += 5;
+         HB_SIZE nIdStart = nIn + 2;
+         HB_SIZE nIdEnd   = nIdStart;
+         char    szId[ 128 ];
+         HB_BOOL fClassVar = HB_FALSE;
+         while( nIdEnd < nLen && hb_csInlineIsIdCh( p[ nIdEnd ] ) )
+            nIdEnd++;
+         if( nIdEnd > nIdStart && ( nIdEnd - nIdStart ) < sizeof( szId ) )
+         {
+            memcpy( szId, p + nIdStart, nIdEnd - nIdStart );
+            szId[ nIdEnd - nIdStart ] = '\0';
+            fClassVar = hb_csIsClassVar( s_szCurrentClass, szId );
+         }
+         if( fClassVar && strlen( s_szCurrentClass ) < 32 )
+         {
+            HB_SIZE nC = strlen( s_szCurrentClass );
+            memcpy( s_szBuf + nOut, s_szCurrentClass, nC );
+            nOut += nC;
+            s_szBuf[ nOut++ ] = '.';
+         }
+         else
+         {
+            memcpy( s_szBuf + nOut, "this.", 5 );
+            nOut += 5;
+         }
          nIn++;   /* skip the second ':' */
          continue;
       }
@@ -1749,10 +1812,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          }
          if( pExpr->value.asMessage.pObject )
          {
-            /* Self:member → this.member */
+            /* Self:member → this.member, except a CLASS VAR (static),
+               which must be Class.member or C# rejects it (CS0176). */
             if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
                 hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
-               fprintf( yyc, "this" );
+            {
+               if( pExpr->value.asMessage.szMessage &&
+                   hb_csIsClassVar( s_szCurrentClass,
+                                    pExpr->value.asMessage.szMessage ) )
+                  fprintf( yyc, "%s", s_szCurrentClass );
+               else
+                  fprintf( yyc, "this" );
+            }
             else
                hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_TRUE );
          }
@@ -3519,6 +3590,8 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             : NULL;
       const char * szKey = hb_refTabMethodKey( szClass, szMethodName );
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
+      hb_strncpy( s_szCurrentClass, szClass ? szClass : "",
+                  sizeof( s_szCurrentClass ) - 1 );
    }
    s_pCurrentFuncNode = pFunc;
 
@@ -3625,6 +3698,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
    s_szCurrentFunc[ 0 ] = '\0';
+   s_szCurrentClass[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
 }
 
@@ -3641,6 +3715,13 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
    else if( pClassNode->value.asClass.szParent )
       fprintf( yyc, " : %s", pClassNode->value.asClass.szParent );
    fprintf( yyc, "\n{\n" );
+
+   /* Track the class for `Self:classvar` resolution. INLINE method
+      bodies and INIT values below are translated textually before any
+      hb_csEmitMethodBody runs, so set it here too — not just in the
+      method-body emitter. */
+   hb_strncpy( s_szCurrentClass, pClassNode->value.asClass.szName,
+               sizeof( s_szCurrentClass ) - 1 );
 
    /* Emit DATA members as properties or fields */
    pMember = pClassNode->value.asClass.pMembers;
@@ -3936,6 +4017,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
    }
 
    fprintf( yyc, "}\n" );
+   s_szCurrentClass[ 0 ] = '\0';
 }
 
 /* Emit a standalone function as a static method */
