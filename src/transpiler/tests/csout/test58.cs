@@ -15,6 +15,11 @@ using static Program;
 //   2. an INLINE method body, via the textual translator
 //
 // nLocal (a plain instance VAR) must stay `this.nLocal`.
+//
+// Doubled() also guards a regression: the INLINE translator rejects
+// workarea-ALIAS bodies by scanning for `->`, but that scan must run
+// AFTER the trailing-comment strip — a `->` in an INLINE line's `//`
+// comment must not stub the method.
 
 // #include "hbclass.ch"
 // Bump exercises the AST SEND path: a CLASS VAR and an instance VAR
@@ -25,6 +30,7 @@ public class Counter
     public decimal nLocal = 0;
 
     public dynamic Total() => Counter.nTotal;
+    public dynamic Doubled() => Counter.nTotal * 2;
     public dynamic Bump()
     {
         // CLASS VAR: becomes Counter.nTotal
@@ -52,6 +58,8 @@ public static partial class Program
         HbRuntime.QOut("b_total=" + HbRuntime.LTrim(HbRuntime.Str(oB.Total())));
         HbRuntime.QOut("a_local=" + HbRuntime.LTrim(HbRuntime.Str(oA.nLocal)));
         HbRuntime.QOut("b_local=" + HbRuntime.LTrim(HbRuntime.Str(oB.nLocal)));
+        // INLINE body, arrow in comment
+        HbRuntime.QOut("doubled=" + HbRuntime.LTrim(HbRuntime.Str(oA.Doubled())));
         return;
     }
 }

@@ -12,6 +12,11 @@
 //   2. an INLINE method body, via the textual translator
 //
 // nLocal (a plain instance VAR) must stay `this.nLocal`.
+//
+// Doubled() also guards a regression: the INLINE translator rejects
+// workarea-ALIAS bodies by scanning for `->`, but that scan must run
+// AFTER the trailing-comment strip — a `->` in an INLINE line's `//`
+// comment must not stub the method.
 
 #include "hbclass.ch"
 
@@ -21,6 +26,7 @@ CLASS Counter
    DATA nLocal AS NUMERIC INIT 0 // per-instance
    METHOD Bump()
    METHOD Total() INLINE (::nTotal)
+   METHOD Doubled() INLINE (::nTotal * 2) // arrow in a comment: a -> b
 
 ENDCLASS
 
@@ -47,4 +53,6 @@ PROCEDURE Main()
    QOut("b_total=" + LTrim(Str(oB:Total())))
    QOut("a_local=" + LTrim(Str(oA:nLocal)))
    QOut("b_local=" + LTrim(Str(oB:nLocal)))
+   // INLINE body, arrow in comment
+   QOut("doubled=" + LTrim(Str(oA:Doubled())))
 RETURN

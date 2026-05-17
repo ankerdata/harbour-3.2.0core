@@ -869,19 +869,6 @@ static const char * hb_csTranslateInline( const char * szVal )
    if( ! szVal )
       return szVal;
 
-   /* If the INLINE body contains `->` it's a workarea-ALIAS
-      expression — unsupported in C#. Short-circuit the whole method
-      body to a stub; otherwise our textual `::` / `:=` rewrites
-      produce `(this.alias).->( ... )` which breaks C# syntax. This
-      mirrors the hb_csWarnUnsupported treatment the regular emitter
-      uses for HB_ET_ALIASEXPR (see the HB_ET_ALIASEXPR case). The
-      method still exists so cross-file references compile; calling
-      it at runtime no-ops. */
-   if( strstr( szVal, "->" ) )
-   {
-      return "HbRuntime.MacroStub";
-   }
-
    /* Strip outer parens and surrounding whitespace */
    while( *szVal == ' ' || *szVal == '\t' )
       szVal++;
@@ -919,6 +906,26 @@ static const char * hb_csTranslateInline( const char * szVal )
             nLen = i;
             break;
          }
+      }
+   }
+
+   /* If the INLINE body contains `->` it's a workarea-ALIAS
+      expression — unsupported in C#. Short-circuit the whole method
+      body to a stub; otherwise our textual `::` / `:=` rewrites
+      produce `(this.alias).->( ... )` which breaks C# syntax. This
+      mirrors the hb_csWarnUnsupported treatment the regular emitter
+      uses for HB_ET_ALIASEXPR. The method still exists so cross-file
+      references compile; calling it at runtime no-ops.
+
+      Scanned over [0,nLen) — i.e. after the trailing-comment strip
+      above — so a `->` sitting in an INLINE line's `// ...` comment
+      doesn't wrongly stub an otherwise valid method. */
+   {
+      HB_SIZE i;
+      for( i = 0; i + 1 < nLen; i++ )
+      {
+         if( szVal[ i ] == '-' && szVal[ i + 1 ] == '>' )
+            return "HbRuntime.MacroStub";
       }
    }
 
