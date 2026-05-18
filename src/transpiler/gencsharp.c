@@ -853,6 +853,20 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( fRefable )
             fprintf( yyc, "ref " );
       }
+      else if( pItem->ExprType == HB_ET_VARIABLE && szFunc )
+      {
+         /* A plain variable passed to a by-ref parameter without the
+            Harbour @ marker. Harbour treats that as by-value at this
+            site, but once the parameter emits ref C# requires ref at
+            every call (CS1620). The variable is an lvalue so ref
+            binds; the resulting write-back is what a by-ref parameter
+            is designed for anyway. (A typed variable into a ref
+            dynamic USUAL slot still needs the ref-shim, handled
+            separately for the @-arg case.) */
+         const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+         if( pP && pP->fByRef )
+            fprintf( yyc, "ref " );
+      }
       hb_csEmitExpr( pItem, yyc, HB_FALSE );
    }
 }
