@@ -90,12 +90,33 @@ public static partial class HbRuntime
 
     public static decimal Val(string s)
     {
-        decimal.TryParse(s, NumberStyles.Any, INV, out decimal result);
+        // Harbour's Val() parses the leading numeric run and ignores
+        // any trailing text — Val("12abc") is 12, not 0. decimal.TryParse
+        // on the whole string rejects the garbage and yields 0, so first
+        // carve out the leading [ws][sign][digits][.digits] prefix.
+        if (string.IsNullOrEmpty(s)) return 0;
+        int i = 0, n = s.Length;
+        while (i < n && (s[i] == ' ' || s[i] == '\t')) i++;
+        int start = i;
+        if (i < n && (s[i] == '+' || s[i] == '-')) i++;
+        bool seenDot = false;
+        while (i < n)
+        {
+            char c = s[i];
+            if (c >= '0' && c <= '9') i++;
+            else if (c == '.' && !seenDot) { seenDot = true; i++; }
+            else break;
+        }
+        decimal.TryParse(s.Substring(start, i - start),
+                         NumberStyles.Any, INV, out decimal result);
         return result;
     }
 
     public static decimal Int(decimal n) => Math.Truncate(n);
-    public static decimal Round(decimal n, decimal nDec = 0) => Math.Round(n, (int)nDec);
+    // Harbour Round() is half-away-from-zero; Math.Round defaults to
+    // banker's rounding (ToEven), which would skew POS money math.
+    public static decimal Round(decimal n, decimal nDec = 0) =>
+        Math.Round(n, (int)nDec, MidpointRounding.AwayFromZero);
     public static decimal Abs(decimal n) => Math.Abs(n);
     public static decimal Max(decimal a, decimal b) => Math.Max(a, b);
     public static decimal Min(decimal a, decimal b) => Math.Min(a, b);
@@ -110,6 +131,8 @@ public static partial class HbRuntime
     {
         if (x is string s) return s.Length;
         if (x is Array a) return a.Length;
+        // Harbour Len() of a hash is its key count.
+        if (x is System.Collections.IDictionary h) return h.Count;
         return 0;
     }
 
@@ -573,7 +596,17 @@ public static partial class HbRuntime
         if (arr is object[] objArr)
         {
             if (block is Delegate)
-                Array.Sort(objArr, (a, b) => ((bool)Eval(block, a, b)) ? -1 : 1);
+                // A Harbour sort block returns .T. when its first arg
+                // should sort before the second. Map that to a proper
+                // three-way comparison: a `? -1 : 1` shortcut returns 1
+                // for both (a,b) and (b,a) on equal elements, which is
+                // an inconsistent comparer — Array.Sort throws on it.
+                Array.Sort(objArr, (a, b) =>
+                {
+                    if ((bool)Eval(block, a, b)) return -1;
+                    if ((bool)Eval(block, b, a)) return 1;
+                    return 0;
+                });
             else
                 Array.Sort(objArr, (a, b) => Comparer<dynamic>.Default.Compare(a, b));
         }
