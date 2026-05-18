@@ -221,6 +221,18 @@ Six pieces of cross-file information feed the emitters:
 1. **By-ref slots** (`R`) — marked when *any* call site uses `@var`.
    The declaration emits `ref decimal nX`; every call site emits
    `Swap(ref a, ref b)`. See [test19a.prg](tests/test19a.prg).
+
+   Harbour decides by-ref *per call site* — `Foo(@x)` is by-ref,
+   `Foo(x)` is by-value — but C# decides it in the *signature*: once
+   the parameter emits `ref`, every call must pass `ref` (CS1620).
+   So `hb_csEmitCallArgs` emits `ref` even for a *bare* variable
+   argument to a by-ref parameter (`Foo(x)` → `Foo(ref x)`); the
+   variable is an lvalue, so it binds. **Caveat:** this grants the
+   callee write-back the bare Harbour call did not have. For a
+   parameter reached by `@` elsewhere that is the design intent and
+   usually harmless (e.g. `SockClose(oSocket)` nilling a closed
+   socket), but it is a genuine semantic shift for any bare caller
+   that relied on by-value. See [test64.prg](tests/test64.prg).
 2. **Declared parameter count** — lets the emitter add `= default` (or
    `= null` for nilable) to trailing params so `Fred(x)` calling
    `PROCEDURE Fred(a, b, c)` works.
@@ -314,11 +326,12 @@ ordered passes over the file's function list:
 #### Conflict warnings
 
 When two call sites refine the same parameter slot to incompatible
-specific types, `-GF` emits one warning per conflict to stderr:
+specific types, `-GF` emits one `W0022` warning per conflict to stderr:
 
 ```
-hbtranspiler: warning: line 7: call site passes STRING for parameter
-  'Foo:x' but earlier sites had a different type — downgrading to USUAL
+hbtranspiler: foo.prg(7): warning W0022  Call to 'Foo' passes STRING
+  for parameter 'x' but earlier sites had a different type —
+  downgrading to USUAL
 ```
 
 The `C` flag is set so the slot is frozen — later refinements are
@@ -367,17 +380,26 @@ the C# output.
 
 ### Type mapping
 
-| Harbour          | C#                                  |
-|------------------|--------------------------------------|
-| `NUMERIC`        | `decimal`                            |
-| `STRING`         | `string`                             |
-| `LOGICAL`        | `bool`                               |
-| `DATE`           | `DateTime`                           |
-| `ARRAY`          | `dynamic[]`                          |
-| `HASH`           | `Dictionary<dynamic, dynamic>`       |
-| `OBJECT`         | `object`  *(or class name if known)* |
-| `BLOCK`          | `dynamic`  *(typed Func<> if args known)* |
-| `USUAL` / unknown| `dynamic`                            |
+| Harbour type      | Hungarian prefix       | C#                                  |
+|-------------------|------------------------|--------------------------------------|
+| `NUMERIC`         | `nQty`                 | `decimal`                            |
+| `STRING`          | `cName`                | `string`                             |
+| `LOGICAL`         | `lOk`                  | `bool`                               |
+| `DATE`            | `dPosted`              | `DateOnly`                           |
+| `TIMESTAMP`       | `tStamp`               | `DateTime`                           |
+| `ARRAY`           | `aLines`               | `dynamic[]`                          |
+| `HASH`            | `hConfig`              | `Dictionary<string, dynamic>`        |
+| `OBJECT`          | `oTable`               | `dynamic`  *(messages bind via the DLR; or a class name when the refTab knows it)* |
+| `BLOCK`           | `bAction`, `pDB`, `fCallback` | `dynamic`  *(typed `Func<>` if args known)* |
+| `USUAL` / unknown | `xValue`               | `dynamic`                            |
+
+The **Hungarian prefix** column is the variable-naming convention the
+[`hb_astTypeForPrefixChar`](hbtypes.c) inferencer reads as a fallback
+when the reftab has no refined type for a slot. Two prefixes share the
+`BLOCK` row: `p` (an opaque handle — a DB / socket / statement
+pointer, or an `@FuncName()` reference) and `f` (a function-pointer
+variable). Both are callable-or-opaque, which `dynamic` covers — it
+dispatches calls through the DLR and stores handles transparently.
 
 Nilable parameters (those the body compares to or assigns `NIL`) are
 emitted with `?` appended: `decimal?`, `string?`, etc. Non-nilable
@@ -438,16 +460,16 @@ See [test18.prg](tests/test18.prg) for the full demo.
 | `:=` / `==` / `=`                | `=` / `==` / `==` (assignment vs equality)               |
 | `.T.` / `.F.` / `NIL`            | `true` / `false` / `null`                                |
 | `.AND.` / `.OR.` / `.NOT.`       | `&&` / `\|\|` / `!`                                      |
-| `^` / `$`                        | `Math.Pow()` / `.Contains()`                             |
+| `^` / `$`                        | `Math.Pow()` / `HbRuntime.HbIn()` (substring or hash-key) |
 | `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
 | `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
-| `Self` / `::`                    | `this` / `this.`                                          |
+| `Self` / `::`                    | `this` / `this.` — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class |
 | `ClassName():New()`              | `new ClassName()`                                        |
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
 | `BEGIN SEQUENCE … RECOVER … END` | `try { … } catch (Exception e) { … }`                   |
 | `BEGIN SEQUENCE … END` (no RECOVER) | `try { … } catch {}` + W-level warning (idiom usually means "missed RECOVER") |
-| `{ => }` empty hash              | `new Dictionary<dynamic, dynamic>()`                     |
+| `{ => }` empty hash              | `new Dictionary<string, dynamic>()`                      |
 | `ACCESS` / `ASSIGN`              | C# property `{ get; set; }`                               |
 | `Foo(@x)` + `PROCEDURE Foo(x)`   | `Foo(ref x)` + `Foo(ref decimal x)` (type from refTab)   |
 | `Fred(x)` short call             | `Fred(x)` (relies on `= default` on declaration)         |
@@ -533,7 +555,7 @@ bash comparecs.sh   # .cs stdout must match .prg stdout
 bash errors/run.sh  # Negative tests — each .prg must fail -GS with a specific error
 ```
 
-Current counts: **40 positive tests + 4 negative tests, all pass via `verify.sh`**.
+Current counts: **66 positive tests + 4 negative tests, all pass via `verify.sh`**.
 
 The test suite is intentionally small and incremental — each numbered
 test exercises one feature in isolation. New tests usually expose new
@@ -564,6 +586,30 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 38        | `iif()` as statement with empty branches             |
 | 39        | LOCAL / STATIC / class-DATA initializers surviving REDUCE (string+string, CHR+CHR, `{ => }`) |
 | 40        | Bare `BEGIN SEQUENCE / END SEQUENCE`                 |
+| 41a + 41b | STATIC function file-scope mangling (multi-file pair) |
+| 42        | Dynamic member access via `obj:&(name)`              |
+| 43        | Multiple classes in one file                         |
+| 44        | `--defines-map` → per-source `const` class           |
+| 45a + 45b | Short-overload emission — typed params, caller arities |
+| 46a + 46b | Short overload suppressed when no caller uses a short arity |
+| 47        | `--preload-list` header-rule injection               |
+| 48        | LOCAL used inside a `FOR` body and after it           |
+| 49        | `Super` / `className` (incl. `::Super:Method()` → `base.Method()`) |
+| 50        | Function-pointer typing via `f` prefix                |
+| 51        | `PUBLIC name[size]` sized-array emission              |
+| 52        | `x`-prefix USUAL parameters sticky in the reftab     |
+| 53        | Value-typed Hungarian params (n/l/d/t) non-nullable  |
+| 54        | Paren preservation around nested binary infix ops    |
+| 55        | `$` (IN) operator — substring vs hash-key dispatch   |
+| 56        | Parameterless overload for a first-param by-ref function |
+| 57        | ref-shim — typed lvalue passed to a USUAL `ref dynamic` param |
+| 58        | `Self:` access to a `CLASS VAR` → `Class.var`        |
+| 59        | Dynamic class reaching an undeclared member → `((dynamic)this).m` |
+| 60        | HbRuntime fixes: `Round` / `Len(hash)` / `ASort` block / `Val` |
+| 61        | HbRuntime fixes: `AScan` block / `AClone` / `Empty` / `Right` / `StrZero` / `DToC` |
+| 62        | File-static function called with an omitted middle argument |
+| 63a + 63b | File-static vs same-named global (reftab key collision) |
+| 64        | Bare variable passed to a by-ref parameter           |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`:
 
@@ -583,15 +629,17 @@ message — see [Unsupported constructs](#unsupported-constructs).
 
 Some Harbour constructs have no clean C# equivalent. Rather than emit
 comments that break downstream syntax, the transpiler calls
-`hb_compGenError( HB_COMP_ERR_SYNTAX, ... )` and substitutes a
-`default` placeholder so the `.cs` stays parseable for diagnostics.
+`hb_compGenError( HB_COMP_ERR_SYNTAX, ... )` and substitutes an
+`HbRuntime.MacroStub` placeholder so the `.cs` stays parseable for
+diagnostics (`MacroStub` is typed `dynamic`, so it works on either
+side of an assignment — `default` cannot be an lvalue).
 Any `.prg` containing one of these fails `-GS` with `rc != 0` and
 the build pipeline skips the file:
 
 | Construct                    | Example                                          |
 |------------------------------|--------------------------------------------------|
 | Workarea ALIAS               | `Flags->( dbGoTop() )`, `x := Flags->( eof() )`  |
-| Macro substitution           | `xValue := oRec:&cField`, `&( cExpr )`           |
+| Macro substitution           | `&name`, `&( cExpr )` — bare macro (an `obj:&(name)` *member* macro is supported, see test42) |
 | Comma operator (expression)  | `IF (a, b) > 0` — multi-element list in expr pos |
 
 Argument lists (`Foo(a, b)`), array literals (`{ a, b }`), and hash
@@ -636,30 +684,23 @@ the end.
 - **Cross-file duplicate procedures** — when two `.prg` files each
   define a procedure with the same name, they collide under the merged
   `public static partial class Program` (CS0111). Harbour's linker
-  picks one; the transpiler currently emits both. Dominant remaining
-  build-error bucket on the real-world corpus.
-- **Multi-class files** — a second `CLASS` in the same `.prg`
-  currently drops out of the C# output (AST nesting bug).
-- **`SUPER` reference** — not handled in C# output yet.
+  picks one; the transpiler currently emits both. (File-scoped
+  STATIC functions no longer collide — they are keyed and emitted
+  per-file; this is only about same-named *public* procedures.)
 - **Multiple inheritance** — Harbour doesn't really support it
   either; the transpiler doesn't try.
-- **Class-scoped method signatures** — `hbreftab.tab` currently keys
-  method entries by bare method name, ignoring the owning class.
-  Functions and methods called `Close` will collide. Fix when it
-  actually bites: switch to `ClassName::Method` keys.
 - **Two-pass `-GF` for mutual recursion** — a pathological cycle
   between files may need `-GF` run twice over all files to converge.
   Acyclic codebases don't.
-- **HbRuntime widening for nilable types** — only `Str()` currently
-  accepts `decimal?`. Other helpers (`Len`, `Val`, etc.) will need
-  similar widening as real-world code hits them.
+- **HbRuntime widening for nilable types** — only `Str()` / `ToString()`
+  currently accept `decimal?`. Other helpers (`Len`, `Val`, etc.) will
+  need similar widening as real-world code hits them.
 - **PCODE generator** — still allocated alongside the AST. Removing
   it is mostly a cleanup of `harbour.yyc` grammar actions, no
   functional change.
-- **Downgrade warnings don't print the source line** — when
-  `hbreftab` sees inconsistent call-site types it warns with the
-  filename and line number, but triage would be faster if the
-  offending source line were printed under the warning.
+- **`W0022` warnings don't print the source line** — the warning
+  carries the filename and line number, but triage would be faster
+  if the offending source line were printed under it.
 
 ---
 
