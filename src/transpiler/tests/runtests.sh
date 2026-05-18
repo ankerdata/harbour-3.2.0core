@@ -31,6 +31,11 @@ PRELOAD_OPT=()
 # information for every test*.prg before any -GT runs. This is what
 # makes cross-file by-ref data available to single-file transpiles
 # (see test19a.prg for the canonical example).
+#
+# Clear the reftab first — -GF accumulates into an existing file, so
+# without this a function renamed or removed between runs leaves a
+# stale signature behind and verify stops being reproducible.
+rm -f "$ROOTDIR/src/transpiler/hbreftab.tab"
 for f in "$SCRIPTDIR"/test*.prg; do
    "$TRANSPILER" "${PRELOAD_OPT[@]}" -I"$ROOTDIR/include" -I"$SCRIPTDIR" "$f" -GF -q > /dev/null 2>&1
 done

@@ -24,7 +24,7 @@ public static partial class Program
         return;
     }
 
-    public static void Fred(decimal nA = default, decimal? xB = null, decimal? xC = null)
+    public static void Fred(decimal nA = default, dynamic? xB = null, dynamic? xC = null)
     {
         HbRuntime.QOut("a=" + HbRuntime.Str(nA));
         if (xB != null)

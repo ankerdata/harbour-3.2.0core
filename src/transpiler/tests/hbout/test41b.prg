@@ -5,7 +5,7 @@
 // the merged partial class Program has two file-private copies of
 // each, mangled test41a_Helper / test41b_Helper etc.
 
-FUNCTION HelperCallerB() AS STRING
+FUNCTION HelperCallerB()
 RETURN "41b: " + Helper() + ", " + Str(HelperNum(), 4)
 
 STATIC FUNCTION Helper() AS STRING

@@ -9,7 +9,7 @@ using static Program;
 // each, mangled test41a_Helper / test41b_Helper etc.
 public static partial class Program
 {
-    public static string HelperCallerB()
+    public static dynamic HelperCallerB()
     {
         return "41b: " + test41b_Helper() + ", " + HbRuntime.Str(test41b_HelperNum(), 4);
     }

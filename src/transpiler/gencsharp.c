@@ -657,6 +657,21 @@ static const HB_REFPARAM * hb_csCallParam( const char * szFunc, int iPos )
    return hb_refTabParam( s_pRefTab, szFunc, iPos );
 }
 
+/* The reftab key for a function being emitted. A file-scoped STATIC
+   is keyed <FileBase>::<Name>; emitting it under the bare name would
+   read a same-named global function's entry instead — wrong param
+   types, ref flags and arity. szBuf must hold the composed key. */
+static const char * hb_csFuncRefKey( const char * szName,
+                                     char * szBuf, HB_SIZE nBuf )
+{
+   if( szName && hb_csIsFileStaticFunc( szName ) && s_szFileBase[ 0 ] )
+   {
+      hb_snprintf( szBuf, nBuf, "%s::%s", s_szFileBase, szName );
+      return szBuf;
+   }
+   return szName;
+}
+
 /* Fill pfShim[0..iMax) for each @arg slot of pCall whose reftab param
    is by-ref and USUAL (→ `ref dynamic` in the emit, which a typed
    `ref` argument can't satisfy). Returns the shim count. */
@@ -4130,9 +4145,15 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       fIsMain = HB_TRUE;
 
    /* Track current function for nilable-parameter lookups in IF/IIF
-      condition emission. Free functions get the bare name. */
-   hb_strncpy( s_szCurrentFunc, pFunc->value.asFunc.szName,
-               sizeof( s_szCurrentFunc ) - 1 );
+      condition emission. A file-static gets its <FileBase>::<Name>
+      reftab key so it doesn't read a same-named global's entry. */
+   {
+      char szKeyBuf[ 256 ];
+      hb_strncpy( s_szCurrentFunc,
+                  hb_csFuncRefKey( pFunc->value.asFunc.szName,
+                                   szKeyBuf, sizeof( szKeyBuf ) ),
+                  sizeof( s_szCurrentFunc ) - 1 );
+   }
    s_pCurrentFuncNode = pFunc;
 
    /* Emit blank line if gap */
@@ -4185,7 +4206,10 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          so callers can omit trailing args. Ref params can't carry
          defaults (C# rule), which is why we use "after the last ref"
          as the cutoff for the optional tail. */
-      const char * szFnName = fIsMain ? "Main" : pFunc->value.asFunc.szName;
+      char szFnKeyBuf[ 256 ];
+      const char * szFnName = fIsMain ? "Main"
+         : hb_csFuncRefKey( pFunc->value.asFunc.szName,
+                            szFnKeyBuf, sizeof( szFnKeyBuf ) );
       int iPos = 0;
       int iLastRef = -1;
       HB_BOOL fWantDefaults = ! fIsMain;
@@ -4319,7 +4343,9 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       "never scanned". */
    if( ! fIsMain )
    {
-      const char * szFnName = pFunc->value.asFunc.szName;
+      char szFnKeyBuf[ 256 ];
+      const char * szFnName = hb_csFuncRefKey( pFunc->value.asFunc.szName,
+                                               szFnKeyBuf, sizeof( szFnKeyBuf ) );
       HB_BOOL fSpreadCallee = hb_refTabIsCalledVarargs( s_pRefTab, szFnName );
       int iFirstRef = -1;
       int iMax = ( int ) pCompFunc->wParamCount;
@@ -4347,8 +4373,11 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       if( iFirstRef >= 0 && ! fSpreadCallee && fHasShortCaller )
       {
          char szMangledBuf[ 256 ];
+         /* The emitted name mangles the bare name; szFnName may be the
+            <FileBase>::<Name> reftab key, which must not reach here. */
          const char * szEmitName =
-            hb_csMangleStaticFunc( szFnName, szMangledBuf, sizeof( szMangledBuf ) );
+            hb_csMangleStaticFunc( pFunc->value.asFunc.szName,
+                                   szMangledBuf, sizeof( szMangledBuf ) );
          PHB_HVAR pP;
 
          fprintf( yyc, "\n" );
