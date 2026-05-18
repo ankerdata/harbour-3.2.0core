@@ -635,6 +635,28 @@ static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName 
    (and cleared) by hb_csEmitCallArgs so nested calls don't inherit it. */
 static const HB_BOOL * s_aRefShim = NULL;
 
+/* Look up parameter iPos of a called function in the reftab. A
+   file-scoped STATIC function is keyed <FileBase>::<Name> there (the
+   scan pass registers it that way), but a call site only carries the
+   bare name — a plain hb_refTabParam(szFunc) misses, and the caller
+   then loses the parameter types / names. Reftab lookups are
+   case-insensitive, so s_szFileBase's casing doesn't matter. */
+static const HB_REFPARAM * hb_csCallParam( const char * szFunc, int iPos )
+{
+   if( ! szFunc || ! s_pRefTab )
+      return NULL;
+   if( hb_csIsFileStaticFunc( szFunc ) && s_szFileBase[ 0 ] )
+   {
+      char szKey[ 256 ];
+      const HB_REFPARAM * pP;
+      hb_snprintf( szKey, sizeof( szKey ), "%s::%s", s_szFileBase, szFunc );
+      pP = hb_refTabParam( s_pRefTab, szKey, iPos );
+      if( pP )
+         return pP;
+   }
+   return hb_refTabParam( s_pRefTab, szFunc, iPos );
+}
+
 /* Fill pfShim[0..iMax) for each @arg slot of pCall whose reftab param
    is by-ref and USUAL (→ `ref dynamic` in the emit, which a typed
    `ref` argument can't satisfy). Returns the shim count. */
@@ -669,7 +691,7 @@ static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
       if( pItem->ExprType != HB_ET_VARREF &&
           pItem->ExprType != HB_ET_REFERENCE )
          continue;
-      pP = hb_refTabParam( s_pRefTab, szFunc, iPos );
+      pP = hb_csCallParam( szFunc, iPos );
       if( ! pP || ! pP->fByRef )
          continue;
       /* A typed param emits `ref decimal` etc. and binds directly;
@@ -765,9 +787,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
 
       if( fNamed )
       {
-         const HB_REFPARAM * pP = szFunc
-            ? hb_refTabParam( s_pRefTab, szFunc, iPos )
-            : NULL;
+         const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
          if( pP && pP->szName && pP->szName[ 0 ] )
             fprintf( yyc, "%s: ", pP->szName );
          /* If we can't find the name, the emission falls back to
