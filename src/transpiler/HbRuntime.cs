@@ -25,9 +25,20 @@ public static partial class HbRuntime
     // typed fixed-arity lambdas) via DynamicInvoke.
     public static dynamic Eval(dynamic block, params dynamic[] args)
     {
-        if (block is Func<dynamic[], dynamic> fa) return fa(args);
-        if (block is Delegate d) return d.DynamicInvoke(args);
-        return null;
+        if (block is not Delegate d) return null;
+        args ??= System.Array.Empty<dynamic>();
+        var ps = d.Method.GetParameters();
+        // A varargs codeblock (`{|...|}`) is a single dynamic[] param —
+        // hand it the whole args array as that one parameter.
+        if (ps.Length == 1 && ps[0].ParameterType == typeof(object[]))
+            return d.DynamicInvoke(new object[] { args });
+        // Fixed-arity codeblock. A Harbour block tolerates being called
+        // with more args than it declares (extras ignored) or fewer
+        // (missing become NIL); DynamicInvoke throws on any mismatch,
+        // so fit the count to the delegate's real parameter list.
+        var fitted = new object[ps.Length];
+        Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
+        return d.DynamicInvoke(fitted);
     }
 
     // ---- Console output (? and ??) ----
@@ -159,7 +170,12 @@ public static partial class HbRuntime
     }
 
     public static string Left(string s, decimal n) => SubStr(s, 1, n);
-    public static string Right(string s, decimal n) { int i = (int)n; return i >= s.Length ? s : s.Substring(s.Length - i); }
+    public static string Right(string s, decimal n)
+    {
+        int i = (int)n;
+        if (i <= 0) return "";                 // Harbour: non-positive → ""
+        return i >= s.Length ? s : s.Substring(s.Length - i);
+    }
 
     public static decimal At(string cSearch, string cString) =>
         (decimal)(cString.IndexOf(cSearch, StringComparison.Ordinal) + 1);
@@ -193,8 +209,14 @@ public static partial class HbRuntime
     }
 
     public static string Transform(dynamic val, string cMask) => Convert.ToString(val, INV);
-    public static string StrZero(decimal n, decimal nLen = 10, decimal nDec = 0) =>
-        n.ToString("F" + (int)nDec, INV).PadLeft((int)nLen, '0');
+    public static string StrZero(decimal n, decimal nLen = 10, decimal nDec = 0)
+    {
+        // Zero-pad the magnitude, then prepend the sign — padding the
+        // whole "-5" would give "00-5" instead of "-005".
+        string sign = n < 0 ? "-" : "";
+        string digits = Math.Abs(n).ToString("F" + (int)nDec, INV);
+        return sign + digits.PadLeft((int)nLen - sign.Length, '0');
+    }
 
     // ---- Logical functions ----
 
@@ -205,6 +227,7 @@ public static partial class HbRuntime
         if (val is string s) return s.Trim().Length == 0;
         if (val is bool b) return !b;
         if (val is Array a) return a.Length == 0;
+        if (val is System.Collections.IDictionary h) return h.Count == 0;
         return false;
     }
 
@@ -220,7 +243,20 @@ public static partial class HbRuntime
     public static DateOnly Date() => DateOnly.FromDateTime(DateTime.Today);
     public static DateOnly CToD(string s) { DateTime.TryParse(s, out DateTime d); return DateOnly.FromDateTime(d); }
     public static DateOnly SToD(string s) { DateTime.TryParseExact(s, "yyyyMMdd", INV, DateTimeStyles.None, out DateTime d); return DateOnly.FromDateTime(d); }
-    public static string DToC(DateOnly d) => d.ToString("MM/dd/yyyy", INV);
+    public static string DToC(DateOnly d)
+    {
+        // Honour SET DATEFORMAT. Harbour's format tokens (d/m/y, case-
+        // insensitive) need translating to .NET — month must be 'M';
+        // separators and other characters pass through unchanged.
+        string fmt = s_sets.TryGetValue((int)_SET_DATEFORMAT, out var f)
+                     && f is string fs && fs.Length > 0 ? fs : "mm/dd/yyyy";
+        var sb = new System.Text.StringBuilder(fmt.Length);
+        foreach (char c in fmt)
+            sb.Append(c is 'm' or 'M' ? 'M'
+                    : c is 'd' or 'D' ? 'd'
+                    : c is 'y' or 'Y' ? 'y' : c);
+        return d.ToString(sb.ToString(), INV);
+    }
     public static string DToS(DateOnly d) => d.ToString("yyyyMMdd", INV);
     public static string Time() => DateTime.Now.ToString("HH:mm:ss", INV);
 
@@ -311,7 +347,15 @@ public static partial class HbRuntime
 
     public static dynamic AClone(dynamic arr)
     {
-        if (arr is object[] objArr) return (dynamic[])objArr.Clone();
+        // Harbour AClone duplicates nested arrays recursively; scalars,
+        // objects and hashes are shared by reference.
+        if (arr is object[] objArr)
+        {
+            var copy = new dynamic[objArr.Length];
+            for (int i = 0; i < objArr.Length; i++)
+                copy[i] = objArr[i] is object[] ? AClone(objArr[i]) : objArr[i];
+            return copy;
+        }
         return arr;
     }
 
@@ -319,8 +363,20 @@ public static partial class HbRuntime
     {
         if (arr is object[] objArr)
         {
-            for (int i = 0; i < objArr.Length; i++)
-                if (Equals(objArr[i], val)) return i + 1;
+            // AScan(arr, bBlock): evaluate the block per element
+            // (Harbour passes the element and its 1-based index),
+            // return the first index where it yields .T.
+            if (val is Delegate)
+            {
+                for (int i = 0; i < objArr.Length; i++)
+                    if ((bool)Eval(val, objArr[i], (decimal)(i + 1)))
+                        return i + 1;
+            }
+            else
+            {
+                for (int i = 0; i < objArr.Length; i++)
+                    if (Equals(objArr[i], val)) return i + 1;
+            }
         }
         return 0;
     }
@@ -712,8 +768,16 @@ public static partial class HbRuntime
     public static bool hb_mutexLock(dynamic mtx, dynamic nTimeout = null)
     {
         if (mtx is null) return false;
-        System.Threading.Monitor.Enter(mtx);
-        return true;
+        if (nTimeout is null)
+        {
+            System.Threading.Monitor.Enter(mtx);
+            return true;
+        }
+        // Harbour's timed lock takes a timeout in seconds; a non-positive
+        // value polls once. Returns .F. if the lock wasn't acquired.
+        double secs = Convert.ToDouble(nTimeout, INV);
+        int ms = secs <= 0 ? 0 : (int)Math.Min(secs * 1000, int.MaxValue);
+        return System.Threading.Monitor.TryEnter(mtx, ms);
     }
 
     public static bool hb_mutexUnlock(dynamic mtx)
@@ -1002,6 +1066,13 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
     private readonly Dictionary<string, dynamic> _bag =
         new Dictionary<string, dynamic>(StringComparer.OrdinalIgnoreCase);
 
+    // Exposed so HbRuntime.GETMEMBER/SETMEMBER — the obj:&(name) macro
+    // path, which doesn't go through the DLR — can reach the bag too,
+    // not only statically reflected members.
+    public bool TryBagGet(string name, out dynamic value) =>
+        _bag.TryGetValue(name, out value);
+    public void BagSet(string name, dynamic value) => _bag[name] = value;
+
     public override bool TryGetMember(System.Dynamic.GetMemberBinder binder, out object result)
     {
         var prop = GetType().GetProperty(binder.Name, HbRuntime.MemberFlags);
@@ -1077,7 +1148,11 @@ public static partial class HbRuntime
         // Class DATA members now emit as plain fields (so they can be
         // passed by ref). Fall back to a field lookup.
         var field = t.GetField(name, MemberFlags);
-        return field?.GetValue(obj);
+        if (field != null) return field.GetValue(obj);
+        // Dynamic class: a column held only in the dictionary bag.
+        if (obj is HbDynamicObject hdo && hdo.TryBagGet(name, out dynamic bagVal))
+            return bagVal;
+        return null;
     }
 
     public static void SETMEMBER(object obj, string name, dynamic value)
@@ -1095,7 +1170,12 @@ public static partial class HbRuntime
             return;
         }
         var field = t.GetField(name, MemberFlags);
-        if (field == null) return;
+        if (field == null)
+        {
+            // Dynamic class: store the column in the dictionary bag.
+            if (obj is HbDynamicObject hdo) hdo.BagSet(name, value);
+            return;
+        }
         object coercedf = value;
         if (value != null && field.FieldType != typeof(object) &&
             field.FieldType != value.GetType())
