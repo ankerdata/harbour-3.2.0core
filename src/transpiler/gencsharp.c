@@ -23,6 +23,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
+static const char * hb_csTypeMap( const char * szHbType );
 
 /* Track last source line for blank line preservation */
 static int s_iLastLine = 0;
@@ -812,91 +813,130 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    if( nLastReal < 0 )
       return;   /* empty arg list or all HB_ET_NONE */
 
-   /* Pass 2: walk [0 .. nLastReal] and emit each slot. On the first
-      HB_ET_NONE we hit before nLastReal, flip into named-arg mode for
-      every subsequent non-NONE slot. */
-   for( pItem = pHead, iPos = 0; pItem && iPos <= nLastReal;
-        pItem = pItem->pNext, iPos++ )
+   /* Pass 2: emit each slot. C# can't omit a `ref` param, and a
+      by-value param sitting before a ref isn't given a `= default`, so
+      for a callee with any by-ref param we PAD every omitted slot up
+      to the last ref instead of dropping it (CS7036) or emitting a
+      named arg that skips it: an omitted ref becomes
+      `ref HbDiscard<T>.Value` (a shared throwaway whose write-back the
+      Harbour caller discarded anyway), an omitted by-value becomes
+      `default`. Slots past the last ref are defaulted in the canonical
+      so trailing omissions there are still dropped. A non-ref callee
+      keeps the original behaviour: a gap flips later real slots into
+      named-arg form. */
    {
-      if( pItem->ExprType == HB_ET_NONE )
-      {
-         /* A gap. The next real slot will emit in named form. */
-         fNamed = HB_TRUE;
-         continue;
-      }
+      int iLastRef = -1;
+      int iEnd, j;
+      const HB_REFPARAM * pRP;
+      for( j = 0; ( pRP = hb_csCallParam( szFunc, j ) ) != NULL; j++ )
+         if( pRP->fByRef )
+            iLastRef = j;
+      iEnd = ( iLastRef > nLastReal ) ? iLastRef : nLastReal;
 
-      if( ! fFirst )
-         fprintf( yyc, ", " );
-      fFirst = HB_FALSE;
-
-      if( fNamed )
+      pItem = pHead;
+      for( iPos = 0; iPos <= iEnd; iPos++ )
       {
-         const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
-         if( pP && pP->szName && pP->szName[ 0 ] )
-            fprintf( yyc, "%s: ", pP->szName );
-         /* If we can't find the name, the emission falls back to
-            positional — which is only correct if there are no more
-            gaps after this one. We accept the risk: unknown functions
-            aren't in the table. */
-      }
+         PHB_EXPR pArg = pItem;   /* NULL once past the source arg list */
 
-      /* Shimmed slot: the enclosing block declared `dynamic _hbref<iPos>`
-         seeded from the typed lvalue — pass that by ref, not the arg. */
-      if( aShim && iPos < HB_CS_MAXSHIM && aShim[ iPos ] )
-      {
-         fprintf( yyc, "ref _hbref%d", iPos );
-         continue;
-      }
-
-      if( pItem->ExprType == HB_ET_VARREF )
-         fprintf( yyc, "ref " );
-      else if( iPos == 0 && szFunc && hb_csIsArrayMutator( szFunc ) )
-      {
-         /* ASize / AAdd may reallocate the underlying dynamic[]. The
-            HbRuntime overload takes `ref dynamic[]` so the new array
-            propagates back. We can emit `ref` when the source-level
-            first arg is something C# can take by reference: a plain
-            variable, or a field access (`Self:field` → `this.field`,
-            `obj:field` → `obj.field`). DATA emits as public fields
-            (not properties), so ref binds cleanly. Other shapes — a
-            method call (HB_ET_SEND with parms), GETMEMBER, or an array
-            index — can't be ref'd; they fall back to the non-ref
-            overload (silent failure on object[], matching the old
-            pre-ref behavior). */
-         HB_BOOL fRefable = HB_FALSE;
-         if( pItem->ExprType == HB_ET_VARIABLE )
-            fRefable = HB_TRUE;
-         else if( pItem->ExprType == HB_ET_SEND &&
-                  pItem->value.asMessage.szMessage )
+         if( ! pArg || pArg->ExprType == HB_ET_NONE )
          {
-            PHB_EXPR pSendParms = pItem->value.asMessage.pParms;
-            HB_BOOL fNoParms = ! pSendParms ||
-               ( ( pSendParms->ExprType == HB_ET_LIST ||
-                   pSendParms->ExprType == HB_ET_ARGLIST ||
-                   pSendParms->ExprType == HB_ET_MACROARGLIST ) &&
-                 ( ! pSendParms->value.asList.pExprList ||
-                   pSendParms->value.asList.pExprList->ExprType == HB_ET_NONE ) );
-            if( fNoParms )
-               fRefable = HB_TRUE;
+            /* Omitted slot. */
+            if( iLastRef >= 0 )
+            {
+               const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+               if( ! fFirst )
+                  fprintf( yyc, ", " );
+               fFirst = HB_FALSE;
+               {
+                  /* Match the canonical's per-slot type exactly so the
+                     `ref` binds (C# ref is invariant) and so a `default`
+                     literal has an explicit target type — a bare
+                     `default` in an overloaded/dynamic call has none
+                     (CS8716). */
+                  const char * szSlot = NULL;
+                  const char * szCs;
+                  if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+                     szSlot = pP->szType;
+                  if( ! szSlot )
+                     szSlot = hb_astInferType( pP ? pP->szName : NULL, NULL );
+                  szCs = hb_csTypeMap( szSlot );
+                  if( pP && pP->fByRef )
+                     fprintf( yyc, "ref HbDiscard<%s%s>.Value",
+                              szCs, pP->fNilable ? "?" : "" );
+                  else
+                     fprintf( yyc, "default(%s%s)",
+                              szCs, pP && pP->fNilable ? "?" : "" );
+               }
+            }
+            else
+               fNamed = HB_TRUE;   /* gap; next real slot emits named */
+            if( pItem )
+               pItem = pItem->pNext;
+            continue;
          }
-         if( fRefable )
+
+         if( ! fFirst )
+            fprintf( yyc, ", " );
+         fFirst = HB_FALSE;
+
+         if( fNamed )
+         {
+            const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+            if( pP && pP->szName && pP->szName[ 0 ] )
+               fprintf( yyc, "%s: ", pP->szName );
+            /* If we can't find the name the emission falls back to
+               positional — only correct if no more gaps follow.
+               Unknown functions aren't in the table. */
+         }
+
+         /* Shimmed slot: the enclosing block declared `dynamic
+            _hbref<iPos>` seeded from the typed lvalue — pass by ref. */
+         if( aShim && iPos < HB_CS_MAXSHIM && aShim[ iPos ] )
+         {
+            fprintf( yyc, "ref _hbref%d", iPos );
+            pItem = pItem->pNext;
+            continue;
+         }
+
+         if( pArg->ExprType == HB_ET_VARREF )
             fprintf( yyc, "ref " );
+         else if( iPos == 0 && szFunc && hb_csIsArrayMutator( szFunc ) )
+         {
+            /* ASize / AAdd may reallocate the dynamic[]; the HbRuntime
+               overload takes `ref dynamic[]`. Emit `ref` only when the
+               first arg is something C# can take by reference: a plain
+               variable or a no-arg field access (DATA emits as fields).
+               Other shapes fall back to the non-ref overload. */
+            HB_BOOL fRefable = HB_FALSE;
+            if( pArg->ExprType == HB_ET_VARIABLE )
+               fRefable = HB_TRUE;
+            else if( pArg->ExprType == HB_ET_SEND &&
+                     pArg->value.asMessage.szMessage )
+            {
+               PHB_EXPR pSendParms = pArg->value.asMessage.pParms;
+               HB_BOOL fNoParms = ! pSendParms ||
+                  ( ( pSendParms->ExprType == HB_ET_LIST ||
+                      pSendParms->ExprType == HB_ET_ARGLIST ||
+                      pSendParms->ExprType == HB_ET_MACROARGLIST ) &&
+                    ( ! pSendParms->value.asList.pExprList ||
+                      pSendParms->value.asList.pExprList->ExprType == HB_ET_NONE ) );
+               if( fNoParms )
+                  fRefable = HB_TRUE;
+            }
+            if( fRefable )
+               fprintf( yyc, "ref " );
+         }
+         else if( pArg->ExprType == HB_ET_VARIABLE && szFunc )
+         {
+            /* Plain variable into a by-ref param without the Harbour @:
+               C# requires `ref` once the param emits ref (CS1620). */
+            const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+            if( pP && pP->fByRef )
+               fprintf( yyc, "ref " );
+         }
+         hb_csEmitExpr( pArg, yyc, HB_FALSE );
+         pItem = pItem->pNext;
       }
-      else if( pItem->ExprType == HB_ET_VARIABLE && szFunc )
-      {
-         /* A plain variable passed to a by-ref parameter without the
-            Harbour @ marker. Harbour treats that as by-value at this
-            site, but once the parameter emits ref C# requires ref at
-            every call (CS1620). The variable is an lvalue so ref
-            binds; the resulting write-back is what a by-ref parameter
-            is designed for anyway. (A typed variable into a ref
-            dynamic USUAL slot still needs the ref-shim, handled
-            separately for the @-arg case.) */
-         const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
-         if( pP && pP->fByRef )
-            fprintf( yyc, "ref " );
-      }
-      hb_csEmitExpr( pItem, yyc, HB_FALSE );
    }
 }
 

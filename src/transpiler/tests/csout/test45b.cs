@@ -25,7 +25,7 @@ public static partial class Program
 
         if (false)
         {
-            LoadFlags("short.dat");
+            LoadFlags("short.dat", ref HbDiscard<dynamic[]>.Value);
         }
 
         return;

@@ -1338,3 +1338,9 @@ public static class HbObjectExtensions
     public static HbSuperRef Super(this object obj) =>
         new HbSuperRef { t = obj?.GetType().BaseType };
 }
+// Shared throwaway storage for omitted by-ref output arguments. A
+// Harbour caller may omit a by-ref param (Foo(n) where Foo(n, @out));
+// C# can't omit a ref param, so the transpiler passes
+// `ref HbDiscard<T>.Value` for the omitted slot. The write-back lands
+// here and is discarded -- matching Harbour's NIL-arg semantics.
+public static class HbDiscard<T> { public static T Value = default!; }
