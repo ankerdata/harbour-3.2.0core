@@ -11,7 +11,7 @@ mkdir -p "$(dirname "$OUTPUT")"
 
 cd "$REPO_ROOT"
 
-clang -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
+clang -Isrc/transpiler/include -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   -o "$OUTPUT" \
   src/transpiler/cmdcheck.c src/transpiler/complex.c \
   src/transpiler/expropta.c src/transpiler/genhb.c \
@@ -24,13 +24,13 @@ clang -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   src/transpiler/hbfunctab.c src/transpiler/hbvartypes.c \
   src/transpiler/ppcomp.c \
   src/transpiler/pcodestubs.c src/transpiler/harboury.c \
-  src/common/expropt2.c \
+  src/transpiler/src/common/expropt2.c \
   src/compiler/compi18n.c src/compiler/exproptb.c \
   src/compiler/hbdbginf.c \
   src/compiler/hbfunchk.c \
   src/compiler/hbgenerr.c src/compiler/hbident.c \
-  src/compiler/hbusage.c \
-  src/main/harbour.c src/pp/ppcore.c \
+  src/transpiler/src/compiler/hbusage.c \
+  src/main/harbour.c src/transpiler/src/pp/ppcore.c \
   -L./lib/darwin/clang -lhbnortl -lhbcommon -lm
 
 if [ $? -ne 0 ]; then

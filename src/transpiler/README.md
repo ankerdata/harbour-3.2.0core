@@ -137,6 +137,54 @@ inference engine that `-GS` uses.
 | [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime.cs` + Harbour doc blocks |
 | **Tests**                         |                                                                          |
 | [`tests/`](tests/)                | Numbered `.prg` test cases + drivers (`runtests.sh`, `buildprg.sh`, `buildhb.sh`, `buildcs.sh`) |
+| **Vendored Harbour sources**      |                                                                          |
+| [`include/`](include/), [`src/`](src/) | Copies of the handful of stock-Harbour files the transpiler must tweak, so the Harbour tree itself stays pristine — see [Vendored Harbour sources](#vendored-harbour-sources) |
+
+---
+
+## Vendored Harbour sources
+
+The transpiler reuses Harbour's preprocessor, lexer and AST plumbing,
+which meant a few small changes to files that ship with stock Harbour.
+So that the **stock Harbour tree stays byte-for-byte pristine** — which
+matters when this transpiler is dropped on top of an unmodified Harbour
+checkout — those changed files are kept as *copies* under
+`src/transpiler/`, and `build.sh` compiles/includes the copies instead
+of the originals. Nothing under Harbour's own `include/`, `src/pp/`,
+`src/common/` or `src/compiler/` is modified.
+
+| Vendored copy | Mirrors | How the build uses it |
+|---------------|---------|------------------------|
+| `src/transpiler/src/pp/ppcore.c`        | `src/pp/ppcore.c`        | compiled directly (build.sh) |
+| `src/transpiler/src/common/expropt2.c`  | `src/common/expropt2.c`  | compiled directly (build.sh) |
+| `src/transpiler/src/compiler/hbusage.c` | `src/compiler/hbusage.c` | compiled directly (build.sh) |
+| `src/transpiler/include/hbcompdf.h`     | `include/hbcompdf.h`     | `#include`d — adds the `ast` member + `HB_LANG_*` |
+| `src/transpiler/include/hbpp.h`         | `include/hbpp.h`         | `#include`d — adds `HB_PP_TOKEN_COMMENT` |
+| `src/transpiler/include/hbexpra.c`      | `include/hbexpra.c`      | `#include`d by `expropta.c` |
+| `src/transpiler/include/hbexprb.c`      | `include/hbexprb.c`      | `#include`d by `exproptb.c` |
+| `src/transpiler/include/hbcomp.h`       | `include/hbcomp.h`       | **pristine** redirector (see below) |
+| `src/transpiler/include/hbapi.h`        | `include/hbapi.h`        | **pristine** redirector (see below) |
+| `src/transpiler/include/hbmacro.h`      | `include/hbmacro.h`      | **pristine** redirector (see below) |
+
+`build.sh` puts `-Isrc/transpiler/include` **ahead of** `-I./include`, so
+a `#include "hbcompdf.h"` from a transpiler unit resolves to the vendored
+copy. The catch: a quote-include is resolved relative to the *including*
+file's own directory first. Stock `include/hbcomp.h` does
+`#include "hbapi.h"` → `#include "hbcompdf.h"`, all found inside
+`include/` (the pristine versions) before the `-I` path is consulted, and
+the include guard then blocks our copies. The three **pristine
+redirector** headers (`hbcomp.h`, `hbapi.h`, `hbmacro.h`) are verbatim
+copies whose sole job is to keep that chain inside
+`src/transpiler/include/` so it lands on the vendored `hbcompdf.h` /
+`hbpp.h`. They carry no edits of their own — just re-copy them from
+`include/` in the unlikely event stock Harbour ever changes them.
+
+Two files that were originally changed are **not** vendored, because the
+transpiler never compiles them — they were reverted to pristine too:
+`src/pp/hbpp.c` (only a `-k` "keep comments" flag on the *standalone*
+`hbpp` tool; the transpiler calls `hb_pp_setComments()` from `ppcore.c`
+directly) and `src/rtl/hbcom.c` (an unrelated `hb_comGetPortNum()`
+bugfix).
 
 ---
 
