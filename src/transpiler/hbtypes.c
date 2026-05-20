@@ -1008,8 +1008,12 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                 hb_stricmp( szRecvType, "BLOCK"   ) != 0 &&
                 hb_stricmp( szRecvType, "OBJECT"  ) != 0 )
             {
-               hb_snprintf( szKey, sizeof( szKey ), "%s::%s",
-                            szRecvType, szMethod );
+               /* Canonical method key `<Class>::<Class>__<Method>` —
+                  the mangled member matches the definition scan's key
+                  (hbreftab.c Pass 1), so refinement (by-ref marking,
+                  type narrowing) lands on the method's own entry. */
+               hb_snprintf( szKey, sizeof( szKey ), "%s::%s__%s",
+                            szRecvType, szRecvType, szMethod );
                szLookup = szKey;
             }
          }

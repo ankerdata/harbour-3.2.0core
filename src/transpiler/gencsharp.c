@@ -578,41 +578,70 @@ static HB_BOOL hb_csIsClassVar( const char * szClass, const char * szMember )
 }
 
 /* True when szName is any declared member of class szClass — a DATA
-   member of any kind (VAR / CLASS VAR / ACCESS / ASSIGN) or a METHOD.
-   A `Self:` access to a name that is NOT declared, on a dynamic class,
-   is a runtime (dictionary-backed) member: it must go through
-   `((dynamic)this)` so the DLR reaches HbDynamicObject, not a missing
-   static field (CS1061). Direct class only — a HbDynamicObject class
-   has no parent (see hb_csEmitClass), so there is nothing to inherit. */
+   member of any kind (VAR / CLASS VAR / ACCESS / ASSIGN) or a METHOD —
+   walking the parent chain so inherited members count as declared. A
+   `Self:` access to a name not declared anywhere in the hierarchy is
+   either a dynamic class's dictionary-backed member or a name Harbour
+   resolves at runtime; the caller routes it through `((dynamic)this)`
+   so the DLR handles it rather than a missing static field surfacing
+   as CS1061. A class whose parent is outside this unit stops the walk
+   early (returns false) — routing through the DLR still works at
+   runtime, it just forgoes the static dispatch. */
 static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName )
 {
-   PHB_AST_NODE pStmt;
+   int iGuard = 0;   /* bound the walk against accidental inherit cycles */
 
    if( ! szClass || ! *szClass || ! szName )
       return HB_FALSE;
 
-   for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+   while( szClass && *szClass && iGuard++ < 64 )
    {
-      if( pStmt->type == HB_AST_CLASS &&
-          pStmt->value.asClass.szName &&
-          hb_stricmp( pStmt->value.asClass.szName, szClass ) == 0 )
+      PHB_AST_NODE pStmt;
+      const char * szParent = NULL;
+      HB_BOOL fFoundClass = HB_FALSE;
+
+      for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
       {
-         PHB_AST_NODE pMember;
-         for( pMember = pStmt->value.asClass.pMembers; pMember;
-              pMember = pMember->pNext )
+         if( pStmt->type == HB_AST_CLASS &&
+             pStmt->value.asClass.szName &&
+             hb_stricmp( pStmt->value.asClass.szName, szClass ) == 0 )
          {
-            const char * szMember = NULL;
-            if( pMember->type == HB_AST_CLASSDATA )
-               szMember = pMember->value.asClassData.szName;
-            else if( pMember->type == HB_AST_CLASSMETHOD )
-               szMember = pMember->value.asClassMethod.szName;
-            if( szMember && hb_stricmp( szMember, szName ) == 0 )
-               return HB_TRUE;
+            PHB_AST_NODE pMember;
+            for( pMember = pStmt->value.asClass.pMembers; pMember;
+                 pMember = pMember->pNext )
+            {
+               const char * szMember = NULL;
+               if( pMember->type == HB_AST_CLASSDATA )
+                  szMember = pMember->value.asClassData.szName;
+               else if( pMember->type == HB_AST_CLASSMETHOD )
+                  szMember = pMember->value.asClassMethod.szName;
+               if( szMember && hb_stricmp( szMember, szName ) == 0 )
+                  return HB_TRUE;
+            }
+            szParent    = pStmt->value.asClass.szParent;
+            fFoundClass = HB_TRUE;
+            break;
          }
-         return HB_FALSE;
       }
+
+      if( ! fFoundClass )
+         break;             /* class or an ancestor not in this unit */
+      szClass = szParent;   /* ascend to the parent and repeat */
    }
    return HB_FALSE;
+}
+
+/* Built-in OO helpers (className / ClassName / Super) are emitted as
+   extension methods on `object` (HbObjectExtensions). The DLR does not
+   resolve extension methods, so a `Self:` call to one must stay `this.`
+   (compile-time bound); routing it through `((dynamic)this)` would
+   throw RuntimeBinderException at runtime. They are never declared
+   members, so the undeclared-member check would otherwise divert them. */
+static HB_BOOL hb_csIsBuiltinObjMsg( const char * szMsg )
+{
+   return ( HB_BOOL ) ( szMsg &&
+          ( hb_stricmp( szMsg, "className" ) == 0 ||
+            hb_stricmp( szMsg, "Super"     ) == 0 ) );
 }
 
 /* ---- ref-shim for USUAL-ref parameters ----
@@ -1922,17 +1951,21 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          {
             /* Self:member → this.member, with two exceptions:
                - a CLASS VAR (static) must be Class.member (CS0176);
-               - on a dynamic class, a member that isn't declared is a
-                 runtime (dictionary-backed) member — route it through
-                 `((dynamic)this)` so the DLR reaches HbDynamicObject
-                 rather than a missing static field (CS1061). */
+               - a member not declared in the class or any ancestor is
+                 routed through `((dynamic)this)`. On a dynamic class
+                 that reaches the dictionary-backed member; on a plain
+                 class it's a name Harbour resolves at runtime (e.g. a
+                 COM event-sink handler whose method was never
+                 implemented). Either way it compiles and dispatches —
+                 or throws — at runtime instead of failing CS1061. */
             if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
                 hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
             {
                const char * szMsg = pExpr->value.asMessage.szMessage;
                if( szMsg && hb_csIsClassVar( s_szCurrentClass, szMsg ) )
                   fprintf( yyc, "%s", s_szCurrentClass );
-               else if( szMsg && s_fCurrentClassDynamic &&
+               else if( szMsg &&
+                        ! hb_csIsBuiltinObjMsg( szMsg ) &&
                         ! hb_csIsDeclaredMember( s_szCurrentClass, szMsg ) )
                   fprintf( yyc, "((dynamic)this)" );
                else
@@ -2035,8 +2068,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_ARRAY:
          {
             PHB_EXPR pItem;
-            fprintf( yyc, "new dynamic[] { " );
             pItem = pExpr->value.asList.pExprList;
+            /* `{ ... }` — array of all the enclosing variadic's args.
+               Its lone child is the `...` spread (an empty,
+               reference-flagged ARGLIST). Emit the vararg array `hbva`
+               itself; wrapping it in a one-element `new dynamic[] {
+               hbva }` would make every `aArgs[i]` index the wrong
+               level. */
+            if( pItem && ! pItem->pNext &&
+                pItem->ExprType == HB_ET_ARGLIST &&
+                pItem->value.asList.reference &&
+                ! pItem->value.asList.pExprList )
+            {
+               fprintf( yyc, "hbva" );
+               break;
+            }
+            fprintf( yyc, "new dynamic[] { " );
             while( pItem )
             {
                hb_csEmitExpr( pItem, yyc, HB_FALSE );
@@ -3672,6 +3719,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    const char * szRetType = NULL;
    PHB_AST_NODE pFirstStmt = NULL;
    HB_BOOL fProcedure = HB_FALSE;
+   HB_BOOL fMethodSpread = HB_FALSE;
 
    /* Run type propagation */
    if( pFunc->value.asFunc.pBody )
@@ -3693,16 +3741,18 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       back to the mangled name only if (unexpectedly) no marker is
       present. */
    {
-      const char * szMethodName =
-         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
-           pFirstStmt->value.asClassMethod.szName )
-            ? pFirstStmt->value.asClassMethod.szName
-            : pFunc->value.asFunc.szName;
       const char * szClass =
          ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
             ? pFirstStmt->value.asClassMethod.szClass
             : NULL;
-      const char * szKey = hb_refTabMethodKey( szClass, szMethodName );
+      /* The reftab keys methods as `<Class>::<Class>__<Method>` — its
+         Pass-1 scan builds the key from the AST function's mangled
+         name (hbreftab.c). Build the lookup key the same way: using
+         the marker's *real* method name yields `<Class>::<Method>`,
+         which misses the method's own entry and can case-insensitively
+         collide with a same-named file-static free function. */
+      const char * szKey =
+         hb_refTabMethodKey( szClass, pFunc->value.asFunc.szName );
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
       hb_strncpy( s_szCurrentClass, szClass ? szClass : "",
                   sizeof( s_szCurrentClass ) - 1 );
@@ -3734,19 +3784,16 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    /* Parameters */
    pVar = pFunc->value.asFunc.pParams;
    {
-      /* Method entries in the table are keyed Class::Method, so build
-         that key from the CLASSMETHOD marker before any lookups. */
+      /* Method entries are keyed `<Class>::<Class>__<Method>`; build
+         the key from the AST function's mangled name to match the
+         reftab Pass-1 scan (see the szKey note above). */
       const char * szClassName =
          ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
             ? pFirstStmt->value.asClassMethod.szClass
             : NULL;
       char szKeyBuf[ 256 ];
-      const char * szRealName =
-         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
-           pFirstStmt->value.asClassMethod.szName )
-            ? pFirstStmt->value.asClassMethod.szName
-            : pFunc->value.asFunc.szName;
-      const char * szMethName = hb_refTabMethodKey( szClassName, szRealName );
+      const char * szMethName =
+         hb_refTabMethodKey( szClassName, pFunc->value.asFunc.szName );
       hb_strncpy( szKeyBuf, szMethName, sizeof( szKeyBuf ) - 1 );
       szMethName = szKeyBuf;
 
@@ -3759,7 +3806,19 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             if( hb_refTabIsRef( s_pRefTab, szMethName, k ) )
                iLastRef = k;
 
-         while( pVar && nParam < pCompFunc->wParamCount )
+         /* Variadic method (`METHOD Foo(...)`, or a body that uses
+            `{ ... }` / bare `...`): widen the signature to `params
+            dynamic[] hbva`, and re-bind any named params from the
+            array in the body below. Skipped when a slot is by-ref —
+            C# `params` can't combine with `ref`. Mirrors hb_csEmitFunc. */
+         fMethodSpread =
+            ( hb_refTabIsCalledVarargs( s_pRefTab, szMethName ) ||
+              hb_refTabIsVariadic      ( s_pRefTab, szMethName ) ) &&
+            iLastRef < 0;
+
+         if( fMethodSpread )
+            fprintf( yyc, "params dynamic[] hbva" );
+         else while( pVar && nParam < pCompFunc->wParamCount )
          {
             HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szMethName, iPos );
             HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szMethName, iPos );
@@ -3793,6 +3852,23 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "{\n" );
    s_iLastLine = 0;
+   /* Variadic method widened to `params dynamic[] hbva`: re-bind any
+      named params declared before `...` from the array so body
+      references keep working. A pure `(...)` method has no named
+      params, so this emits nothing. */
+   if( fMethodSpread )
+   {
+      PHB_HVAR pSlot = pFunc->value.asFunc.pParams;
+      int k = 0;
+      while( pSlot && k < ( int ) pCompFunc->wParamCount )
+      {
+         hb_csEmitIndent( yyc, iIndent + 1 );
+         fprintf( yyc, "dynamic %s = hbva.Length > %d ? hbva[%d] : null;\n",
+                  pSlot->szName, k, k );
+         pSlot = pSlot->pNext;
+         k++;
+      }
+   }
    if( pFunc->value.asFunc.pBody )
    {
       if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&

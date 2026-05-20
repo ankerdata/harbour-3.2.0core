@@ -1492,8 +1492,14 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
 
             if( fSelfCall )
             {
-               hb_snprintf( szKeyBuf, sizeof( szKeyBuf ), "%s::%s",
-                            pCtx->szClass, szMethod );
+               /* Key the by-ref bitmap on the method's canonical reftab
+                  key `<Class>::<Class>__<Method>`. The mangled member
+                  matches what the Pass-1 definition scan registers
+                  (pFunc->value.asFunc.szName is already mangled), so
+                  the refinement lands on the method's own entry — not
+                  an orphan that no emitter lookup will ever read. */
+               hb_snprintf( szKeyBuf, sizeof( szKeyBuf ), "%s::%s__%s",
+                            pCtx->szClass, pCtx->szClass, szMethod );
                szLookup = szKeyBuf;
             }
          }
