@@ -152,8 +152,10 @@ static const char * hb_astInferFromPrefix( const char * szName )
        szName[ 1 ] != '\0' )
    {
       /* Second character should be uppercase or a digit to confirm
-         this is Hungarian notation, not just a short variable name */
-      if( szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' )
+         this is Hungarian notation, not just a short variable name
+         (e.g. `c3rdParty`, `n2ndValue`, `a3rdParty`). */
+      if( ( szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' ) ||
+          ( szName[ 1 ] >= '0' && szName[ 1 ] <= '9' ) )
       {
          const char * szType = hb_astTypeForPrefixChar( szName[ 0 ] );
          if( szType )
