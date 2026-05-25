@@ -751,7 +751,13 @@ static HB_BOOL hb_csIsBuiltinObjMsg( const char * szMsg )
    so nested calls don't inherit it. */
 static const HB_BOOL * s_aRefShim     = NULL;
 static int             s_iRefShimBase = 0;   /* name base of the call being emitted */
-static int             s_iRefShimSeq  = 0;   /* monotonic allocator for name bases */
+/* Shim-block nesting depth, used as the `_hbref<base>` / `_hbcall<base>`
+   id: incremented on entering a shim/hoist block and decremented on
+   leaving, so a nested block gets a higher base than its enclosing one
+   (no CS0136) while sequential sibling blocks reuse the same low number.
+   Returns to 0 between top-level statements; reset per function for
+   safety. */
+static int             s_iShimDepth   = 0;
 
 /* Hoisting: a funcall lifted out of a condition / return expression into
    a preceding statement. While s_pHoistCall is non-NULL, hb_csEmitExpr
@@ -759,7 +765,6 @@ static int             s_iRefShimSeq  = 0;   /* monotonic allocator for name bas
    expression reads the already-computed result. */
 static PHB_EXPR s_pHoistCall = NULL;
 static char     s_szHoistVar[ 32 ] = "";
-static int      s_iHoistSeq = 0;
 
 /* Look up parameter iPos of a called function in the reftab. A
    file-scoped STATIC function is keyed <FileBase>::<Name> there (the
@@ -957,12 +962,15 @@ static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
 }
 
 /* Declare a `<paramtype> _hbref<base>_<i>` temp seeded from each shimmed
-   lvalue, where base uniquely names this call's temps (so nested shim
-   blocks don't collide, CS0136). Returns the allocated base. */
-static int hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
-                               const HB_BOOL * aShim, FILE * yyc, int iIndent )
+   lvalue. iBase identifies this shim block; within a call the per-arg
+   index <i> already disambiguates multiple refs, and iBase = the nesting
+   depth (see s_iShimDepth) keeps a nested block distinct from its
+   enclosing one (CS0136) while sequential sibling blocks — each its own
+   `{ }` scope — reuse the same low number. */
+static void hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
+                                const HB_BOOL * aShim, int iBase,
+                                FILE * yyc, int iIndent )
 {
-   int iBase = s_iRefShimSeq++;
    PHB_EXPR pArg;
    int iArg;
    for( pArg = pHead, iArg = 0; pArg; pArg = pArg->pNext, iArg++ )
@@ -978,7 +986,6 @@ static int hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
          fprintf( yyc, ";\n" );
       }
    }
-   return iBase;
 }
 
 /* Copy each shim temp back into its lvalue after the call. */
@@ -1056,23 +1063,25 @@ static PHB_EXPR hb_csFindShimCall( PHB_EXPR pExpr, int iDepth )
    return NULL;
 }
 
-/* Hoist pCall: emit its shim temps, `var _hbcallN = <call>;` and the
+/* Hoist pCall: emit its shim temps, `var _hbcall<base> = <call>;` and the
    write-backs at iIndent, then arm s_pHoistCall so the surrounding
-   expression substitutes _hbcallN for the call. The caller has already
-   opened the enclosing brace and must clear s_pHoistCall once it has
-   emitted that expression, then close the brace. */
+   expression substitutes that temp for the call. The caller has already
+   opened the enclosing brace; it must clear s_pHoistCall once it has
+   emitted that expression, close the brace, and call hb_csEndShimBlock()
+   to pop the depth this pushed (the brace — and the if/return body in it
+   — stays at this depth so nested shims get a higher base). */
 static void hb_csBeginHoist( PHB_EXPR pCall, FILE * yyc, int iIndent )
 {
    HB_BOOL aShim[ HB_CS_MAXSHIM ];
    const char * szFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
    PHB_EXPR pHead = hb_csFunCallArgHead( pCall );
-   int iBase;
+   int iBase = s_iShimDepth++;
 
    hb_csCollectRefShims( pCall, aShim, HB_CS_MAXSHIM );
-   iBase = hb_csEmitShimTemps( szFunc, pHead, aShim, yyc, iIndent );
+   hb_csEmitShimTemps( szFunc, pHead, aShim, iBase, yyc, iIndent );
 
    hb_csEmitIndent( yyc, iIndent );
-   hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall%d", s_iHoistSeq++ );
+   hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall%d", iBase );
    fprintf( yyc, "var %s = ", s_szHoistVar );
    s_aRefShim   = aShim;
    s_iRefShimBase = iBase;
@@ -1081,6 +1090,13 @@ static void hb_csBeginHoist( PHB_EXPR pCall, FILE * yyc, int iIndent )
    fprintf( yyc, ";\n" );
    hb_csEmitShimWriteback( pHead, aShim, iBase, yyc, iIndent );
    s_pHoistCall = pCall;  /* substitute in the surrounding expression */
+}
+
+/* Pop the depth pushed by hb_csBeginHoist or an inline shim block. */
+static void hb_csEndShimBlock( void )
+{
+   if( s_iShimDepth > 0 )
+      s_iShimDepth--;
 }
 
 /* Emit the argument list of a function or method call.
@@ -3125,13 +3141,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   const char * szFunc =
                      pCall->value.asFunCall.pFunName->value.asSymbol.name;
                   PHB_EXPR pHead = hb_csFunCallArgHead( pCall );
-                  int iBase;
+                  int iBase = s_iShimDepth++;
 
                   hb_csEmitIndent( yyc, iIndent );
                   fprintf( yyc, "{\n" );
                   /* temps of each parameter's type, seeded from the lvalues */
-                  iBase = hb_csEmitShimTemps( szFunc, pHead, aShim, yyc,
-                                              iIndent + 1 );
+                  hb_csEmitShimTemps( szFunc, pHead, aShim, iBase, yyc,
+                                      iIndent + 1 );
                   /* the call — hb_csEmitCallArgs swaps in `ref _hbref<base>_N` */
                   hb_csEmitIndent( yyc, iIndent + 1 );
                   if( pAsgnLeft )
@@ -3146,6 +3162,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   hb_csEmitShimWriteback( pHead, aShim, iBase, yyc, iIndent + 1 );
                   hb_csEmitIndent( yyc, iIndent );
                   fprintf( yyc, "}\n" );
+                  hb_csEndShimBlock();
                   break;
                }
             }
@@ -3180,6 +3197,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             {
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "}\n" );
+               hb_csEndShimBlock();
             }
          }
          else
@@ -3479,6 +3497,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          {
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "}\n" );
+            hb_csEndShimBlock();
          }
          break;
       }
@@ -4166,6 +4185,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       const char * szKey =
          hb_refTabMethodKey( szClass, pFunc->value.asFunc.szName );
       hb_csLocalTypeReset();
+      s_iShimDepth = 0;
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
       hb_strncpy( s_szCurrentClass, szClass ? szClass : "",
                   sizeof( s_szCurrentClass ) - 1 );
@@ -4656,6 +4676,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    {
       char szKeyBuf[ 256 ];
       hb_csLocalTypeReset();
+      s_iShimDepth = 0;
       hb_strncpy( s_szCurrentFunc,
                   hb_csFuncRefKey( pFunc->value.asFunc.szName,
                                    szKeyBuf, sizeof( szKeyBuf ) ),

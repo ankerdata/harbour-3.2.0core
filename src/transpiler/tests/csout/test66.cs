@@ -62,26 +62,26 @@ public static partial class Program
         bool lOK = default;
         // statement-context reverse shim
         {
-            string _hbref1_0 = buf;
-            lOK = FillBuf(ref _hbref1_0, 3);
-            buf = _hbref1_0;
+            string _hbref0_0 = buf;
+            lOK = FillBuf(ref _hbref0_0, 3);
+            buf = _hbref0_0;
         }
         HbRuntime.QOut("buf=" + buf + " ok=" + (lOK ? "Y" : "N"));
         // if-hoist, returns the buffer
         HbRuntime.QOut("grab=" + Grab(5));
         // statement-context original shim
         {
-            dynamic _hbref2_0 = nCount;
-            Bump66(ref _hbref2_0);
-            nCount = _hbref2_0;
+            dynamic _hbref0_0 = nCount;
+            Bump66(ref _hbref0_0);
+            nCount = _hbref0_0;
         }
         HbRuntime.QOut("count=" + HbRuntime.Str(nCount, 3));
         // expression-context original shim
         {
-            dynamic _hbref3_0 = nCount;
-            var _hbcall1 = Bump66(ref _hbref3_0);
-            nCount = _hbref3_0;
-            if (_hbcall1 > 0)
+            dynamic _hbref0_0 = nCount;
+            var _hbcall0 = Bump66(ref _hbref0_0);
+            nCount = _hbref0_0;
+            if (_hbcall0 > 0)
             {
                 HbRuntime.QOut("bumped=" + HbRuntime.Str(nCount, 3));
             }

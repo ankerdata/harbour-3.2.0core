@@ -56,25 +56,25 @@ public static partial class Program
 
         // bare call statement — typed string variable by-ref
         {
-            dynamic _hbref1_1 = cGot;
-            FetchValue(2, ref _hbref1_1);
-            cGot = _hbref1_1;
+            dynamic _hbref0_1 = cGot;
+            FetchValue(2, ref _hbref0_1);
+            cGot = _hbref0_1;
         }
         HbRuntime.QOut("str=" + HbRuntime.RTrim(cGot));
 
         // bare call statement — typed class DATA field by-ref
         {
-            dynamic _hbref2_1 = oH.nField;
-            FetchValue(1, ref _hbref2_1);
-            oH.nField = _hbref2_1;
+            dynamic _hbref0_1 = oH.nField;
+            FetchValue(1, ref _hbref0_1);
+            oH.nField = _hbref0_1;
         }
         HbRuntime.QOut("field=" + HbRuntime.LTrim(HbRuntime.Str(oH.nField)));
 
         // `var := Foo(@x)` form — the assignment-case shim
         {
-            dynamic _hbref3_1 = nGot;
-            lOk = FetchValue(1, ref _hbref3_1);
-            nGot = _hbref3_1;
+            dynamic _hbref0_1 = nGot;
+            lOk = FetchValue(1, ref _hbref0_1);
+            nGot = _hbref0_1;
         }
         HbRuntime.QOut("into=" + HbRuntime.LTrim(HbRuntime.Str(nGot)) + " ok=" + (lOk ? "Y" : "N"));
         return;
