@@ -69,6 +69,13 @@ struct HB_REFPARAM_
                                been seen at call sites. The slot is frozen
                                as USUAL and no further refinements are
                                accepted. */
+   HB_BOOL fReassigned;     /* set if the function body reassigns this whole
+                               parameter (`p := expr`, not `p[i] := expr`).
+                               For an array param this is the only reason a
+                               by-ref (`@`) is needed — element mutation
+                               already propagates through the shared
+                               reference — so a by-ref array slot that is
+                               never reassigned can drop the `ref`. */
 };
 
 /* Result of hb_refTabRefineParamType. Distinguishing these lets the
@@ -148,6 +155,13 @@ extern HB_BOOL hb_refTabIsRef( PHB_REFTAB pTab, const char * szFunc, int iPos );
 
 /* Returns HB_TRUE if iPos is marked nilable. */
 extern HB_BOOL hb_refTabIsNilable( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* Mark parameter iPos of szFunc as reassigned in its body (`p := expr`).
+   Same lifecycle rules as hb_refTabMark. */
+extern void hb_refTabMarkReassigned( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* Returns HB_TRUE if iPos is reassigned (whole-variable) in the body. */
+extern HB_BOOL hb_refTabIsReassigned( PHB_REFTAB pTab, const char * szFunc, int iPos );
 
 /* Mark szName as a known user-defined class. The scanner sets this
    for every CLASS it sees so the C# emitter can recognise

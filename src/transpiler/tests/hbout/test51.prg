@@ -27,16 +27,16 @@ PROCEDURE Main()
    aFlag[3] := 30
    QOut("before:" + Str(aFlag[1], 4) + Str(aFlag[2], 4) + Str(aFlag[3], 4))
 
-   /* AddDelta's `aArr` parameter has the `a` Hungarian prefix, so
-      the reftab types it as array. Passing `@aFlag` here would be
-      `ref dynamic` against `ref dynamic[]` — exactly the CS1503
-      pattern this test guards against. */
-   AddDelta(@aFlag, 5)
+   /* AddDelta only mutates elements of its array parameter, so the array
+      is passed plain (no `@`): element writes propagate through the shared
+      reference, C# arrays being reference types. aFlag still emits as
+      `dynamic[]` — the PUBLIC sized-array fix this test guards. */
+   AddDelta(aFlag, 5)
    QOut("after: " + Str(aFlag[1], 4) + Str(aFlag[2], 4) + Str(aFlag[3], 4))
 
 RETURN
 
-PROCEDURE AddDelta( /*@*/aArr AS ARRAY, nDelta AS NUMERIC )
+PROCEDURE AddDelta( aArr AS ARRAY, nDelta AS NUMERIC )
    LOCAL nI AS NUMERIC
    FOR nI := 1 TO LEN(aArr)
       aArr[nI] := aArr[nI] + nDelta

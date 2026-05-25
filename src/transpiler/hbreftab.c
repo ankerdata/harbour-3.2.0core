@@ -313,14 +313,21 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
       HB_REFPARAM * pOld    = e->pParams;
       int            nOld   = e->nParams;
       HB_BOOL        fOldConflict[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL        fOldReassigned[ HB_REFTAB_MAXPARAM ];
 
-      /* Remember the conflict bits before we free pOld. */
+      /* Remember the conflict / reassigned bits before we free pOld. */
       for( i = 0; i < HB_REFTAB_MAXPARAM; i++ )
+      {
          fOldConflict[ i ] = HB_FALSE;
+         fOldReassigned[ i ] = HB_FALSE;
+      }
       if( pOld )
       {
          for( i = 0; i < nOld && i < HB_REFTAB_MAXPARAM; i++ )
+         {
             fOldConflict[ i ] = pOld[ i ].fConflict;
+            fOldReassigned[ i ] = pOld[ i ].fReassigned;
+         }
       }
 
       /* Multi-def arity disagreement: same name declared in two .prg
@@ -386,6 +393,7 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
          e->pParams[ i ].fNilable =
             ( e->nilbits & ( ( ( HB_U64 ) 1 ) << i ) ) != 0;
          e->pParams[ i ].fConflict = fOldConflict[ i ];
+         e->pParams[ i ].fReassigned = fOldReassigned[ i ];
       }
 
       /* Free the old parameter array now that we've pulled what we
@@ -415,6 +423,28 @@ void hb_refTabMark( PHB_REFTAB pTab, const char * szFunc, int iPos )
    /* If we already have the parameter list, sync the per-slot flag too */
    if( e->pParams && iPos < e->nParams )
       e->pParams[ iPos ].fByRef = HB_TRUE;
+}
+
+void hb_refTabMarkReassigned( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindOrCreate( pTab, szFunc );
+   if( e->pParams && iPos < e->nParams )
+      e->pParams[ iPos ].fReassigned = HB_TRUE;
+}
+
+HB_BOOL hb_refTabIsReassigned( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   return e && e->pParams && iPos < e->nParams &&
+          e->pParams[ iPos ].fReassigned;
 }
 
 /* Value-typed Hungarian prefixes — n (numeric), l (logical), d (date),
@@ -901,12 +931,14 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                HB_BOOL fNilable =
                   ( e->nilbits & ( ( ( HB_U64 ) 1 ) << p ) ) != 0;
                HB_BOOL fConflict = e->pParams[ p ].fConflict;
-               char flags[ 5 ];
+               HB_BOOL fReassigned = e->pParams[ p ].fReassigned;
+               char flags[ 6 ];
                int  k = 0;
-               if( fByRef )    flags[ k++ ] = 'R';
-               if( fNilable )  flags[ k++ ] = 'N';
-               if( fConflict ) flags[ k++ ] = 'C';
-               if( k == 0 )    flags[ k++ ] = '-';
+               if( fByRef )     flags[ k++ ] = 'R';
+               if( fNilable )   flags[ k++ ] = 'N';
+               if( fConflict )  flags[ k++ ] = 'C';
+               if( fReassigned) flags[ k++ ] = 'W';
+               if( k == 0 )     flags[ k++ ] = '-';
                flags[ k ] = '\0';
                fprintf( fp, "\t%s:%s:%s",
                         e->pParams[ p ].szName,
@@ -976,6 +1008,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       HB_BOOL refs[ HB_REFTAB_MAXPARAM ];
       HB_BOOL nils[ HB_REFTAB_MAXPARAM ];
       HB_BOOL cons[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL reas[ HB_REFTAB_MAXPARAM ];
       int i;
 
       if( line[ 0 ] == '#' || line[ 0 ] == '\n' || line[ 0 ] == '\0' )
@@ -1069,6 +1102,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          refs[ i ]  = HB_FALSE;
          nils[ i ]  = HB_FALSE;
          cons[ i ]  = HB_FALSE;
+         reas[ i ]  = HB_FALSE;
          for( c = pf; *c; c++ )
          {
             if( *c == 'R' || *c == 'r' )
@@ -1077,6 +1111,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                nils[ i ] = HB_TRUE;
             else if( *c == 'C' || *c == 'c' )
                cons[ i ] = HB_TRUE;
+            else if( *c == 'W' || *c == 'w' )
+               reas[ i ] = HB_TRUE;
          }
       }
 
@@ -1089,6 +1125,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             hb_refTabMark( pTab, fields[ 0 ], i );
          if( nils[ i ] )
             hb_refTabSetNilable( pTab, fields[ 0 ], i );
+         if( reas[ i ] )
+            hb_refTabMarkReassigned( pTab, fields[ 0 ], i );
       }
       /* Rehydrate conflict flags by reaching into the entry directly;
          there is no public setter because conflicts are meant to be
@@ -1276,6 +1314,25 @@ static void hb_refTabMaybeMarkNilable( PHB_REFTAB pTab, HB_SCANCTX * pCtx,
    }
 }
 
+/* If szName is a parameter of the enclosing function, mark that slot as
+   reassigned (the body writes the whole variable). Used to tell a by-ref
+   array slot that genuinely needs `ref` (it's repointed) from one that
+   only mutates elements (no `ref` needed). */
+static void hb_refTabMaybeMarkReassigned( PHB_REFTAB pTab, HB_SCANCTX * pCtx,
+                                          const char * szName )
+{
+   int i;
+   if( ! pCtx || ! pCtx->szFunc || ! szName )
+      return;
+   for( i = 0; i < pCtx->nParams; i++ )
+      if( pCtx->ppParamNames[ i ] &&
+          hb_stricmp( pCtx->ppParamNames[ i ], szName ) == 0 )
+      {
+         hb_refTabMarkReassigned( pTab, pCtx->szFunc, i );
+         return;
+      }
+}
+
 /* Inspect an expression for NIL-comparison or NIL-assignment patterns
    targeting a parameter of the enclosing function. Called for the
    condition of IFs/WHILEs and the contents of statement expressions. */
@@ -1342,6 +1399,17 @@ static HB_BOOL hb_refTabIsVariadicProbe( const char * szName )
         hb_stricmp( szName, "HB_PVALUE"    ) == 0 ||
         hb_stricmp( szName, "HB_PARAMETER" ) == 0 ||
         hb_stricmp( szName, "HB_APARAMS"   ) == 0 );
+}
+
+/* Builtins that reallocate their array argument — the C# emitter passes
+   it as `ref dynamic[]`, so the variable is effectively reassigned.
+   Mirrors gencsharp's hb_csIsArrayMutator; an array passed here can't
+   have its `ref` elided. */
+static HB_BOOL hb_refTabIsArrayMutator( const char * szName )
+{
+   return szName &&
+      ( hb_stricmp( szName, "ASize" ) == 0 ||
+        hb_stricmp( szName, "AAdd"  ) == 0 );
 }
 
 /* Walk an HB_ET_LIST/HB_ET_ARGLIST argument list and:
@@ -1414,6 +1482,24 @@ static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
       }
       else
          hb_refTabScanExpr( pTab, pArg, pCtx );
+
+      /* Propagate reassignment onto an enclosing array parameter so its
+         `ref` isn't elided: it's passed to an array-mutator (ASize/AAdd
+         realloc it via ref, even without `@`), or it's `@`-passed to a
+         callee slot that is itself reassigned (transitive — converges
+         over the scan's fixpoint passes). */
+      if( pCtx &&
+          ( pArg->ExprType == HB_ET_VARREF ||
+            pArg->ExprType == HB_ET_VARIABLE ) )
+      {
+         const char * szArgName = pArg->value.asSymbol.name;
+         HB_BOOL fMutator = ( iPos == 0 && hb_refTabIsArrayMutator( szFunc ) );
+         HB_BOOL fByRefToReassigned =
+            pArg->ExprType == HB_ET_VARREF && szFunc &&
+            hb_refTabIsReassigned( pTab, szFunc, iPos );
+         if( fMutator || fByRefToReassigned )
+            hb_refTabMaybeMarkReassigned( pTab, pCtx, szArgName );
+      }
       iLastReal = iPos;
       pArg = pArg->pNext;
       iPos++;
@@ -1572,6 +1658,16 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
          /* Operators (>= HB_EO_POSTINC) live in the asOperator union */
          if( pExpr->ExprType >= HB_EO_POSTINC )
          {
+            /* Whole-variable assignment to a parameter (`p := expr`, not
+               `p[i] := expr` whose LHS is HB_ET_ARRAYAT) marks the slot
+               reassigned — the only reason a by-ref array slot needs the
+               `ref`. */
+            if( pExpr->ExprType == HB_EO_ASSIGN &&
+                pExpr->value.asOperator.pLeft &&
+                pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+               hb_refTabMaybeMarkReassigned(
+                  pTab, pCtx,
+                  pExpr->value.asOperator.pLeft->value.asSymbol.name );
             hb_refTabScanExpr( pTab, pExpr->value.asOperator.pLeft, pCtx );
             hb_refTabScanExpr( pTab, pExpr->value.asOperator.pRight, pCtx );
          }

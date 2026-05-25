@@ -23,7 +23,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
+static void hb_csEmitIndent( FILE * yyc, int iIndent );
 static const char * hb_csTypeMap( const char * szHbType );
+static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
+                                       HB_SIZE nBuf );
+static HB_BOOL hb_csIsFileMemvar( const char * szName );
 
 /* Track last source line for blank line preservation */
 static int s_iLastLine = 0;
@@ -163,6 +167,87 @@ static void hb_csSetFileStaticType( const char * szName, const char * szType )
          s_pFileStaticTypes[ i ] = szType;
          return;
       }
+}
+
+/* Per-function local-variable types, recorded as each LOCAL/STATIC
+   declaration is emitted (the Harbour-side type that drove the C#
+   declaration: szAlias if propagated, else hb_astInferType). The
+   ref-shim decision consults this so it compares an @arg against the
+   variable's *real* emitted type rather than a Hungarian prefix that
+   can disagree (a `c3rdParty` whose digit defeats prefix detection, an
+   `aRCFlag` static that is actually `dynamic`). Stored pointers are
+   AST/literal-owned and stable for the whole emit; reset per function. */
+#define HB_CS_MAX_LOCALS 1024
+static const char * s_pLocalNames[ HB_CS_MAX_LOCALS ];
+static const char * s_pLocalTypes[ HB_CS_MAX_LOCALS ];
+static int s_iLocalCount = 0;
+
+static void hb_csLocalTypeReset( void )
+{
+   s_iLocalCount = 0;
+}
+
+static void hb_csLocalTypeSet( const char * szName, const char * szType )
+{
+   int i;
+   if( ! szName || ! szType )
+      return;
+   for( i = 0; i < s_iLocalCount; i++ )
+      if( hb_stricmp( s_pLocalNames[ i ], szName ) == 0 )
+      {
+         s_pLocalTypes[ i ] = szType;   /* last declaration wins */
+         return;
+      }
+   if( s_iLocalCount >= HB_CS_MAX_LOCALS )
+      return;
+   s_pLocalNames[ s_iLocalCount ] = szName;
+   s_pLocalTypes[ s_iLocalCount++ ] = szType;
+}
+
+static const char * hb_csLocalTypeGet( const char * szName )
+{
+   int i;
+   if( ! szName )
+      return NULL;
+   for( i = 0; i < s_iLocalCount; i++ )
+      if( hb_stricmp( s_pLocalNames[ i ], szName ) == 0 )
+         return s_pLocalTypes[ i ];
+   return NULL;
+}
+
+/* The Harbour-side type of an @arg variable at a call site, resolved the
+   way the variable was actually emitted: a function local/static first,
+   then a file-static (untyped → USUAL, i.e. `dynamic`), then a parameter
+   of the current function, and only as a last resort the Hungarian-prefix
+   guess. */
+static const char * hb_csArgVarType( const char * szName )
+{
+   const char * szType = hb_csLocalTypeGet( szName );
+   if( szType )
+      return szType;
+   if( hb_csIsFileStatic( szName ) )
+   {
+      szType = hb_csFileStaticType( szName );
+      return szType ? szType : "USUAL";
+   }
+   if( szName && s_szCurrentFunc[ 0 ] && s_pRefTab )
+   {
+      int n = hb_refTabParamCount( s_pRefTab, s_szCurrentFunc );
+      int i;
+      for( i = 0; i < n; i++ )
+      {
+         const HB_REFPARAM * pP =
+            hb_refTabParam( s_pRefTab, s_szCurrentFunc, i );
+         if( pP && pP->szName && hb_stricmp( pP->szName, szName ) == 0 )
+            return pP->szType ? pP->szType : "USUAL";
+      }
+   }
+   /* PUBLIC / MEMVAR variables are runtime-typed — always emitted as
+      `dynamic` regardless of any Hungarian prefix. */
+   if( hb_csIsFileMemvar( szName ) ||
+       ( szName && s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) ) )
+      return "USUAL";
+   return hb_astInferType( szName, NULL );
 }
 
 /* File-scope MEMVAR declarations. Harbour memvars are globally visible
@@ -660,10 +745,21 @@ static HB_BOOL hb_csIsBuiltinObjMsg( const char * szMsg )
 #define HB_CS_MAXSHIM 64
 
 /* When non-NULL during a funcall emit, s_aRefShim[iPos] != 0 means
-   argument iPos must be emitted as `ref _hbref<iPos>` — the dynamic
-   temp was already declared by the enclosing brace block. Consumed
-   (and cleared) by hb_csEmitCallArgs so nested calls don't inherit it. */
-static const HB_BOOL * s_aRefShim = NULL;
+   argument iPos must be emitted as `ref _hbref<base>_<iPos>` — the temp
+   was already declared by the enclosing brace block, named with the
+   base id in s_iRefShimBase. Consumed (and cleared) by hb_csEmitCallArgs
+   so nested calls don't inherit it. */
+static const HB_BOOL * s_aRefShim     = NULL;
+static int             s_iRefShimBase = 0;   /* name base of the call being emitted */
+static int             s_iRefShimSeq  = 0;   /* monotonic allocator for name bases */
+
+/* Hoisting: a funcall lifted out of a condition / return expression into
+   a preceding statement. While s_pHoistCall is non-NULL, hb_csEmitExpr
+   emits s_szHoistVar in place of that exact funcall node, so the original
+   expression reads the already-computed result. */
+static PHB_EXPR s_pHoistCall = NULL;
+static char     s_szHoistVar[ 32 ] = "";
+static int      s_iHoistSeq = 0;
 
 /* Look up parameter iPos of a called function in the reftab. A
    file-scoped STATIC function is keyed <FileBase>::<Name> there (the
@@ -687,6 +783,64 @@ static const HB_REFPARAM * hb_csCallParam( const char * szFunc, int iPos )
    return hb_refTabParam( s_pRefTab, szFunc, iPos );
 }
 
+/* True when parameter iPos of szFunc is a by-ref ARRAY slot the callee
+   never reassigns. C# arrays are reference types, so element mutation
+   propagates without `ref`; the `ref` is only needed when the variable is
+   repointed (`p := ...`). Such a slot is emitted as a plain `dynamic[]`
+   parameter, and call sites pass it without `ref` and without a shim. */
+static HB_BOOL hb_csParamElidesArrayRef( const char * szFunc, int iPos )
+{
+   const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+   return pP && pP->fByRef && ! pP->fReassigned &&
+          pP->szType && hb_stricmp( pP->szType, "ARRAY" ) == 0;
+}
+
+/* Whether parameter iPos of szFunc is actually emitted as `ref` — the
+   reftab by-ref flag minus the array slots elided to a plain dynamic[].
+   The short-overload generator keys off this so it doesn't manufacture a
+   `ref _argN` against a parameter that emits plain. */
+static HB_BOOL hb_csParamEmitsRef( const char * szFunc, int iPos )
+{
+   return s_pRefTab && hb_refTabIsRef( s_pRefTab, szFunc, iPos ) &&
+          ! hb_csParamElidesArrayRef( szFunc, iPos );
+}
+
+/* Warn when a call passes an array by-ref (`@aArr`) to a parameter the
+   callee never reassigns: the `@` is redundant (C# arrays are reference
+   types, so element mutation already propagates), and the slot is emitted
+   as a plain `dynamic[]`. One warning per call site. */
+static void hb_csWarnArrayRefElided( const char * szFunc, PHB_EXPR pParms )
+{
+   PHB_EXPR pHead, pItem;
+   int iPos = 0, iFirst = -1;
+
+   if( ! szFunc || ! s_pRefTab || ! pParms )
+      return;
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pHead = pParms->value.asList.pExprList;
+   else
+      pHead = pParms;
+
+   for( pItem = pHead; pItem; pItem = pItem->pNext, iPos++ )
+   {
+      if( pItem->ExprType != HB_ET_VARREF &&
+          pItem->ExprType != HB_ET_REFERENCE )
+         continue;
+      if( iFirst < 0 && hb_csParamElidesArrayRef( szFunc, iPos ) )
+         iFirst = iPos;
+   }
+
+   if( iFirst >= 0 && s_pCompCtx )
+      fprintf( stderr,
+               "hbtranspiler: %s(%d): warning W0021  "
+               "'@' on array parameter #%d of '%s' is redundant — "
+               "the callee never reassigns it\n",
+               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_iCurrentStmtLine, iFirst + 1, szFunc );
+}
+
 /* The reftab key for a function being emitted. A file-scoped STATIC
    is keyed <FileBase>::<Name>; emitting it under the bare name would
    read a same-named global function's entry instead — wrong param
@@ -702,9 +856,18 @@ static const char * hb_csFuncRefKey( const char * szName,
    return szName;
 }
 
-/* Fill pfShim[0..iMax) for each @arg slot of pCall whose reftab param
-   is by-ref and USUAL (→ `ref dynamic` in the emit, which a typed
-   `ref` argument can't satisfy). Returns the shim count. */
+/* Fill pfShim[0..iMax) for each @arg slot of pCall that needs a ref-shim,
+   returning the count. C# `ref` is invariant, so a `ref dynamic` argument
+   can't bind a typed `ref` parameter (or vice versa), and a property /
+   dynamic member / array element isn't a ref-able storage location at all.
+   Both are fixed by copying the lvalue into a temp typed as the parameter,
+   passing the temp, and copying it back.
+
+   A field/element (HB_ET_REFERENCE) always needs the temp. A plain @var
+   (HB_ET_VARREF) binds the parameter directly when its inferred type
+   already matches, so it is shimmed only on a real mismatch — shimming a
+   matching @var would needlessly wrap (and, inside a condition, hoist) a
+   call that compiles fine. */
 static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
 {
    const char * szFunc = NULL;
@@ -739,10 +902,25 @@ static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
       pP = hb_csCallParam( szFunc, iPos );
       if( ! pP || ! pP->fByRef )
          continue;
-      /* A typed param emits `ref decimal` etc. and binds directly;
-         only USUAL (or untyped) yields the invariant `ref dynamic`. */
-      if( pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+      /* By-ref array slot the callee never reassigns: emitted as a plain
+         `dynamic[]` param, so no `ref` and no shim — element mutation
+         flows through the shared reference. */
+      if( hb_csParamElidesArrayRef( szFunc, iPos ) )
          continue;
+      /* A field access / array element (HB_ET_REFERENCE) is never a
+         ref-able C# storage location, so it always needs the temp. A
+         plain @var binds directly when its type already equals the
+         parameter's, so shim it only on a real mismatch — otherwise we'd
+         wrap (and, in a condition, hoist) calls that compile fine. */
+      if( pItem->ExprType == HB_ET_VARREF )
+      {
+         char szBuf[ 96 ];
+         const char * szParamCs = hb_csShimSlotType( pP, szBuf, sizeof( szBuf ) );
+         const char * szArgCs =
+            hb_csTypeMap( hb_csArgVarType( pItem->value.asSymbol.name ) );
+         if( strcmp( szParamCs, szArgCs ) == 0 )
+            continue;   /* `ref var` binds the parameter directly */
+      }
       pfShim[ iPos ] = HB_TRUE;
       iCount++;
    }
@@ -757,6 +935,152 @@ static void hb_csEmitRefTarget( PHB_EXPR pItem, FILE * yyc )
       hb_csEmitExpr( pItem->value.asReference, yyc, HB_FALSE );
    else  /* HB_ET_VARREF */
       hb_csEmitExpr( pItem, yyc, HB_FALSE );
+}
+
+/* The C# type a shim temp must take to bind parameter pP by ref: exactly
+   the parameter's emitted type, so `ref temp` is invariant-compatible.
+   USUAL / untyped → dynamic. A nilable typed slot keeps its `?`. */
+static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
+                                       HB_SIZE nBuf )
+{
+   const char * szSlot = NULL;
+   const char * szCs;
+   if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+      szSlot = pP->szType;
+   szCs = hb_csTypeMap( szSlot );
+   if( pP && pP->fNilable && strcmp( szCs, "dynamic" ) != 0 )
+   {
+      hb_snprintf( szBuf, nBuf, "%s?", szCs );
+      return szBuf;
+   }
+   return szCs;
+}
+
+/* Declare a `<paramtype> _hbref<base>_<i>` temp seeded from each shimmed
+   lvalue, where base uniquely names this call's temps (so nested shim
+   blocks don't collide, CS0136). Returns the allocated base. */
+static int hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
+                               const HB_BOOL * aShim, FILE * yyc, int iIndent )
+{
+   int iBase = s_iRefShimSeq++;
+   PHB_EXPR pArg;
+   int iArg;
+   for( pArg = pHead, iArg = 0; pArg; pArg = pArg->pNext, iArg++ )
+   {
+      if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
+      {
+         char szBuf[ 96 ];
+         const HB_REFPARAM * pP = hb_csCallParam( szFunc, iArg );
+         hb_csEmitIndent( yyc, iIndent );
+         fprintf( yyc, "%s _hbref%d_%d = ",
+                  hb_csShimSlotType( pP, szBuf, sizeof( szBuf ) ), iBase, iArg );
+         hb_csEmitRefTarget( pArg, yyc );
+         fprintf( yyc, ";\n" );
+      }
+   }
+   return iBase;
+}
+
+/* Copy each shim temp back into its lvalue after the call. */
+static void hb_csEmitShimWriteback( PHB_EXPR pHead, const HB_BOOL * aShim,
+                                    int iBase, FILE * yyc, int iIndent )
+{
+   PHB_EXPR pArg;
+   int iArg;
+   for( pArg = pHead, iArg = 0; pArg; pArg = pArg->pNext, iArg++ )
+   {
+      if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
+      {
+         hb_csEmitIndent( yyc, iIndent );
+         hb_csEmitRefTarget( pArg, yyc );
+         fprintf( yyc, " = _hbref%d_%d;\n", iBase, iArg );
+      }
+   }
+}
+
+/* The arg list head of a funcall, unwrapped from its LIST node. */
+static PHB_EXPR hb_csFunCallArgHead( PHB_EXPR pCall )
+{
+   PHB_EXPR pHead = pCall->value.asFunCall.pParms;
+   if( pHead && ( pHead->ExprType == HB_ET_LIST ||
+                  pHead->ExprType == HB_ET_ARGLIST ||
+                  pHead->ExprType == HB_ET_MACROARGLIST ) )
+      pHead = pHead->value.asList.pExprList;
+   return pHead;
+}
+
+/* Find the first funcall within pExpr whose by-ref args need a shim. Used
+   to hoist a ref-passing call out of a condition / return expression,
+   where the brace-block shim can't be emitted in place. Descends through
+   operators, iif and argument lists; depth-limited. */
+static PHB_EXPR hb_csFindShimCall( PHB_EXPR pExpr, int iDepth )
+{
+   if( ! pExpr || iDepth > 32 )
+      return NULL;
+   if( pExpr->ExprType == HB_ET_FUNCALL )
+   {
+      HB_BOOL aShim[ HB_CS_MAXSHIM ];
+      if( pExpr->value.asFunCall.pFunName &&
+          pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+          hb_csCollectRefShims( pExpr, aShim, HB_CS_MAXSHIM ) > 0 )
+         return pExpr;
+      return hb_csFindShimCall( hb_csFunCallArgHead( pExpr ), iDepth + 1 );
+   }
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_LIST: case HB_ET_ARGLIST: case HB_ET_MACROARGLIST:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR p = pExpr->value.asList.pExprList;
+         while( p )
+         {
+            PHB_EXPR pHit = hb_csFindShimCall( p, iDepth + 1 );
+            if( pHit )
+               return pHit;
+            p = p->pNext;
+         }
+         break;
+      }
+      default:
+         if( pExpr->ExprType >= HB_EO_ASSIGN && pExpr->ExprType <= HB_EO_PREDEC )
+         {
+            PHB_EXPR pHit =
+               hb_csFindShimCall( pExpr->value.asOperator.pLeft, iDepth + 1 );
+            if( pHit )
+               return pHit;
+            return hb_csFindShimCall( pExpr->value.asOperator.pRight,
+                                      iDepth + 1 );
+         }
+         break;
+   }
+   return NULL;
+}
+
+/* Hoist pCall: emit its shim temps, `var _hbcallN = <call>;` and the
+   write-backs at iIndent, then arm s_pHoistCall so the surrounding
+   expression substitutes _hbcallN for the call. The caller has already
+   opened the enclosing brace and must clear s_pHoistCall once it has
+   emitted that expression, then close the brace. */
+static void hb_csBeginHoist( PHB_EXPR pCall, FILE * yyc, int iIndent )
+{
+   HB_BOOL aShim[ HB_CS_MAXSHIM ];
+   const char * szFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
+   PHB_EXPR pHead = hb_csFunCallArgHead( pCall );
+   int iBase;
+
+   hb_csCollectRefShims( pCall, aShim, HB_CS_MAXSHIM );
+   iBase = hb_csEmitShimTemps( szFunc, pHead, aShim, yyc, iIndent );
+
+   hb_csEmitIndent( yyc, iIndent );
+   hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall%d", s_iHoistSeq++ );
+   fprintf( yyc, "var %s = ", s_szHoistVar );
+   s_aRefShim   = aShim;
+   s_iRefShimBase = iBase;
+   s_pHoistCall = NULL;   /* emit the call itself, not the placeholder */
+   hb_csEmitExpr( pCall, yyc, HB_FALSE );
+   fprintf( yyc, ";\n" );
+   hb_csEmitShimWriteback( pHead, aShim, iBase, yyc, iIndent );
+   s_pHoistCall = pCall;  /* substitute in the surrounding expression */
 }
 
 /* Emit the argument list of a function or method call.
@@ -786,9 +1110,11 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    int      iPos;
    HB_BOOL  fFirst = HB_TRUE;
    HB_BOOL  fNamed = HB_FALSE;
-   /* Consume the ref-shim map set by the enclosing HB_AST_EXPRSTMT
-      handler, then clear it so nested funcall args don't inherit it. */
+   /* Consume the ref-shim map set by the enclosing brace block, then
+      clear it so nested funcall args don't inherit it. iShimBase names
+      the temps this call's shimmed slots refer to. */
    const HB_BOOL * aShim = s_aRefShim;
+   int            iShimBase = s_iRefShimBase;
    s_aRefShim = NULL;
 
    if( ! pParms )
@@ -860,7 +1186,8 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                   if( ! szSlot )
                      szSlot = hb_astInferType( pP ? pP->szName : NULL, NULL );
                   szCs = hb_csTypeMap( szSlot );
-                  if( pP && pP->fByRef )
+                  if( pP && pP->fByRef &&
+                      ! hb_csParamElidesArrayRef( szFunc, iPos ) )
                      fprintf( yyc, "ref HbDiscard<%s%s>.Value",
                               szCs, pP->fNilable ? "?" : "" );
                   else
@@ -889,17 +1216,24 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                Unknown functions aren't in the table. */
          }
 
-         /* Shimmed slot: the enclosing block declared `dynamic
-            _hbref<iPos>` seeded from the typed lvalue — pass by ref. */
+         /* Shimmed slot: the enclosing block declared a
+            `_hbref<base>_<iPos>` temp of the parameter's type seeded from
+            the lvalue — pass it by ref (hb_csEmitShimWriteback copies it
+            back afterwards). */
          if( aShim && iPos < HB_CS_MAXSHIM && aShim[ iPos ] )
          {
-            fprintf( yyc, "ref _hbref%d", iPos );
+            fprintf( yyc, "ref _hbref%d_%d", iShimBase, iPos );
             pItem = pItem->pNext;
             continue;
          }
 
          if( pArg->ExprType == HB_ET_VARREF )
-            fprintf( yyc, "ref " );
+         {
+            /* `@aArr` to a non-reassigned array param: emit plain (no
+               ref) — element mutation propagates through the reference. */
+            if( ! ( szFunc && hb_csParamElidesArrayRef( szFunc, iPos ) ) )
+               fprintf( yyc, "ref " );
+         }
          else if( iPos == 0 && szFunc && hb_csIsArrayMutator( szFunc ) )
          {
             /* ASize / AAdd may reallocate the dynamic[]; the HbRuntime
@@ -929,9 +1263,10 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          else if( pArg->ExprType == HB_ET_VARIABLE && szFunc )
          {
             /* Plain variable into a by-ref param without the Harbour @:
-               C# requires `ref` once the param emits ref (CS1620). */
+               C# requires `ref` once the param emits ref (CS1620). A
+               non-reassigned array param emits plain, so no `ref` here. */
             const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
-            if( pP && pP->fByRef )
+            if( pP && pP->fByRef && ! hb_csParamElidesArrayRef( szFunc, iPos ) )
                fprintf( yyc, "ref " );
          }
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
@@ -1563,6 +1898,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
    if( ! pExpr )
       return;
 
+   /* A funcall hoisted out of this expression: emit the temp that already
+      holds its result instead of re-emitting (and re-evaluating) the call. */
+   if( pExpr == s_pHoistCall && s_szHoistVar[ 0 ] )
+   {
+      fprintf( yyc, "%s", s_szHoistVar );
+      return;
+   }
+
    switch( pExpr->ExprType )
    {
       case HB_ET_NONE:
@@ -1779,6 +2122,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      says the slot is ref (inconsistent `@` usage
                      across call sites — C# rejects as CS1620). */
                   hb_csWarnMissingRef( szName, pExpr->value.asFunCall.pParms );
+                  /* Flag `@array` passed to a param the callee never
+                     reassigns — the `@` is redundant (W0021). */
+                  hb_csWarnArrayRefElided( szName, pExpr->value.asFunCall.pParms );
                }
             }
             else
@@ -2776,29 +3122,17 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                int iShims = hb_csCollectRefShims( pCall, aShim, HB_CS_MAXSHIM );
                if( iShims > 0 )
                {
-                  PHB_EXPR pHead = pCall->value.asFunCall.pParms;
-                  PHB_EXPR pArg;
-                  int iArg;
-                  if( pHead && ( pHead->ExprType == HB_ET_LIST ||
-                                 pHead->ExprType == HB_ET_ARGLIST ||
-                                 pHead->ExprType == HB_ET_MACROARGLIST ) )
-                     pHead = pHead->value.asList.pExprList;
+                  const char * szFunc =
+                     pCall->value.asFunCall.pFunName->value.asSymbol.name;
+                  PHB_EXPR pHead = hb_csFunCallArgHead( pCall );
+                  int iBase;
 
                   hb_csEmitIndent( yyc, iIndent );
                   fprintf( yyc, "{\n" );
-                  /* dynamic temps, seeded from the typed lvalues */
-                  for( pArg = pHead, iArg = 0; pArg;
-                       pArg = pArg->pNext, iArg++ )
-                  {
-                     if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
-                     {
-                        hb_csEmitIndent( yyc, iIndent + 1 );
-                        fprintf( yyc, "dynamic _hbref%d = ", iArg );
-                        hb_csEmitRefTarget( pArg, yyc );
-                        fprintf( yyc, ";\n" );
-                     }
-                  }
-                  /* the call — hb_csEmitCallArgs swaps in `ref _hbrefN` */
+                  /* temps of each parameter's type, seeded from the lvalues */
+                  iBase = hb_csEmitShimTemps( szFunc, pHead, aShim, yyc,
+                                              iIndent + 1 );
+                  /* the call — hb_csEmitCallArgs swaps in `ref _hbref<base>_N` */
                   hb_csEmitIndent( yyc, iIndent + 1 );
                   if( pAsgnLeft )
                   {
@@ -2806,19 +3140,10 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                      fprintf( yyc, " = " );
                   }
                   s_aRefShim = aShim;
+                  s_iRefShimBase = iBase;
                   hb_csEmitExpr( pCall, yyc, HB_FALSE );
                   fprintf( yyc, ";\n" );
-                  /* copy the temps back into the lvalues */
-                  for( pArg = pHead, iArg = 0; pArg;
-                       pArg = pArg->pNext, iArg++ )
-                  {
-                     if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
-                     {
-                        hb_csEmitIndent( yyc, iIndent + 1 );
-                        hb_csEmitRefTarget( pArg, yyc );
-                        fprintf( yyc, " = _hbref%d;\n", iArg );
-                     }
-                  }
+                  hb_csEmitShimWriteback( pHead, aShim, iBase, yyc, iIndent + 1 );
                   hb_csEmitIndent( yyc, iIndent );
                   fprintf( yyc, "}\n" );
                   break;
@@ -2832,15 +3157,36 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       }
 
       case HB_AST_RETURN:
-         hb_csEmitIndent( yyc, iIndent );
          if( pNode->value.asReturn.pExpr && ! s_fVoidFunc )
          {
+            /* Hoist a ref-passing call out of the return expression (C#
+               ref invariance can't be shimmed mid-expression). */
+            PHB_EXPR pHoist =
+               hb_csFindShimCall( pNode->value.asReturn.pExpr, 0 );
+            int iRetInd = iIndent;
+            if( pHoist )
+            {
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "{\n" );
+               hb_csBeginHoist( pHoist, yyc, iIndent + 1 );
+               iRetInd = iIndent + 1;
+            }
+            hb_csEmitIndent( yyc, iRetInd );
             fprintf( yyc, "return " );
             hb_csEmitExpr( pNode->value.asReturn.pExpr, yyc, HB_FALSE );
             fprintf( yyc, ";\n" );
+            s_pHoistCall = NULL;
+            if( pHoist )
+            {
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "}\n" );
+            }
          }
          else
+         {
+            hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "return;\n" );
+         }
          break;
 
       case HB_AST_QOUT:
@@ -2869,6 +3215,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             else
                szType = hb_astInferType( pNode->value.asVar.szName,
                                           pNode->value.asVar.pInit );
+
+            /* Record the local's real type for the ref-shim decision. */
+            hb_csLocalTypeSet( pNode->value.asVar.szName, szType );
 
             /* `LOCAL name[dim1][dim2]...` — emitted by the grammar
                as an HB_AST_LOCAL with fArrayDim + pInit = ARGLIST of
@@ -3057,7 +3406,23 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_IF:
-         hb_csEmitIndent( yyc, iIndent );
+      {
+         /* A ref-passing call in the main condition can't be shimmed in
+            place (C# ref invariance), so hoist it: open a brace, compute
+            the call into a temp, then run the whole if on that temp. Only
+            the main condition is hoisted — ELSEIF conditions run
+            conditionally and mustn't be pulled out. */
+         PHB_EXPR pHoist =
+            hb_csFindShimCall( pNode->value.asIf.pCondition, 0 );
+         int iIfInd = iIndent;
+         if( pHoist )
+         {
+            hb_csEmitIndent( yyc, iIndent );
+            fprintf( yyc, "{\n" );
+            hb_csBeginHoist( pHoist, yyc, iIndent + 1 );
+            iIfInd = iIndent + 1;
+         }
+         hb_csEmitIndent( yyc, iIfInd );
          fprintf( yyc, "if (" );
          {
             HB_BOOL fWrap = hb_csConditionNeedsBoolUnwrap(
@@ -3066,12 +3431,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             if( fWrap )
                fprintf( yyc, " == true" );
          }
+         s_pHoistCall = NULL;   /* stop substituting before the bodies */
          fprintf( yyc, ")\n" );
-         hb_csEmitIndent( yyc, iIndent );
+         hb_csEmitIndent( yyc, iIfInd );
          fprintf( yyc, "{\n" );
          if( pNode->value.asIf.pThen )
-            hb_csEmitBlock( pNode->value.asIf.pThen, yyc, iIndent + 1 );
-         hb_csEmitIndent( yyc, iIndent );
+            hb_csEmitBlock( pNode->value.asIf.pThen, yyc, iIfInd + 1 );
+         hb_csEmitIndent( yyc, iIfInd );
          fprintf( yyc, "}\n" );
 
          /* ELSEIF chain */
@@ -3081,18 +3447,18 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             {
                HB_BOOL fWrap = hb_csConditionNeedsBoolUnwrap(
                   pElseIf->value.asElseIf.pCondition );
-               hb_csEmitIndent( yyc, iIndent );
+               hb_csEmitIndent( yyc, iIfInd );
                fprintf( yyc, "else if (" );
                hb_csEmitExpr( pElseIf->value.asElseIf.pCondition, yyc, HB_FALSE );
                if( fWrap )
                   fprintf( yyc, " == true" );
                fprintf( yyc, ")\n" );
-               hb_csEmitIndent( yyc, iIndent );
+               hb_csEmitIndent( yyc, iIfInd );
                fprintf( yyc, "{\n" );
                s_iLastLine = 0;
                if( pElseIf->value.asElseIf.pBody )
-                  hb_csEmitBlock( pElseIf->value.asElseIf.pBody, yyc, iIndent + 1 );
-               hb_csEmitIndent( yyc, iIndent );
+                  hb_csEmitBlock( pElseIf->value.asElseIf.pBody, yyc, iIfInd + 1 );
+               hb_csEmitIndent( yyc, iIfInd );
                fprintf( yyc, "}\n" );
                pElseIf = pElseIf->pNext;
             }
@@ -3100,16 +3466,22 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
          if( pNode->value.asIf.pElse )
          {
-            hb_csEmitIndent( yyc, iIndent );
+            hb_csEmitIndent( yyc, iIfInd );
             fprintf( yyc, "else\n" );
-            hb_csEmitIndent( yyc, iIndent );
+            hb_csEmitIndent( yyc, iIfInd );
             fprintf( yyc, "{\n" );
             s_iLastLine = 0;
-            hb_csEmitBlock( pNode->value.asIf.pElse, yyc, iIndent + 1 );
+            hb_csEmitBlock( pNode->value.asIf.pElse, yyc, iIfInd + 1 );
+            hb_csEmitIndent( yyc, iIfInd );
+            fprintf( yyc, "}\n" );
+         }
+         if( pHoist )
+         {
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "}\n" );
          }
          break;
+      }
 
       case HB_AST_DOWHILE:
          hb_csEmitIndent( yyc, iIndent );
@@ -3793,6 +4165,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          collide with a same-named file-static free function. */
       const char * szKey =
          hb_refTabMethodKey( szClass, pFunc->value.asFunc.szName );
+      hb_csLocalTypeReset();
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
       hb_strncpy( s_szCurrentClass, szClass ? szClass : "",
                   sizeof( s_szCurrentClass ) - 1 );
@@ -3864,6 +4237,9 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szMethName, iPos );
             const HB_REFPARAM * pP =
                hb_refTabParam( s_pRefTab, szMethName, iPos );
+            /* By-ref array slot the callee never reassigns → plain dynamic[]. */
+            if( fThisRef && hb_csParamElidesArrayRef( szMethName, iPos ) )
+               fThisRef = HB_FALSE;
             const char * szSlotType = NULL;
             if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
                szSlotType = pP->szType;
@@ -4279,6 +4655,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       reftab key so it doesn't read a same-named global's entry. */
    {
       char szKeyBuf[ 256 ];
+      hb_csLocalTypeReset();
       hb_strncpy( s_szCurrentFunc,
                   hb_csFuncRefKey( pFunc->value.asFunc.szName,
                                    szKeyBuf, sizeof( szKeyBuf ) ),
@@ -4379,6 +4756,10 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       {
          HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szFnName, iPos );
          HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szFnName, iPos );
+         /* A by-ref array slot the callee never reassigns emits as a plain
+            `dynamic[]` — element mutation propagates without `ref`. */
+         if( fThisRef && hb_csParamElidesArrayRef( szFnName, iPos ) )
+            fThisRef = HB_FALSE;
          /* Prefer the table's per-slot type (which may have been
             refined from call sites in other files); only fall back to
             Hungarian inference if the table has nothing useful. */
@@ -4482,7 +4863,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       int k;
       for( k = 0; k < iMax; k++ )
       {
-         if( hb_refTabIsRef( s_pRefTab, szFnName, k ) )
+         if( hb_csParamEmitsRef( szFnName, k ) )
          {
             iFirstRef = k;
             break;
@@ -4587,7 +4968,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          {
             if( k > 0 )
                fprintf( yyc, ", " );
-            if( hb_refTabIsRef( s_pRefTab, szFnName, k ) )
+            if( hb_csParamEmitsRef( szFnName, k ) )
                fprintf( yyc, "ref _arg%d", k );
             else
                fprintf( yyc, "_arg%d", k );

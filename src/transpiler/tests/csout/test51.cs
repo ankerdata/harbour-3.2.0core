@@ -32,17 +32,17 @@ public static partial class Program
         aFlag[2] = 30;
         HbRuntime.QOut("before:" + HbRuntime.Str(aFlag[0], 4) + HbRuntime.Str(aFlag[1], 4) + HbRuntime.Str(aFlag[2], 4));
 
-        /* AddDelta's `aArr` parameter has the `a` Hungarian prefix, so
-      the reftab types it as array. Passing `@aFlag` here would be
-      `ref dynamic` against `ref dynamic[]` — exactly the CS1503
-      pattern this test guards against. */
-        AddDelta(ref aFlag, 5);
+        /* AddDelta only mutates elements of its array parameter, so the array
+      is passed plain (no `@`): element writes propagate through the shared
+      reference, C# arrays being reference types. aFlag still emits as
+      `dynamic[]` — the PUBLIC sized-array fix this test guards. */
+        AddDelta(aFlag, 5);
         HbRuntime.QOut("after: " + HbRuntime.Str(aFlag[0], 4) + HbRuntime.Str(aFlag[1], 4) + HbRuntime.Str(aFlag[2], 4));
 
         return;
     }
 
-    public static void AddDelta(ref dynamic[] aArr, decimal nDelta = default)
+    public static void AddDelta(dynamic[] aArr = default, decimal nDelta = default)
     {
         decimal nI = default;
         for (nI = 1; nI <= HbRuntime.Len(aArr); nI++)
