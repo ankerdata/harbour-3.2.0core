@@ -41,10 +41,10 @@ public static partial class Program
         dynamic buf = default;
         // call hoisted out of the if
         {
-            string _hbref0_0 = buf;
-            var _hbcall0 = FillBuf(ref _hbref0_0, nLen);
-            buf = _hbref0_0;
-            if (_hbcall0)
+            string _hbref_buf = buf;
+            var _hbcall_FillBuf = FillBuf(ref _hbref_buf, nLen);
+            buf = _hbref_buf;
+            if (_hbcall_FillBuf)
             {
                 return buf;
             }
@@ -62,26 +62,26 @@ public static partial class Program
         bool lOK = default;
         // statement-context reverse shim
         {
-            string _hbref0_0 = buf;
-            lOK = FillBuf(ref _hbref0_0, 3);
-            buf = _hbref0_0;
+            string _hbref_buf = buf;
+            lOK = FillBuf(ref _hbref_buf, 3);
+            buf = _hbref_buf;
         }
         HbRuntime.QOut("buf=" + buf + " ok=" + (lOK ? "Y" : "N"));
         // if-hoist, returns the buffer
         HbRuntime.QOut("grab=" + Grab(5));
         // statement-context original shim
         {
-            dynamic _hbref0_0 = nCount;
-            Bump66(ref _hbref0_0);
-            nCount = _hbref0_0;
+            dynamic _hbref_nCount = nCount;
+            Bump66(ref _hbref_nCount);
+            nCount = _hbref_nCount;
         }
         HbRuntime.QOut("count=" + HbRuntime.Str(nCount, 3));
         // expression-context original shim
         {
-            dynamic _hbref0_0 = nCount;
-            var _hbcall0 = Bump66(ref _hbref0_0);
-            nCount = _hbref0_0;
-            if (_hbcall0 > 0)
+            dynamic _hbref_nCount = nCount;
+            var _hbcall_Bump66 = Bump66(ref _hbref_nCount);
+            nCount = _hbref_nCount;
+            if (_hbcall_Bump66 > 0)
             {
                 HbRuntime.QOut("bumped=" + HbRuntime.Str(nCount, 3));
             }

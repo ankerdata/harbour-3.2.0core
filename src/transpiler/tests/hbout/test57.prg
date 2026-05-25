@@ -10,12 +10,12 @@
 // C# `ref` is invariant — a caller's `ref decimal` / `ref string`
 // lvalue cannot bind to `ref dynamic`. For a call STATEMENT the
 // transpiler wraps the call in a brace block that copies each such
-// lvalue through a `dynamic` temp and back:
+// lvalue through a temp named after it (`_hbref_<var>`) and back:
 //
 //     {
-//         dynamic _hbref1 = nGot;
-//         FetchValue(1, ref _hbref1);
-//         nGot = _hbref1;
+//         dynamic _hbref_nGot = nGot;
+//         FetchValue(1, ref _hbref_nGot);
+//         nGot = _hbref_nGot;
 //     }
 //
 // Covered here: a plain variable lvalue (@nGot / @cGot), a class

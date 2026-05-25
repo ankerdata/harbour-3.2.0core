@@ -767,7 +767,7 @@ static int             s_iShimDepth   = 0;
    emits s_szHoistVar in place of that exact funcall node, so the original
    expression reads the already-computed result. */
 static PHB_EXPR s_pHoistCall = NULL;
-static char     s_szHoistVar[ 32 ] = "";
+static char     s_szHoistVar[ 96 ] = "";
 
 /* Look up parameter iPos of a called function in the reftab. A
    file-scoped STATIC function is keyed <FileBase>::<Name> there (the
@@ -965,12 +965,58 @@ static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
    return szCs;
 }
 
-/* Declare a `<paramtype> _hbref<base>_<i>` temp seeded from each shimmed
-   lvalue. iBase identifies this shim block; within a call the per-arg
-   index <i> already disambiguates multiple refs, and iBase = the nesting
-   depth (see s_iShimDepth) keeps a nested block distinct from its
-   enclosing one (CS0136) while sequential sibling blocks — each its own
-   `{ }` scope — reuse the same low number. */
+/* Name the shim temp that backs a by-ref @arg. A plain @var becomes
+   `_hbref_<var>` (the variable name reads cleanly and is unique within a
+   call); a field / array element becomes `_hbref_<leaf>_<pos>` (the leaf
+   identifier can repeat, so the arg position keeps it unique). A nested
+   shim block (iDepth > 0) prefixes the depth so it can't shadow an
+   enclosing block's temp (CS0136). Deterministic in (pItem, iDepth, iPos)
+   so the temp declaration, the `ref` argument and the write-back all
+   compute the same name without shared state. szBuf must hold it. */
+static const char * hb_csShimTempName( PHB_EXPR pItem, int iDepth, int iPos,
+                                       char * szBuf, HB_SIZE nBuf )
+{
+   const char * szLeaf = NULL;
+   HB_BOOL fRef = HB_FALSE;
+   char szPfx[ 16 ];
+
+   if( pItem->ExprType == HB_ET_VARREF )
+      szLeaf = pItem->value.asSymbol.name;
+   else if( pItem->ExprType == HB_ET_REFERENCE )
+   {
+      PHB_EXPR pInner = pItem->value.asReference;
+      fRef = HB_TRUE;
+      if( pInner )
+      {
+         if( pInner->ExprType == HB_ET_SEND &&
+             pInner->value.asMessage.szMessage )
+            szLeaf = pInner->value.asMessage.szMessage;       /* obj:member */
+         else if( pInner->ExprType == HB_ET_VARIABLE )
+            szLeaf = pInner->value.asSymbol.name;
+         else if( pInner->ExprType == HB_ET_ARRAYAT &&
+                  pInner->value.asList.pExprList &&
+                  pInner->value.asList.pExprList->ExprType == HB_ET_VARIABLE )
+            szLeaf = pInner->value.asList.pExprList->value.asSymbol.name; /* arr[i] */
+      }
+   }
+   if( ! szLeaf || ! szLeaf[ 0 ] )
+      szLeaf = "arg";
+
+   if( iDepth > 0 )
+      hb_snprintf( szPfx, sizeof( szPfx ), "_hbref%d_", iDepth );
+   else
+      hb_strncpy( szPfx, "_hbref_", sizeof( szPfx ) - 1 );
+
+   if( fRef )
+      hb_snprintf( szBuf, nBuf, "%s%s_%d", szPfx, szLeaf, iPos );
+   else
+      hb_snprintf( szBuf, nBuf, "%s%s", szPfx, szLeaf );
+   return szBuf;
+}
+
+/* Declare a `<paramtype> <shimname> = <lvalue>;` temp for each shimmed
+   arg (see hb_csShimTempName for the naming, which encodes the nesting
+   depth iBase so a nested block can't shadow an enclosing one). */
 static void hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
                                 const HB_BOOL * aShim, int iBase,
                                 FILE * yyc, int iIndent )
@@ -981,11 +1027,12 @@ static void hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
    {
       if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
       {
-         char szBuf[ 96 ];
+         char szType[ 96 ], szName[ 96 ];
          const HB_REFPARAM * pP = hb_csCallParam( szFunc, iArg );
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "%s _hbref%d_%d = ",
-                  hb_csShimSlotType( pP, szBuf, sizeof( szBuf ) ), iBase, iArg );
+         fprintf( yyc, "%s %s = ",
+                  hb_csShimSlotType( pP, szType, sizeof( szType ) ),
+                  hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ) );
          hb_csEmitRefTarget( pArg, yyc );
          fprintf( yyc, ";\n" );
       }
@@ -1002,9 +1049,11 @@ static void hb_csEmitShimWriteback( PHB_EXPR pHead, const HB_BOOL * aShim,
    {
       if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
       {
+         char szName[ 96 ];
          hb_csEmitIndent( yyc, iIndent );
          hb_csEmitRefTarget( pArg, yyc );
-         fprintf( yyc, " = _hbref%d_%d;\n", iBase, iArg );
+         fprintf( yyc, " = %s;\n",
+                  hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ) );
       }
    }
 }
@@ -1085,7 +1134,11 @@ static void hb_csBeginHoist( PHB_EXPR pCall, FILE * yyc, int iIndent )
    hb_csEmitShimTemps( szFunc, pHead, aShim, iBase, yyc, iIndent );
 
    hb_csEmitIndent( yyc, iIndent );
-   hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall%d", iBase );
+   if( iBase > 0 )
+      hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall%d_%s",
+                   iBase, szFunc );
+   else
+      hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall_%s", szFunc );
    fprintf( yyc, "var %s = ", s_szHoistVar );
    s_aRefShim   = aShim;
    s_iRefShimBase = iBase;
@@ -1236,13 +1289,16 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                Unknown functions aren't in the table. */
          }
 
-         /* Shimmed slot: the enclosing block declared a
-            `_hbref<base>_<iPos>` temp of the parameter's type seeded from
-            the lvalue — pass it by ref (hb_csEmitShimWriteback copies it
-            back afterwards). */
+         /* Shimmed slot: the enclosing block declared a temp of the
+            parameter's type seeded from the lvalue (named by
+            hb_csShimTempName) — pass it by ref; hb_csEmitShimWriteback
+            copies it back afterwards. */
          if( aShim && iPos < HB_CS_MAXSHIM && aShim[ iPos ] )
          {
-            fprintf( yyc, "ref _hbref%d_%d", iShimBase, iPos );
+            char szName[ 96 ];
+            fprintf( yyc, "ref %s",
+                     hb_csShimTempName( pArg, iShimBase, iPos, szName,
+                                        sizeof( szName ) ) );
             pItem = pItem->pNext;
             continue;
          }

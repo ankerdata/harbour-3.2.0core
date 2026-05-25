@@ -13,12 +13,12 @@ using static Program;
 // C# `ref` is invariant — a caller's `ref decimal` / `ref string`
 // lvalue cannot bind to `ref dynamic`. For a call STATEMENT the
 // transpiler wraps the call in a brace block that copies each such
-// lvalue through a `dynamic` temp and back:
+// lvalue through a temp named after it (`_hbref_<var>`) and back:
 //
 //     {
-//         dynamic _hbref1 = nGot;
-//         FetchValue(1, ref _hbref1);
-//         nGot = _hbref1;
+//         dynamic _hbref_nGot = nGot;
+//         FetchValue(1, ref _hbref_nGot);
+//         nGot = _hbref_nGot;
 //     }
 //
 // Covered here: a plain variable lvalue (@nGot / @cGot), a class
@@ -48,33 +48,33 @@ public static partial class Program
 
         // bare call statement — typed numeric variable by-ref
         {
-            dynamic _hbref0_1 = nGot;
-            FetchValue(1, ref _hbref0_1);
-            nGot = _hbref0_1;
+            dynamic _hbref_nGot = nGot;
+            FetchValue(1, ref _hbref_nGot);
+            nGot = _hbref_nGot;
         }
         HbRuntime.QOut("num=" + HbRuntime.LTrim(HbRuntime.Str(nGot)));
 
         // bare call statement — typed string variable by-ref
         {
-            dynamic _hbref0_1 = cGot;
-            FetchValue(2, ref _hbref0_1);
-            cGot = _hbref0_1;
+            dynamic _hbref_cGot = cGot;
+            FetchValue(2, ref _hbref_cGot);
+            cGot = _hbref_cGot;
         }
         HbRuntime.QOut("str=" + HbRuntime.RTrim(cGot));
 
         // bare call statement — typed class DATA field by-ref
         {
-            dynamic _hbref0_1 = oH.nField;
-            FetchValue(1, ref _hbref0_1);
-            oH.nField = _hbref0_1;
+            dynamic _hbref_nField_1 = oH.nField;
+            FetchValue(1, ref _hbref_nField_1);
+            oH.nField = _hbref_nField_1;
         }
         HbRuntime.QOut("field=" + HbRuntime.LTrim(HbRuntime.Str(oH.nField)));
 
         // `var := Foo(@x)` form — the assignment-case shim
         {
-            dynamic _hbref0_1 = nGot;
-            lOk = FetchValue(1, ref _hbref0_1);
-            nGot = _hbref0_1;
+            dynamic _hbref_nGot = nGot;
+            lOk = FetchValue(1, ref _hbref_nGot);
+            nGot = _hbref_nGot;
         }
         HbRuntime.QOut("into=" + HbRuntime.LTrim(HbRuntime.Str(nGot)) + " ok=" + (lOk ? "Y" : "N"));
         return;
