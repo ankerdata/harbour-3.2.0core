@@ -102,9 +102,12 @@ RE_NAME_CLEANUP = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)")
 RE_ARROW = re.compile(r"-+>\s*([A-Za-z_][A-Za-z0-9_]*)")
 
 # `public static [<modifiers>] <ReturnType> Name(` in HbRuntime.cs.
-# We don't care about the return type or args, only the method name.
+# Group 1 = return type (used to fill a RETTYPE the docs don't supply),
+# group 2 = method name. The return type is captured non-greedily so the
+# trailing `\s+Name(` anchors it even for generic types like
+# `Dictionary<string, dynamic>` or `dynamic[]`.
 RE_HBRUNTIME_METHOD = re.compile(
-    r"^\s*public\s+static\s+(?:readonly\s+)?[A-Za-z_][\w<>,\[\] ]*\s+"
+    r"^\s*public\s+static\s+(?:readonly\s+)?([A-Za-z_][\w<>,\[\]?. ]*?)\s+"
     r"([A-Z][A-Za-z0-9_]*)\s*\(",
     re.MULTILINE,
 )
@@ -147,6 +150,33 @@ def infer_return_type(token: str) -> str | None:
         return PREFIX_TO_TYPE.get(first)
     return None
 
+# C# return type (from an HbRuntime.cs signature) → Harbour RETTYPE. Used
+# only to fill a RETTYPE the docs don't supply for a function implemented
+# in HbRuntime.cs — the C# signature is authoritative for what such a call
+# actually returns. `dynamic`, `void`, delegates and class types map to
+# None (left "-"): `dynamic`/`void` are deliberately untyped, and the rest
+# carry no Harbour-type equivalent worth propagating.
+CS_NUMERIC = {"decimal", "int", "long", "short", "byte", "sbyte",
+              "uint", "ulong", "ushort", "double", "float"}
+
+def cs_return_to_harbour(cs: str) -> str | None:
+    base = cs.strip().rstrip("?").strip()
+    if base in CS_NUMERIC:
+        return "NUMERIC"
+    if base == "string":
+        return "STRING"
+    if base == "bool":
+        return "LOGICAL"
+    if base in ("DateOnly", "System.DateOnly"):
+        return "DATE"
+    if base in ("DateTime", "System.DateTime"):
+        return "TIMESTAMP"
+    if base.endswith("[]"):
+        return "ARRAY"
+    if base.startswith("Dictionary"):
+        return "HASH"
+    return None  # dynamic / void / Func<...> / class types — leave unknown
+
 # ---- collection -----------------------------------------------------------
 
 def iter_files(roots, suffixes):
@@ -182,20 +212,22 @@ def harvest_names() -> dict[str, str]:
 
     return names
 
-def harvest_hbruntime_methods() -> dict[str, str]:
-    """Return the dict of public static method names defined in
-    HbRuntime.cs, keyed by uppercase name → canonical casing. These
-    are the functions the C# emitter must remap with the `HbRuntime.`
-    prefix; preserving canonical casing matters because C# is case-
-    sensitive and Harbour is not."""
-    methods: dict[str, str] = {}
+def harvest_hbruntime_methods() -> dict[str, tuple[str, str]]:
+    """Return the public static methods defined in HbRuntime.cs, keyed by
+    uppercase name → (canonical casing, C# return type). These are the
+    functions the C# emitter must remap with the `HbRuntime.` prefix;
+    preserving canonical casing matters because C# is case-sensitive and
+    Harbour is not. The C# return type lets write_table fill a RETTYPE the
+    docs don't supply."""
+    methods: dict[str, tuple[str, str]] = {}
     if not HBRUNTIME_CS.exists():
         print(f"warning: {HBRUNTIME_CS} not found", file=sys.stderr)
         return methods
     text = HBRUNTIME_CS.read_text(encoding="utf-8", errors="replace")
     for m in RE_HBRUNTIME_METHOD.finditer(text):
-        name = m.group(1)
-        methods.setdefault(name.upper(), name)
+        rettype = m.group(1).strip()
+        name = m.group(2)
+        methods.setdefault(name.upper(), (name, rettype))
     return methods
 
 def harvest_doc_types() -> dict[str, str]:
@@ -272,7 +304,7 @@ HEADER = """\
 """
 
 def write_table(path: Path,
-                hbruntime: dict[str, str],
+                hbruntime: dict[str, tuple[str, str]],
                 types: dict[str, str]):
     """Emit a row whenever a function has at least one piece of
     information attached: either a prefix (it's implemented in
@@ -288,8 +320,14 @@ def write_table(path: Path,
     all_names = set(hbruntime) | set(types.keys())
     rows = []
     for key in sorted(all_names):
-        canon   = hbruntime.get(key, key)
-        rettype = types.get(key) or "-"
+        entry   = hbruntime.get(key)        # (canon, cs_rettype) or None
+        canon   = entry[0] if entry else key
+        # Docs win; otherwise an HbRuntime method's RETTYPE comes from its
+        # C# return type (authoritative for what the call yields).
+        rettype = types.get(key)
+        if not rettype and entry:
+            rettype = cs_return_to_harbour(entry[1])
+        rettype = rettype or "-"
         prefix  = "HbRuntime" if key in hbruntime else "-"
         rows.append(f"{canon}\t{rettype}\t{prefix}")
     with path.open("w", encoding="utf-8") as f:
