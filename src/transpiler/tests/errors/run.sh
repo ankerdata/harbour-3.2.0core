@@ -7,7 +7,7 @@
 # functions available to downstream callers (historically we hard-failed
 # these, which dropped 10 real files from the easipos build and CS0103'd
 # every downstream caller). Others flag a source smell that codegen
-# still handles, e.g. W0021 (`@` on a never-reassigned array param).
+# still handles, e.g. W0023 (`@` on a never-reassigned array param).
 # Tests verify the warning is surfaced, not that codegen hard-fails.
 #
 # Usage: bash tests/errors/run.sh
@@ -46,7 +46,7 @@ run_one "$SCRIPT_DIR/alias_stmt.prg" "W0016" "ALIAS (expression|reference)"
 run_one "$SCRIPT_DIR/alias_expr.prg" "W0016" "ALIAS (expression|reference)"
 run_one "$SCRIPT_DIR/macro_expr.prg" "W0016" "macro &"
 run_one "$SCRIPT_DIR/comma_op.prg"   "W0016" "comma-operator"
-run_one "$SCRIPT_DIR/array_ref_noreassign.prg" "W0021" "redundant"
+run_one "$SCRIPT_DIR/array_ref_noreassign.prg" "W0023" "redundant"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

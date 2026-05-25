@@ -10,7 +10,7 @@ using static Program;
 // So:
 //   Scale()   mutates elements only  -> param emitted plain `dynamic[]`,
 //             the call drops the `ref`/shim (and the transpiler warns
-//             W0021 that the `@` is redundant).
+//             W0023 that the `@` is redundant).
 //   Replace() reassigns the variable -> param stays `ref dynamic[]` so
 //             the new array reaches the caller.
 //

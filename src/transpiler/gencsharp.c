@@ -334,7 +334,8 @@ static void hb_csWarnUnsupported( const char * szDesc )
    if( s_pCompCtx )
    {
       fprintf( stderr, "hbtranspiler: %s(%d): warning W0016  Unsupported construct '%s'\n",
-               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_pCompCtx->currModule
+                  ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
                s_pCompCtx->currLine, szDesc ? szDesc : "?" );
    }
    s_iAliasUnsupported++;
@@ -395,7 +396,8 @@ static void hb_csWarnExtraArgs( const char * szFunc, PHB_EXPR pParms )
       fprintf( stderr,
                "hbtranspiler: %s(%d): warning W0018  "
                "Call to '%s' passes %d args but declaration takes %d\n",
-               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_pCompCtx->currModule
+                  ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
                s_iCurrentStmtLine, szFunc, iPassed, iDeclared );
    }
 }
@@ -464,7 +466,8 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
       fprintf( stderr,
                "hbtranspiler: %s(%d): warning W0020  "
                "Call to '%s' omits '@' on ref parameter #%d\n",
-               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_pCompCtx->currModule
+                  ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
                s_iCurrentStmtLine, szFunc, iFirstMissing + 1 );
 }
 
@@ -839,10 +842,11 @@ static void hb_csWarnArrayRefElided( const char * szFunc, PHB_EXPR pParms )
 
    if( iFirst >= 0 && s_pCompCtx )
       fprintf( stderr,
-               "hbtranspiler: %s(%d): warning W0021  "
+               "hbtranspiler: %s(%d): warning W0023  "
                "'@' on array parameter #%d of '%s' is redundant — "
                "the callee never reassigns it\n",
-               s_pCompCtx->currModule ? s_pCompCtx->currModule : "?",
+               s_pCompCtx->currModule
+                  ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
                s_iCurrentStmtLine, iFirst + 1, szFunc );
 }
 
@@ -2139,7 +2143,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      across call sites — C# rejects as CS1620). */
                   hb_csWarnMissingRef( szName, pExpr->value.asFunCall.pParms );
                   /* Flag `@array` passed to a param the callee never
-                     reassigns — the `@` is redundant (W0021). */
+                     reassigns — the `@` is redundant (W0023). */
                   hb_csWarnArrayRefElided( szName, pExpr->value.asFunCall.pParms );
                }
             }

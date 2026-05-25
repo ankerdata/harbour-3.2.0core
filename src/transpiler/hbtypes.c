@@ -16,6 +16,68 @@
 #include "hbfunctab.h"
 #include "hbreftab.h"
 
+/* Lexically collapse `<seg>/../` and `./` from a path so warning messages
+   read `/a/b/c` instead of `/a/x/../b/c` (scan/gen invoke the transpiler
+   with paths like `$ROOT/../easipos/...`). Purely textual — no
+   filesystem access, so it works on a path whose `..` segment doesn't
+   resolve on disk. Returns a static buffer, or szPath unchanged when
+   there is nothing to collapse / it is too long. */
+const char * hb_strCollapsePath( const char * szPath )
+{
+   static char s_szBuf[ 1024 ];
+   char        work[ 1024 ];
+   const char * segs[ 256 ];
+   int         nseg = 0, i;
+   char *      p, * q, * o;
+   HB_SIZE     rem;
+   HB_BOOL     fAbs;
+
+   if( ! szPath || ! strstr( szPath, ".." ) )
+      return szPath;
+   if( strlen( szPath ) >= sizeof( work ) )
+      return szPath;
+   hb_strncpy( work, szPath, sizeof( work ) - 1 );
+   fAbs = ( work[ 0 ] == '/' );
+
+   for( p = work; *p; )
+   {
+      while( *p == '/' )
+         p++;
+      if( ! *p )
+         break;
+      for( q = p; *q && *q != '/'; q++ )
+         ;
+      if( *q )
+         *q++ = '\0';
+      if( strcmp( p, "." ) == 0 )
+         { p = q; continue; }
+      if( strcmp( p, ".." ) == 0 && nseg > 0 &&
+          strcmp( segs[ nseg - 1 ], ".." ) != 0 )
+         { nseg--; p = q; continue; }
+      if( nseg < 256 )
+         segs[ nseg++ ] = p;
+      p = q;
+   }
+
+   o = s_szBuf;
+   rem = sizeof( s_szBuf );
+   if( fAbs && rem > 1 )
+      { *o++ = '/'; rem--; }
+   for( i = 0; i < nseg; i++ )
+   {
+      HB_SIZE sl = strlen( segs[ i ] );
+      if( i > 0 && rem > 1 )
+         { *o++ = '/'; rem--; }
+      if( sl + 1 >= rem )
+         break;
+      memcpy( o, segs[ i ], sl );
+      o += sl;
+      rem -= sl;
+   }
+   *o = '\0';
+   return s_szBuf;
+}
+
 /*
  * Infer type from an initializer expression.
  * Returns a type string or NULL if type cannot be determined.
@@ -823,7 +885,8 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                const HB_REFPARAM * pP =
                   hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
                const char * szPName = ( pP && pP->szName ) ? pP->szName : "?";
-               const char * szF = pEnv->szFile ? pEnv->szFile : "?";
+               const char * szF =
+                  pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?";
                fprintf( stderr,
                   "hbtranspiler: %s(%d): warning W0022  "
                   "Call to '%s' passes %s for parameter '%s' but earlier "

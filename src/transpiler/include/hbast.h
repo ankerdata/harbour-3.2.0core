@@ -354,6 +354,10 @@ extern void         hb_astEndForEach( HB_COMP_DECL );
 extern void         hb_astBeginWithObject( HB_COMP_DECL, PHB_EXPR pObject, int iLine );
 extern void         hb_astEndWithObject( HB_COMP_DECL );
 
+/* Lexically collapse `<seg>/../` and `./` in a path (hbtypes.c). Returns
+   a static buffer (or the input unchanged). Used to tidy warning paths. */
+extern const char * hb_strCollapsePath( const char * szPath );
+
 /* Type inference (hbtypes.c) */
 extern const char * hb_astInferType( const char * szName, PHB_EXPR pInit );
 extern const char * hb_astInferTypeFromInit( const char * szName, const char * szInit );
