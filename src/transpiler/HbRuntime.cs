@@ -37,7 +37,7 @@ public static partial class HbRuntime
         // (missing become NIL); DynamicInvoke throws on any mismatch,
         // so fit the count to the delegate's real parameter list.
         var fitted = new object[ps.Length];
-        Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
+        System.Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
         return d.DynamicInvoke(fitted);
     }
 
@@ -141,7 +141,7 @@ public static partial class HbRuntime
     public static decimal Len(dynamic x)
     {
         if (x is string s) return s.Length;
-        if (x is Array a) return a.Length;
+        if (x is System.Array a) return a.Length;
         // Harbour Len() of a hash is its key count.
         if (x is System.Collections.IDictionary h) return h.Count;
         return 0;
@@ -226,7 +226,7 @@ public static partial class HbRuntime
         if (val is decimal d) return d == 0;
         if (val is string s) return s.Trim().Length == 0;
         if (val is bool b) return !b;
-        if (val is Array a) return a.Length == 0;
+        if (val is System.Array a) return a.Length == 0;
         if (val is System.Collections.IDictionary h) return h.Count == 0;
         return false;
     }
@@ -273,7 +273,7 @@ public static partial class HbRuntime
     public static dynamic AAdd(ref dynamic[] arr, dynamic val)
     {
         int n = arr?.Length ?? 0;
-        Array.Resize(ref arr, n + 1);
+        System.Array.Resize(ref arr, n + 1);
         arr[n] = val;
         return val;
     }
@@ -290,7 +290,7 @@ public static partial class HbRuntime
         {
             int n = objArr.Length;
             var tmp = new dynamic[n + 1];
-            Array.Copy(objArr, tmp, n);
+            System.Array.Copy(objArr, tmp, n);
             tmp[n] = val;
             arr = tmp;
         }
@@ -315,7 +315,7 @@ public static partial class HbRuntime
         if (arr == null)
             arr = new dynamic[n];
         else
-            Array.Resize(ref arr, n);
+            System.Array.Resize(ref arr, n);
         return arr;
     }
 
@@ -324,7 +324,7 @@ public static partial class HbRuntime
         int n = (int)nLen;
         var tmp = new dynamic[n];
         if (arr is object[] objArr)
-            Array.Copy(objArr, tmp, Math.Min(objArr.Length, n));
+            System.Array.Copy(objArr, tmp, Math.Min(objArr.Length, n));
         arr = tmp;
         return tmp;
     }
@@ -339,7 +339,7 @@ public static partial class HbRuntime
         if (arr is object[] objArr)
         {
             var copy = new dynamic[n];
-            Array.Copy(objArr, copy, Math.Min(objArr.Length, n));
+            System.Array.Copy(objArr, copy, Math.Min(objArr.Length, n));
             return copy;
         }
         return new dynamic[n];
@@ -430,7 +430,7 @@ public static partial class HbRuntime
         if (x is decimal || x is int || x is long || x is double || x is float) return "N";
         if (x is bool) return "L";
         if (x is DateOnly || x is DateTime) return "D";
-        if (x is Array) return "A";
+        if (x is System.Array) return "A";
         if (x is Delegate) return "B";
         if (x is System.Collections.IDictionary) return "H";
         return "O";
@@ -581,11 +581,11 @@ public static partial class HbRuntime
     public static bool ISNUMBER(dynamic x) => x is decimal or int or long or double or float;
     public static bool ISLOGICAL(dynamic x) => x is bool;
     public static bool ISDATE(dynamic x) => x is DateOnly or DateTime;
-    public static bool ISARRAY(dynamic x) => x is Array;
+    public static bool ISARRAY(dynamic x) => x is System.Array;
     public static bool ISHASH(dynamic x) => x is System.Collections.IDictionary;
     public static bool ISOBJECT(dynamic x) =>
         x is not null && !(x is string or bool or decimal or int or long or double or float
-                          or DateOnly or DateTime or Array or Delegate
+                          or DateOnly or DateTime or System.Array or Delegate
                           or System.Collections.IDictionary);
     public static bool ISBLOCK(dynamic x) => x is Delegate;
 
@@ -623,7 +623,7 @@ public static partial class HbRuntime
     public static dynamic hb_HKeys(dynamic h)
     {
         var d = AsDict(h);
-        if (d == null) return Array.Empty<dynamic>();
+        if (d == null) return System.Array.Empty<dynamic>();
         var r = new dynamic[d.Count];
         int i = 0;
         foreach (var k in d.Keys) r[i++] = k;
@@ -632,7 +632,7 @@ public static partial class HbRuntime
     public static dynamic hb_HValues(dynamic h)
     {
         var d = AsDict(h);
-        if (d == null) return Array.Empty<dynamic>();
+        if (d == null) return System.Array.Empty<dynamic>();
         var r = new dynamic[d.Count];
         int i = 0;
         foreach (var v in d.Values) r[i++] = v;
@@ -656,15 +656,15 @@ public static partial class HbRuntime
                 // should sort before the second. Map that to a proper
                 // three-way comparison: a `? -1 : 1` shortcut returns 1
                 // for both (a,b) and (b,a) on equal elements, which is
-                // an inconsistent comparer — Array.Sort throws on it.
-                Array.Sort(objArr, (a, b) =>
+                // an inconsistent comparer — System.Array.Sort throws on it.
+                System.Array.Sort(objArr, (a, b) =>
                 {
                     if ((bool)Eval(block, a, b)) return -1;
                     if ((bool)Eval(block, b, a)) return 1;
                     return 0;
                 });
             else
-                Array.Sort(objArr, (a, b) => Comparer<dynamic>.Default.Compare(a, b));
+                System.Array.Sort(objArr, (a, b) => Comparer<dynamic>.Default.Compare(a, b));
         }
         return arr;
     }
@@ -928,7 +928,7 @@ public static partial class HbRuntime
     public static dynamic MacroStub;
 
     public static decimal RecNo() => 0;
-    public static dynamic Directory(string cSpec = "*.*", string cAttr = "") => Array.Empty<dynamic>();
+    public static dynamic Directory(string cSpec = "*.*", string cAttr = "") => System.Array.Empty<dynamic>();
 
     // ---- Function-reference resolution (Harbour's @FunName() operator) ----
 
@@ -960,7 +960,7 @@ public static partial class HbRuntime
         // every .prg file's partial contribution. If someone builds a
         // multi-program executable, the lookup here will miss and
         // callers get the throwing sentinel.
-        var programType = Type.GetType("Program")
+        var programType = System.Type.GetType("Program")
             ?? System.Reflection.Assembly.GetExecutingAssembly().GetType("Program")
             ?? System.AppDomain.CurrentDomain.GetAssemblies()
                 .Select(a => a.GetType("Program"))
