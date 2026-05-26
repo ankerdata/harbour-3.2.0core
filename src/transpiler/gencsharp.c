@@ -87,6 +87,15 @@ static const char * s_pFileStaticTypes[ HB_CS_MAX_FILE_STATICS ];
 static int s_iFileStaticCount = 0;
 static char s_szFileBase[ 64 ] = "";
 
+/* Column at which a hash/array literal should place each top-level
+   element when broken across lines. Zero means "stay on one line"
+   (the historical behaviour and the only mode that's safe inside
+   nested expression contexts where we don't track the running cut
+   point). Set just before emitting a multi-line-eligible initializer
+   (currently file-static class fields) and cleared right after, so
+   incidental expression emits elsewhere are unaffected. */
+static int s_iExprIndent = 0;
+
 static HB_BOOL hb_csIsFileStatic( const char * szName )
 {
    int i;
@@ -2560,24 +2569,71 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_HASH:
          {
             PHB_EXPR pItem;
-            fprintf( yyc, "new Dictionary<string, dynamic> { " );
-            pItem = pExpr->value.asList.pExprList;
-            while( pItem )
+            HB_BOOL fComplex = HB_FALSE;
+            int    iInd = s_iExprIndent;
+
+            /* "Complex" = any value is itself a hash or array literal.
+               A flag/config dict like Flags_shFlags has one nested
+               meta-hash per key and reads as a 500KB single line in
+               the historical layout. A scalar-valued hash (the typical
+               POSDialog payload) stays single-line. */
+            for( pItem = pExpr->value.asList.pExprList;
+                 pItem && ! fComplex; )
             {
-               fprintf( yyc, "{ " );
-               hb_csEmitExpr( pItem, yyc, HB_FALSE );
-               pItem = pItem->pNext;
-               if( pItem )
+               PHB_EXPR pVal = pItem->pNext;
+               if( ! pVal )
+                  break;
+               if( pVal->ExprType == HB_ET_HASH ||
+                   pVal->ExprType == HB_ET_ARRAY )
+                  fComplex = HB_TRUE;
+               pItem = pVal->pNext;
+            }
+
+            if( fComplex && iInd > 0 )
+            {
+               fprintf( yyc, "new Dictionary<string, dynamic>\n%*s{\n",
+                        iInd - 4, "" );
+               /* Bump indent so a nested complex hash/array (if we add
+                  one to the heuristic later) lines its own children up
+                  one level deeper. Restored on the way out. */
+               s_iExprIndent = iInd + 4;
+               for( pItem = pExpr->value.asList.pExprList; pItem; )
                {
-                  fprintf( yyc, ", " );
+                  fprintf( yyc, "%*s{ ", iInd, "" );
                   hb_csEmitExpr( pItem, yyc, HB_FALSE );
                   pItem = pItem->pNext;
+                  if( pItem )
+                  {
+                     fprintf( yyc, ", " );
+                     hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                     pItem = pItem->pNext;
+                  }
+                  fprintf( yyc, " }%s\n", pItem ? "," : "" );
+               }
+               s_iExprIndent = iInd;
+               fprintf( yyc, "%*s}", iInd - 4, "" );
+            }
+            else
+            {
+               fprintf( yyc, "new Dictionary<string, dynamic> { " );
+               pItem = pExpr->value.asList.pExprList;
+               while( pItem )
+               {
+                  fprintf( yyc, "{ " );
+                  hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                  pItem = pItem->pNext;
+                  if( pItem )
+                  {
+                     fprintf( yyc, ", " );
+                     hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                     pItem = pItem->pNext;
+                  }
+                  fprintf( yyc, " }" );
+                  if( pItem )
+                     fprintf( yyc, ", " );
                }
                fprintf( yyc, " }" );
-               if( pItem )
-                  fprintf( yyc, ", " );
             }
-            fprintf( yyc, " }" );
          }
          break;
 
@@ -5439,7 +5495,14 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         if( pStmt->value.asVar.pInit )
                         {
                            fprintf( yyc, " = " );
+                           /* The field is indented 4 spaces (class body
+                              level 1); a complex hash/array literal's
+                              children should sit one level deeper at 8.
+                              hb_csEmitExpr reads this and resets it on
+                              the way out. */
+                           s_iExprIndent = 8;
                            hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
+                           s_iExprIndent = 0;
                         }
                         fprintf( yyc, ";\n" );
                      }
