@@ -1157,6 +1157,146 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
  *
  * Returns the inferred return type string, or NULL if it can't be determined.
  */
+/* Emit W0024 when an assignment's RHS conflicts with the lvalue's
+   Hungarian prefix. The LHS type comes from the prefix alone (the strict
+   contract — "if you spelled it `nFoo` you committed to numeric"); the
+   env is consulted only for the RHS, where inference may have refined it
+   via the initializer / function returns / operator types. `x` and
+   unprefixed names yield USUAL and are skipped, as does OBJECT on either
+   side (a generic-object lvalue can legitimately be assigned a specific
+   class, etc.). Non-halting — codegen continues. */
+/* Dedup table for W0024 — hb_astPropagate runs during both the scan and
+   the emit, so without this each conflict would fire twice. One process
+   per .prg, so a small per-process table is plenty. */
+#define HB_HUNG_DEDUP 1024
+static struct { int iLine; char szName[ 64 ]; } s_aHungWarned[ HB_HUNG_DEDUP ];
+static int s_iHungWarned = 0;
+
+static HB_BOOL hb_astHungSeen( int iLine, const char * szName )
+{
+   int i;
+   if( ! szName )
+      return HB_TRUE;
+   for( i = 0; i < s_iHungWarned; i++ )
+      if( s_aHungWarned[ i ].iLine == iLine &&
+          strcmp( s_aHungWarned[ i ].szName, szName ) == 0 )
+         return HB_TRUE;
+   if( s_iHungWarned < HB_HUNG_DEDUP )
+   {
+      s_aHungWarned[ s_iHungWarned ].iLine = iLine;
+      hb_strncpy( s_aHungWarned[ s_iHungWarned ].szName, szName,
+                  sizeof( s_aHungWarned[ s_iHungWarned ].szName ) - 1 );
+      s_iHungWarned++;
+   }
+   return HB_FALSE;
+}
+
+static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
+                                  HB_TYPEENV * pEnv, const char * szFile,
+                                  int iLine )
+{
+   const char * szLhs;
+   const char * szRhs;
+
+   if( ! szName || ! pRHS )
+      return;
+   szLhs = hb_astInferType( szName, NULL );    /* prefix only */
+   szRhs = hb_astInferExprType( pRHS, pEnv );
+   if( ! szLhs || ! szRhs )
+      return;
+   if( hb_stricmp( szLhs, "USUAL" ) == 0 ||
+       hb_stricmp( szLhs, "OBJECT" ) == 0 )
+      return;
+   if( hb_stricmp( szRhs, "USUAL" ) == 0 ||
+       hb_stricmp( szRhs, "OBJECT" ) == 0 )
+      return;
+   if( hb_stricmp( szLhs, szRhs ) == 0 )
+      return;
+   if( hb_astHungSeen( iLine, szName ) )
+      return;
+   fprintf( stderr,
+            "hbtranspiler: %s(%d): warning W0024  "
+            "assigning %s to '%s' contradicts its Hungarian-prefix type %s\n",
+            hb_strCollapsePath( szFile ? szFile : "?" ),
+            iLine, szRhs, szName, szLhs );
+}
+
+static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
+                                          HB_TYPEENV * pEnv,
+                                          const char * szFile )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return;
+   pStmt = pBlock->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            if( pStmt->value.asExprStmt.pExpr )
+            {
+               PHB_EXPR pExpr = pStmt->value.asExprStmt.pExpr;
+               if( pExpr->ExprType == HB_EO_ASSIGN &&
+                   pExpr->value.asOperator.pLeft &&
+                   pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+               {
+                  hb_astCheckOneAssign(
+                     pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                     pExpr->value.asOperator.pRight,
+                     pEnv, szFile, pStmt->iLine );
+               }
+            }
+            break;
+         case HB_AST_FOR:
+            if( pStmt->value.asFor.szVar && pStmt->value.asFor.pStart )
+               hb_astCheckOneAssign( pStmt->value.asFor.szVar,
+                                     pStmt->value.asFor.pStart,
+                                     pEnv, szFile, pStmt->iLine );
+            hb_astCheckHungarianMismatch( pStmt->value.asFor.pBody, pEnv, szFile );
+            break;
+         case HB_AST_FOREACH:
+            hb_astCheckHungarianMismatch( pStmt->value.asForEach.pBody, pEnv, szFile );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astCheckHungarianMismatch( pStmt->value.asWhile.pBody, pEnv, szFile );
+            break;
+         case HB_AST_IF:
+            hb_astCheckHungarianMismatch( pStmt->value.asIf.pThen, pEnv, szFile );
+            {
+               PHB_AST_NODE pElseIf = pStmt->value.asIf.pElseIfs;
+               while( pElseIf )
+               {
+                  hb_astCheckHungarianMismatch( pElseIf->value.asElseIf.pBody,
+                                                pEnv, szFile );
+                  pElseIf = pElseIf->pNext;
+               }
+            }
+            hb_astCheckHungarianMismatch( pStmt->value.asIf.pElse, pEnv, szFile );
+            break;
+         case HB_AST_DOCASE:
+            {
+               PHB_AST_NODE pCase = pStmt->value.asDoCase.pCases;
+               while( pCase )
+               {
+                  hb_astCheckHungarianMismatch( pCase->value.asCase.pBody,
+                                                pEnv, szFile );
+                  pCase = pCase->pNext;
+               }
+            }
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astCheckHungarianMismatch( pStmt->value.asWithObj.pBody,
+                                          pEnv, szFile );
+            break;
+         default:
+            break;
+      }
+      pStmt = pStmt->pNext;
+   }
+}
+
 const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                               void * pRefTab, const char * szFuncKey,
                               const char * szFile )
@@ -1233,6 +1373,14 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
       {
          const char * szType = NULL;
+         /* W0024: an initializer whose type contradicts the variable's
+            Hungarian prefix — `local aFoo := { => }` (init is a HASH but
+            `a` says ARRAY). Same dedup as the assignment-statement check
+            below, so the warning fires once per (line, name). */
+         if( pStmt->value.asVar.pInit )
+            hb_astCheckOneAssign( pStmt->value.asVar.szName,
+                                  pStmt->value.asVar.pInit, &env, szFile,
+                                  pStmt->iLine );
          if( pStmt->value.asVar.pInit )
             szType = hb_astInferExprType( pStmt->value.asVar.pInit, &env );
          if( ! szType )
@@ -1242,6 +1390,12 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       }
       pStmt = pStmt->pNext;
    }
+
+   /* Pass 1.5: emit W0024 where an assignment's RHS contradicts the
+      lvalue's Hungarian prefix. Runs once on the Pass-1-seeded env so it
+      sees the strict initial typing, not the lenient post-propagation
+      one. Non-halting; codegen continues. */
+   hb_astCheckHungarianMismatch( pBody, &env, szFile );
 
    /* Pass 2: Walk assignments and propagate (iterate until stable) */
    do

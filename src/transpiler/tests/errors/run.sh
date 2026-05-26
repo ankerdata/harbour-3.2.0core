@@ -47,6 +47,7 @@ run_one "$SCRIPT_DIR/alias_expr.prg" "W0016" "ALIAS (expression|reference)"
 run_one "$SCRIPT_DIR/macro_expr.prg" "W0016" "macro &"
 run_one "$SCRIPT_DIR/comma_op.prg"   "W0016" "comma-operator"
 run_one "$SCRIPT_DIR/array_ref_noreassign.prg" "W0023" "redundant"
+run_one "$SCRIPT_DIR/hungarian_mismatch.prg"    "W0024" "contradicts its Hungarian-prefix"
 
 echo ""
 echo "Results: $pass passed, $fail failed"
