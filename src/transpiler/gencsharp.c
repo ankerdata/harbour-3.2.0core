@@ -2483,11 +2483,15 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             /* Decide hash-vs-array. Hash if any of:
                  - the index is a string literal or a string-typed
                    expression (e.g. `Str(N)`)
-                 - the indexed expression itself looks like a hash
-                   (Hungarian `h` prefix on a variable, or message
-                   name starting with `h`). Dictionary<string, dynamic>
-                   accepts any string key; this lets foreach loop
-                   variables iterating hb_hKeys flow without a cast. */
+                 - the index is a `c<X>` / `sc<X>`-prefixed variable
+                   (resolves to STRING via the type registry / Hungarian)
+                 - the indexed expression resolves to HASH via the
+                   type registry (locals, file-statics, params) or via
+                   Hungarian on a `h<X>` / `sh<X>` name (variable or
+                   message).
+               Dictionary<string, dynamic> accepts any string key; the
+               array branch wraps in `(int)(...) - 1` which is wrong
+               for hashes and produces CS errors at runtime indices. */
             HB_BOOL fHash = HB_FALSE;
             PHB_EXPR pIdx = pExpr->value.asList.pIndex;
             PHB_EXPR pLhs = pExpr->value.asList.pExprList;
@@ -2495,7 +2499,20 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fHash = HB_TRUE;
             if( ! fHash && pIdx )
             {
-               const char * szT = hb_astInferType( NULL, pIdx );
+               /* For a bare variable index we need its declared/inferred
+                  type. hb_astInferType( NULL, pIdx ) sees no name (only
+                  the expression) and falls through to USUAL — pass the
+                  variable's own name so its `c`/`sc` prefix is honored,
+                  and prefer the type registry which captures explicit
+                  type seeding from declarations. */
+               const char * szT = NULL;
+               if( pIdx->ExprType == HB_ET_VARIABLE )
+                  szT = hb_csArgVarType( pIdx->value.asSymbol.name );
+               if( ! szT )
+                  szT = hb_astInferType(
+                     pIdx->ExprType == HB_ET_VARIABLE
+                        ? pIdx->value.asSymbol.name : NULL,
+                     pIdx );
                if( szT && hb_stricmp( szT, "STRING" ) == 0 )
                   fHash = HB_TRUE;
             }
@@ -2507,10 +2524,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   szLhsName = pLhs->value.asSymbol.name;
                else if( pLhs->ExprType == HB_ET_SEND )
                   szLhsName = pLhs->value.asMessage.szMessage;
-               if( szLhsName &&
-                   ( szLhsName[ 0 ] == 'h' || szLhsName[ 0 ] == 'H' ) &&
-                   szLhsName[ 1 ] >= 'A' && szLhsName[ 1 ] <= 'Z' )
-                  fHash = HB_TRUE;
+               if( szLhsName )
+               {
+                  const char * szT = hb_csArgVarType( szLhsName );
+                  if( ! szT )
+                     szT = hb_astInferType( szLhsName, NULL );
+                  if( szT && hb_stricmp( szT, "HASH" ) == 0 )
+                     fHash = HB_TRUE;
+               }
             }
             if( fHash )
             {
