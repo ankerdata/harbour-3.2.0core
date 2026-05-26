@@ -25,13 +25,13 @@ using static Program;
 // Output must round-trip identically through -GT and -GS.
 public static partial class Program
 {
-    public static dynamic[] test70_saTotals = new dynamic[(int)(3)];
+    public static dynamic[] test70_saTotals = new dynamic[3];
     public static void Main(string[] args)
     {
         // 1-D dim'd LOCAL
-        dynamic[] aConfirm = new dynamic[(int)(5)];
+        dynamic[] aConfirm = new dynamic[5];
         // 2-D — only outer dim sized eagerly
-        dynamic[] aGrid = new dynamic[(int)(2)];
+        dynamic[] aGrid = new dynamic[2];
         decimal nI = default;
 
         for (nI = 1; nI <= 3; nI++)

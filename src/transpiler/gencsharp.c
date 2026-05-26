@@ -24,6 +24,30 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
 static void hb_csEmitIndent( FILE * yyc, int iIndent );
+
+/* Emit a dim expression inside an `new dynamic[<dim>]` allocation. A
+   long integer literal goes bare (`5`); anything else is wrapped in
+   `(int)(...)` to coerce whatever Harbour computed at runtime — a
+   `#define`d constant, a `decimal` local, etc. — into the int that
+   C# `new T[n]` requires. NULL pDim falls back to a literal 0 so the
+   site still compiles. */
+static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
+{
+   if( ! pDim )
+   {
+      fprintf( yyc, "0" );
+      return;
+   }
+   if( pDim->ExprType == HB_ET_NUMERIC &&
+       pDim->value.asNum.NumType == HB_ET_LONG )
+   {
+      fprintf( yyc, "%" HB_PFS "d", pDim->value.asNum.val.l );
+      return;
+   }
+   fprintf( yyc, "(int)(" );
+   hb_csEmitExpr( pDim, yyc, HB_FALSE );
+   fprintf( yyc, ")" );
+}
 static const char * hb_csTypeMap( const char * szHbType );
 static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
                                        HB_SIZE nBuf );
@@ -3388,13 +3412,10 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                PHB_EXPR pDim =
                   pNode->value.asVar.pInit->value.asList.pExprList;
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "dynamic[] %s = new dynamic[(int)(",
+               fprintf( yyc, "dynamic[] %s = new dynamic[",
                         pNode->value.asVar.szName );
-               if( pDim )
-                  hb_csEmitExpr( pDim, yyc, HB_FALSE );
-               else
-                  fprintf( yyc, "0" );
-               fprintf( yyc, ")];\n" );
+               hb_csEmitArrayDim( pDim, yyc );
+               fprintf( yyc, "];\n" );
                break;
             }
 
@@ -3479,12 +3500,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             {
                PHB_EXPR pDim = pNode->value.asVar.pInit->value.asList.pExprList;
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "%s = new dynamic[(int)(", szName );
-               if( pDim )
-                  hb_csEmitExpr( pDim, yyc, HB_FALSE );
-               else
-                  fprintf( yyc, "0" );
-               fprintf( yyc, ")];\n" );
+               fprintf( yyc, "%s = new dynamic[", szName );
+               hb_csEmitArrayDim( pDim, yyc );
+               fprintf( yyc, "];\n" );
                break;
             }
 
@@ -3523,12 +3541,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                      loop and isn't yet emitted. */
                   PHB_EXPR pDim =
                      pNode->value.asVar.pInit->value.asList.pExprList;
-                  fprintf( yyc, " = new dynamic[(int)(" );
-                  if( pDim )
-                     hb_csEmitExpr( pDim, yyc, HB_FALSE );
-                  else
-                     fprintf( yyc, "0" );
-                  fprintf( yyc, ")]" );
+                  fprintf( yyc, " = new dynamic[" );
+                  hb_csEmitArrayDim( pDim, yyc );
+                  fprintf( yyc, "]" );
                }
                else if( pNode->value.asVar.pInit )
                {
@@ -5489,14 +5504,11 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                            at runtime. */
                         PHB_EXPR pDim =
                            pStmt->value.asVar.pInit->value.asList.pExprList;
-                        fprintf( yyc, "public static dynamic[] %s_%s = new dynamic[(int)(",
+                        fprintf( yyc, "public static dynamic[] %s_%s = new dynamic[",
                                  s_szFileBase,
                                  pStmt->value.asVar.szName );
-                        if( pDim )
-                           hb_csEmitExpr( pDim, yyc, HB_FALSE );
-                        else
-                           fprintf( yyc, "0" );
-                        fprintf( yyc, ")];\n" );
+                        hb_csEmitArrayDim( pDim, yyc );
+                        fprintf( yyc, "];\n" );
                      }
                      else
                      {

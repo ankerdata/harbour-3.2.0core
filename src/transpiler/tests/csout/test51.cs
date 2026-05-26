@@ -25,7 +25,7 @@ public static partial class Program
     public static dynamic[] aFlag;
     public static void Main(string[] args)
     {
-        aFlag = new dynamic[(int)(3)];
+        aFlag = new dynamic[3];
 
         aFlag[0] = 10;
         aFlag[1] = 20;
