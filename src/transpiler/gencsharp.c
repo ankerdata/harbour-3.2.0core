@@ -937,8 +937,10 @@ static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
         pItem = pItem->pNext, iPos++ )
    {
       const HB_REFPARAM * pP;
-      if( pItem->ExprType == HB_ET_NONE )
-         continue;   /* omitted slot — padded by hb_csEmitCallArgs */
+      /* @var (HB_ET_VARREF) or @obj:field / @arr[i] (HB_ET_REFERENCE) */
+      if( pItem->ExprType != HB_ET_VARREF &&
+          pItem->ExprType != HB_ET_REFERENCE )
+         continue;
       pP = hb_csCallParam( szFunc, iPos );
       if( ! pP || ! pP->fByRef )
          continue;
@@ -947,23 +949,17 @@ static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
          flows through the shared reference. */
       if( hb_csParamElidesArrayRef( szFunc, iPos ) )
          continue;
-      /* A plain variable (HB_ET_VARIABLE or HB_ET_VARREF) binds via
-         `ref var` directly when its type already equals the parameter's,
-         so no shim — otherwise we'd wrap (and hoist) calls that compile
-         fine. Everything else — field access, array element, literal,
-         expression — is not a ref-able C# storage location and needs a
-         temp. hb_csEmitShimWriteback then copies back only for the @
-         shapes (HB_ET_VARREF / HB_ET_REFERENCE); a non-@ arg means the
-         author wanted value semantics (Harbour treats the parameter as
-         a local copy at the call site), so we skip the writeback. */
-      if( pItem->ExprType == HB_ET_VARREF ||
-          pItem->ExprType == HB_ET_VARIABLE )
+      /* A field access / array element (HB_ET_REFERENCE) is never a
+         ref-able C# storage location, so it always needs the temp. A
+         plain @var binds directly when its type already equals the
+         parameter's, so shim it only on a real mismatch — otherwise we'd
+         wrap (and, in a condition, hoist) calls that compile fine. */
+      if( pItem->ExprType == HB_ET_VARREF )
       {
-         const char * szArgName = pItem->value.asSymbol.name;
          char szBuf[ 96 ];
          const char * szParamCs = hb_csShimSlotType( pP, szBuf, sizeof( szBuf ) );
          const char * szArgCs =
-            hb_csTypeMap( hb_csArgVarType( szArgName ) );
+            hb_csTypeMap( hb_csArgVarType( pItem->value.asSymbol.name ) );
          if( strcmp( szParamCs, szArgCs ) == 0 )
             continue;   /* `ref var` binds the parameter directly */
       }
@@ -974,39 +970,13 @@ static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
 }
 
 /* Emit the lvalue under an @arg item — HB_ET_VARREF wraps a plain
-   variable, HB_ET_REFERENCE a field access or array element. For non-@
-   arg shapes (HB_ET_VARIABLE, HB_ET_SEND, HB_ET_ARRAYAT, literal /
-   expression) just emit the expression directly: the shim temp's
-   initializer reads from it, and (for the writeback path) the same
-   expression on the LHS is a writable lvalue for VARIABLE / SEND /
-   ARRAYAT shapes. hb_csEmitShimWriteback guards against writing to
-   literals or other non-lvalues. */
+   variable, HB_ET_REFERENCE a field access or array element. */
 static void hb_csEmitRefTarget( PHB_EXPR pItem, FILE * yyc )
 {
    if( pItem->ExprType == HB_ET_REFERENCE )
       hb_csEmitExpr( pItem->value.asReference, yyc, HB_FALSE );
-   else  /* HB_ET_VARREF, or any non-@ shim shape */
+   else  /* HB_ET_VARREF */
       hb_csEmitExpr( pItem, yyc, HB_FALSE );
-}
-
-/* True if a non-@ shimmed arg has a writable lvalue we should copy the
-   shim temp back into. Variables and class DATA / member accesses qualify;
-   literals and arbitrary expressions don't. (@ shapes always writeback
-   in the existing path — that's the whole point of `@`.) */
-static HB_BOOL hb_csShimWritesBack( PHB_EXPR pItem )
-{
-   if( ! pItem )
-      return HB_FALSE;
-   switch( pItem->ExprType )
-   {
-      /* @-marked shapes: caller explicitly asked for ref → writeback. */
-      case HB_ET_VARREF:
-      case HB_ET_REFERENCE:
-         return HB_TRUE;
-      /* Non-@ shapes: caller wanted value semantics. Skip writeback. */
-      default:
-         return HB_FALSE;
-   }
 }
 
 /* The C# type a shim temp must take to bind parameter pP by ref: exactly
@@ -1045,14 +1015,6 @@ static const char * hb_csShimTempName( PHB_EXPR pItem, int iDepth, int iPos,
 
    if( pItem->ExprType == HB_ET_VARREF )
       szLeaf = pItem->value.asSymbol.name;
-   else if( pItem->ExprType == HB_ET_VARIABLE )
-   {
-      /* Non-@ shim: caller passed the var without @ but the param is by-ref
-         and the types disagree, so we shim the value. Position-disambiguate
-         to avoid colliding with a sibling @var at a different slot. */
-      szLeaf = pItem->value.asSymbol.name;
-      fRef = HB_TRUE;
-   }
    else if( pItem->ExprType == HB_ET_REFERENCE )
    {
       PHB_EXPR pInner = pItem->value.asReference;
@@ -1070,18 +1032,8 @@ static const char * hb_csShimTempName( PHB_EXPR pItem, int iDepth, int iPos,
             szLeaf = pInner->value.asList.pExprList->value.asSymbol.name; /* arr[i] */
       }
    }
-   else if( pItem->ExprType == HB_ET_SEND &&
-            pItem->value.asMessage.szMessage )
-      szLeaf = pItem->value.asMessage.szMessage, fRef = HB_TRUE;
-   else if( pItem->ExprType == HB_ET_ARRAYAT &&
-            pItem->value.asList.pExprList &&
-            pItem->value.asList.pExprList->ExprType == HB_ET_VARIABLE )
-      szLeaf = pItem->value.asList.pExprList->value.asSymbol.name, fRef = HB_TRUE;
    if( ! szLeaf || ! szLeaf[ 0 ] )
-   {
       szLeaf = "arg";
-      fRef   = HB_TRUE;   /* anonymous: force the pos suffix */
-   }
 
    if( iDepth > 0 )
       hb_snprintf( szPfx, sizeof( szPfx ), "_hbref%d_", iDepth );
@@ -1120,13 +1072,7 @@ static void hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
    }
 }
 
-/* Copy each shim temp back into its lvalue after the call. The @ shapes
-   (HB_ET_VARREF / HB_ET_REFERENCE) always writeback; non-@ shapes
-   (HB_ET_VARIABLE, HB_ET_SEND, HB_ET_ARRAYAT, literal, expression) get
-   value semantics — the caller didn't mark the slot @, so they treated
-   the parameter as a local copy in Harbour and the writeback would mutate
-   state the author expected to stay put. hb_csShimWritesBack draws the
-   line. */
+/* Copy each shim temp back into its lvalue after the call. */
 static void hb_csEmitShimWriteback( PHB_EXPR pHead, const HB_BOOL * aShim,
                                     int iBase, FILE * yyc, int iIndent )
 {
@@ -1134,8 +1080,7 @@ static void hb_csEmitShimWriteback( PHB_EXPR pHead, const HB_BOOL * aShim,
    int iArg;
    for( pArg = pHead, iArg = 0; pArg; pArg = pArg->pNext, iArg++ )
    {
-      if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] &&
-          hb_csShimWritesBack( pArg ) )
+      if( iArg < HB_CS_MAXSHIM && aShim[ iArg ] )
       {
          char szName[ 96 ];
          hb_csEmitIndent( yyc, iIndent );
