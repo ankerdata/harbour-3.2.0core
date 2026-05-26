@@ -34,7 +34,7 @@ public static partial class Program
         return;
     }
 
-    public static string Describe(dynamic xVal = default)
+    public static dynamic Describe(dynamic xVal = default)
     {
         /* Body does VALTYPE() dispatch — the canonical USUAL pattern. */
         if (HbRuntime.ValType(xVal) == "C")

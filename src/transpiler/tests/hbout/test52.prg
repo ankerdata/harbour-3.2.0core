@@ -29,7 +29,7 @@ PROCEDURE Main()
 
 RETURN
 
-FUNCTION Describe( xVal AS USUAL ) AS STRING
+FUNCTION Describe( xVal AS USUAL ) AS USUAL
    /* Body does VALTYPE() dispatch — the canonical USUAL pattern. */
    IF VALTYPE(xVal) == "C"
    RETURN "string-" + xVal

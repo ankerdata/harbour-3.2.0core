@@ -722,9 +722,15 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    }
 }
 
-/* Recursively collect RETURN expression types from a block */
+/* Recursively collect RETURN expression types from a block. Tracks
+   uninferrable returns separately: a function that has *some* known
+   return type and *some* unknown one (e.g. `aADTFiles[1]` — array
+   subscripts have no static element type) is genuinely polymorphic at
+   the call site, and labelling it with only the known branch's type
+   misleads W0024 at correctly-typed callers of the other branch. */
 static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
-                                      const char ** pszRetType, HB_BOOL * pfConflict )
+                                      const char ** pszRetType, HB_BOOL * pfConflict,
+                                      HB_BOOL * pfSawUnknown )
 {
    PHB_AST_NODE pStmt;
 
@@ -754,51 +760,53 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                   *pfConflict = HB_TRUE;
             }
          }
+         else
+            *pfSawUnknown = HB_TRUE;
       }
       /* Recurse into nested structures */
       else if( pStmt->type == HB_AST_IF )
       {
-         hb_astCollectReturnTypes( pStmt->value.asIf.pThen, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asIf.pThen, pEnv, pszRetType, pfConflict, pfSawUnknown );
          {
             PHB_AST_NODE pElseIf = pStmt->value.asIf.pElseIfs;
             while( pElseIf )
             {
-               hb_astCollectReturnTypes( pElseIf->value.asElseIf.pBody, pEnv, pszRetType, pfConflict );
+               hb_astCollectReturnTypes( pElseIf->value.asElseIf.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
                pElseIf = pElseIf->pNext;
             }
          }
-         hb_astCollectReturnTypes( pStmt->value.asIf.pElse, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asIf.pElse, pEnv, pszRetType, pfConflict, pfSawUnknown );
       }
       else if( pStmt->type == HB_AST_DOWHILE )
-         hb_astCollectReturnTypes( pStmt->value.asWhile.pBody, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asWhile.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
       else if( pStmt->type == HB_AST_FOR )
-         hb_astCollectReturnTypes( pStmt->value.asFor.pBody, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asFor.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
       else if( pStmt->type == HB_AST_FOREACH )
-         hb_astCollectReturnTypes( pStmt->value.asForEach.pBody, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asForEach.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
       else if( pStmt->type == HB_AST_DOCASE )
       {
          PHB_AST_NODE pCase = pStmt->value.asDoCase.pCases;
          while( pCase )
          {
-            hb_astCollectReturnTypes( pCase->value.asCase.pBody, pEnv, pszRetType, pfConflict );
+            hb_astCollectReturnTypes( pCase->value.asCase.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
             pCase = pCase->pNext;
          }
-         hb_astCollectReturnTypes( pStmt->value.asDoCase.pOtherwise, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asDoCase.pOtherwise, pEnv, pszRetType, pfConflict, pfSawUnknown );
       }
       else if( pStmt->type == HB_AST_SWITCH )
       {
          PHB_AST_NODE pCase = pStmt->value.asSwitch.pCases;
          while( pCase )
          {
-            hb_astCollectReturnTypes( pCase->value.asCase.pBody, pEnv, pszRetType, pfConflict );
+            hb_astCollectReturnTypes( pCase->value.asCase.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
             pCase = pCase->pNext;
          }
-         hb_astCollectReturnTypes( pStmt->value.asSwitch.pDefault, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asSwitch.pDefault, pEnv, pszRetType, pfConflict, pfSawUnknown );
       }
       else if( pStmt->type == HB_AST_BEGINSEQ )
       {
-         hb_astCollectReturnTypes( pStmt->value.asSeq.pBody, pEnv, pszRetType, pfConflict );
-         hb_astCollectReturnTypes( pStmt->value.asSeq.pRecover, pEnv, pszRetType, pfConflict );
+         hb_astCollectReturnTypes( pStmt->value.asSeq.pBody, pEnv, pszRetType, pfConflict, pfSawUnknown );
+         hb_astCollectReturnTypes( pStmt->value.asSeq.pRecover, pEnv, pszRetType, pfConflict, pfSawUnknown );
       }
 
       pStmt = pStmt->pNext;
@@ -1319,6 +1327,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    HB_BOOL fChanged;
    const char * szRetType = NULL;
    HB_BOOL fConflict = HB_FALSE;
+   HB_BOOL fSawUnknown = HB_FALSE;
 
    if( ! pBody || pBody->type != HB_AST_BLOCK )
       return NULL;
@@ -1450,7 +1459,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    }
 
    /* Pass 4: Infer return type from RETURN statements */
-   hb_astCollectReturnTypes( pBody, &env, &szRetType, &fConflict );
+   hb_astCollectReturnTypes( pBody, &env, &szRetType, &fConflict, &fSawUnknown );
 
    /* Pass 5: Refine callee parameter types from call sites in this
       body. Only runs when the refTab is available (the scanner in
@@ -1460,6 +1469,15 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       hb_astRefineBlock( pBody, &env );
 
    if( fConflict )
+      return "USUAL";
+
+   /* Mixed: at least one RETURN was uninferrable. The function is
+      effectively polymorphic at the call site — don't pin it to the
+      one branch we could type, or W0024 mis-fires at correctly-typed
+      callers of the other branch (e.g. ADTRange returning either a
+      string sentinel or an aADTRange array). Leaves "only uninferrable
+      returns" as NULL — no info, reftab retains its prior default. */
+   if( fSawUnknown && szRetType )
       return "USUAL";
 
    return szRetType;
