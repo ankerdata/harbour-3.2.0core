@@ -34,7 +34,7 @@ ENDCLASS
 PROCEDURE Main()
    LOCAL cLocal := "ab" + "cd" AS STRING
    LOCAL cPayload := Chr(16) + Chr(4) AS STRING
-   LOCAL hEmpty := {} AS HASH
+   LOCAL hEmpty := {=>} AS HASH
    LOCAL oB := Bag():New() AS OBJECT
 
    QOut("local:  " + cLocal)

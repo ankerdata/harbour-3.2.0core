@@ -302,9 +302,16 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_HASH:
          {
-            PHB_EXPR pItem;
+            PHB_EXPR pItem = pExpr->value.asList.pExprList;
+            if( ! pItem )
+            {
+               /* Empty hash is `{=>}` — Harbour parses bare `{}` as an
+                  empty array, so an init like `LOCAL h := {} AS HASH`
+                  errors at first `h[key] := ...` with BASE/1069. */
+               fprintf( yyc, "{=>}" );
+               break;
+            }
             fprintf( yyc, "{" );
-            pItem = pExpr->value.asList.pExprList;
             while( pItem )
             {
                hb_astEmitExpr( pItem, yyc, HB_FALSE );

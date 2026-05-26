@@ -18,7 +18,7 @@ PROCEDURE Main()
    LOCAL aData := {10, 20, 30} AS ARRAY
    LOCAL aNested := {1, {2, 3}} AS ARRAY
    LOCAL aCopy AS ARRAY
-   LOCAL hEmpty := {} AS HASH
+   LOCAL hEmpty := {=>} AS HASH
 
    // AScan with a codeblock — 20 is at index 2
    QOut("ascan_blk=" + LTrim(Str(AScan(aData, {|x| x == 20}))))
