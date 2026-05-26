@@ -5622,26 +5622,18 @@ yyreduce:
   case 404:
 #line 1190 "harbour.y" /* yacc.c:1646  */
     {
-                  /* `PUBLIC` / `PRIVATE` / `STATIC` / `LOCAL` `name[size]`
-                     — record the declaration in the AST, marking the
-                     node fArrayDim so the emitter allocates `new
-                     dynamic[N]` rather than treating the DimList as a
-                     comma-sequence init.
-
-                     The previous policy excluded STATIC / LOCAL here
-                     because the emitters didn't handle fArrayDim for
-                     those scopes; easipos hit that head-on:
-                     `STATIC aKPStatus[M][N]` file-scope and `LOCAL
-                     aConfirm[N]` function-scope declarations both
-                     disappeared from the AST entirely, leaving body
-                     references to the bare name which C# then
-                     CS0103'd across every use. Adding these here pairs
-                     with the new fArrayDim branches in gencsharp.c's
-                     file-scope walker and HB_AST_LOCAL emitter.
-
-                     MEMVAR with `[size]` is still deferred — uncommon
-                     in practice and MEMVAR AST emission has its own
-                     mangling path that would need separate work. */
+                  /* `LOCAL/STATIC/PUBLIC/PRIVATE name[size]` — record
+                     the declaration in the AST, marking the node as an
+                     array-dim so the emitter allocates `new dynamic[N]`
+                     rather than treating the DimList as a comma-sequence
+                     init. fArrayDim is set in all four cases, so the
+                     emit paths (HB_AST_LOCAL / HB_AST_STATIC etc.) that
+                     gate on `fArrayDim && pInit is ARGLIST/LIST` handle
+                     the pInit correctly and never mis-read DimList as
+                     a scalar comma expression. Without these AST nodes
+                     `LOCAL aFoo[N]` was emitted only through the PCODE
+                     path (which the transpiler ignores), so references
+                     to aFoo became CS0103 in the generated C#. */
 #ifdef HB_TRANSPILER
                   if( HB_COMP_PARAM->iVarScope == HB_VSCOMP_PUBLIC )
                   {
