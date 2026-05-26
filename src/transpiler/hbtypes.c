@@ -585,6 +585,19 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
 {
    const char * szCurType = hb_typeEnvGet( pEnv, szVarName );
 
+   /* `x` (and easipos `sx`) is the explicit USUAL marker: the author
+      chose it because the variable legitimately holds different types
+      across arms (`local xResult` in a polymorphic dispatcher). Locking
+      it to whichever arm Pass 2 visits first misrepresents the function's
+      return type and then W0024 fires at every other-typed caller. Treat
+      the seeded USUAL as final for these names. */
+   if( szCurType && strcmp( szCurType, "USUAL" ) == 0 )
+   {
+      const char * szPrefixType = hb_astInferFromPrefix( szVarName );
+      if( szPrefixType && strcmp( szPrefixType, "USUAL" ) == 0 )
+         return;
+   }
+
    /* Refine when: unknown, USUAL (untyped), or OBJECT (generic
       Hungarian `o` prefix). OBJECT is upgradeable to a specific class
       name when the RHS is a constructor like `Transaction():New()`. */
