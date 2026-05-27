@@ -630,9 +630,48 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
    switch( pNode->type )
    {
       case HB_AST_EXPRSTMT:
-         hb_astEmitIndent( yyc, iIndent );
-         hb_astEmitExpr( pNode->value.asExprStmt.pExpr, yyc, HB_FALSE );
-         fprintf( yyc, "\n" );
+         {
+            /* Wrap valueless shapes — `HB_SYMBOL_UNUSED(x)` collapses to
+               a bare HB_ET_VARIABLE / literal at the AST level, which
+               Harbour itself rejects as a statement (E0020). Re-emit
+               the canonical macro so the .hb round-trip parses. */
+            PHB_EXPR pExpr = pNode->value.asExprStmt.pExpr;
+            PHB_EXPR pInner = pExpr;
+            HB_BOOL fValueless = HB_FALSE;
+            while( pInner &&
+                   ( pInner->ExprType == HB_ET_LIST ||
+                     pInner->ExprType == HB_ET_ARGLIST ) &&
+                   pInner->value.asList.pExprList &&
+                   ! pInner->value.asList.pExprList->pNext )
+               pInner = pInner->value.asList.pExprList;
+            switch( pInner ? pInner->ExprType : 0 )
+            {
+               case HB_ET_VARIABLE: case HB_ET_VARREF:
+               case HB_ET_NUMERIC:  case HB_ET_STRING:
+               case HB_ET_LOGICAL:  case HB_ET_NIL:
+               case HB_ET_DATE:     case HB_ET_TIMESTAMP:
+                  fValueless = HB_TRUE;
+                  break;
+               case HB_ET_SEND:
+                  if( ! pInner->value.asMessage.pParms )
+                     fValueless = HB_TRUE;
+                  break;
+               default:
+                  break;
+            }
+            hb_astEmitIndent( yyc, iIndent );
+            if( fValueless )
+            {
+               fprintf( yyc, "HB_SYMBOL_UNUSED(" );
+               hb_astEmitExpr( pInner, yyc, HB_FALSE );
+               fprintf( yyc, ")\n" );
+            }
+            else
+            {
+               hb_astEmitExpr( pExpr, yyc, HB_FALSE );
+               fprintf( yyc, "\n" );
+            }
+         }
          break;
 
       case HB_AST_RETURN:

@@ -3316,6 +3316,71 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_EXPRSTMT:
       {
          PHB_EXPR pStmtExpr = pNode->value.asExprStmt.pExpr;
+         /* `HB_SYMBOL_UNUSED(x)` expands via std.ch to `((x))` — purely
+            an "I know this is unused, don't warn" pragma in Harbour.
+            By emit time it's an expression statement whose expression
+            is a bare variable / literal / message access / array index,
+            none of which are valid statement forms in C# (CS0201:
+            "Only assignment, call, increment, decrement, await, and
+            new object expressions can be used as a statement"). Skip
+            these — the Harbour intent is "no-op", and that's exactly
+            what emitting nothing produces. A bare `obj:member` (SEND
+            with no parms) falls in this bucket too; a SEND with parms
+            is a real method call and stays. */
+         if( pStmtExpr )
+         {
+            HB_BOOL fValueless = HB_FALSE;
+            /* Peel one-element HB_ET_LIST wrappers — `((lNarrow))` from
+               the HB_SYMBOL_UNUSED macro arrives as a LIST around the
+               variable, not the variable directly. */
+            PHB_EXPR pInner = pStmtExpr;
+            while( pInner &&
+                   ( pInner->ExprType == HB_ET_LIST ||
+                     pInner->ExprType == HB_ET_ARGLIST ) &&
+                   pInner->value.asList.pExprList &&
+                   ! pInner->value.asList.pExprList->pNext )
+               pInner = pInner->value.asList.pExprList;
+            switch( pInner ? pInner->ExprType : 0 )
+            {
+               case HB_ET_VARIABLE: case HB_ET_VARREF:
+               case HB_ET_NUMERIC:  case HB_ET_STRING:
+               case HB_ET_LOGICAL:  case HB_ET_NIL:
+               case HB_ET_DATE:     case HB_ET_TIMESTAMP:
+               case HB_ET_ARRAYAT:
+                  fValueless = HB_TRUE;
+                  break;
+               case HB_ET_SEND:
+                  if( ! pInner->value.asMessage.pParms )
+                     fValueless = HB_TRUE;
+                  break;
+               case HB_ET_MACRO:
+                  hb_csWarnUnsupported( "macro statement (&name)" );
+                  fValueless = HB_TRUE;
+                  break;
+               case HB_ET_ALIASVAR:
+               case HB_ET_ALIASEXPR:
+                  /* Workarea-alias statement (`Flags->( dbCloseArea() )`)
+                     and similar. Emitting `HbRuntime.MacroStub;` here
+                     would surface as CS0201 since MacroStub is a static
+                     field. Fire the same W0016 the expression-form
+                     emit would have raised, then skip the statement —
+                     the unsupported expression isn't reachable at
+                     compile-time anyway. */
+                  hb_csWarnUnsupported(
+                     pInner->ExprType == HB_ET_ALIASVAR ?
+                        "ALIAS reference (alias->var)" :
+                        "ALIAS expression (alias->( expr ))" );
+                  fValueless = HB_TRUE;
+                  break;
+               default:
+                  break;
+            }
+            if( fValueless )
+            {
+               s_iLastLine = pNode->iLine;
+               break;
+            }
+         }
          /* iif(cond, a, b) used as a statement can't be emitted as a
             C# ternary — "(a ? b : c);" is rejected by CS0201. Expand
             it to an if/else so both branches can be call statements
