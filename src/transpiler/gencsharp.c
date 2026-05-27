@@ -2627,6 +2627,15 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   szLhsName = pLhs->value.asSymbol.name;
                else if( pLhs->ExprType == HB_ET_SEND )
                   szLhsName = pLhs->value.asMessage.szMessage;
+               else if( pLhs->ExprType == HB_ET_ALIASVAR &&
+                        pLhs->value.asAlias.pVar &&
+                        pLhs->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+                  /* Harbour parses an unqualified file-static reference
+                     inside a function body as `MEMVAR->name` (see
+                     gencsharp HB_ET_ALIASVAR handler). The inner pVar
+                     carries the real name, which the file-static and
+                     Hungarian-prefix lookups can still resolve. */
+                  szLhsName = pLhs->value.asAlias.pVar->value.asSymbol.name;
                if( szLhsName )
                {
                   const char * szT = hb_csArgVarType( szLhsName );
