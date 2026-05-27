@@ -553,6 +553,110 @@ so multi-file projects (e.g. test19, test20) can have their separate
 `Program` definitions merged into one class at the C# build step.
 Single-file projects are unaffected.
 
+### Non-`@` call sites at by-ref parameters
+
+Harbour treats a parameter as a local copy at the call site **unless
+the caller writes `@`**. The function body's write to the parameter
+only propagates to the caller's variable when the caller asked for
+it via `@`. C# has no equivalent — once a parameter is declared
+`ref T`, *every* call site must spell `ref` at that slot, with the
+extra constraint that the argument has to be a writable storage
+location (variable, field, array element) of exactly the parameter's
+type.
+
+That mismatch is everywhere in mature Harbour code. `SubStrR` in
+`sharedx` is the canonical example:
+
+```harbour
+FUNCTION SubStrR(cString, cSeparator)
+   LOCAL nSepPos := AT(cSeparator, cString)
+   LOCAL cReturnStr := LEFT(cString, nSepPos - 1)
+   // If cString is passed by reference it will be updated
+   cString := SUBSTR(cString, nSepPos + 1)
+RETURN cReturnStr
+```
+
+A couple of `@`-callers want the consumed-tail behaviour; dozens of
+other callers want plain "give me the prefix" semantics on field
+accesses, array elements, literals, and concatenation expressions —
+none of which are ref-able C# storage locations.
+
+The emitter reconciles this with the **ref-shim machinery**. For each
+non-`@` arg at a by-ref slot, the call site is wrapped in a brace
+block that copies the value into a typed temp, passes `ref temp` to
+the canonical, and *discards* the writeback — exactly Harbour value
+semantics:
+
+```csharp
+// `SubStrR(oKPDevice.cDevice, " ")` at the call site — no `@` on cDevice
+{
+    string _hbref_cDevice_0 = oKPDevice.cDevice;
+    SubStrR(ref _hbref_cDevice_0, " ");
+    // no writeback — caller wanted value semantics
+}
+```
+
+For `@`-marked args, the same shim runs but the writeback fires (the
+caller asked for it via `@`). `hb_csCollectRefShims` flags every slot
+that needs one; `hb_csEmitShimTemps` declares the temps before the
+call; `hb_csShimWritesBack` decides whether to copy the temp back
+afterwards (true for `HB_ET_VARREF` / `HB_ET_REFERENCE`, false for
+every other arg shape). `tests/test71.prg` exercises all four arg
+shapes (`@var`, array element, hash entry, string literal).
+
+#### Why not C# overloads?
+
+The obvious alternative is to emit two C# overloads of every
+ref-param function — a canonical `(ref T, …)` for `@`-callers and a
+forwarding `(T, …) => F(ref t, …)` for plain callers, and let C#'s
+overload resolution dispatch on the presence of `ref` at the call
+site. It produces noticeably cleaner generated C# (no per-call brace
+blocks at all, and the bare expression reads exactly like the source
+Harbour). The transpiler tree carries a worked prototype for this in
+git history — see commits `0c2a*…ac7*` for the implementation, then
+reverted.
+
+Two reasons it didn't replace the shim:
+
+1. **Mixed-ref call sites.** When a single call mixes `@`-marked and
+   plain args at different slots of a multi-ref-param callee
+   (`SmartCardIO(..., @nSale, oTrn.nVal, @cNo, …)`), neither overload
+   matches: the canonical wants `ref` on every observed-`@` slot, the
+   value-overload wants `ref` on none. A C# call with a mix of `ref`
+   and non-`ref` arguments matches neither, so the plain slots in the
+   mix surface as CS1620. To cover every combination you'd need 2^N
+   overloads, which scales badly past two or three ref slots.
+
+2. **Type-invariance mismatches.** C# `ref` is invariant: a
+   `ref string` argument can't bind a `ref dynamic` parameter even
+   though the runtime values are compatible. The shim already
+   solves this for `@`-args (declare a `dynamic` temp, seed from the
+   `string` lvalue, pass `ref temp`, write back into the lvalue) —
+   see `tests/test66.prg` / `tests/test67.prg`. The overload pair
+   doesn't help because both sides of the pair have the same per-slot
+   type; the mismatch is between the *argument*'s type and the
+   parameter's, not between two parameter forms.
+
+The shim handles both cases by working **per slot**: each ref slot is
+inspected in isolation against its actual argument and either binds
+the canonical directly (matching type, no shim) or gets its own
+typed temp. The number of generated methods stays at one per source
+function, and call sites read with a small but explicit brace-block
+that documents the shim happening.
+
+Rough decision tree at a call site `Callee(arg)`:
+
+```
+            ┌──> arg is `@var` / `@obj:member`
+            │      ├─ type matches param exactly → emit `ref arg` directly
+            │      └─ type mismatches (ref invariance) → ref-invariance shim
+            │         (decl temp of param's type, ref temp, writeback)
+arg shape ──┤
+            └──> arg is anything else (plain var, field, element, literal, expr)
+                   ├─ param is by-ref → value-in shim (no writeback)
+                   └─ param is by-value → emit as-is
+```
+
 ---
 
 ## `.hb` round-trip emitter (`-GT`)
