@@ -1745,9 +1745,33 @@ static const char * hb_csTranslateInline( const char * szVal )
             }
             else
             {
-               HB_SIZE j;
-               for( j = 0; j < nIdLen && nOut < sizeof( s_szBuf ) - 1; j++ )
-                  s_szBuf[ nOut++ ] = szId[ j ];
+               /* Header `#define` from the defines-map gets the same
+                  qualified-name treatment as a Harbour built-in: a bare
+                  PANELSIGNON in a CLASS VAR INIT or INLINE body becomes
+                  `PanelsConst.PANELSIGNON`. Without this, the inline
+                  translator emits PANELSIGNON unqualified — CS0103 at
+                  C# compile because the per-source Const class isn't in
+                  the file's `using static` set. Mirrors HB_ET_VARIABLE's
+                  hb_defineMapLookup branch in hb_csEmitExpr. */
+               const char * szDefCanon = NULL;
+               const char * szDefClass =
+                  hb_defineMapLookupCanon( szId, &szDefCanon );
+               if( szDefClass && szDefCanon )
+               {
+                  HB_SIZE j;
+                  for( j = 0; szDefClass[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                     s_szBuf[ nOut++ ] = szDefClass[ j ];
+                  if( nOut < sizeof( s_szBuf ) - 1 )
+                     s_szBuf[ nOut++ ] = '.';
+                  for( j = 0; szDefCanon[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                     s_szBuf[ nOut++ ] = szDefCanon[ j ];
+               }
+               else
+               {
+                  HB_SIZE j;
+                  for( j = 0; j < nIdLen && nOut < sizeof( s_szBuf ) - 1; j++ )
+                     s_szBuf[ nOut++ ] = szId[ j ];
+               }
             }
          }
          nIn--;   /* outer loop `nIn++` advances past last id char */
