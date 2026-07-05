@@ -66,7 +66,15 @@ public static partial class HbRuntime
     }
 
     static string Fmt(dynamic a) =>
-        a is decimal d ? Str(d) : Convert.ToString(a, INV);
+        a is decimal d ? Str(d) :
+        // Harbour renders logicals as .T. / .F., and pads all numerics
+        // to Str()'s default width. Integral values reach here when a
+        // literal int crossed a dynamic boundary (the emitter only
+        // m-suffixes floating literals), so give them the same padding
+        // a decimal would get.
+        a is bool l ? (l ? ".T." : ".F.") :
+        a is int or long or short or byte ? Str((decimal)a) :
+        Convert.ToString(a, INV);
 
     // ---- Numeric functions ----
 
@@ -132,6 +140,7 @@ public static partial class HbRuntime
     public static decimal Max(decimal a, decimal b) => Math.Max(a, b);
     public static decimal Min(decimal a, decimal b) => Math.Min(a, b);
     public static decimal Mod(decimal a, decimal b) => a % b;
+    public static decimal Pow(decimal a, decimal b) => (decimal)Math.Pow((double)a, (double)b);
     public static decimal Sqrt(decimal n) => (decimal)Math.Sqrt((double)n);
     public static decimal Log(decimal n) => (decimal)Math.Log((double)n);
     public static decimal Exp(decimal n) => (decimal)Math.Exp((double)n);
@@ -592,15 +601,22 @@ public static partial class HbRuntime
     // ---- Hash helpers ----
 
     static System.Collections.IDictionary AsDict(dynamic h) => h as System.Collections.IDictionary;
+    // The (object) casts below are load-bearing. AsDict(h) with a
+    // dynamic argument is itself dynamically bound, which makes `d`
+    // dynamic too — and then d.Contains(...) resolves against the
+    // hash's RUNTIME type (e.g. Dictionary<string, dynamic>, which has
+    // no public Contains): RuntimeBinderException. AsDict((object)h)
+    // binds statically, `d` is IDictionary, and the key casts keep the
+    // member calls bound to the non-generic IDictionary surface.
     public static dynamic hb_HGetDef(dynamic h, dynamic key, dynamic def = null)
     {
-        var d = AsDict(h);
-        return (d != null && d.Contains(key)) ? d[key] : def;
+        var d = AsDict((object)h);
+        return (d != null && d.Contains((object)key)) ? d[(object)key] : def;
     }
     public static bool hb_HHasKey(dynamic h, dynamic key)
     {
-        var d = AsDict(h);
-        return d != null && d.Contains(key);
+        var d = AsDict((object)h);
+        return d != null && d.Contains((object)key);
     }
 
     // Harbour `$` operator: `a $ b` is substring containment when b is
@@ -611,18 +627,18 @@ public static partial class HbRuntime
         if (haystack is string s)
             return s.Contains((string)needle);
         if (haystack is System.Collections.IDictionary d)
-            return d.Contains(needle);
+            return d.Contains((object)needle);
         return false;
     }
     public static decimal hb_HDel(dynamic h, dynamic key)
     {
-        var d = AsDict(h);
-        if (d != null && d.Contains(key)) d.Remove(key);
+        var d = AsDict((object)h);
+        if (d != null && d.Contains((object)key)) d.Remove((object)key);
         return 0;
     }
     public static dynamic hb_HKeys(dynamic h)
     {
-        var d = AsDict(h);
+        var d = AsDict((object)h);
         if (d == null) return System.Array.Empty<dynamic>();
         var r = new dynamic[d.Count];
         int i = 0;
@@ -631,7 +647,7 @@ public static partial class HbRuntime
     }
     public static dynamic hb_HValues(dynamic h)
     {
-        var d = AsDict(h);
+        var d = AsDict((object)h);
         if (d == null) return System.Array.Empty<dynamic>();
         var r = new dynamic[d.Count];
         int i = 0;

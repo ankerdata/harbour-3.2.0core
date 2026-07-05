@@ -519,7 +519,7 @@ See [test18.prg](tests/test18.prg) for the full demo.
 | `:=` / `==` / `=`                | `=` / `==` / `==` (assignment vs equality)               |
 | `.T.` / `.F.` / `NIL`            | `true` / `false` / `null`                                |
 | `.AND.` / `.OR.` / `.NOT.`       | `&&` / `\|\|` / `!`                                      |
-| `^` / `$`                        | `Math.Pow()` / `HbRuntime.HbIn()` (substring or hash-key) |
+| `^` / `$`                        | `HbRuntime.Pow()` (decimal) / `HbRuntime.HbIn()` (substring or hash-key) |
 | `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
 | `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |

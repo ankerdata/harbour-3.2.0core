@@ -1441,7 +1441,8 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "dynamic";
    if( hb_stricmp( szHbType, "NUMERIC" ) == 0 )
       return "decimal";
-   if( hb_stricmp( szHbType, "STRING" ) == 0 )
+   if( hb_stricmp( szHbType, "STRING" ) == 0 ||
+       hb_stricmp( szHbType, "CHARACTER" ) == 0 )
       return "string";
    if( hb_stricmp( szHbType, "LOGICAL" ) == 0 )
       return "bool";
@@ -1463,7 +1464,10 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "dynamic[]";
    if( hb_stricmp( szHbType, "HASH" ) == 0 )
       return "Dictionary<string, dynamic>";
-   if( hb_stricmp( szHbType, "BLOCK" ) == 0 )
+   if( hb_stricmp( szHbType, "BLOCK" ) == 0 ||
+       /* `AS CODEBLOCK` — the formal declared-type spelling; same
+          dynamic mapping as the reftab's BLOCK. */
+       hb_stricmp( szHbType, "CODEBLOCK" ) == 0 )
       return "dynamic";
    /* Class name — widen to `dynamic` when the class extends
       HbDynamicObject so unknown member names compile. Applies to
@@ -1551,6 +1555,11 @@ static const char * hb_csTranslateInline( const char * szVal,
    const char * p;
    HB_BOOL      fInStr = HB_FALSE;
    char         cStrQ  = '\0';
+   /* ( [ { nesting depth + active iif( rewrites (see the iif handler
+      in the identifier branch below). */
+   int          iDepth = 0;
+   int          iIifTop = -1;
+   struct { int depth; int commas; } aIif[ 16 ];
 
    if( ! szVal )
       return szVal;
@@ -1643,7 +1652,7 @@ static const char * hb_csTranslateInline( const char * szVal,
    }
 
    p = szVal;
-   for( nIn = 0; nIn < nLen && nOut < sizeof( s_szBuf ) - 32; nIn++ )
+   for( nIn = 0; nIn < nLen && nOut < sizeof( s_szBuf ) - 48; nIn++ )
    {
       /* String-literal contents are data — copy them through verbatim
          so no identifier rewrite (funcTab prefix or defines-map) fires
@@ -1668,13 +1677,35 @@ static const char * hb_csTranslateInline( const char * szVal,
          literal. C# `{}` in expression context is a block. Fully
          qualified because HbRuntimeStubs declares a NIE stub named
          `Array`, which `using static HbRuntime;` pulls into scope and
-         shadows the System.Array type. */
-      if( p[ nIn ] == '{' && nIn + 1 < nLen && p[ nIn + 1 ] == '}' )
+         shadows the System.Array type.
+         `{ => }` → empty hash, mirroring hb_csTranslateInit. Both
+         forms allow interior whitespace; any other `{` falls through
+         to the depth tracker at the bottom of the loop. */
+      if( p[ nIn ] == '{' )
       {
-         memcpy( s_szBuf + nOut, "System.Array.Empty<dynamic>()", 29 );
-         nOut += 29;
-         nIn++;
-         continue;
+         HB_SIZE k = nIn + 1;
+         while( k < nLen && ( p[ k ] == ' ' || p[ k ] == '\t' ) )
+            k++;
+         if( k < nLen && p[ k ] == '}' )
+         {
+            memcpy( s_szBuf + nOut, "System.Array.Empty<dynamic>()", 29 );
+            nOut += 29;
+            nIn = k;
+            continue;
+         }
+         if( k + 1 < nLen && p[ k ] == '=' && p[ k + 1 ] == '>' )
+         {
+            k += 2;
+            while( k < nLen && ( p[ k ] == ' ' || p[ k ] == '\t' ) )
+               k++;
+            if( k < nLen && p[ k ] == '}' )
+            {
+               memcpy( s_szBuf + nOut, "new Dictionary<dynamic, dynamic>()", 34 );
+               nOut += 34;
+               nIn = k;
+               continue;
+            }
+         }
       }
       /* ::name → this.name, or Class.name for a CLASS VAR (static) —
          an instance reference to a static member is CS0176. Peek the
@@ -1737,6 +1768,14 @@ static const char * hb_csTranslateInline( const char * szVal,
          nIn++;
          continue;
       }
+      /* <> → != (the PP canonicalizes a source-level != to <>) */
+      if( p[ nIn ] == '<' && nIn + 1 < nLen && p[ nIn + 1 ] == '>' )
+      {
+         s_szBuf[ nOut++ ] = '!';
+         s_szBuf[ nOut++ ] = '=';
+         nIn++;
+         continue;
+      }
       /* .T. .t. .F. .f. — word-bounded logical literals */
       if( p[ nIn ] == '.' && nIn + 2 < nLen && p[ nIn + 2 ] == '.' &&
           ( p[ nIn + 1 ] == 'T' || p[ nIn + 1 ] == 't' ||
@@ -1750,6 +1789,35 @@ static const char * hb_csTranslateInline( const char * szVal,
             memcpy( s_szBuf + nOut, szLit, nL );
             nOut += nL;
             nIn += 2;   /* skip T/F and trailing '.' */
+            continue;
+         }
+      }
+      /* .AND. / .OR. / .NOT. → && / || / ! (dot-delimited, any case).
+         No clash with the .T./.F. handler above: that one only fires
+         on a single T/t/F/f between the dots. */
+      if( p[ nIn ] == '.' && ( nIn == 0 || ! hb_csInlineIsIdCh( p[ nIn - 1 ] ) ) )
+      {
+         if( nIn + 4 < nLen && p[ nIn + 4 ] == '.' &&
+             hb_strnicmp( p + nIn + 1, "and", 3 ) == 0 )
+         {
+            memcpy( s_szBuf + nOut, "&&", 2 );
+            nOut += 2;
+            nIn += 4;
+            continue;
+         }
+         if( nIn + 3 < nLen && p[ nIn + 3 ] == '.' &&
+             hb_strnicmp( p + nIn + 1, "or", 2 ) == 0 )
+         {
+            memcpy( s_szBuf + nOut, "||", 2 );
+            nOut += 2;
+            nIn += 3;
+            continue;
+         }
+         if( nIn + 4 < nLen && p[ nIn + 4 ] == '.' &&
+             hb_strnicmp( p + nIn + 1, "not", 3 ) == 0 )
+         {
+            s_szBuf[ nOut++ ] = '!';
+            nIn += 4;
             continue;
          }
       }
@@ -1788,6 +1856,41 @@ static const char * hb_csTranslateInline( const char * szVal,
          {
             memcpy( szId, p + nIdStart, nIdLen );
             szId[ nIdLen ] = '\0';
+            /* NIL → null. Reserved word, so no param/member can shadow
+               it and the scope checks below don't apply. */
+            if( nIdLen == 3 && hb_strnicmp( szId, "nil", 3 ) == 0 )
+            {
+               memcpy( s_szBuf + nOut, "null", 4 );
+               nOut += 4;
+               nIn--;   /* outer loop `nIn++` advances past last id char */
+               continue;
+            }
+            /* iif( a, b, c ) → (( a ) ? ( b ) : ( c )) — streaming:
+               emit `((` now, then rewrite this call's two depth-0
+               commas to `) ? (` / `) : (` and its closing paren to
+               `))` as the main loop reaches them (aIif stack + the
+               depth tracker at the bottom of the loop). Must stay a
+               real ternary: an eager HbRuntime.IIF() helper would
+               evaluate the losing branch, breaking the common
+               `iif(hb_HHasKey(h, k), h[k], default)` guard idiom. */
+            if( nIdLen == 3 && hb_strnicmp( szId, "iif", 3 ) == 0 )
+            {
+               HB_SIZE k = nIn;
+               while( k < nLen && ( p[ k ] == ' ' || p[ k ] == '\t' ) )
+                  k++;
+               if( k < nLen && p[ k ] == '(' &&
+                   iIifTop < ( int ) HB_SIZEOFARRAY( aIif ) - 1 )
+               {
+                  memcpy( s_szBuf + nOut, "((", 2 );
+                  nOut += 2;
+                  iDepth++;
+                  iIifTop++;
+                  aIif[ iIifTop ].depth = iDepth;
+                  aIif[ iIifTop ].commas = 0;
+                  nIn = k;   /* outer ++ lands past the '(' */
+                  continue;
+               }
+            }
             /* Two scopes outrank any global rewrite:
                - a member name after a single-colon send (`oObj:Panel`)
                  belongs to the receiver, not the defines-map / funcTab;
@@ -1846,6 +1949,36 @@ static const char * hb_csTranslateInline( const char * szVal,
             }
          }
          nIn--;   /* outer loop `nIn++` advances past last id char */
+         continue;
+      }
+      /* Depth-aware fall-through: track ( [ { nesting so an active
+         iif( rewrite (aIif stack above) can recognize its own
+         top-level commas and closing paren. Commas nested deeper —
+         inside a call, subscript, or array literal argument — copy
+         through untouched. */
+      if( p[ nIn ] == '(' || p[ nIn ] == '[' || p[ nIn ] == '{' )
+         iDepth++;
+      else if( p[ nIn ] == ')' || p[ nIn ] == ']' || p[ nIn ] == '}' )
+      {
+         if( iIifTop >= 0 && p[ nIn ] == ')' &&
+             iDepth == aIif[ iIifTop ].depth )
+         {
+            memcpy( s_szBuf + nOut, "))", 2 );
+            nOut += 2;
+            iIifTop--;
+            iDepth--;
+            continue;
+         }
+         iDepth--;
+      }
+      else if( p[ nIn ] == ',' && iIifTop >= 0 &&
+               iDepth == aIif[ iIifTop ].depth &&
+               aIif[ iIifTop ].commas < 2 )
+      {
+         memcpy( s_szBuf + nOut,
+                 aIif[ iIifTop ].commas == 0 ? ") ? (" : ") : (", 5 );
+         nOut += 5;
+         aIif[ iIifTop ].commas++;
          continue;
       }
       s_szBuf[ nOut++ ] = p[ nIn ];
@@ -2026,7 +2159,7 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
       case HB_EO_MULTEQ:  return " *= ";
       case HB_EO_DIVEQ:   return " /= ";
       case HB_EO_MODEQ:   return " %= ";
-      case HB_EO_EXPEQ:   return " ^= ";  /* TODO: Math.Pow */
+      case HB_EO_EXPEQ:   return " ^= ";  /* TODO: a = HbRuntime.Pow(a, b) — C# ^= is XOR */
       case HB_EO_EQUAL:   return " == ";
       case HB_EO_EQ:      return " == ";
       case HB_EO_NE:      return " != ";
@@ -3236,8 +3369,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             /* Handle special operators */
             if( pExpr->ExprType == HB_EO_POWER )
             {
-               /* a ^ b → Math.Pow(a, b) */
-               fprintf( yyc, "Math.Pow(" );
+               /* a ^ b → HbRuntime.Pow(a, b). Not Math.Pow: that
+                  returns double, which then poisons surrounding
+                  decimal arithmetic (e.g. `x % (2 ^ 31)` → CS0019
+                  decimal-vs-double). hbtypes.c infers ^ as NUMERIC
+                  (decimal), so the emitted call must return decimal
+                  too. */
+               fprintf( yyc, "HbRuntime.Pow(" );
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
                fprintf( yyc, ", " );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
