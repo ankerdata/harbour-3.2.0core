@@ -24,7 +24,7 @@ public class MyObj
 
 public static partial class Program
 {
-    public static decimal test10_nCounter = 0;
+    public static decimal test10_Main_nCounter = 0;
     public static void Main(string[] args)
     {
         MyObj oObj = new MyObj();
@@ -32,8 +32,8 @@ public static partial class Program
         // WITH OBJECT test
         oObj.SetValue(42);
 
-        test10_nCounter = test10_nCounter + 1;
-        HbRuntime.QOut("nCounter=" + HbRuntime.Str(test10_nCounter));
+        test10_Main_nCounter = test10_Main_nCounter + 1;
+        HbRuntime.QOut("nCounter=" + HbRuntime.Str(test10_Main_nCounter));
 
         return;
     }

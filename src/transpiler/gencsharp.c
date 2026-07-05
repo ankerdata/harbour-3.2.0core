@@ -103,8 +103,25 @@ static const char * s_pFileStatics[ HB_CS_MAX_FILE_STATICS ];
    file-static, used by the assignment emitter to convert `:= NIL` to
    `= default` when the LHS is a value type. */
 static const char * s_pFileStaticTypes[ HB_CS_MAX_FILE_STATICS ];
+/* Parallel array — owning function name for STATICs declared inside a
+   function body, NULL for file-scope STATICs (those declared before
+   the first function, which the parser parks in the file-decl head).
+   Harbour scopes a function-body STATIC to that function only; two
+   functions each declaring `STATIC nCounter` are two variables. The
+   owner feeds both lookup (a function resolves its own statics first,
+   then file-scope ones) and the emitted field name
+   (`<FileBase>_<Owner>_<Var>` vs `<FileBase>_<Var>`). */
+static const char * s_pFileStaticOwners[ HB_CS_MAX_FILE_STATICS ];
 static int s_iFileStaticCount = 0;
 static char s_szFileBase[ 64 ] = "";
+/* Scope for registry lookups: the function whose body is currently
+   being walked or emitted; NULL = file level. Set by hb_csEmitFunc /
+   hb_csEmitMethodBody and by the pre-pass walkers in
+   hb_compGenCSharp. */
+static const char * s_szStaticScope = NULL;
+/* The file-decl head of ast.pFuncList — statics found in its body are
+   file-scope. Captured at hb_compGenCSharp entry. */
+static PHB_AST_NODE s_pFileDeclFunc = NULL;
 
 /* Column at which a hash/array literal should place each top-level
    element when broken across lines. Zero means "stay on one line"
@@ -126,15 +143,49 @@ static const char * hb_csHashKeyCsFor( const char * szType )
           ? "decimal" : "string";
 }
 
-static HB_BOOL hb_csIsFileStatic( const char * szName )
+/* Find the registry slot szName resolves to under the current scope:
+   a STATIC owned by the function being walked/emitted wins, then a
+   file-scope STATIC (owner NULL). A function never sees another
+   function's statics — that's the Harbour visibility rule this
+   registry exists to reproduce. Returns -1 when not visible. */
+static int hb_csFileStaticIdx( const char * szName )
 {
    int i;
    if( ! szName || s_iFileStaticCount == 0 )
-      return HB_FALSE;
+      return -1;
+   if( s_szStaticScope )
+   {
+      for( i = 0; i < s_iFileStaticCount; i++ )
+         if( s_pFileStaticOwners[ i ] &&
+             hb_stricmp( s_pFileStaticOwners[ i ], s_szStaticScope ) == 0 &&
+             hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
+            return i;
+   }
    for( i = 0; i < s_iFileStaticCount; i++ )
-      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
-         return HB_TRUE;
-   return HB_FALSE;
+      if( ! s_pFileStaticOwners[ i ] &&
+          hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
+         return i;
+   return -1;
+}
+
+static HB_BOOL hb_csIsFileStatic( const char * szName )
+{
+   return hb_csFileStaticIdx( szName ) >= 0;
+}
+
+/* Write slot i's C# field name into buf and return buf:
+   `<FileBase>_<Owner>_<Var>` for a function-scope STATIC,
+   `<FileBase>_<Var>` for a file-scope one. Uses the declaration-site
+   casing (Harbour identifiers are case-insensitive; C# isn't). */
+static const char * hb_csStaticFieldName( int i, char * buf, int nLen )
+{
+   if( s_pFileStaticOwners[ i ] )
+      hb_snprintf( buf, nLen, "%s_%s_%s", s_szFileBase,
+                   s_pFileStaticOwners[ i ], s_pFileStatics[ i ] );
+   else
+      hb_snprintf( buf, nLen, "%s_%s", s_szFileBase,
+                   s_pFileStatics[ i ] );
+   return buf;
 }
 
 /* Return the inferred Harbour-side type name for the file-static
@@ -142,13 +193,8 @@ static HB_BOOL hb_csIsFileStatic( const char * szName )
    a file-static / not registered with a type. */
 static const char * hb_csFileStaticType( const char * szName )
 {
-   int i;
-   if( ! szName )
-      return NULL;
-   for( i = 0; i < s_iFileStaticCount; i++ )
-      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
-         return s_pFileStaticTypes[ i ];
-   return NULL;
+   int i = hb_csFileStaticIdx( szName );
+   return i >= 0 ? s_pFileStaticTypes[ i ] : NULL;
 }
 
 static HB_BOOL hb_csIsValueType( const char * szType )
@@ -160,52 +206,38 @@ static HB_BOOL hb_csIsValueType( const char * szType )
       hb_stricmp( szType, "TIMESTAMP" ) == 0 );
 }
 
-/* Return the registered (declaration-site) casing for szName, or
-   szName itself when no match. Callers use this to emit a consistent
-   spelling regardless of the call-site casing in the source — Harbour
-   identifiers are case-insensitive but C# isn't, so a mixed-cased
-   reference (`oPlu` vs `oPLU`) needs to collapse to whatever the
-   STATIC declaration emitted. */
-static const char * hb_csFileStaticCanon( const char * szName )
+/* Register a STATIC under its owner (NULL = file scope). Dedup is per
+   (owner, name): the collection passes walk every function's body more
+   than once per emission, but two different functions declaring the
+   same name are two distinct variables and get two slots. */
+static void hb_csAddFileStatic( const char * szName, const char * szOwner )
 {
    int i;
-   if( ! szName )
-      return szName;
-   for( i = 0; i < s_iFileStaticCount; i++ )
-      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
-         return s_pFileStatics[ i ];
-   return szName;
-}
-
-static void hb_csAddFileStatic( const char * szName )
-{
    if( ! szName || s_iFileStaticCount >= HB_CS_MAX_FILE_STATICS )
       return;
-   /* Dedup: the collection pass walks every function's body block
-      for HB_AST_STATIC nodes, and the same name can legitimately
-      appear in more than one collection pass during a single file
-      emission. Silently drop duplicates rather than growing the
-      registry unbounded. */
-   if( hb_csIsFileStatic( szName ) )
-      return;
+   for( i = 0; i < s_iFileStaticCount; i++ )
+   {
+      if( hb_stricmp( s_pFileStatics[ i ], szName ) != 0 )
+         continue;
+      if( ! s_pFileStaticOwners[ i ] && ! szOwner )
+         return;
+      if( s_pFileStaticOwners[ i ] && szOwner &&
+          hb_stricmp( s_pFileStaticOwners[ i ], szOwner ) == 0 )
+         return;
+   }
    s_pFileStaticTypes[ s_iFileStaticCount ] = NULL;
+   s_pFileStaticOwners[ s_iFileStaticCount ] = szOwner;
    s_pFileStatics[ s_iFileStaticCount++ ] = szName;
 }
 
 /* Record (or update) the inferred type for a previously-registered
-   file-static. Tolerates being called before the name was added —
-   silently no-ops in that case. */
+   STATIC, resolved under the current scope. Tolerates being called
+   before the name was added — silently no-ops in that case. */
 static void hb_csSetFileStaticType( const char * szName, const char * szType )
 {
-   int i;
-   if( ! szName )
-      return;
-   for( i = 0; i < s_iFileStaticCount; i++ )
-      if( hb_stricmp( s_pFileStatics[ i ], szName ) == 0 )
-      {
-         s_pFileStaticTypes[ i ] = szType;
-         return;
-      }
+   int i = hb_csFileStaticIdx( szName );
+   if( i >= 0 )
+      s_pFileStaticTypes[ i ] = szType;
 }
 
 /* Per-function local-variable types, recorded as each LOCAL/STATIC
@@ -535,8 +567,10 @@ static HB_BOOL hb_csIsFileMemvar( const char * szName )
    return HB_FALSE;
 }
 
-/* Declaration-site casing for a file-scope MEMVAR. See
-   hb_csFileStaticCanon for the rationale. */
+/* Declaration-site casing for a file-scope MEMVAR — Harbour names are
+   case-insensitive, C# isn't, so drifted-case references collapse
+   onto the declared spelling (same rationale as the STATIC registry's
+   hb_csStaticFieldName). */
 static const char * hb_csFileMemvarCanon( const char * szName )
 {
    int i;
@@ -560,6 +594,8 @@ static void hb_csAddFileMemvar( const char * szName )
 static void hb_csResetFileStatics( void )
 {
    s_iFileStaticCount = 0;
+   s_szStaticScope = NULL;
+   s_pFileDeclFunc = NULL;
    s_iFileStaticFuncCount = 0;
    s_iFileMemvarCount = 0;
    s_szFileBase[ 0 ] = '\0';
@@ -2390,15 +2426,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else if( szLocal == NULL && hb_csIsFileStatic( szVarName ) )
             {
-               /* File-scope STATIC reference — rewrite to the mangled
-                  class field name to dodge cross-file collisions.
-                  A local with the same name in the current scope
-                  shadows the static, matching Harbour's rule. Use the
-                  declaration-site casing so cross-function references
-                  with drifted case collapse onto the single field
-                  name (Harbour is case-insensitive; C# isn't). */
-               fprintf( yyc, "%s_%s", s_szFileBase,
-                        hb_csFileStaticCanon( szVarName ) );
+               /* STATIC reference — rewrite to the mangled class field
+                  name (file-unique; function-scope statics also carry
+                  their owner function). A local with the same name in
+                  the current scope shadows the static, matching
+                  Harbour's rule. Declaration-site casing so drifted-
+                  case references collapse onto the single field. */
+               char szFld[ 256 ];
+               fprintf( yyc, "%s",
+                        hb_csStaticFieldName(
+                           hb_csFileStaticIdx( szVarName ),
+                           szFld, sizeof( szFld ) ) );
             }
             else if( szLocal == NULL && hb_csIsFileMemvar( szVarName ) )
             {
@@ -3198,8 +3236,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   file-static registry). Same recovery as the case-
                   typo'd local above; emit the mangled field name
                   instead of the @-prefix syntactic-survival branch. */
-               fprintf( yyc, "%s_%s", s_szFileBase,
-                        hb_csFileStaticCanon( szVarName ) );
+               char szFld[ 256 ];
+               fprintf( yyc, "%s",
+                        hb_csStaticFieldName(
+                           hb_csFileStaticIdx( szVarName ),
+                           szFld, sizeof( szFld ) ) );
             }
             else if( hb_csIsFileMemvar( szVarName ) )
             {
@@ -4795,6 +4836,8 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                   sizeof( s_szCurrentClass ) - 1 );
    }
    s_pCurrentFuncNode = pFunc;
+   /* Method-body STATICs are scoped to the method's function. */
+   s_szStaticScope = pFunc->value.asFunc.szName;
 
    /* Emit method signature */
    hb_csEmitIndent( yyc, iIndent );
@@ -4930,6 +4973,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    s_szCurrentFunc[ 0 ] = '\0';
    s_szCurrentClass[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
+   s_szStaticScope = NULL;
 }
 
 /* Emit a complete C# class definition */
@@ -5686,6 +5730,10 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                   sizeof( s_szCurrentFunc ) - 1 );
    }
    s_pCurrentFuncNode = pFunc;
+   /* Static-registry scope: this function's own STATICs resolve ahead
+      of the file-scope ones while its body emits. */
+   s_szStaticScope = ( pFunc == s_pFileDeclFunc )
+      ? NULL : pFunc->value.asFunc.szName;
 
    /* Emit blank line if gap */
    if( pFunc->iLine > 0 && s_iLastLine > 0 && pFunc->iLine > s_iLastLine + 1 )
@@ -6027,6 +6075,11 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       name (without path or extension) for use as a STATIC-var name
       prefix. See hb_csIsFileStatic for the collision rationale. */
    hb_csResetFileStatics();
+   /* The head of ast.pFuncList is the file-decl container (includes,
+      classes, file-level STATICs live in its body). STATICs found
+      there are file-scope; STATICs in any later function are private
+      to that function. */
+   s_pFileDeclFunc = HB_COMP_PARAM->ast.pFuncList;
    {
       PHB_FNAME pOut = hb_fsFNameSplit( HB_COMP_PARAM->szFile );
       pFileName->szExtension = ".cs";
@@ -6248,11 +6301,17 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
              pF->value.asFunc.pBody->type == HB_AST_BLOCK )
          {
             PHB_AST_NODE pStmt = pF->value.asFunc.pBody->value.asBlock.pFirst;
+            /* STATICs in the file-decl head are file-scope (owner
+               NULL); those inside a real function body are private to
+               that function per Harbour's rule. */
+            const char * szOwner = ( pF == s_pFileDeclFunc )
+               ? NULL : pF->value.asFunc.szName;
+            s_szStaticScope = szOwner;
             while( pStmt )
             {
                if( pStmt->type == HB_AST_STATIC )
                {
-                  hb_csAddFileStatic( pStmt->value.asVar.szName );
+                  hb_csAddFileStatic( pStmt->value.asVar.szName, szOwner );
                   /* Seed hash-family statics with their declaration-
                      derived type so the key-type pre-pass below has a
                      starting point to upgrade. Other types keep the
@@ -6271,6 +6330,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          }
          pF = pF->pNext;
       }
+      s_szStaticScope = NULL;
    }
 
    /* Hash key-type pre-pass: observe subscripts on hash statics and
@@ -6286,11 +6346,16 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          while( pF )
          {
             if( pF->type == HB_AST_FUNCTION )
+            {
+               s_szStaticScope = ( pF == s_pFileDeclFunc )
+                  ? NULL : pF->value.asFunc.szName;
                hb_csHashScanBlock( pF->value.asFunc.pBody, &fChg );
+            }
             pF = pF->pNext;
          }
       }
       while( fChg );
+      s_szStaticScope = NULL;
    }
 
    /* Emit class definitions with their methods */
@@ -6358,10 +6423,14 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                 pF->value.asFunc.pBody->type == HB_AST_BLOCK )
             {
                PHB_AST_NODE pStmt = pF->value.asFunc.pBody->value.asBlock.pFirst;
+               const char * szOwner = ( pF == s_pFileDeclFunc )
+                  ? NULL : pF->value.asFunc.szName;
+               s_szStaticScope = szOwner;
                while( pStmt )
                {
                   if( pStmt->type == HB_AST_STATIC )
                   {
+                     char szFld[ 256 ];
                      const char * szType = pStmt->value.asVar.szAlias ?
                         pStmt->value.asVar.szAlias :
                         hb_astInferType( pStmt->value.asVar.szName,
@@ -6370,7 +6439,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         pStmt->value.asVar.pInit &&
                         ( pStmt->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
                           pStmt->value.asVar.pInit->ExprType == HB_ET_LIST );
-                     hb_csAddFileStatic( pStmt->value.asVar.szName );
+                     hb_csAddFileStatic( pStmt->value.asVar.szName, szOwner );
+                     hb_csStaticFieldName(
+                        hb_csFileStaticIdx( pStmt->value.asVar.szName ),
+                        szFld, sizeof( szFld ) );
                      hb_csEmitIndent( yyc, 1 );
                      if( fArrayDim )
                      {
@@ -6394,9 +6466,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                            at runtime. */
                         PHB_EXPR pDim =
                            pStmt->value.asVar.pInit->value.asList.pExprList;
-                        fprintf( yyc, "public static dynamic[] %s_%s = new dynamic[",
-                                 s_szFileBase,
-                                 pStmt->value.asVar.szName );
+                        fprintf( yyc, "public static dynamic[] %s = new dynamic[",
+                                 szFld );
                         hb_csEmitArrayDim( pDim, yyc );
                         fprintf( yyc, "];\n" );
                      }
@@ -6425,10 +6496,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         }
                         hb_csSetFileStaticType(
                            pStmt->value.asVar.szName, szType );
-                        fprintf( yyc, "public static %s %s_%s",
-                                 hb_csTypeMap( szType ),
-                                 s_szFileBase,
-                                 pStmt->value.asVar.szName );
+                        fprintf( yyc, "public static %s %s",
+                                 hb_csTypeMap( szType ), szFld );
                         if( pStmt->value.asVar.pInit )
                         {
                            const char * szSavedKey = s_szHashKeyCs;
@@ -6511,6 +6580,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
             }
             pF = pF->pNext;
          }
+         s_szStaticScope = NULL;
       }
 
       pFunc = HB_COMP_PARAM->ast.pFuncList;
