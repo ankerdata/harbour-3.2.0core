@@ -449,6 +449,17 @@ pointer, or an `@FuncName()` reference) and `f` (a function-pointer
 variable). Both are callable-or-opaque, which `dynamic` covers — it
 dispatches calls through the DLR and stores handles transparently.
 
+**Class-suffix promotion for `o` / `so` prefixes.** When the suffix
+after the `o`- prefix (or the easipos STATIC `so`- prefix) matches a
+class name registered in the reftab, the generic `OBJECT` → `dynamic`
+fallback is replaced with the specific class. `LOCAL oTransaction`
+resolves to `Transaction`, `STATIC soRmComm` to `RmComm`, etc. — a
+free static-C# binding without a `:= Transaction():New()` seed
+allocation, and without the DLR-dispatch overhead. Names whose suffix
+doesn't match a registered class (`oLine`, `oRow`, …) fall through to
+the generic `OBJECT` / `dynamic` behaviour unchanged. See
+[test74.prg](tests/test74.prg).
+
 Nilable parameters (those the body compares to or assigns `NIL`) are
 emitted with `?` appended: `decimal?`, `string?`, etc. Non-nilable
 slots stay fully strongly typed.
@@ -530,6 +541,7 @@ See [test18.prg](tests/test18.prg) for the full demo.
 | Comments (`*`, `&&`, `NOTE`)     | `// …`                                                    |
 | `#define NAME val`               | `const T NAME = val;` inside `Program` class             |
 | `#include`                       | `// #include …` (preserved as comment)                   |
+| `HB_SYMBOL_UNUSED(x)` / bare-value stmt | *(no emit — CS0201 / E0020 avoided; see [test72.prg](tests/test72.prg))* |
 
 ### Strong typing strategy
 
@@ -707,7 +719,7 @@ bash comparecs.sh   # .cs stdout must match .prg stdout
 bash errors/run.sh  # Negative tests — each .prg must fail -GS with a specific error
 ```
 
-Current counts: **66 positive tests + 4 negative tests, all pass via `verify.sh`**.
+Current counts: **76 positive tests + 6 negative tests, all pass via `verify.sh`**.
 
 The test suite is intentionally small and incremental — each numbered
 test exercises one feature in isolation. New tests usually expose new
@@ -762,31 +774,52 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 62        | File-static function called with an omitted middle argument |
 | 63a + 63b | File-static vs same-named global (reftab key collision) |
 | 64        | Bare variable passed to a by-ref parameter           |
+| 65        | "Discard-the-outputs" overload — omit a trailing by-ref OUTPUT param |
+| 66        | ref-invariance shim in both directions + expression context |
+| 67        | Array by-ref elision — element mutation needs no `ref`  |
+| 68        | ref-shim temp naming from the backing lvalue           |
+| 69        | Nested ref-shim blocks — depth prefix avoids CS0136     |
+| 70        | Clipper sized-array `LOCAL aFoo[N]` / `STATIC aBar[N]`  |
+| 71        | Non-`@` args to by-ref params → value-in / no-writeback shim |
+| 72        | `HB_SYMBOL_UNUSED(x)` → no-op at C# emit                |
+| 73        | Header `#define`s in CLASS VAR INIT resolve via the Const class |
+| 74        | `o<ClassName>` / STATIC `so<ClassName>` infer the specific class |
 
-Negative tests live under `tests/errors/` and are run by `errors/run.sh`:
+Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
+Each must surface a specific **warning** on stderr during `-GS` — the
+test asserts the warning is emitted, *not* that codegen hard-fails. Most
+are `W0016` unsupported-construct cases (the emitter substitutes a
+placeholder and keeps the rest of the file — see
+[Unsupported constructs](#unsupported-constructs)); the rest flag a
+source smell that codegen still handles:
 
-| Test                | Construct flagged                                       |
-|---------------------|----------------------------------------------------------|
-| `alias_stmt.prg`    | Workarea `ALIAS->( expr )` as a statement               |
-| `alias_expr.prg`    | Workarea `ALIAS->( expr )` in expression position       |
-| `macro_expr.prg`    | `&name` macro substitution                              |
-| `comma_op.prg`      | `(a, b)` comma operator in expression position          |
-
-Each must fail `-GS` codegen with a matching `HB_COMP_ERR_SYNTAX`
-message — see [Unsupported constructs](#unsupported-constructs).
+| Test                          | Warning | Flagged                                                  |
+|-------------------------------|---------|----------------------------------------------------------|
+| `alias_stmt.prg`              | `W0016` | Workarea `ALIAS->( expr )` as a statement               |
+| `alias_expr.prg`              | `W0016` | Workarea `ALIAS->( expr )` in expression position       |
+| `macro_expr.prg`              | `W0016` | `&name` macro substitution                              |
+| `comma_op.prg`                | `W0016` | `(a, b)` comma operator in expression position          |
+| `array_ref_noreassign.prg`    | `W0023` | Redundant `@` on an array param the callee only mutates element-wise |
+| `hungarian_mismatch.prg`      | `W0024` | Assignment whose RHS type contradicts the lvalue's Hungarian prefix |
 
 ---
 
 ## Unsupported constructs
 
 Some Harbour constructs have no clean C# equivalent. Rather than emit
-comments that break downstream syntax, the transpiler calls
-`hb_compGenError( HB_COMP_ERR_SYNTAX, ... )` and substitutes an
-`HbRuntime.MacroStub` placeholder so the `.cs` stays parseable for
-diagnostics (`MacroStub` is typed `dynamic`, so it works on either
-side of an assignment — `default` cannot be an lvalue).
-Any `.prg` containing one of these fails `-GS` with `rc != 0` and
-the build pipeline skips the file:
+comments that break downstream syntax, the transpiler emits a `W0016`
+warning to stderr and substitutes an `HbRuntime.MacroStub` placeholder
+so the `.cs` stays parseable (`MacroStub` is typed `dynamic`, so it
+works on either side of an assignment — `default` cannot be an lvalue).
+
+Codegen does **not** hard-fail: the placeholder is dropped in place and
+the rest of the file's functions and classes are still emitted, so
+downstream callers keep compiling. (Historically these raised
+`HB_COMP_ERR_SYNTAX` and the pipeline skipped the whole file, which
+dropped real files from the easipos build and cascaded into CS0103s at
+every caller.) Executing a placeholder path at runtime will misbehave,
+but these constructs usually live in rarely-taken branches. The
+warning is what the negative tests assert:
 
 | Construct                    | Example                                          |
 |------------------------------|--------------------------------------------------|
@@ -828,6 +861,18 @@ The module state lives in [`hbdefinemap.c`](hbdefinemap.c) /
 calls `hb_defineMapSetCurrentFile(basename)` at the top of each file's
 emission so file-local shadows take effect; it's reset to `NULL` at
 the end.
+
+**Inline / CLASS VAR INIT translator.** `CLASS VAR foo INIT expr` and
+INLINE method bodies emit through `hb_csTranslateInline`, which walks
+identifiers as raw text rather than through the AST emit path. That
+translator now runs each identifier through `hb_defineMapLookupCanon`
+after `hb_funcTabPrefix` returns NULL — so a header `#define
+PANELSIGNON 1` referenced by `VAR nCurrentPanel INIT PANELSIGNON`
+resolves to `PanelsConst.PANELSIGNON` instead of a bare
+`PANELSIGNON` identifier the file's `using static`s don't cover
+(CS0103). Harbour built-ins still take precedence — the map only
+fires when the identifier isn't a known function. See
+[test73.prg](tests/test73.prg).
 
 ---
 
