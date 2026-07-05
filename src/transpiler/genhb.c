@@ -650,6 +650,11 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                case HB_ET_NUMERIC:  case HB_ET_STRING:
                case HB_ET_LOGICAL:  case HB_ET_NIL:
                case HB_ET_DATE:     case HB_ET_TIMESTAMP:
+               /* ARRAYAT too — the LIST peel above strips the parens
+                  that made `(( aData[ 1 ] ))` a legal PareExpList
+                  statement, and a bare `aData[ 1 ]` line is E0020.
+                  Must match gencsharp.c's HB_AST_EXPRSTMT set. */
+               case HB_ET_ARRAYAT:
                   fValueless = HB_TRUE;
                   break;
                case HB_ET_SEND:
