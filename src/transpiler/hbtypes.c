@@ -268,6 +268,25 @@ const char * hb_astHashFamilyMerge( const char * szA, const char * szB )
    return NULL;               /* HASHC vs HASHN — real conflict */
 }
 
+/* Definite value-type tags — the types where a disagreement between a
+   call-site argument and a declared slot is a real contradiction (a
+   class name vs OBJECT is just uncertainty; NUMERIC vs STRING is not). */
+static HB_BOOL hb_astIsScalarTag( const char * szType )
+{
+   return szType && (
+      hb_stricmp( szType, "NUMERIC"   ) == 0 ||
+      hb_stricmp( szType, "STRING"    ) == 0 ||
+      hb_stricmp( szType, "LOGICAL"   ) == 0 ||
+      hb_stricmp( szType, "DATE"      ) == 0 ||
+      hb_stricmp( szType, "TIMESTAMP" ) == 0 ||
+      hb_stricmp( szType, "ARRAY"     ) == 0 ||
+      hb_astIsHashFamily( szType ) );
+}
+
+/* W0024/W0025 per-(line,name) dedup — defined with the W0024 machinery
+   below. */
+static HB_BOOL hb_astHungSeen( int iLine, const char * szName );
+
 /* If szName follows `o<ClassName>` (or `so<ClassName>`) and the
    suffix after the prefix matches a registered class, return the
    canonical class name from the reftab. Otherwise NULL. Requires
@@ -1437,10 +1456,80 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
             were keyed onto the wrapper's OWN methods — spurious
             W0022s, wrongful downgrade-to-USUAL of every conflicting
             parameter, and stray by-ref marks from the proxy's @args.
-            Under-refining is safer than mis-refining. */
+            Under-refining is safer than mis-refining.
+
+            The name-matches-class convention is the project's soft
+            typing contract, though — so before discarding, check
+            whether the call CONTRADICTS the claimed class: more args
+            than the class method declares, or a scalar arg against a
+            different-scalar slot. That shape means the member is
+            almost certainly NOT an instance of the class its name
+            claims (a COM proxy named after its wrapper) and the
+            member should be renamed — W0025. */
          if( szRecvType && szRecvName &&
              hb_astIsNameSeededClass( szRecvName, szRecvType ) )
+         {
+            if( szMethod && pEnv->pRefTab )
+            {
+               char szProbe[ 256 ];
+               int  nParams;
+               hb_snprintf( szProbe, sizeof( szProbe ), "%s::%s__%s",
+                            szRecvType, szRecvType, szMethod );
+               nParams = hb_refTabParamCount( pEnv->pRefTab, szProbe );
+               if( nParams > 0 )
+               {
+                  PHB_EXPR pParms = pExpr->value.asMessage.pParms;
+                  PHB_EXPR pArg = NULL;
+                  int  iArgs = 0, iPos = 0;
+                  HB_BOOL fContradicts = HB_FALSE;
+                  if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                                  pParms->ExprType == HB_ET_ARGLIST ||
+                                  pParms->ExprType == HB_ET_MACROARGLIST ) )
+                     pArg = pParms->value.asList.pExprList;
+                  else
+                     pArg = pParms;
+                  for( ; pArg; pArg = pArg->pNext )
+                  {
+                     if( pArg->ExprType != HB_ET_NONE )
+                     {
+                        if( ! fContradicts && iPos < nParams )
+                        {
+                           const HB_REFPARAM * pP = hb_refTabParam(
+                              pEnv->pRefTab, szProbe, iPos );
+                           const char * szArgT =
+                              hb_astInferExprType( pArg, pEnv );
+                           if( pP && pP->szType && szArgT &&
+                               hb_astIsScalarTag( pP->szType ) &&
+                               hb_astIsScalarTag( szArgT ) &&
+                               hb_stricmp( pP->szType, szArgT ) != 0 &&
+                               ! hb_astHashFamilyMerge( pP->szType, szArgT ) &&
+                               ! ( hb_stricmp( pP->szType, "TIMESTAMP" ) == 0 &&
+                                   hb_stricmp( szArgT, "DATE" ) == 0 ) &&
+                               ! ( hb_stricmp( pP->szType, "DATE" ) == 0 &&
+                                   hb_stricmp( szArgT, "TIMESTAMP" ) == 0 ) )
+                              fContradicts = HB_TRUE;
+                        }
+                        iArgs++;
+                     }
+                     iPos++;
+                  }
+                  if( iArgs > nParams )
+                     fContradicts = HB_TRUE;
+                  if( fContradicts &&
+                      ! hb_astHungSeen( iLine, szRecvName ) )
+                     fprintf( stderr,
+                        "hbtranspiler: %s(%d): warning W0025  "
+                        "member '%s' is name-typed as class %s but its "
+                        "call to '%s' doesn't match %s:%s — receiver is "
+                        "probably not a %s; rename the member\n",
+                        pEnv->szFile ?
+                           hb_strCollapsePath( pEnv->szFile ) : "?",
+                        iLine, szRecvName, szRecvType, szMethod,
+                        szRecvType, szMethod, szRecvType );
+               }
+            }
             szRecvType = NULL;
+         }
 
          if( szRecvType && szMethod )
          {
