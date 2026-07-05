@@ -239,6 +239,22 @@ static const char * hb_astClassFromObjectName( const char * szName )
    return hb_refTabClassCanonName( s_pPropRefTab, szSuffix );
 }
 
+/* True when szType is exactly the class hb_astClassFromObjectName
+   derives from the variable's own name. Such a type is a weak hint —
+   no initializer or assignment proved it — so refinement and the
+   W0024 mismatch check must treat it like the generic OBJECT it
+   replaces: assignment evidence (a constructor of a different class,
+   a typed function return) wins over the name. */
+static HB_BOOL hb_astIsNameSeededClass( const char * szName,
+                                        const char * szType )
+{
+   const char * szClass;
+   if( ! szType )
+      return HB_FALSE;
+   szClass = hb_astClassFromObjectName( szName );
+   return szClass != NULL && hb_stricmp( szClass, szType ) == 0;
+}
+
 static const char * hb_astInferFromPrefix( const char * szName )
 {
    if( ! szName || ! szName[ 0 ] )
@@ -646,11 +662,15 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
          return;
    }
 
-   /* Refine when: unknown, USUAL (untyped), or OBJECT (generic
-      Hungarian `o` prefix). OBJECT is upgradeable to a specific class
-      name when the RHS is a constructor like `Transaction():New()`. */
+   /* Refine when: unknown, USUAL (untyped), OBJECT (generic Hungarian
+      `o` prefix), or a class the variable's own name seeded (weak hint
+      — an `oServer := TCPClient():New()` assignment must be able to
+      override the name-derived Server). OBJECT is upgradeable to a
+      specific class name when the RHS is a constructor like
+      `Transaction():New()`. */
    if( ! szCurType || strcmp( szCurType, "USUAL" ) == 0 ||
-       strcmp( szCurType, "OBJECT" ) == 0 )
+       strcmp( szCurType, "OBJECT" ) == 0 ||
+       hb_astIsNameSeededClass( szVarName, szCurType ) )
    {
       const char * szNewType = hb_astInferExprType( pRHS, pEnv );
       if( szNewType && ( ! szCurType || strcmp( szCurType, szNewType ) != 0 ) )
@@ -1276,6 +1296,12 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
    if( hb_stricmp( szLhs, "USUAL" ) == 0 ||
        hb_stricmp( szLhs, "OBJECT" ) == 0 )
       return;
+   /* A class derived from the variable's own name (`o<ClassName>`) is
+      a weak hint, not a declaration — assigning a subclass or factory
+      result to it is normal, and the reftab records no INHERIT edges
+      to tell relatives apart. Treat it like the OBJECT it replaced. */
+   if( hb_astIsNameSeededClass( szName, szLhs ) )
+      return;
    if( hb_stricmp( szRhs, "USUAL" ) == 0 ||
        hb_stricmp( szRhs, "OBJECT" ) == 0 )
       return;
@@ -1507,6 +1533,15 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
          else if( strcmp( szCurType, "OBJECT" ) == 0 &&
                   szPropType && strcmp( szPropType, "OBJECT" ) != 0 &&
                   strcmp( szPropType, "USUAL" ) != 0 )
+            fOverride = HB_TRUE;
+         /* Name-seeded class (weak hint from `o<ClassName>`): the env
+            may hold a different class proved by an assignment — that
+            evidence wins over the name-derived guess. */
+         else if( hb_astIsNameSeededClass( pStmt->value.asVar.szName,
+                                           szCurType ) &&
+                  szPropType && strcmp( szPropType, szCurType ) != 0 &&
+                  strcmp( szPropType, "USUAL" ) != 0 &&
+                  strcmp( szPropType, "OBJECT" ) != 0 )
             fOverride = HB_TRUE;
 
          if( fOverride )

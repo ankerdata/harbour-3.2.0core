@@ -652,6 +652,20 @@ void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName )
    if( ! pTab || ! szName )
       return;
    e = hb_refTabFindOrCreate( pTab, szName );
+
+   /* Overwrite szName with the declaration-site casing, mirroring
+      hb_refTabAddFunc. A prior entry may carry the spelling of a
+      case-drifted `METHOD Foo CLASS transaction` clause (via
+      hb_refTabMarkClassDynamic, which is flags-only) — and
+      hb_refTabClassCanonName feeds e->szName straight into C# type
+      position, where `transaction` vs `public class Transaction` is
+      CS0246. The CLASS declaration wins. */
+   if( e->szName && strcmp( e->szName, szName ) != 0 )
+   {
+      hb_refTabDefer( pTab, e->szName );
+      e->szName = hb_refTabDup( szName );
+   }
+
    e->fIsClass = HB_TRUE;
    e->fDefined = HB_TRUE;     /* persist across saves */
    if( e->nParams < 0 )

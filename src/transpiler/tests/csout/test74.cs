@@ -16,12 +16,18 @@ using static Program;
 // authors get the static C# binding for free, no `:= FooThing():New()`
 // seed allocation needed.
 //
-// This test exercises three shapes:
-//   • LOCAL oTest74Holder       → typed Test74Holder
+// The legs are built so the type can come ONLY from the name: no
+// declaration initializer, and every value arrives through SeedObject,
+// whose mixed RETURN types pin its inferred return type to USUAL — so
+// neither the initializer inference nor assignment propagation ever
+// sees a `Test74Holder():New()`. This is what separates the feature
+// from the pre-existing constructor-initializer typing.
+//
+//   • LOCAL oTest74Holder       → typed Test74Holder purely by name
 //   • STATIC soTest74Holder     → file-static, same inference via the
 //                                  easipos `so<ClassName>` STATIC form
-//   • LOCAL oNotAClass          → falls through to OBJECT / dynamic,
-//                                  the existing behaviour
+//   • LOCAL oNotAClass          → suffix matches no class; falls
+//                                  through to OBJECT / dynamic
 //
 // All three pipelines (.prg / .hb / .cs) must produce identical
 // output. The .cs side is where the inference matters — the .prg /
@@ -43,11 +49,12 @@ public static partial class Program
     public static Test74Holder test74_soTest74Holder;
     public static void Main(string[] args)
     {
-        Test74Holder oTest74Holder = new Test74Holder();
-        // o-prefix but suffix isn't a class
-        Test74Holder oNotAClass = new Test74Holder();
+        Test74Holder oTest74Holder = default;
+        dynamic oNotAClass = default;
 
-        test74_soTest74Holder = new Test74Holder();
+        oTest74Holder = SeedObject(true);
+        oNotAClass = SeedObject(true);
+        test74_soTest74Holder = SeedObject(true);
 
         oTest74Holder.cTag = "first";
         test74_soTest74Holder.cTag = "static";
@@ -57,5 +64,18 @@ public static partial class Program
         HbRuntime.QOut("static: " + test74_soTest74Holder.Identify());
         HbRuntime.QOut("fallthrough: " + oNotAClass.Identify());
         return;
+
+        // Polymorphic on purpose: the mixed RETURN types (object vs string)
+        // make the inferred return type USUAL, so no constructor evidence
+        // reaches the call sites above.
+    }
+    public static dynamic SeedObject(bool lReal = default)
+    {
+        if (lReal)
+        {
+            return new Test74Holder();
+        }
+
+        return "never";
     }
 }

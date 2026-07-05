@@ -12,12 +12,18 @@
 // authors get the static C# binding for free, no `:= FooThing():New()`
 // seed allocation needed.
 //
-// This test exercises three shapes:
-//   • LOCAL oTest74Holder       → typed Test74Holder
+// The legs are built so the type can come ONLY from the name: no
+// declaration initializer, and every value arrives through SeedObject,
+// whose mixed RETURN types pin its inferred return type to USUAL — so
+// neither the initializer inference nor assignment propagation ever
+// sees a `Test74Holder():New()`. This is what separates the feature
+// from the pre-existing constructor-initializer typing.
+//
+//   • LOCAL oTest74Holder       → typed Test74Holder purely by name
 //   • STATIC soTest74Holder     → file-static, same inference via the
 //                                  easipos `so<ClassName>` STATIC form
-//   • LOCAL oNotAClass          → falls through to OBJECT / dynamic,
-//                                  the existing behaviour
+//   • LOCAL oNotAClass          → suffix matches no class; falls
+//                                  through to OBJECT / dynamic
 //
 // All three pipelines (.prg / .hb / .cs) must produce identical
 // output. The .cs side is where the inference matters — the .prg /
@@ -28,10 +34,12 @@
 STATIC soTest74Holder
 
 PROCEDURE Main()
-   LOCAL oTest74Holder := Test74Holder():New()
-   LOCAL oNotAClass    := Test74Holder():New()    // o-prefix but suffix isn't a class
+   LOCAL oTest74Holder
+   LOCAL oNotAClass
 
-   soTest74Holder := Test74Holder():New()
+   oTest74Holder  := SeedObject( .T. )
+   oNotAClass     := SeedObject( .T. )
+   soTest74Holder := SeedObject( .T. )
 
    oTest74Holder:cTag  := "first"
    soTest74Holder:cTag := "static"
@@ -41,6 +49,15 @@ PROCEDURE Main()
    ? "static: " + soTest74Holder:Identify()
    ? "fallthrough: " + oNotAClass:Identify()
 RETURN
+
+// Polymorphic on purpose: the mixed RETURN types (object vs string)
+// make the inferred return type USUAL, so no constructor evidence
+// reaches the call sites above.
+FUNCTION SeedObject( lReal )
+   IF lReal
+      RETURN Test74Holder():New()
+   ENDIF
+RETURN "never"
 
 CLASS Test74Holder
    VAR cTag AS STRING INIT "default"
