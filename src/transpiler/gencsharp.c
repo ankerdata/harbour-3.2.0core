@@ -61,13 +61,6 @@ static int s_iLastLine = 0;
    coordinate. s_pCompCtx->currLine is stuck at end-of-file during
    codegen so it can't be used for this. */
 static int s_iCurrentStmtLine = 0;
-/* Counter for unsupported constructs (workarea ALIAS, bare macros, …)
-   encountered while emitting the current file. Reset at the top of
-   hb_compGenCSharp, bumped by hb_csWarnUnsupported. Each site emits a
-   W0016 warning and a MacroStub/default placeholder, keeping the rest of
-   the file's functions available to downstream callers; the counter is
-   just for diagnostics (codegen does not hard-fail on it). */
-static int s_iAliasUnsupported = 0;
 /* pComp pointer captured at hb_compGenCSharp entry so deeply-nested
    static emitters can call hb_compGenError without each having to
    accept a HB_COMP_DECL parameter. */
@@ -363,7 +356,7 @@ static const char * hb_csMangleStaticFunc( const char * szName,
    file is still available to downstream callers. The unsupported
    expression itself lands as a `default` placeholder; executing that
    path at runtime will misbehave, but most of these constructs live
-   in rarely-taken branches. Counter still bumps for diagnostics. */
+   in rarely-taken branches. */
 static void hb_csWarnUnsupported( const char * szDesc )
 {
    if( s_pCompCtx )
@@ -373,7 +366,6 @@ static void hb_csWarnUnsupported( const char * szDesc )
                   ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
                s_pCompCtx->currLine, szDesc ? szDesc : "?" );
    }
-   s_iAliasUnsupported++;
 }
 
 /* Count argument slots in a call-site parameter list. Empty call
@@ -1520,12 +1512,45 @@ static HB_BOOL hb_csInlineIsIdCh( char c )
           ( c >= '0' && c <= '9' ) || c == '_';
 }
 
-static const char * hb_csTranslateInline( const char * szVal )
+/* True if szId names one of the comma-separated INLINE method
+   parameters in szParams (case-insensitive — Harbour identifiers).
+   Parameters shadow everything, so the identifier rewriter must leave
+   them alone: a param named `nType` must not become `XxxConst.NTYPE`
+   just because some header defines NTYPE. */
+static HB_BOOL hb_csInlineIsParam( const char * szParams, const char * szId )
+{
+   const char * q = szParams;
+   HB_SIZE nIdLen;
+
+   if( ! szParams || ! szId )
+      return HB_FALSE;
+   nIdLen = strlen( szId );
+   while( *q )
+   {
+      const char * pStart;
+      while( *q == ' ' || *q == ',' )
+         q++;
+      if( ! *q )
+         break;
+      pStart = q;
+      while( *q && *q != ',' && *q != ' ' )
+         q++;
+      if( ( HB_SIZE ) ( q - pStart ) == nIdLen &&
+          hb_strnicmp( pStart, szId, nIdLen ) == 0 )
+         return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
+static const char * hb_csTranslateInline( const char * szVal,
+                                          const char * szParams )
 {
    static char s_szBuf[ 1024 ];
    HB_SIZE      nIn, nOut = 0;
    HB_SIZE      nLen;
    const char * p;
+   HB_BOOL      fInStr = HB_FALSE;
+   char         cStrQ  = '\0';
 
    if( ! szVal )
       return szVal;
@@ -1620,6 +1645,25 @@ static const char * hb_csTranslateInline( const char * szVal )
    p = szVal;
    for( nIn = 0; nIn < nLen && nOut < sizeof( s_szBuf ) - 32; nIn++ )
    {
+      /* String-literal contents are data — copy them through verbatim
+         so no identifier rewrite (funcTab prefix or defines-map) fires
+         inside `"..."` / `'...'`. Without this a literal like "result"
+         gets mangled into "XxxConst.RESULT" when a define of that name
+         exists (the map matches case-folded). */
+      if( fInStr )
+      {
+         if( p[ nIn ] == cStrQ )
+            fInStr = HB_FALSE;
+         s_szBuf[ nOut++ ] = p[ nIn ];
+         continue;
+      }
+      if( p[ nIn ] == '"' || p[ nIn ] == '\'' )
+      {
+         fInStr = HB_TRUE;
+         cStrQ  = p[ nIn ];
+         s_szBuf[ nOut++ ] = p[ nIn ];
+         continue;
+      }
       /* `{}` → `System.Array.Empty<dynamic>()` — Harbour empty array
          literal. C# `{}` in expression context is a block. Fully
          qualified because HbRuntimeStubs declares a NIE stub named
@@ -1671,7 +1715,19 @@ static const char * hb_csTranslateInline( const char * szVal )
             memcpy( s_szBuf + nOut, "this.", 5 );
             nOut += 5;
          }
-         nIn++;   /* skip the second ':' */
+         /* Consume the member identifier here, verbatim — otherwise
+            the word loop below re-scans it as a free identifier and
+            the funcTab / defines-map rewrites fire on a member name
+            (`::nStatus` → `this.XConst.NSTATUS`). */
+         if( nIdEnd > nIdStart )
+         {
+            HB_SIZE j;
+            for( j = nIdStart; j < nIdEnd && nOut < sizeof( s_szBuf ) - 1; j++ )
+               s_szBuf[ nOut++ ] = p[ j ];
+            nIn = nIdEnd - 1;   /* outer ++ lands past the member */
+         }
+         else
+            nIn++;   /* bare `::` with no identifier — skip second ':' */
          continue;
       }
       /* := → = (assignment, rewriting only when not followed by '=') */
@@ -1732,6 +1788,19 @@ static const char * hb_csTranslateInline( const char * szVal )
          {
             memcpy( szId, p + nIdStart, nIdLen );
             szId[ nIdLen ] = '\0';
+            /* Two scopes outrank any global rewrite:
+               - a member name after a single-colon send (`oObj:Panel`)
+                 belongs to the receiver, not the defines-map / funcTab;
+               - an INLINE method parameter shadows everything. */
+            if( ( nIdStart > 0 && p[ nIdStart - 1 ] == ':' ) ||
+                hb_csInlineIsParam( szParams, szId ) )
+            {
+               HB_SIZE j;
+               for( j = 0; j < nIdLen && nOut < sizeof( s_szBuf ) - 1; j++ )
+                  s_szBuf[ nOut++ ] = szId[ j ];
+               nIn--;   /* outer loop `nIn++` advances past last id char */
+               continue;
+            }
             szPrefix = hb_funcTabPrefix( szId );
             if( szPrefix )
             {
@@ -1919,8 +1988,9 @@ static const char * hb_csTranslateInit( const char * szVal )
 
    /* Fall through to the INLINE translator for general expressions:
       handles identifier remapping via hbfuncs.tab so `SPACE(30)` →
-      `HbRuntime.SPACE(30)` and `ctod("")` → `HbRuntime.CTOD("")`. */
-   return hb_csTranslateInline( szVal );
+      `HbRuntime.SPACE(30)` and `ctod("")` → `HbRuntime.CTOD("")`.
+      No parameter list — CLASS VAR INIT values have no params. */
+   return hb_csTranslateInline( szVal, NULL );
 }
 
 /* ---- Helpers ---- */
@@ -3369,18 +3439,33 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   fValueless = HB_TRUE;
                   break;
                case HB_ET_ALIASVAR:
+                  /* The parser wraps every unresolved bare identifier
+                     — file-scope STATICs, PUBLICs, case-typo'd locals
+                     — as an implicit `MEMVAR->name` ALIASVAR. The
+                     expression-position handler resolves that shape
+                     silently (see the HB_ET_ALIASVAR emit), so as a
+                     valueless statement it's just the VARIABLE case
+                     in disguise: skip without warning. Only a
+                     malformed alias shape earns the W0016. */
+                  if( pInner->value.asAlias.pAlias &&
+                      pInner->value.asAlias.pAlias->ExprType == HB_ET_ALIAS &&
+                      pInner->value.asAlias.pVar &&
+                      pInner->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+                  {
+                     fValueless = HB_TRUE;
+                     break;
+                  }
+                  hb_csWarnUnsupported( "ALIAS reference (alias->var)" );
+                  fValueless = HB_TRUE;
+                  break;
                case HB_ET_ALIASEXPR:
-                  /* Workarea-alias statement (`Flags->( dbCloseArea() )`)
-                     and similar. Emitting `HbRuntime.MacroStub;` here
-                     would surface as CS0201 since MacroStub is a static
-                     field. Fire the same W0016 the expression-form
-                     emit would have raised, then skip the statement —
-                     the unsupported expression isn't reachable at
-                     compile-time anyway. */
-                  hb_csWarnUnsupported(
-                     pInner->ExprType == HB_ET_ALIASVAR ?
-                        "ALIAS reference (alias->var)" :
-                        "ALIAS expression (alias->( expr ))" );
+                  /* Workarea-alias statement (`Flags->( dbCloseArea() )`).
+                     Emitting `HbRuntime.MacroStub;` here would surface
+                     as CS0201 since MacroStub is a static field. Fire
+                     the same W0016 the expression-form emit would have
+                     raised, then skip the statement — the unsupported
+                     expression isn't reachable at compile-time anyway. */
+                  hb_csWarnUnsupported( "ALIAS expression (alias->( expr ))" );
                   fValueless = HB_TRUE;
                   break;
                default:
@@ -4814,9 +4899,12 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
          const char * szParms = pMember->value.asClassMethod.szParams;
          /* Translate first, then check top-level comma on the
             translated output — the raw text still has the outer
-            parens that mask the real top-level of the expression. */
+            parens that mask the real top-level of the expression.
+            The param list rides along so the identifier rewriter
+            leaves parameter references untouched. */
          const char * szExpr  =
-            hb_csTranslateInline( pMember->value.asClassMethod.szInline );
+            hb_csTranslateInline( pMember->value.asClassMethod.szInline,
+                                  szParms );
          HB_BOOL      fBlock  = hb_csInlineHasTopLevelComma( szExpr );
 
          hb_csEmitIndent( yyc, 1 );
@@ -5326,7 +5414,6 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    /* Expose pComp to deeply-nested static emitters so they can call
       hb_compGenError without each receiving HB_COMP_DECL explicitly. */
    s_pCompCtx = HB_COMP_PARAM;
-   s_iAliasUnsupported = 0;
 
    /* Build output filename with .cs extension, and capture the base
       name (without path or extension) for use as a STATIC-var name
