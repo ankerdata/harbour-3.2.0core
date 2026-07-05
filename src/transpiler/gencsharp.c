@@ -3432,7 +3432,24 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   break;
                case HB_ET_SEND:
                   if( ! pInner->value.asMessage.pParms )
+                  {
+                     /* In Harbour a paren-less send statement still
+                        dispatches the message (SENDSHORT 0 + POP) —
+                        executing the METHOD if the name is one. C#
+                        can't reproduce that without knowing the member
+                        kind (obj.Member; is CS0201, obj.Member(); is
+                        wrong for DATA), so the statement is dropped —
+                        but audibly, since a side-effecting method call
+                        may be vanishing. Harbour itself flags the
+                        construct W0027, and -es2 builds reject it. */
+                     char szDesc[ 160 ];
+                     hb_snprintf( szDesc, sizeof( szDesc ),
+                                  "parameterless send statement (:%s) — dispatch dropped",
+                                  pInner->value.asMessage.szMessage ?
+                                     pInner->value.asMessage.szMessage : "?" );
+                     hb_csWarnUnsupported( szDesc );
                      fValueless = HB_TRUE;
+                  }
                   break;
                case HB_ET_MACRO:
                   hb_csWarnUnsupported( "macro statement (&name)" );
