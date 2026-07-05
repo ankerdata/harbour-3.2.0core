@@ -546,6 +546,29 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->szType && hb_stricmp( pParam->szType, szNewType ) == 0 )
       return HB_REFINE_OK;
 
+   /* Numeric family: INTEGER is a refinement of NUMERIC, never a
+      conflict. A slot seeing both widens to NUMERIC quietly — an int
+      caller against a decimal slot costs one implicit widening. */
+   {
+      HB_BOOL fNumSlot = pParam->szType && (
+         hb_stricmp( pParam->szType, "NUMERIC" ) == 0 ||
+         hb_stricmp( pParam->szType, "INTEGER" ) == 0 );
+      HB_BOOL fNumNew =
+         hb_stricmp( szNewType, "NUMERIC" ) == 0 ||
+         hb_stricmp( szNewType, "INTEGER" ) == 0;
+      if( fNumSlot && fNumNew )
+      {
+         if( hb_stricmp( pParam->szType, "NUMERIC" ) != 0 )
+         {
+            char * szDup = hb_refTabDup( "NUMERIC" );
+            hb_refTabDefer( pTab, pParam->szType );
+            pParam->szType = szDup;
+            return HB_REFINE_REFINED;
+         }
+         return HB_REFINE_OK;
+      }
+   }
+
    /* HASH key-type family: weak "HASH" (keys unknown) upgrades to a
       key-typed "HASHC"/"HASHN" from a call site; an incoming weak
       "HASH" never overrides a key-typed slot (mirrors OBJECT-vs-class).

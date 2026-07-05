@@ -44,10 +44,10 @@ public static partial class Program
 
     public static void AddDelta(dynamic[] aArr = default, decimal nDelta = default)
     {
-        decimal nI = default;
+        int nI = default;
         for (nI = 1; nI <= HbRuntime.Len(aArr); nI++)
         {
-            aArr[(int)(nI) - 1] = aArr[(int)(nI) - 1] + nDelta;
+            aArr[nI - 1] = aArr[nI - 1] + nDelta;
         }
 
         return;

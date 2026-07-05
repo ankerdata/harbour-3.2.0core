@@ -16,7 +16,7 @@ public static partial class Program
         decimal nTotal = 0;
         decimal nLen = default;
         decimal nPos = default;
-        decimal i = default;
+        int i = default;
         string cName = default;
         decimal nItem = default;
         string cText = "  Hello World  ";
@@ -40,7 +40,7 @@ public static partial class Program
         nTotal = 0;
         for (i = 1; i <= HbRuntime.Len(aNumbers); i++)
         {
-            nTotal += aNumbers[(int)(i) - 1];
+            nTotal += aNumbers[i - 1];
         }
 
         HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));

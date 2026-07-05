@@ -36,28 +36,28 @@ public class Record : HbDynamicObject
 
     public dynamic DumpFields(dynamic[] aFields = default)
     {
-        decimal i = default;
+        int i = default;
         dynamic xVal = default;
         string cType = default;
         for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
-            xVal = HbRuntime.GETMEMBER(this, aFields[(int)(i) - 1]);
+            xVal = HbRuntime.GETMEMBER(this, aFields[i - 1]);
             cType = HbRuntime.ValType(xVal);
             if (cType == "C")
             {
-                HbRuntime.QOut(aFields[(int)(i) - 1] + ": " + xVal);
+                HbRuntime.QOut(aFields[i - 1] + ": " + xVal);
             }
             else if (cType == "N")
             {
-                HbRuntime.QOut(aFields[(int)(i) - 1] + ": " + HbRuntime.Str(xVal, 4));
+                HbRuntime.QOut(aFields[i - 1] + ": " + HbRuntime.Str(xVal, 4));
             }
             else if (cType == "L")
             {
-                HbRuntime.QOut(aFields[(int)(i) - 1] + ": " + (xVal ? "T" : "F"));
+                HbRuntime.QOut(aFields[i - 1] + ": " + (xVal ? "T" : "F"));
             }
             else
             {
-                HbRuntime.QOut(aFields[(int)(i) - 1] + ": ?");
+                HbRuntime.QOut(aFields[i - 1] + ": ?");
             }
         }
 

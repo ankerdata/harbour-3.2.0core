@@ -18,13 +18,13 @@ public static partial class Program
     {
         dynamic[] aFields = new dynamic[] { "one", "two", "three" };
         string cMemberName = default;
-        decimal i = default;
+        int i = default;
         string cAccum = "";
 
         // Use cMemberName inside a FOR-loop body first (nested scope).
         for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
-            cMemberName = aFields[(int)(i) - 1];
+            cMemberName = aFields[i - 1];
             cAccum += "[" + cMemberName + "]";
         }
 

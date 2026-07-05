@@ -37,7 +37,7 @@ public static partial class Program
         // C2
         // comment with no ; here
         dynamic[] aCodes = new dynamic[] { "alpha", "bravo", "charlie" };
-        decimal n = default;
+        int n = default;
 
         // comment on IF line
         if (x == 1)
@@ -65,7 +65,7 @@ public static partial class Program
         // comment on FOR
         for (n = 1; n <= HbRuntime.Len(aCodes); n++)
         {
-            HbRuntime.QOut(aCodes[(int)(n) - 1]);
+            HbRuntime.QOut(aCodes[n - 1]);
             // comment on NEXT
         }
 

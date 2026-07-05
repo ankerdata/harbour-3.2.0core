@@ -22,10 +22,10 @@ public static partial class Program
     public static decimal Scale(dynamic[] aArr, decimal nFactor = default)
     {
         // element mutation only
-        decimal i = default;
+        int i = default;
         for (i = 1; i <= HbRuntime.Len(aArr); i++)
         {
-            aArr[(int)(i) - 1] = aArr[(int)(i) - 1] * nFactor;
+            aArr[i - 1] = aArr[i - 1] * nFactor;
         }
 
         return HbRuntime.Len(aArr);

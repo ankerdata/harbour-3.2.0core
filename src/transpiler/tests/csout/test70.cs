@@ -32,11 +32,11 @@ public static partial class Program
         dynamic[] aConfirm = new dynamic[5];
         // 2-D — only outer dim sized eagerly
         dynamic[] aGrid = new dynamic[2];
-        decimal nI = default;
+        int nI = default;
 
         for (nI = 1; nI <= 3; nI++)
         {
-            test70_saTotals[(int)(nI) - 1] = nI * 10;
+            test70_saTotals[nI - 1] = nI * 10;
         }
 
         aConfirm[0] = "first";

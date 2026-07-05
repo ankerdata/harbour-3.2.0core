@@ -294,6 +294,44 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
       s_pAuditFile = hb_fopen( s_szAuditPath, "a" );
       if( ! s_pAuditFile )
          return;
+      /* Fresh file — write the self-describing header. Appending
+         invocations (one per source file) land mid-file and skip it. */
+      if( ftell( s_pAuditFile ) == 0 )
+         fprintf( s_pAuditFile,
+"# Harbour transpiler type-insufficiency audit (--type-audit)\n"
+"# Columns: CATEGORY <TAB> FILE <TAB> LINE <TAB> SYMBOL <TAB> DETAIL <TAB> SUGGESTED-FIX\n"
+"#\n"
+"# Categories (transpiler-emitted):\n"
+"#   RET-SENTINEL  a function's RETURN statements mix types (or mix a typed\n"
+"#                 branch with an uninferrable one), so its return degrades\n"
+"#                 to USUAL/dynamic and poisons every caller's inference.\n"
+"#                 Fix: return NIL for 'no result' (NIL carries no type and\n"
+"#                 does not degrade), or split the function.\n"
+"#   W0022-USUAL   call sites disagree on a parameter's type; the slot was\n"
+"#                 downgraded to USUAL (mirrors the W0022 warning).\n"
+"#                 Fix: reconcile the call sites, or accept the dynamic slot.\n"
+"#   HASH-WEAK     a hash whose key type never resolved — emitted string-keyed\n"
+"#                 on faith. Fine if it IS string-keyed; a numeric-keyed hash\n"
+"#                 needs key evidence (key-typed literal or typed subscript).\n"
+"#   VAR-UNTYPED   a class VAR/DATA member with no AS clause and no typed\n"
+"#                 initializer — emits as dynamic, so every send through it\n"
+"#                 is unchecked dynamic dispatch (the CS1061 feed).\n"
+"#                 Fix: AS clause or a typed INIT.\n"
+"#   INT-CONFLICT  a numeric used as an array/hash index (looks like an int)\n"
+"#                 but disqualified from C# int emission: 'hard' = division /\n"
+"#                 fractional value (also fires warning W0026); 'soft' = a\n"
+"#                 non-integral assignment or @by-ref pass (audit-only).\n"
+"#                 Fix: wrap the disqualifying expression with int(), or\n"
+"#                 accept decimal. Clean candidates emit as int silently.\n"
+"#\n"
+"# Categories (added by scripts/audit.sh from reftab.tab):\n"
+"#   REF-UNTYPED   a by-ref (@) parameter slot typed USUAL/dynamic — C# ref\n"
+"#                 needs exact type identity with the caller's local (the\n"
+"#                 CS1620 feed). Fix: AS type on the parameter.\n"
+"#   PARAM-OBJECT  an o-prefixed parameter stuck at generic OBJECT after\n"
+"#                 convergence — receivers dispatch dynamically. Fix:\n"
+"#                 AS CLASS, or constructor-typed callers.\n"
+"#\n" );
    }
    fprintf( s_pAuditFile, "%s\t%s\t%d\t%s\t%s\t%s\n",
             szCat,
@@ -305,29 +343,40 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
    fflush( s_pAuditFile );
 }
 
-/* ---- INT-candidate tracking (per function, audit-only) ----
+/* ---- INT-candidate tracking (per function) ----
    A NUMERIC variable used in index position (array subscript, hash
-   key, FOR variable) is a candidate for C# `int` emission; one used
-   as a division/power operand can't be (Harbour n/2 = 1.5, C# int/int
-   truncates). The audit reports clean candidates as INT-CANDIDATE and
-   index-used-but-disqualified ones as INT-CONFLICT — the future W0026
-   population. Reset per hb_astPropagate run. */
+   key, FOR variable) is a candidate for C# `int` emission. Two
+   disqualifier severities:
+     - fNonIntHard (division operand, fractional literal): Harbour
+       n/2 = 1.5 vs C# int/int truncation — the variable stays
+       decimal and, when index-used, earns a W0026 pointing at the
+       disqualifying site so the source can be fixed (Alex's rule:
+       no silent demotion of something that looks like an int).
+     - fNonIntSoft (non-integral assignment RHS, passed by @): keeps
+       the variable decimal but only surfaces in the --type-audit
+       (INT-CONFLICT) — warning on these would flood the scan gate.
+   Clean index-used candidates upgrade to INTEGER after Pass 2 and
+   emit as C# int. Reset per hb_astPropagate run. */
 #define HB_AUDIT_MAXCAND 256
 static struct
 {
    const char * szName;
    int          iLine;
    HB_BOOL      fIndexUsed;
-   HB_BOOL      fNonInt;
+   HB_BOOL      fNonIntHard;
+   HB_BOOL      fNonIntSoft;
    int          iNonIntLine;
 } s_aIntCand[ HB_AUDIT_MAXCAND ];
 static int s_iIntCand = 0;
 
-static void hb_auditIntMark( const char * szName, int iLine,
-                             HB_BOOL fIndex, HB_BOOL fNonInt )
+#define HB_INT_MARK_INDEX 1
+#define HB_INT_MARK_HARD  2
+#define HB_INT_MARK_SOFT  3
+
+static void hb_auditIntMark( const char * szName, int iLine, int iKind )
 {
    int i;
-   if( ! hb_auditActive() || ! szName )
+   if( ! szName )
       return;
    for( i = 0; i < s_iIntCand; i++ )
       if( hb_stricmp( s_aIntCand[ i ].szName, szName ) == 0 )
@@ -339,17 +388,19 @@ static void hb_auditIntMark( const char * szName, int iLine,
       s_aIntCand[ s_iIntCand ].szName = szName;
       s_aIntCand[ s_iIntCand ].iLine = iLine;
       s_aIntCand[ s_iIntCand ].fIndexUsed = HB_FALSE;
-      s_aIntCand[ s_iIntCand ].fNonInt = HB_FALSE;
+      s_aIntCand[ s_iIntCand ].fNonIntHard = HB_FALSE;
+      s_aIntCand[ s_iIntCand ].fNonIntSoft = HB_FALSE;
       s_aIntCand[ s_iIntCand ].iNonIntLine = 0;
       s_iIntCand++;
    }
-   if( fIndex )
+   if( iKind == HB_INT_MARK_INDEX )
       s_aIntCand[ i ].fIndexUsed = HB_TRUE;
-   if( fNonInt && ! s_aIntCand[ i ].fNonInt )
-   {
-      s_aIntCand[ i ].fNonInt = HB_TRUE;
+   else if( ! s_aIntCand[ i ].fNonIntHard && ! s_aIntCand[ i ].fNonIntSoft )
       s_aIntCand[ i ].iNonIntLine = iLine;
-   }
+   if( iKind == HB_INT_MARK_HARD )
+      s_aIntCand[ i ].fNonIntHard = HB_TRUE;
+   else if( iKind == HB_INT_MARK_SOFT )
+      s_aIntCand[ i ].fNonIntSoft = HB_TRUE;
 }
 
 /* ---- HASH key-type family ----
@@ -383,6 +434,7 @@ static HB_BOOL hb_astIsScalarTag( const char * szType )
 {
    return szType && (
       hb_stricmp( szType, "NUMERIC"   ) == 0 ||
+      hb_stricmp( szType, "INTEGER"   ) == 0 ||
       hb_stricmp( szType, "STRING"    ) == 0 ||
       hb_stricmp( szType, "LOGICAL"   ) == 0 ||
       hb_stricmp( szType, "DATE"      ) == 0 ||
@@ -983,6 +1035,81 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    }
 }
 
+/* Current statement line for the observation walkers — set per
+   statement in hb_astObserveBlock so expression-level marks carry a
+   usable line without threading a parameter through every visit. */
+static int s_iObserveLine = 0;
+
+/* Provably-integral expression: safe as the RHS of an assignment to a
+   C#-int variable. Conservative — anything unproven is non-integral.
+   Literals without a fractional part, a small set of index-producing
+   builtins, INTEGER-typed variables, and +,-,*,++,-- combinations
+   thereof qualify. Division never does (Harbour 5/2 = 2.5). */
+static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                     const char * szSelf )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_NUMERIC:
+         return pExpr->value.asNum.NumType == HB_ET_LONG;
+      case HB_ET_VARIABLE:
+      {
+         const char * szT;
+         /* Self-reference in the RHS of the variable's own assignment
+            (`nIdx := nIdx + 2`): if the variable ends up int, this is
+            int arithmetic; if it doesn't, the disqualifier that stops
+            it lies elsewhere. Either way the self-reference itself is
+            not evidence against. */
+         if( szSelf && hb_stricmp( pExpr->value.asSymbol.name,
+                                   szSelf ) == 0 )
+            return HB_TRUE;
+         szT = hb_astInferExprType( pExpr, pEnv );
+         return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+      }
+      case HB_ET_FUNCALL:
+         if( pExpr->value.asFunCall.pFunName &&
+             pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+         {
+            const char * szFn =
+               pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+            if( szFn && (
+                hb_stricmp( szFn, "INT"  ) == 0 ||
+                hb_stricmp( szFn, "LEN"  ) == 0 ||
+                hb_stricmp( szFn, "AT"   ) == 0 ||
+                hb_stricmp( szFn, "RAT"  ) == 0 ||
+                hb_stricmp( szFn, "ASC"  ) == 0 ) )
+               return HB_TRUE;
+            /* User function whose return already resolved to INTEGER
+               (its own index-shaped locals) — int-ness chains. */
+            if( szFn && pEnv && pEnv->pRefTab )
+            {
+               const char * szRet =
+                  hb_refTabReturnType( pEnv->pRefTab, szFn );
+               return szRet && hb_stricmp( szRet, "INTEGER" ) == 0;
+            }
+         }
+         return HB_FALSE;
+      case HB_EO_PLUS:
+      case HB_EO_MINUS:
+      case HB_EO_MULT:
+         return hb_astExprIsIntegral( pExpr->value.asOperator.pLeft,
+                                      pEnv, szSelf ) &&
+                hb_astExprIsIntegral( pExpr->value.asOperator.pRight,
+                                      pEnv, szSelf );
+      case HB_EO_NEGATE:
+      case HB_EO_PREINC:
+      case HB_EO_PREDEC:
+      case HB_EO_POSTINC:
+      case HB_EO_POSTDEC:
+         return hb_astExprIsIntegral( pExpr->value.asOperator.pLeft,
+                                      pEnv, szSelf );
+      default:
+         return HB_FALSE;
+   }
+}
+
 /* ================================================================
  * Hash key-type observation (Pass 2 companion)
  *
@@ -1026,14 +1153,15 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                   *pfChanged = HB_TRUE;
             }
          }
-         /* Audit: a NUMERIC variable in index position is an
-            int-emission candidate (subscript of array OR hash). */
+         /* A NUMERIC variable in index position is an int-emission
+            candidate (subscript of array OR hash). */
          if( pIdx && pIdx->ExprType == HB_ET_VARIABLE )
          {
             const char * szIdxT = hb_astInferExprType( pIdx, pEnv );
-            if( szIdxT && strcmp( szIdxT, "NUMERIC" ) == 0 )
-               hb_auditIntMark( pIdx->value.asSymbol.name, 0,
-                                HB_TRUE, HB_FALSE );
+            if( szIdxT && ( strcmp( szIdxT, "NUMERIC" ) == 0 ||
+                            strcmp( szIdxT, "INTEGER" ) == 0 ) )
+               hb_auditIntMark( pIdx->value.asSymbol.name,
+                                s_iObserveLine, HB_INT_MARK_INDEX );
          }
          hb_astObserveExpr( pBase, pEnv, pfChanged );
          hb_astObserveExpr( pIdx,  pEnv, pfChanged );
@@ -1047,6 +1175,22 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       case HB_ET_SEND:
          hb_astObserveExpr( pExpr->value.asMessage.pObject, pEnv, pfChanged );
          hb_astObserveExpr( pExpr->value.asMessage.pParms,  pEnv, pfChanged );
+         break;
+
+      case HB_ET_VARREF:
+         /* Passed by @: the callee slot merges toward decimal across
+            callers, and C# `ref` demands exact type identity — an
+            int local here would CS1620. Soft-disqualify. */
+         hb_auditIntMark( pExpr->value.asSymbol.name,
+                          s_iObserveLine, HB_INT_MARK_SOFT );
+         break;
+
+      case HB_ET_REFERENCE:
+         if( pExpr->value.asReference &&
+             pExpr->value.asReference->ExprType == HB_ET_VARIABLE )
+            hb_auditIntMark( pExpr->value.asReference->value.asSymbol.name,
+                             s_iObserveLine, HB_INT_MARK_SOFT );
+         hb_astObserveExpr( pExpr->value.asReference, pEnv, pfChanged );
          break;
 
       case HB_ET_LIST:
@@ -1079,10 +1223,13 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       default:
          if( pExpr->ExprType >= HB_EO_POSTINC )
          {
-            /* Audit: division is THE int-emission disqualifier —
+            /* Division is THE hard int-emission disqualifier —
                Harbour n/2 is 1.5, C# int/int truncates. Either
-               VARIABLE operand of a division loses candidacy. A
-               fractional-literal assignment disqualifies its LHS. */
+               VARIABLE operand of a division loses candidacy (hard —
+               W0026 when index-used). A fractional-literal assignment
+               is hard too. Any other assignment whose RHS isn't
+               provably integral is a soft disqualifier: the variable
+               stays decimal but only the audit reports it. */
             if( pExpr->ExprType == HB_EO_DIV ||
                 pExpr->ExprType == HB_EO_DIVEQ )
             {
@@ -1094,23 +1241,46 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                   {
                      const char * szT =
                         hb_astInferExprType( pSide, pEnv );
-                     if( szT && strcmp( szT, "NUMERIC" ) == 0 )
+                     if( szT && ( strcmp( szT, "NUMERIC" ) == 0 ||
+                                  strcmp( szT, "INTEGER" ) == 0 ) )
                         hb_auditIntMark( pSide->value.asSymbol.name,
-                                         0, HB_FALSE, HB_TRUE );
+                                         s_iObserveLine,
+                                         HB_INT_MARK_HARD );
                   }
             }
-            else if( pExpr->ExprType == HB_EO_ASSIGN &&
+            else if( ( pExpr->ExprType == HB_EO_ASSIGN ||
+                       pExpr->ExprType == HB_EO_PLUSEQ ||
+                       pExpr->ExprType == HB_EO_MINUSEQ ||
+                       pExpr->ExprType == HB_EO_MULTEQ ) &&
                      pExpr->value.asOperator.pLeft &&
                      pExpr->value.asOperator.pLeft->ExprType ==
                         HB_ET_VARIABLE &&
-                     pExpr->value.asOperator.pRight &&
-                     pExpr->value.asOperator.pRight->ExprType ==
-                        HB_ET_NUMERIC &&
-                     pExpr->value.asOperator.pRight->value.asNum.NumType
-                        != HB_ET_LONG )
+                     pExpr->value.asOperator.pRight )
+            {
+               PHB_EXPR pRhs = pExpr->value.asOperator.pRight;
+               const char * szLhs =
+                  pExpr->value.asOperator.pLeft->value.asSymbol.name;
+               if( ( pRhs->ExprType == HB_ET_NUMERIC &&
+                     pRhs->value.asNum.NumType != HB_ET_LONG ) ||
+                   pRhs->ExprType == HB_EO_DIV )
+                  /* Fractional literal or a division result — the
+                     "looks like an int but can't be" shape that
+                     earns W0026 when index-used. */
+                  hb_auditIntMark( szLhs, s_iObserveLine,
+                                   HB_INT_MARK_HARD );
+               else if( ! hb_astExprIsIntegral( pRhs, pEnv, szLhs ) )
+                  hb_auditIntMark( szLhs, s_iObserveLine,
+                                   HB_INT_MARK_SOFT );
+            }
+            else if( ( pExpr->ExprType == HB_EO_MODEQ ||
+                       pExpr->ExprType == HB_EO_DIVEQ ||
+                       pExpr->ExprType == HB_EO_EXPEQ ) &&
+                     pExpr->value.asOperator.pLeft &&
+                     pExpr->value.asOperator.pLeft->ExprType ==
+                        HB_ET_VARIABLE )
                hb_auditIntMark(
                   pExpr->value.asOperator.pLeft->value.asSymbol.name,
-                  0, HB_FALSE, HB_TRUE );
+                  s_iObserveLine, HB_INT_MARK_HARD );
             hb_astObserveExpr( pExpr->value.asOperator.pLeft,  pEnv, pfChanged );
             hb_astObserveExpr( pExpr->value.asOperator.pRight, pEnv, pfChanged );
          }
@@ -1129,6 +1299,7 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
    pStmt = pNode->value.asBlock.pFirst;
    while( pStmt )
    {
+      s_iObserveLine = pStmt->iLine;
       switch( pStmt->type )
       {
          case HB_AST_EXPRSTMT:
@@ -1145,6 +1316,23 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
          case HB_AST_STATIC:
          case HB_AST_PUBLIC:
          case HB_AST_PRIVATE:
+            /* A declaration initializer is an assignment for
+               int-candidacy purposes: fractional literal / division
+               result = hard disqualifier, other non-integral = soft. */
+            if( pStmt->value.asVar.szName && pStmt->value.asVar.pInit &&
+                ! pStmt->value.asVar.fArrayDim )
+            {
+               PHB_EXPR pInit = pStmt->value.asVar.pInit;
+               if( ( pInit->ExprType == HB_ET_NUMERIC &&
+                     pInit->value.asNum.NumType != HB_ET_LONG ) ||
+                   pInit->ExprType == HB_EO_DIV )
+                  hb_auditIntMark( pStmt->value.asVar.szName,
+                                   pStmt->iLine, HB_INT_MARK_HARD );
+               else if( ! hb_astExprIsIntegral( pInit, pEnv,
+                                                pStmt->value.asVar.szName ) )
+                  hb_auditIntMark( pStmt->value.asVar.szName,
+                                   pStmt->iLine, HB_INT_MARK_SOFT );
+            }
             hb_astObserveExpr( pStmt->value.asVar.pInit, pEnv, pfChanged );
             break;
          case HB_AST_IF:
@@ -1166,16 +1354,26 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
             hb_astObserveBlock( pStmt->value.asWhile.pBody, pEnv, pfChanged );
             break;
          case HB_AST_FOR:
-            /* Audit: FOR variables step integrally unless a bound or
-               STEP is fractional — prime int-emission candidates. */
+            /* FOR variables are prime int candidates: C# emits
+               `for (int i = <start>; ...)`, so the START must be
+               provably integral (the end bound only appears in a
+               comparison, where int widens to decimal for free); a
+               fractional STEP is a hard disqualifier. */
             if( pStmt->value.asFor.szVar )
             {
                PHB_EXPR pStep = pStmt->value.asFor.pStep;
-               HB_BOOL fFrac = pStep &&
+               HB_BOOL fFracStep = pStep &&
                   pStep->ExprType == HB_ET_NUMERIC &&
                   pStep->value.asNum.NumType != HB_ET_LONG;
                hb_auditIntMark( pStmt->value.asFor.szVar, pStmt->iLine,
-                                HB_TRUE, fFrac );
+                                HB_INT_MARK_INDEX );
+               if( fFracStep )
+                  hb_auditIntMark( pStmt->value.asFor.szVar,
+                                   pStmt->iLine, HB_INT_MARK_HARD );
+               else if( ! hb_astExprIsIntegral( pStmt->value.asFor.pStart,
+                                                pEnv, NULL ) )
+                  hb_auditIntMark( pStmt->value.asFor.szVar,
+                                   pStmt->iLine, HB_INT_MARK_SOFT );
             }
             hb_astObserveExpr( pStmt->value.asFor.pStart, pEnv, pfChanged );
             hb_astObserveExpr( pStmt->value.asFor.pEnd,   pEnv, pfChanged );
@@ -1201,6 +1399,16 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
          case HB_AST_SWITCH:
          {
             PHB_AST_NODE p = pStmt->value.asSwitch.pCases;
+            /* A SWITCH subject is a soft int-disqualifier: C# demands
+               case-label/subject type identity, and case labels here
+               are routinely `const decimal` defines — switch(int) on
+               them is CS0266 per label. A variable compared against
+               constants isn't index-shaped anyway. */
+            if( pStmt->value.asSwitch.pSwitch &&
+                pStmt->value.asSwitch.pSwitch->ExprType == HB_ET_VARIABLE )
+               hb_auditIntMark(
+                  pStmt->value.asSwitch.pSwitch->value.asSymbol.name,
+                  pStmt->iLine, HB_INT_MARK_SOFT );
             hb_astObserveExpr( pStmt->value.asSwitch.pSwitch, pEnv, pfChanged );
             while( p )
             {
@@ -1263,8 +1471,15 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                   HASHC vs HASHN merges to NULL and conflicts). */
                const char * szHashMerge =
                   hb_astHashFamilyMerge( *pszRetType, szType );
-               if( strcmp( *pszRetType, "NUMERIC" ) == 0 &&
-                   strcmp( szType, "NUMERIC" ) == 0 )
+               HB_BOOL fNumA =
+                  strcmp( *pszRetType, "NUMERIC" ) == 0 ||
+                  strcmp( *pszRetType, "INTEGER" ) == 0;
+               HB_BOOL fNumB =
+                  strcmp( szType, "NUMERIC" ) == 0 ||
+                  strcmp( szType, "INTEGER" ) == 0;
+               if( fNumA && fNumB )
+                  /* Numeric family: INTEGER is a refinement of
+                     NUMERIC; mixed returns widen quietly. */
                   *pszRetType = "NUMERIC";
                else if( szHashMerge )
                   *pszRetType = szHashMerge;
@@ -1705,6 +1920,7 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                survives is treated as a class name. */
             if( hb_stricmp( szRecvType, "USUAL"   ) != 0 &&
                 hb_stricmp( szRecvType, "NUMERIC" ) != 0 &&
+                hb_stricmp( szRecvType, "INTEGER" ) != 0 &&
                 hb_stricmp( szRecvType, "STRING"  ) != 0 &&
                 hb_stricmp( szRecvType, "LOGICAL" ) != 0 &&
                 hb_stricmp( szRecvType, "DATE"    ) != 0 &&
@@ -1859,8 +2075,14 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
    if( hb_stricmp( szLhs, szRhs ) == 0 )
       return;
    /* `h<X>` commits to hash-ness only — a key-typed HASHC/HASHN RHS
-      against the prefix's plain HASH is agreement, not a W0024. */
+      against the prefix's plain HASH is agreement, not a W0024. Same
+      for the numeric family: INTEGER is a refinement of NUMERIC. */
    if( hb_astHashFamilyMerge( szLhs, szRhs ) )
+      return;
+   if( ( hb_stricmp( szLhs, "NUMERIC" ) == 0 ||
+         hb_stricmp( szLhs, "INTEGER" ) == 0 ) &&
+       ( hb_stricmp( szRhs, "NUMERIC" ) == 0 ||
+         hb_stricmp( szRhs, "INTEGER" ) == 0 ) )
       return;
    if( hb_astHungSeen( iLine, szName ) )
       return;
@@ -2071,6 +2293,58 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    }
    while( fChanged );
 
+   /* Pass 2.5: apply int candidacy. A LOCAL/STATIC whose numeric life
+      is purely index-shaped upgrades NUMERIC → INTEGER (C# int; int
+      widens to decimal implicitly so every consumer boundary is
+      free). Restricted to variables DECLARED in this body — a
+      parameter's C# type comes from its reftab slot, which merges
+      toward decimal across callers, and retyping only the env side
+      would split the signature from the body. Hard-disqualified
+      index users (division / fractional value) get W0026 at the
+      disqualifying site instead of a silent demotion. */
+   {
+      int i;
+      for( i = 0; i < s_iIntCand; i++ )
+      {
+         if( ! s_aIntCand[ i ].fIndexUsed )
+            continue;
+         if( s_aIntCand[ i ].fNonIntHard )
+         {
+            if( ! hb_astHungSeen( s_aIntCand[ i ].iNonIntLine,
+                                  s_aIntCand[ i ].szName ) )
+               fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0026  "
+                  "'%s' is used as an array/hash index but a division "
+                  "or fractional value here forces it to stay decimal "
+                  "— wrap the expression with int() or keep decimal\n",
+                  hb_strCollapsePath( szFile ? szFile : "?" ),
+                  s_aIntCand[ i ].iNonIntLine,
+                  s_aIntCand[ i ].szName );
+         }
+         else if( ! s_aIntCand[ i ].fNonIntSoft )
+         {
+            PHB_AST_NODE pDecl = pBody->value.asBlock.pFirst;
+            while( pDecl )
+            {
+               if( ( pDecl->type == HB_AST_LOCAL ||
+                     pDecl->type == HB_AST_STATIC ) &&
+                   pDecl->value.asVar.szName &&
+                   hb_stricmp( pDecl->value.asVar.szName,
+                               s_aIntCand[ i ].szName ) == 0 )
+               {
+                  const char * szCur = hb_typeEnvGet(
+                     &env, s_aIntCand[ i ].szName );
+                  if( szCur && strcmp( szCur, "NUMERIC" ) == 0 )
+                     hb_typeEnvSet( &env, s_aIntCand[ i ].szName,
+                                    "INTEGER" );
+                  break;
+               }
+               pDecl = pDecl->pNext;
+            }
+         }
+      }
+   }
+
    /* Pass 3: Update LOCAL/STATIC AST nodes whose propagated type is
       more specific than what Hungarian/initializer inference produced.
       "More specific" covers two cases:
@@ -2109,6 +2383,10 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
          else if( strcmp( szCurType, "HASH" ) == 0 &&
                   szPropType && strcmp( szPropType, "HASH" ) != 0 &&
                   hb_astIsHashFamily( szPropType ) )
+            fOverride = HB_TRUE;
+         /* NUMERIC upgraded to INTEGER by Pass 2.5 index candidacy. */
+         else if( strcmp( szCurType, "NUMERIC" ) == 0 &&
+                  szPropType && strcmp( szPropType, "INTEGER" ) == 0 )
             fOverride = HB_TRUE;
          /* Audit: a hash whose keys never resolved — defaults to
             string-keyed emission on faith. */
@@ -2173,18 +2451,24 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                continue;
             hb_snprintf( szSym, sizeof( szSym ), "%s:%s",
                          szFn, s_aIntCand[ i ].szName );
-            if( s_aIntCand[ i ].fNonInt )
+            if( s_aIntCand[ i ].fNonIntHard )
                hb_auditEmit( "INT-CONFLICT", szFile,
-                  s_aIntCand[ i ].iLine, szSym,
-                  "used as index but also in division / fractional "
-                  "assignment — must stay decimal",
-                  "wrap the division with int() or keep decimal "
-                  "(future W0026)" );
-            else
-               hb_auditEmit( "INT-CANDIDATE", szFile,
-                  s_aIntCand[ i ].iLine, szSym,
-                  "index-shaped usage only — eligible for C# int",
-                  "no action; future int inference target" );
+                  s_aIntCand[ i ].iNonIntLine, szSym,
+                  "index-used but division / fractional value keeps "
+                  "it decimal (W0026 fired)",
+                  "wrap the expression with int() or keep decimal" );
+            else if( s_aIntCand[ i ].fNonIntSoft )
+               hb_auditEmit( "INT-CONFLICT", szFile,
+                  s_aIntCand[ i ].iNonIntLine, szSym,
+                  "index-used but a non-integral assignment or @pass "
+                  "keeps it decimal (soft, no warning)",
+                  "make the assignment provably integral (int(), "
+                  "Len(), literals) to earn C# int" );
+            /* Clean candidates now EMIT as C# int — working as
+               intended, so no audit row: the report is for
+               insufficiencies, and hundreds of success stories would
+               bury the actionable debt. (INT-CANDIDATE was the
+               pre-implementation measurement category.) */
          }
       }
 

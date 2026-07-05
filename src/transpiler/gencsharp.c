@@ -143,6 +143,29 @@ static const char * hb_csHashKeyCsFor( const char * szType )
           ? "decimal" : "string";
 }
 
+/* Writes into an INTEGER-typed variable need an (int) coercion for
+   anything but an int literal: the classifier proved integral-ness in
+   Harbour terms, but the C#-side types still disagree (Len() returns
+   decimal). Reads need nothing — int widens implicitly. */
+static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
+{
+   return ! ( pExpr && pExpr->ExprType == HB_ET_NUMERIC &&
+              pExpr->value.asNum.NumType == HB_ET_LONG );
+}
+
+static const char * hb_csLocalTypeGet( const char * szName );
+
+static HB_BOOL hb_csVarIsInteger( const char * szName )
+{
+   const char * szT = hb_csLocalTypeGet( szName );
+   return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+}
+
+/* True when the current class declares szMember with a type that maps
+   to C# int (source-side `as int` — the dialog-model convention).
+   Writes into such members need the same (int) coercion as int locals. */
+static HB_BOOL hb_csMemberIsInteger( const char * szMember );
+
 /* Find the registry slot szName resolves to under the current scope:
    a STATIC owned by the function being walked/emitted wins, then a
    file-scope STATIC (owner NULL). A function never sees another
@@ -201,6 +224,7 @@ static HB_BOOL hb_csIsValueType( const char * szType )
 {
    return szType && (
       hb_stricmp( szType, "NUMERIC"   ) == 0 ||
+      hb_stricmp( szType, "INTEGER"   ) == 0 ||
       hb_stricmp( szType, "LOGICAL"   ) == 0 ||
       hb_stricmp( szType, "DATE"      ) == 0 ||
       hb_stricmp( szType, "TIMESTAMP" ) == 0 );
@@ -733,6 +757,40 @@ static HB_BOOL hb_csIsClassVar( const char * szClass, const char * szMember )
                 pMember->value.asClassData.szName &&
                 hb_stricmp( pMember->value.asClassData.szName, szMember ) == 0 )
                return HB_TRUE;
+         }
+         return HB_FALSE;
+      }
+   }
+   return HB_FALSE;
+}
+
+/* True when the CURRENT class declares szMember with a type mapping
+   to C# int (source `as int`). Writes into such members need the
+   (int) coercion, mirroring int-typed locals. */
+static HB_BOOL hb_csMemberIsInteger( const char * szMember )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! s_szCurrentClass[ 0 ] || ! szMember )
+      return HB_FALSE;
+
+   for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+   {
+      if( pStmt->type == HB_AST_CLASS &&
+          pStmt->value.asClass.szName &&
+          hb_stricmp( pStmt->value.asClass.szName, s_szCurrentClass ) == 0 )
+      {
+         PHB_AST_NODE pMember;
+         for( pMember = pStmt->value.asClass.pMembers; pMember;
+              pMember = pMember->pNext )
+         {
+            if( pMember->type == HB_AST_CLASSDATA &&
+                pMember->value.asClassData.szName &&
+                hb_stricmp( pMember->value.asClassData.szName,
+                            szMember ) == 0 )
+               return pMember->value.asClassData.szType &&
+                      hb_stricmp( hb_csTypeMap(
+                         pMember->value.asClassData.szType ), "int" ) == 0;
          }
          return HB_FALSE;
       }
@@ -1488,6 +1546,11 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "dynamic";
    if( hb_stricmp( szHbType, "NUMERIC" ) == 0 )
       return "decimal";
+   if( hb_stricmp( szHbType, "INTEGER" ) == 0 )
+      /* Pass 2.5 int candidacy: a numeric whose whole life is
+         index-shaped. int widens to decimal implicitly, so every
+         consumer boundary is free; subscripts skip the (int) cast. */
+      return "int";
    if( hb_stricmp( szHbType, "STRING" ) == 0 ||
        hb_stricmp( szHbType, "CHARACTER" ) == 0 )
       return "string";
@@ -2921,6 +2984,16 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "[%" HB_PFS "d]",
                         pIdx->value.asNum.val.l - 1 );
             }
+            /* INTEGER-typed variable index (Pass 2.5 int candidacy) —
+               already a C# int, no cast needed. */
+            else if( pIdx && pIdx->ExprType == HB_ET_VARIABLE &&
+                     hb_csLocalTypeGet( pIdx->value.asSymbol.name ) &&
+                     hb_stricmp( hb_csLocalTypeGet(
+                                    pIdx->value.asSymbol.name ),
+                                 "INTEGER" ) == 0 )
+            {
+               fprintf( yyc, "[%s - 1]", pIdx->value.asSymbol.name );
+            }
             /* Variable or expression index — cast and subtract at runtime */
             else
             {
@@ -3486,6 +3559,29 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else if( pExpr->ExprType == HB_EO_ASSIGN &&
                      pExpr->value.asOperator.pLeft &&
+                     ( ( pExpr->value.asOperator.pLeft->ExprType ==
+                            HB_ET_VARIABLE &&
+                         hb_csVarIsInteger(
+                            pExpr->value.asOperator.pLeft->value.asSymbol.name ) ) ||
+                       ( pExpr->value.asOperator.pLeft->ExprType ==
+                            HB_ET_SEND &&
+                         pExpr->value.asOperator.pLeft->value.asMessage.pObject &&
+                         pExpr->value.asOperator.pLeft->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+                         hb_stricmp( pExpr->value.asOperator.pLeft->value.asMessage.pObject->value.asSymbol.name,
+                                     "Self" ) == 0 &&
+                         hb_csMemberIsInteger(
+                            pExpr->value.asOperator.pLeft->value.asMessage.szMessage ) ) ) &&
+                     hb_csNeedsIntCast( pExpr->value.asOperator.pRight ) )
+            {
+               /* Write into an int-typed variable or `as int` class
+                  member — coerce the RHS. */
+               hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+               fprintf( yyc, " = (int)(" );
+               hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+            }
+            else if( pExpr->ExprType == HB_EO_ASSIGN &&
+                     pExpr->value.asOperator.pLeft &&
                      pExpr->value.asOperator.pLeft->ExprType == HB_ET_SEND &&
                      pExpr->value.asOperator.pLeft->value.asMessage.pMessage &&
                      pExpr->value.asOperator.pLeft->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
@@ -3944,10 +4040,18 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                            pNode->value.asVar.szName );
                {
                   /* Point empty-hash literals in the init at the
-                     declared key type (HASHN → decimal). */
+                     declared key type (HASHN → decimal); coerce
+                     initializers of int-typed locals. */
                   const char * szSavedKey = s_szHashKeyCs;
+                  HB_BOOL fIntCast = szType &&
+                     hb_stricmp( szType, "INTEGER" ) == 0 &&
+                     hb_csNeedsIntCast( pNode->value.asVar.pInit );
                   s_szHashKeyCs = hb_csHashKeyCsFor( szType );
+                  if( fIntCast )
+                     fprintf( yyc, "(int)(" );
                   hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+                  if( fIntCast )
+                     fprintf( yyc, ")" );
                   s_szHashKeyCs = szSavedKey;
                }
                fprintf( yyc, ";\n" );
@@ -4173,7 +4277,15 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                fDescend = HB_TRUE;
 
             fprintf( yyc, "for (%s = ", pNode->value.asFor.szVar );
-            hb_csEmitExpr( pNode->value.asFor.pStart, yyc, HB_FALSE );
+            if( hb_csVarIsInteger( pNode->value.asFor.szVar ) &&
+                hb_csNeedsIntCast( pNode->value.asFor.pStart ) )
+            {
+               fprintf( yyc, "(int)(" );
+               hb_csEmitExpr( pNode->value.asFor.pStart, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+            }
+            else
+               hb_csEmitExpr( pNode->value.asFor.pStart, yyc, HB_FALSE );
             fprintf( yyc, "; %s %s ", pNode->value.asFor.szVar,
                      fDescend ? ">=" : "<=" );
             hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_FALSE );
@@ -5118,13 +5230,31 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 
          /* INIT value → default. Field branches need the `;` terminator;
             property branches end at `}` and only need a `;` after the
-            init suffix. */
+            init suffix. An `as int` member (source-declared) with a
+            non-literal init — typically a `const decimal` define like
+            DLGNONE — needs the (int) coercion, same as int-typed
+            locals. */
          if( pMember->value.asClassData.szInit &&
              pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
              pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )
          {
-            fprintf( yyc, " = %s;",
-                     hb_csTranslateInit( pMember->value.asClassData.szInit ) );
+            const char * szInitCs =
+               hb_csTranslateInit( pMember->value.asClassData.szInit );
+            HB_BOOL fIntCast = HB_FALSE;
+            if( szType && hb_stricmp( hb_csTypeMap( szType ), "int" ) == 0 )
+            {
+               const char * q = szInitCs;
+               if( *q == '-' || *q == '+' )
+                  q++;
+               fIntCast = ! ( *q >= '0' && *q <= '9' );
+               for( ; ! fIntCast && *q; q++ )
+                  if( ! ( *q >= '0' && *q <= '9' ) )
+                     fIntCast = HB_TRUE;
+            }
+            if( fIntCast )
+               fprintf( yyc, " = (int)(%s);", szInitCs );
+            else
+               fprintf( yyc, " = %s;", szInitCs );
          }
          else if( fField )
             fprintf( yyc, ";" );
