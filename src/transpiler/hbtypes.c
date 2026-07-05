@@ -1406,12 +1406,41 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
             slots). Under-refining is safer than mis-refining. */
          const char * szMethod = pExpr->value.asMessage.szMessage;
          const char * szRecvType = NULL;
+         const char * szRecvName = NULL;
          char szKey[ 256 ];
          const char * szLookup = NULL;
 
          if( pExpr->value.asMessage.pObject )
-            szRecvType = hb_astInferExprType(
-               pExpr->value.asMessage.pObject, pEnv );
+         {
+            PHB_EXPR pRecv = pExpr->value.asMessage.pObject;
+            szRecvType = hb_astInferExprType( pRecv, pEnv );
+            /* Member-access receivers only (Self:member / obj:member):
+               a class DATA slot's type routinely comes from nothing
+               but its own name. Plain variable receivers stay out of
+               this check — locals/params named after their class are
+               the dominant easipos calling convention and usually ARE
+               that class; skipping them lost legitimate refinement
+               AND by-ref marking file-wide (904 → 1305 errors, 487
+               of them CS1615 ref mismatches, when this guard was
+               receiver-shape-agnostic). */
+            if( pRecv->ExprType == HB_ET_SEND )
+               szRecvName = pRecv->value.asMessage.szMessage;
+         }
+
+         /* A member whose class derives purely from its NAME
+            (`o<ClassName>` — hb_astIsNameSeededClass) is a weak hint,
+            not evidence. Refining through it misattributes call-site
+            types: the CdS COM wrappers hold their ActiveX proxy in a
+            member named after the wrapper class itself (EasiCdS's
+            ::oEasiCdS), so the proxy's marshaling calls
+            (`::oEasiCdS:NewTransaction(ToString(nClerkId), ...)`)
+            were keyed onto the wrapper's OWN methods — spurious
+            W0022s, wrongful downgrade-to-USUAL of every conflicting
+            parameter, and stray by-ref marks from the proxy's @args.
+            Under-refining is safer than mis-refining. */
+         if( szRecvType && szRecvName &&
+             hb_astIsNameSeededClass( szRecvName, szRecvType ) )
+            szRecvType = NULL;
 
          if( szRecvType && szMethod )
          {

@@ -907,6 +907,17 @@ hb_comp_yylex_restart:
          {
             if( hb_compClassParse( HB_COMP_PARAM ) )
             {
+               /* The pre-parser consumed the CLASS..ENDCLASS block's
+                  tokens straight from the PP — its EOLs (and any
+                  #line markers inside) never reach the grammar, so
+                  currLine would stay frozen at the CLASS line and
+                  every statement after ENDCLASS would report ~block-
+                  size lines early (easicds.prg W0022s pointed 45-59
+                  lines above the real call sites). Resync from the
+                  PP's own counter, which the pre-parser trusts for
+                  its member nodes too (hb_clsCurrLine). */
+               HB_COMP_PARAM->currLine =
+                  hb_pp_line( pLex->pPP ) + 1;
                pLex->iState = LOOKUP;
                goto hb_comp_yylex_restart;
             }
@@ -942,6 +953,12 @@ hb_comp_yylex_restart:
             }
             if( fHasClass && hb_compMethodParse( HB_COMP_PARAM, HB_FALSE ) )
             {
+               /* Same resync as the CLASS interception above — the
+                  consumed METHOD ... CLASS X header (often multi-line
+                  via `;` continuations) is invisible to the grammar's
+                  line tracking. */
+               HB_COMP_PARAM->currLine =
+                  hb_pp_line( pLex->pPP ) + 1;
                pLex->iState = LOOKUP;
                goto hb_comp_yylex_restart;
             }
@@ -968,6 +985,9 @@ hb_comp_yylex_restart:
                      {
                         if( hb_compMethodParse( HB_COMP_PARAM, HB_TRUE ) )
                         {
+                           /* Same resync as the CLASS interception. */
+                           HB_COMP_PARAM->currLine =
+                              hb_pp_line( pLex->pPP ) + 1;
                            pLex->iState = LOOKUP;
                            goto hb_comp_yylex_restart;
                         }
