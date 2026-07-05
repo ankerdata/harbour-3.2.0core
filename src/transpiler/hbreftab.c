@@ -156,6 +156,8 @@ static HB_BOOL hb_refTabIsScalarType( const char * sz )
       hb_stricmp( sz, "TIMESTAMP" ) == 0 ||
       hb_stricmp( sz, "ARRAY"     ) == 0 ||
       hb_stricmp( sz, "HASH"      ) == 0 ||
+      hb_stricmp( sz, "HASHC"     ) == 0 ||   /* string-keyed hash */
+      hb_stricmp( sz, "HASHN"     ) == 0 ||   /* numeric-keyed hash */
       hb_stricmp( sz, "BLOCK"     ) == 0 ||
       hb_stricmp( sz, "CODEBLOCK" ) == 0 ||
       hb_stricmp( sz, "CHARACTER" ) == 0 ||
@@ -491,18 +493,24 @@ void hb_refTabSetReturnType( PHB_REFTAB pTab, const char * szFunc,
                              const char * szRetType )
 {
    PHB_REFENTRY e;
+   char * szDup;
 
    if( ! pTab || ! szFunc )
       return;
 
    e = hb_refTabFindOrCreate( pTab, szFunc );
+   /* Dup BEFORE releasing the old value (szRetType may alias it —
+      hb_astPropagate can hand back the entry's own string), and
+      defer-free rather than free eagerly: the type-inference env
+      holds pointers into these strings across convergence passes.
+      The weak-HASH → HASHC/HASHN upgrade stores callee return-type
+      strings into envs for `h`-prefixed variables, which surfaced
+      the eager free as garbage W0024 type names. Same discipline as
+      hb_refTabRefineParamType. */
+   szDup = ( szRetType && *szRetType ) ? hb_refTabDup( szRetType ) : NULL;
    if( e->szReturnType )
-   {
-      hb_xfree( e->szReturnType );
-      e->szReturnType = NULL;
-   }
-   if( szRetType && *szRetType )
-      e->szReturnType = hb_refTabDup( szRetType );
+      hb_refTabDefer( pTab, e->szReturnType );
+   e->szReturnType = szDup;
 }
 
 HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
@@ -537,6 +545,28 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       UAF. Same content → no-op, regardless of aliasing. */
    if( pParam->szType && hb_stricmp( pParam->szType, szNewType ) == 0 )
       return HB_REFINE_OK;
+
+   /* HASH key-type family: weak "HASH" (keys unknown) upgrades to a
+      key-typed "HASHC"/"HASHN" from a call site; an incoming weak
+      "HASH" never overrides a key-typed slot (mirrors OBJECT-vs-class).
+      HASHC vs HASHN merges to NULL and falls through to the conflict
+      resolver — both are registered scalar tags, so the slot widens
+      to USUAL with the W0022 warning. */
+   {
+      const char * szHashMerge =
+         hb_astHashFamilyMerge( pParam->szType, szNewType );
+      if( szHashMerge )
+      {
+         if( hb_stricmp( pParam->szType, szHashMerge ) == 0 )
+            return HB_REFINE_OK;      /* already the merged type */
+         {
+            char * szDup = hb_refTabDup( szHashMerge );
+            hb_refTabDefer( pTab, pParam->szType );
+            pParam->szType = szDup;
+            return HB_REFINE_REFINED;
+         }
+      }
+   }
 
    /* `x`-prefix USUAL is sticky. The user picked `x` deliberately as a
       "could be anything" marker (typically because the body does

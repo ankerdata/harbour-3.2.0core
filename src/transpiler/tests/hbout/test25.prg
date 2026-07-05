@@ -69,4 +69,4 @@ RETURN
    // comment into live code.
 STATIC FUNCTION BugDCheck()
    LOCAL aLocal := {1, 2, 3} AS ARRAY
-RETURN MEMVAR->alocal[1]
+RETURN alocal[1]

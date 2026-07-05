@@ -125,7 +125,34 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
          return "ARRAY";
 
       case HB_ET_HASH:
+      {
+         /* Key-typed hash inference. The emitter maps HASHC to a
+            string-keyed Dictionary and HASHN to a decimal-keyed one;
+            bare HASH means "keys unknown" and is the weak, upgradeable
+            member of the family (subscript usage or a key-typed
+            literal may refine it later — mirrors how OBJECT upgrades
+            to a concrete class). A literal with no pairs, non-literal
+            keys, or mixed key types stays HASH. */
+         PHB_EXPR pItem = pExpr->value.asList.pExprList;
+         HB_BOOL fAllStr = HB_TRUE, fAllNum = HB_TRUE, fAny = HB_FALSE;
+         while( pItem )
+         {
+            PHB_EXPR pVal = pItem->pNext;
+            fAny = HB_TRUE;
+            if( pItem->ExprType != HB_ET_STRING )
+               fAllStr = HB_FALSE;
+            if( pItem->ExprType != HB_ET_NUMERIC )
+               fAllNum = HB_FALSE;
+            if( ! pVal )
+               break;
+            pItem = pVal->pNext;
+         }
+         if( fAny && fAllStr )
+            return "HASHC";
+         if( fAny && fAllNum )
+            return "HASHN";
          return "HASH";
+      }
 
       case HB_ET_CODEBLOCK:
       case HB_ET_FUNREF:
@@ -215,6 +242,30 @@ static const char * hb_astTypeForPrefixChar( char c )
       case 'f': return "BLOCK";
    }
    return NULL;
+}
+
+/* ---- HASH key-type family ----
+   "HASH" (keys unknown — weak), "HASHC" (string keys), "HASHN"
+   (numeric keys). See hbast.h. */
+HB_BOOL hb_astIsHashFamily( const char * szType )
+{
+   return szType && (
+      hb_stricmp( szType, "HASH"  ) == 0 ||
+      hb_stricmp( szType, "HASHC" ) == 0 ||
+      hb_stricmp( szType, "HASHN" ) == 0 );
+}
+
+const char * hb_astHashFamilyMerge( const char * szA, const char * szB )
+{
+   if( ! hb_astIsHashFamily( szA ) || ! hb_astIsHashFamily( szB ) )
+      return NULL;
+   if( hb_stricmp( szA, szB ) == 0 )
+      return szA;
+   if( hb_stricmp( szA, "HASH" ) == 0 )
+      return szB;             /* weak yields to the key-typed member */
+   if( hb_stricmp( szB, "HASH" ) == 0 )
+      return szA;
+   return NULL;               /* HASHC vs HASHN — real conflict */
 }
 
 /* If szName follows `o<ClassName>` (or `so<ClassName>`) and the
@@ -683,6 +734,21 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
             *pfChanged = HB_TRUE;
       }
    }
+   /* Weak HASH (keys unknown) upgrades to a key-typed HASHC/HASHN
+      observed on the RHS — a key-typed literal or a call returning
+      one. Any non-family RHS leaves the declared HASH alone (same
+      spirit as the x-prefix guard: `h` committed to hash-ness, only
+      the key type is open). */
+   else if( strcmp( szCurType, "HASH" ) == 0 )
+   {
+      const char * szNewType = hb_astInferExprType( pRHS, pEnv );
+      const char * szMerged  = hb_astHashFamilyMerge( szCurType, szNewType );
+      if( szMerged && strcmp( szMerged, szCurType ) != 0 )
+      {
+         if( hb_typeEnvSet( pEnv, szVarName, szMerged ) )
+            *pfChanged = HB_TRUE;
+      }
+   }
 }
 
 /* Recursively walk a block and its nested structures for assignments */
@@ -790,6 +856,198 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    }
 }
 
+/* ================================================================
+ * Hash key-type observation (Pass 2 companion)
+ *
+ * Walks every expression in the body looking for `h[idx]` subscripts
+ * whose base variable the env currently types as weak HASH. A known
+ * index type upgrades the binding: NUMERIC → HASHN, STRING → HASHC.
+ * Statement coverage mirrors hb_astRefineBlock; runs inside the Pass 2
+ * fixed-point loop so an upgrade feeds later inference (and further
+ * upgrades) until stable. File statics resolve through the Hungarian
+ * fallback and get their env binding created here — that only serves
+ * intra-function consistency; the cross-function registry upgrade for
+ * their declarations happens at emit (gencsharp observation pre-pass).
+ * ================================================================ */
+static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                               HB_BOOL * pfChanged )
+{
+   if( ! pExpr )
+      return;
+
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_ARRAYAT:
+      {
+         PHB_EXPR pBase = pExpr->value.asList.pExprList;
+         PHB_EXPR pIdx  = pExpr->value.asList.pIndex;
+         if( pBase && pBase->ExprType == HB_ET_VARIABLE && pIdx )
+         {
+            const char * szBase =
+               hb_astInferExprType( pBase, pEnv );
+            if( szBase && strcmp( szBase, "HASH" ) == 0 )
+            {
+               const char * szIdx = hb_astInferExprType( pIdx, pEnv );
+               const char * szKeyed = NULL;
+               if( szIdx && strcmp( szIdx, "NUMERIC" ) == 0 )
+                  szKeyed = "HASHN";
+               else if( szIdx && strcmp( szIdx, "STRING" ) == 0 )
+                  szKeyed = "HASHC";
+               if( szKeyed &&
+                   hb_typeEnvSet( pEnv, pBase->value.asSymbol.name,
+                                  szKeyed ) )
+                  *pfChanged = HB_TRUE;
+            }
+         }
+         hb_astObserveExpr( pBase, pEnv, pfChanged );
+         hb_astObserveExpr( pIdx,  pEnv, pfChanged );
+         break;
+      }
+
+      case HB_ET_FUNCALL:
+         hb_astObserveExpr( pExpr->value.asFunCall.pParms, pEnv, pfChanged );
+         break;
+
+      case HB_ET_SEND:
+         hb_astObserveExpr( pExpr->value.asMessage.pObject, pEnv, pfChanged );
+         hb_astObserveExpr( pExpr->value.asMessage.pParms,  pEnv, pfChanged );
+         break;
+
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR p = pExpr->value.asList.pExprList;
+         while( p )
+         {
+            hb_astObserveExpr( p, pEnv, pfChanged );
+            p = p->pNext;
+         }
+         break;
+      }
+
+      case HB_ET_CODEBLOCK:
+      {
+         PHB_EXPR p = pExpr->value.asCodeblock.pExprList;
+         while( p )
+         {
+            hb_astObserveExpr( p, pEnv, pfChanged );
+            p = p->pNext;
+         }
+         break;
+      }
+
+      default:
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+         {
+            hb_astObserveExpr( pExpr->value.asOperator.pLeft,  pEnv, pfChanged );
+            hb_astObserveExpr( pExpr->value.asOperator.pRight, pEnv, pfChanged );
+         }
+         break;
+   }
+}
+
+static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
+                                HB_BOOL * pfChanged )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pNode || pNode->type != HB_AST_BLOCK )
+      return;
+
+   pStmt = pNode->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            hb_astObserveExpr( pStmt->value.asExprStmt.pExpr, pEnv, pfChanged );
+            break;
+         case HB_AST_RETURN:
+            hb_astObserveExpr( pStmt->value.asReturn.pExpr, pEnv, pfChanged );
+            break;
+         case HB_AST_QOUT:
+         case HB_AST_QQOUT:
+            hb_astObserveExpr( pStmt->value.asQOut.pExprList, pEnv, pfChanged );
+            break;
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+         case HB_AST_PUBLIC:
+         case HB_AST_PRIVATE:
+            hb_astObserveExpr( pStmt->value.asVar.pInit, pEnv, pfChanged );
+            break;
+         case HB_AST_IF:
+            hb_astObserveExpr( pStmt->value.asIf.pCondition, pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asIf.pThen, pEnv, pfChanged );
+            {
+               PHB_AST_NODE p = pStmt->value.asIf.pElseIfs;
+               while( p )
+               {
+                  hb_astObserveExpr( p->value.asElseIf.pCondition, pEnv, pfChanged );
+                  hb_astObserveBlock( p->value.asElseIf.pBody, pEnv, pfChanged );
+                  p = p->pNext;
+               }
+            }
+            hb_astObserveBlock( pStmt->value.asIf.pElse, pEnv, pfChanged );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astObserveExpr( pStmt->value.asWhile.pCondition, pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asWhile.pBody, pEnv, pfChanged );
+            break;
+         case HB_AST_FOR:
+            hb_astObserveExpr( pStmt->value.asFor.pStart, pEnv, pfChanged );
+            hb_astObserveExpr( pStmt->value.asFor.pEnd,   pEnv, pfChanged );
+            hb_astObserveExpr( pStmt->value.asFor.pStep,  pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asFor.pBody, pEnv, pfChanged );
+            break;
+         case HB_AST_FOREACH:
+            hb_astObserveExpr( pStmt->value.asForEach.pEnum, pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asForEach.pBody, pEnv, pfChanged );
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE p = pStmt->value.asDoCase.pCases;
+            while( p )
+            {
+               hb_astObserveExpr( p->value.asCase.pCondition, pEnv, pfChanged );
+               hb_astObserveBlock( p->value.asCase.pBody, pEnv, pfChanged );
+               p = p->pNext;
+            }
+            hb_astObserveBlock( pStmt->value.asDoCase.pOtherwise, pEnv, pfChanged );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE p = pStmt->value.asSwitch.pCases;
+            hb_astObserveExpr( pStmt->value.asSwitch.pSwitch, pEnv, pfChanged );
+            while( p )
+            {
+               hb_astObserveExpr( p->value.asCase.pCondition, pEnv, pfChanged );
+               hb_astObserveBlock( p->value.asCase.pBody, pEnv, pfChanged );
+               p = p->pNext;
+            }
+            hb_astObserveBlock( pStmt->value.asSwitch.pDefault, pEnv, pfChanged );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_astObserveBlock( pStmt->value.asSeq.pBody, pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asSeq.pRecover, pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asSeq.pAlways, pEnv, pfChanged );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astObserveExpr( pStmt->value.asWithObj.pObject, pEnv, pfChanged );
+            hb_astObserveBlock( pStmt->value.asWithObj.pBody, pEnv, pfChanged );
+            break;
+         default:
+            break;
+      }
+      pStmt = pStmt->pNext;
+   }
+}
+
 /* Recursively collect RETURN expression types from a block. Tracks
    uninferrable returns separately: a function that has *some* known
    return type and *some* unknown one (e.g. `aADTFiles[1]` — array
@@ -820,10 +1078,17 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                *pszRetType = szType;
             else if( strcmp( *pszRetType, szType ) != 0 )
             {
-               /* Multiple RETURN types disagree — compatible if both numeric */
+               /* Multiple RETURN types disagree — compatible if both
+                  numeric, or both in the HASH key-type family (the
+                  weak HASH yields to a key-typed HASHC/HASHN branch;
+                  HASHC vs HASHN merges to NULL and conflicts). */
+               const char * szHashMerge =
+                  hb_astHashFamilyMerge( *pszRetType, szType );
                if( strcmp( *pszRetType, "NUMERIC" ) == 0 &&
                    strcmp( szType, "NUMERIC" ) == 0 )
                   *pszRetType = "NUMERIC";
+               else if( szHashMerge )
+                  *pszRetType = szHashMerge;
                else
                   *pfConflict = HB_TRUE;
             }
@@ -1157,8 +1422,8 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                 hb_stricmp( szRecvType, "STRING"  ) != 0 &&
                 hb_stricmp( szRecvType, "LOGICAL" ) != 0 &&
                 hb_stricmp( szRecvType, "DATE"    ) != 0 &&
+                ! hb_astIsHashFamily( szRecvType )       &&
                 hb_stricmp( szRecvType, "ARRAY"   ) != 0 &&
-                hb_stricmp( szRecvType, "HASH"    ) != 0 &&
                 hb_stricmp( szRecvType, "BLOCK"   ) != 0 &&
                 hb_stricmp( szRecvType, "OBJECT"  ) != 0 )
             {
@@ -1306,6 +1571,10 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
        hb_stricmp( szRhs, "OBJECT" ) == 0 )
       return;
    if( hb_stricmp( szLhs, szRhs ) == 0 )
+      return;
+   /* `h<X>` commits to hash-ness only — a key-typed HASHC/HASHN RHS
+      against the prefix's plain HASH is agreement, not a W0024. */
+   if( hb_astHashFamilyMerge( szLhs, szRhs ) )
       return;
    if( hb_astHungSeen( iLine, szName ) )
       return;
@@ -1502,11 +1771,15 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       one. Non-halting; codegen continues. */
    hb_astCheckHungarianMismatch( pBody, &env, szFile );
 
-   /* Pass 2: Walk assignments and propagate (iterate until stable) */
+   /* Pass 2: Walk assignments and propagate (iterate until stable).
+      The hash-key observation walker runs in the same fixed point so
+      a subscript-derived HASHN/HASHC upgrade feeds later assignment
+      inference and vice versa. */
    do
    {
       fChanged = HB_FALSE;
       hb_astPropagateBlock( pBody, &env, &fChanged );
+      hb_astObserveBlock( pBody, &env, &fChanged );
    }
    while( fChanged );
 
@@ -1542,6 +1815,12 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                   szPropType && strcmp( szPropType, szCurType ) != 0 &&
                   strcmp( szPropType, "USUAL" ) != 0 &&
                   strcmp( szPropType, "OBJECT" ) != 0 )
+            fOverride = HB_TRUE;
+         /* Weak HASH upgraded to a key-typed HASHC/HASHN by the RHS
+            or the subscript observations in Pass 2. */
+         else if( strcmp( szCurType, "HASH" ) == 0 &&
+                  szPropType && strcmp( szPropType, "HASH" ) != 0 &&
+                  hb_astIsHashFamily( szPropType ) )
             fOverride = HB_TRUE;
 
          if( fOverride )

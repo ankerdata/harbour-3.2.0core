@@ -360,6 +360,13 @@ extern const char * hb_strCollapsePath( const char * szPath );
 
 /* Type inference (hbtypes.c) */
 extern const char * hb_astInferType( const char * szName, PHB_EXPR pInit );
+/* HASH key-type family: "HASH" = keys unknown (the weak, upgradeable
+   member), "HASHC" = string keys, "HASHN" = numeric keys. Merge
+   returns the stronger of two family members, the common type when
+   equal, or NULL on HASHC-vs-HASHN (genuine key-type conflict) and
+   on any non-family input. */
+extern HB_BOOL      hb_astIsHashFamily( const char * szType );
+extern const char * hb_astHashFamilyMerge( const char * szA, const char * szB );
 extern const char * hb_astInferTypeFromInit( const char * szName, const char * szInit );
 /* Publish a reftab (opaque PHB_REFTAB) that hb_astInferFromPrefix will
    consult to resolve `o<ClassName>` / `so<ClassName>` variable names

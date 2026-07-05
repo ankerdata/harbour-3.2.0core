@@ -115,6 +115,17 @@ static char s_szFileBase[ 64 ] = "";
    incidental expression emits elsewhere are unaffected. */
 static int s_iExprIndent = 0;
 
+/* C# key type an empty/key-less hash literal should emit with —
+   pointed at the declared variable's key type around decl-init
+   emission (see HB_ET_HASH). Default string. */
+static const char * s_szHashKeyCs = "string";
+
+static const char * hb_csHashKeyCsFor( const char * szType )
+{
+   return ( szType && hb_stricmp( szType, "HASHN" ) == 0 )
+          ? "decimal" : "string";
+}
+
 static HB_BOOL hb_csIsFileStatic( const char * szName )
 {
    int i;
@@ -1462,8 +1473,16 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "dynamic";
    if( hb_stricmp( szHbType, "ARRAY" ) == 0 )
       return "dynamic[]";
-   if( hb_stricmp( szHbType, "HASH" ) == 0 )
+   if( hb_stricmp( szHbType, "HASH"  ) == 0 ||
+       hb_stricmp( szHbType, "HASHC" ) == 0 )
+      /* Keys-unknown HASH defaults to string keys — the dominant
+         population. HASHN (numeric keys, inferred from key-typed
+         literals or subscript usage) gets a decimal-keyed dictionary
+         so `h[nRecNo]` compiles; an int literal key implicitly
+         converts to decimal at the indexer, so no key-identity trap. */
       return "Dictionary<string, dynamic>";
+   if( hb_stricmp( szHbType, "HASHN" ) == 0 )
+      return "Dictionary<decimal, dynamic>";
    if( hb_stricmp( szHbType, "BLOCK" ) == 0 ||
        /* `AS CODEBLOCK` — the formal declared-type spelling; same
           dynamic mapping as the reftab's BLOCK. */
@@ -2846,7 +2865,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   const char * szT = hb_csArgVarType( szLhsName );
                   if( ! szT )
                      szT = hb_astInferType( szLhsName, NULL );
-                  if( szT && hb_stricmp( szT, "HASH" ) == 0 )
+                  if( hb_astIsHashFamily( szT ) )
                      fHash = HB_TRUE;
                }
             }
@@ -2908,17 +2927,37 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          {
             PHB_EXPR pItem;
             HB_BOOL fComplex = HB_FALSE;
+            int    iPairs = 0;
             int    iInd = s_iExprIndent;
+            /* C# key type for this literal: its own literal keys win
+               (any numeric key → decimal); an empty/unlabeled literal
+               inherits s_szHashKeyCs, which decl-init emission points
+               at the declared variable's key type so
+               `LOCAL hById := { => }` matches its
+               Dictionary<decimal, dynamic> declaration. */
+            const char * szKeyCs = s_szHashKeyCs;
+            {
+               PHB_EXPR pKey = pExpr->value.asList.pExprList;
+               while( pKey )
+               {
+                  if( pKey->ExprType == HB_ET_NUMERIC )
+                     { szKeyCs = "decimal"; break; }
+                  if( pKey->ExprType == HB_ET_STRING )
+                     { szKeyCs = "string"; break; }
+                  if( ! pKey->pNext )
+                     break;
+                  pKey = pKey->pNext->pNext;
+               }
+            }
 
             /* "Complex" = any value is itself a hash or array literal.
                A flag/config dict like Flags_shFlags has one nested
                meta-hash per key and reads as a 500KB single line in
-               the historical layout. A scalar-valued hash (the typical
-               POSDialog payload) stays single-line. */
-            for( pItem = pExpr->value.asList.pExprList;
-                 pItem && ! fComplex; )
+               the historical layout. */
+            for( pItem = pExpr->value.asList.pExprList; pItem; )
             {
                PHB_EXPR pVal = pItem->pNext;
+               iPairs++;
                if( ! pVal )
                   break;
                if( pVal->ExprType == HB_ET_HASH ||
@@ -2927,10 +2966,21 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                pItem = pVal->pNext;
             }
 
-            if( fComplex && iInd > 0 )
+            /* Break at the commas — one `{ key, value },` per line —
+               for any nested initializer or anything beyond a handful
+               of pairs; a jsonify-style payload dict in argument
+               position was previously one multi-KB line. Small scalar
+               hashes stay inline. Contexts that don't track a column
+               (locals, arguments — s_iExprIndent 0) get a method-body
+               default: items at 12, braces at 8. C# doesn't care and
+               it reads fine even when the opener sits deeper. */
+            if( iInd <= 0 && ( fComplex || iPairs > 4 ) )
+               iInd = 12;
+
+            if( fComplex || iPairs > 4 )
             {
-               fprintf( yyc, "new Dictionary<string, dynamic>\n%*s{\n",
-                        iInd - 4, "" );
+               fprintf( yyc, "new Dictionary<%s, dynamic>\n%*s{\n",
+                        szKeyCs, iInd - 4, "" );
                /* Bump indent so a nested complex hash/array (if we add
                   one to the heuristic later) lines its own children up
                   one level deeper. Restored on the way out. */
@@ -2953,7 +3003,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
-               fprintf( yyc, "new Dictionary<string, dynamic> { " );
+               fprintf( yyc, "new Dictionary<%s, dynamic> { ", szKeyCs );
                pItem = pExpr->value.asList.pExprList;
                while( pItem )
                {
@@ -3851,7 +3901,14 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                else
                   fprintf( yyc, "%s %s = ", hb_csTypeMap( szType ),
                            pNode->value.asVar.szName );
-               hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+               {
+                  /* Point empty-hash literals in the init at the
+                     declared key type (HASHN → decimal). */
+                  const char * szSavedKey = s_szHashKeyCs;
+                  s_szHashKeyCs = hb_csHashKeyCsFor( szType );
+                  hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+                  s_szHashKeyCs = szSavedKey;
+               }
                fprintf( yyc, ";\n" );
             }
             else
@@ -5203,6 +5260,386 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 }
 
 /* Emit a standalone function as a static method */
+/* ================================================================
+ * Hash key-type emit pre-pass
+ *
+ * File statics live outside any function's type env, so the Pass-2
+ * observation in hbtypes.c can't retype their declarations. This
+ * pre-pass walks every function body before anything emits:
+ *   1. a subscript `FileStatic[idx]` with a known index type upgrades
+ *      the static's registry entry (weak HASH → HASHN/HASHC);
+ *   2. an assignment `FileStatic := SameFileFunc(...)` where the
+ *      static ends up key-typed records a return-key override for the
+ *      callee — consulted by hb_csEmitFunc so the factory's C# return
+ *      type (and its returned weak-HASH locals) match the field.
+ * Runs to a fixed point so evidence found late still feeds statics
+ * declared early. Index types are resolved cheaply (literals and
+ * Hungarian prefixes) — the full env isn't built here.
+ * ================================================================ */
+#define HB_CS_RETKEY_MAX 32
+static struct { const char * szFunc; const char * szType; }
+   s_aRetKeyOvr[ HB_CS_RETKEY_MAX ];
+static int s_iRetKeyOvr = 0;
+
+static const char * hb_csRetKeyOverride( const char * szFunc )
+{
+   int i;
+   for( i = 0; i < s_iRetKeyOvr; i++ )
+      if( hb_stricmp( s_aRetKeyOvr[ i ].szFunc, szFunc ) == 0 )
+         return s_aRetKeyOvr[ i ].szType;
+   return NULL;
+}
+
+static void hb_csRetKeySet( const char * szFunc, const char * szType )
+{
+   if( ! szFunc || hb_csRetKeyOverride( szFunc ) ||
+       s_iRetKeyOvr >= HB_CS_RETKEY_MAX )
+      return;
+   s_aRetKeyOvr[ s_iRetKeyOvr ].szFunc = szFunc;
+   s_aRetKeyOvr[ s_iRetKeyOvr ].szType = szType;
+   s_iRetKeyOvr++;
+}
+
+/* Literal or Hungarian-prefix type of a subscript index — no env. */
+static const char * hb_csCheapExprType( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return NULL;
+   if( pExpr->ExprType == HB_ET_NUMERIC )
+      return "NUMERIC";
+   if( pExpr->ExprType == HB_ET_STRING )
+      return "STRING";
+   if( pExpr->ExprType == HB_ET_VARIABLE )
+      return hb_astInferType( pExpr->value.asSymbol.name, NULL );
+   return NULL;
+}
+
+static void hb_csHashScanExpr( PHB_EXPR pExpr, HB_BOOL * pfChanged )
+{
+   if( ! pExpr )
+      return;
+
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_ARRAYAT:
+      {
+         PHB_EXPR pBase = pExpr->value.asList.pExprList;
+         PHB_EXPR pIdx  = pExpr->value.asList.pIndex;
+         const char * szName = NULL;
+         if( pBase && pBase->ExprType == HB_ET_VARIABLE )
+            szName = pBase->value.asSymbol.name;
+         else if( pBase && pBase->ExprType == HB_ET_ALIASVAR &&
+                  pBase->value.asAlias.pVar &&
+                  pBase->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+            /* implicit MEMVAR->name wrap of a file-static reference */
+            szName = pBase->value.asAlias.pVar->value.asSymbol.name;
+         if( szName && hb_csIsFileStatic( szName ) )
+         {
+            const char * szCur = hb_csFileStaticType( szName );
+            if( ! szCur )
+               szCur = hb_astInferType( szName, NULL );
+            if( szCur && hb_stricmp( szCur, "HASH" ) == 0 )
+            {
+               const char * szIdx = hb_csCheapExprType( pIdx );
+               const char * szKeyed = NULL;
+               if( szIdx && hb_stricmp( szIdx, "NUMERIC" ) == 0 )
+                  szKeyed = "HASHN";
+               else if( szIdx && hb_stricmp( szIdx, "STRING" ) == 0 )
+                  szKeyed = "HASHC";
+               if( szKeyed )
+               {
+                  hb_csSetFileStaticType( szName, szKeyed );
+                  *pfChanged = HB_TRUE;
+               }
+            }
+         }
+         hb_csHashScanExpr( pBase, pfChanged );
+         hb_csHashScanExpr( pIdx,  pfChanged );
+         break;
+      }
+
+      case HB_EO_ASSIGN:
+      {
+         PHB_EXPR pLhs = pExpr->value.asOperator.pLeft;
+         PHB_EXPR pRhs = pExpr->value.asOperator.pRight;
+         if( pLhs && pLhs->ExprType == HB_ET_VARIABLE &&
+             pRhs && pRhs->ExprType == HB_ET_FUNCALL &&
+             pRhs->value.asFunCall.pFunName &&
+             pRhs->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+             hb_csIsFileStatic( pLhs->value.asSymbol.name ) )
+         {
+            const char * szT =
+               hb_csFileStaticType( pLhs->value.asSymbol.name );
+            if( szT && hb_astIsHashFamily( szT ) &&
+                hb_stricmp( szT, "HASH" ) != 0 )
+               hb_csRetKeySet(
+                  pRhs->value.asFunCall.pFunName->value.asSymbol.name,
+                  szT );
+         }
+         hb_csHashScanExpr( pLhs, pfChanged );
+         hb_csHashScanExpr( pRhs, pfChanged );
+         break;
+      }
+
+      case HB_ET_FUNCALL:
+         hb_csHashScanExpr( pExpr->value.asFunCall.pParms, pfChanged );
+         break;
+
+      case HB_ET_SEND:
+         hb_csHashScanExpr( pExpr->value.asMessage.pObject, pfChanged );
+         hb_csHashScanExpr( pExpr->value.asMessage.pParms,  pfChanged );
+         break;
+
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR p = pExpr->value.asList.pExprList;
+         while( p )
+         {
+            hb_csHashScanExpr( p, pfChanged );
+            p = p->pNext;
+         }
+         break;
+      }
+
+      case HB_ET_CODEBLOCK:
+      {
+         PHB_EXPR p = pExpr->value.asCodeblock.pExprList;
+         while( p )
+         {
+            hb_csHashScanExpr( p, pfChanged );
+            p = p->pNext;
+         }
+         break;
+      }
+
+      default:
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+         {
+            hb_csHashScanExpr( pExpr->value.asOperator.pLeft,  pfChanged );
+            hb_csHashScanExpr( pExpr->value.asOperator.pRight, pfChanged );
+         }
+         break;
+   }
+}
+
+static void hb_csHashScanBlock( PHB_AST_NODE pNode, HB_BOOL * pfChanged )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pNode || pNode->type != HB_AST_BLOCK )
+      return;
+
+   pStmt = pNode->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            hb_csHashScanExpr( pStmt->value.asExprStmt.pExpr, pfChanged );
+            break;
+         case HB_AST_RETURN:
+            hb_csHashScanExpr( pStmt->value.asReturn.pExpr, pfChanged );
+            break;
+         case HB_AST_QOUT:
+         case HB_AST_QQOUT:
+            hb_csHashScanExpr( pStmt->value.asQOut.pExprList, pfChanged );
+            break;
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+         case HB_AST_PUBLIC:
+         case HB_AST_PRIVATE:
+            hb_csHashScanExpr( pStmt->value.asVar.pInit, pfChanged );
+            break;
+         case HB_AST_IF:
+            hb_csHashScanExpr( pStmt->value.asIf.pCondition, pfChanged );
+            hb_csHashScanBlock( pStmt->value.asIf.pThen, pfChanged );
+            {
+               PHB_AST_NODE p = pStmt->value.asIf.pElseIfs;
+               while( p )
+               {
+                  hb_csHashScanExpr( p->value.asElseIf.pCondition, pfChanged );
+                  hb_csHashScanBlock( p->value.asElseIf.pBody, pfChanged );
+                  p = p->pNext;
+               }
+            }
+            hb_csHashScanBlock( pStmt->value.asIf.pElse, pfChanged );
+            break;
+         case HB_AST_DOWHILE:
+            hb_csHashScanExpr( pStmt->value.asWhile.pCondition, pfChanged );
+            hb_csHashScanBlock( pStmt->value.asWhile.pBody, pfChanged );
+            break;
+         case HB_AST_FOR:
+            hb_csHashScanExpr( pStmt->value.asFor.pStart, pfChanged );
+            hb_csHashScanExpr( pStmt->value.asFor.pEnd,   pfChanged );
+            hb_csHashScanExpr( pStmt->value.asFor.pStep,  pfChanged );
+            hb_csHashScanBlock( pStmt->value.asFor.pBody, pfChanged );
+            break;
+         case HB_AST_FOREACH:
+            hb_csHashScanExpr( pStmt->value.asForEach.pEnum, pfChanged );
+            hb_csHashScanBlock( pStmt->value.asForEach.pBody, pfChanged );
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE p = pStmt->value.asDoCase.pCases;
+            while( p )
+            {
+               hb_csHashScanExpr( p->value.asCase.pCondition, pfChanged );
+               hb_csHashScanBlock( p->value.asCase.pBody, pfChanged );
+               p = p->pNext;
+            }
+            hb_csHashScanBlock( pStmt->value.asDoCase.pOtherwise, pfChanged );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE p = pStmt->value.asSwitch.pCases;
+            hb_csHashScanExpr( pStmt->value.asSwitch.pSwitch, pfChanged );
+            while( p )
+            {
+               hb_csHashScanExpr( p->value.asCase.pCondition, pfChanged );
+               hb_csHashScanBlock( p->value.asCase.pBody, pfChanged );
+               p = p->pNext;
+            }
+            hb_csHashScanBlock( pStmt->value.asSwitch.pDefault, pfChanged );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_csHashScanBlock( pStmt->value.asSeq.pBody, pfChanged );
+            hb_csHashScanBlock( pStmt->value.asSeq.pRecover, pfChanged );
+            hb_csHashScanBlock( pStmt->value.asSeq.pAlways, pfChanged );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_csHashScanExpr( pStmt->value.asWithObj.pObject, pfChanged );
+            hb_csHashScanBlock( pStmt->value.asWithObj.pBody, pfChanged );
+            break;
+         default:
+            break;
+      }
+      pStmt = pStmt->pNext;
+   }
+}
+
+/* Retype the weak-HASH locals a function RETURNs when its return key
+   type was overridden — the declaration must match the new signature.
+   Nested RETURNs are walked; only bare `RETURN <var>` shapes count. */
+static void hb_csCollectReturnVars( PHB_AST_NODE pNode,
+                                    const char ** pszNames, int * piCount,
+                                    int iMax );
+
+static void hb_csAliasReturnedHashLocals( PHB_AST_NODE pBody,
+                                          const char * szKeyed )
+{
+   const char * aszNames[ 16 ];
+   int iCount = 0, i;
+   PHB_AST_NODE pStmt;
+
+   hb_csCollectReturnVars( pBody, aszNames, &iCount, 16 );
+   if( ! iCount || ! pBody || pBody->type != HB_AST_BLOCK )
+      return;
+
+   pStmt = pBody->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      if( ( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC ) &&
+          pStmt->value.asVar.szName )
+      {
+         for( i = 0; i < iCount; i++ )
+         {
+            if( hb_stricmp( pStmt->value.asVar.szName, aszNames[ i ] ) == 0 )
+            {
+               const char * szCur = pStmt->value.asVar.szAlias
+                  ? pStmt->value.asVar.szAlias
+                  : hb_astInferType( pStmt->value.asVar.szName,
+                                     pStmt->value.asVar.pInit );
+               if( szCur && hb_stricmp( szCur, "HASH" ) == 0 )
+                  pStmt->value.asVar.szAlias = szKeyed;
+            }
+         }
+      }
+      pStmt = pStmt->pNext;
+   }
+}
+
+static void hb_csCollectReturnVars( PHB_AST_NODE pNode,
+                                    const char ** pszNames, int * piCount,
+                                    int iMax )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pNode || pNode->type != HB_AST_BLOCK )
+      return;
+
+   pStmt = pNode->value.asBlock.pFirst;
+   while( pStmt && *piCount < iMax )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_RETURN:
+            if( pStmt->value.asReturn.pExpr &&
+                pStmt->value.asReturn.pExpr->ExprType == HB_ET_VARIABLE )
+               pszNames[ ( *piCount )++ ] =
+                  pStmt->value.asReturn.pExpr->value.asSymbol.name;
+            break;
+         case HB_AST_IF:
+            hb_csCollectReturnVars( pStmt->value.asIf.pThen, pszNames, piCount, iMax );
+            {
+               PHB_AST_NODE p = pStmt->value.asIf.pElseIfs;
+               while( p )
+               {
+                  hb_csCollectReturnVars( p->value.asElseIf.pBody, pszNames, piCount, iMax );
+                  p = p->pNext;
+               }
+            }
+            hb_csCollectReturnVars( pStmt->value.asIf.pElse, pszNames, piCount, iMax );
+            break;
+         case HB_AST_DOWHILE:
+            hb_csCollectReturnVars( pStmt->value.asWhile.pBody, pszNames, piCount, iMax );
+            break;
+         case HB_AST_FOR:
+            hb_csCollectReturnVars( pStmt->value.asFor.pBody, pszNames, piCount, iMax );
+            break;
+         case HB_AST_FOREACH:
+            hb_csCollectReturnVars( pStmt->value.asForEach.pBody, pszNames, piCount, iMax );
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE p = pStmt->value.asDoCase.pCases;
+            while( p )
+            {
+               hb_csCollectReturnVars( p->value.asCase.pBody, pszNames, piCount, iMax );
+               p = p->pNext;
+            }
+            hb_csCollectReturnVars( pStmt->value.asDoCase.pOtherwise, pszNames, piCount, iMax );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE p = pStmt->value.asSwitch.pCases;
+            while( p )
+            {
+               hb_csCollectReturnVars( p->value.asCase.pBody, pszNames, piCount, iMax );
+               p = p->pNext;
+            }
+            hb_csCollectReturnVars( pStmt->value.asSwitch.pDefault, pszNames, piCount, iMax );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_csCollectReturnVars( pStmt->value.asSeq.pBody, pszNames, piCount, iMax );
+            hb_csCollectReturnVars( pStmt->value.asSeq.pRecover, pszNames, piCount, iMax );
+            hb_csCollectReturnVars( pStmt->value.asSeq.pAlways, pszNames, piCount, iMax );
+            break;
+         default:
+            break;
+      }
+      pStmt = pStmt->pNext;
+   }
+}
+
 static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                             FILE * yyc, int iIndent )
 {
@@ -5215,6 +5652,22 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( pFunc->value.asFunc.pBody )
       szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL,
                                    s_pCompCtx ? s_pCompCtx->currModule : NULL );
+
+   /* Return-key override from the hash pre-pass: this function's
+      result lands in a key-typed hash static (e.g. a CreateLangHash-
+      style factory whose own keys are macro-built and untypeable).
+      The signature and the returned weak-HASH locals both adopt the
+      assignment target's key type so the C# assignment compiles. */
+   if( szRetType && hb_stricmp( szRetType, "HASH" ) == 0 )
+   {
+      const char * szOvr =
+         hb_csRetKeyOverride( pFunc->value.asFunc.szName );
+      if( szOvr )
+      {
+         szRetType = szOvr;
+         hb_csAliasReturnedHashLocals( pFunc->value.asFunc.pBody, szOvr );
+      }
+   }
 
    /* Detect Main entry point */
    if( hb_stricmp( pFunc->value.asFunc.szName, "Main" ) == 0 )
@@ -5798,12 +6251,46 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
             while( pStmt )
             {
                if( pStmt->type == HB_AST_STATIC )
+               {
                   hb_csAddFileStatic( pStmt->value.asVar.szName );
+                  /* Seed hash-family statics with their declaration-
+                     derived type so the key-type pre-pass below has a
+                     starting point to upgrade. Other types keep the
+                     lazy set-at-field-emit behavior. */
+                  {
+                     const char * szT = hb_astInferType(
+                        pStmt->value.asVar.szName,
+                        pStmt->value.asVar.pInit );
+                     if( hb_astIsHashFamily( szT ) )
+                        hb_csSetFileStaticType(
+                           pStmt->value.asVar.szName, szT );
+                  }
+               }
                pStmt = pStmt->pNext;
             }
          }
          pF = pF->pNext;
       }
+   }
+
+   /* Hash key-type pre-pass: observe subscripts on hash statics and
+      factory-assignment shapes to a fixed point, before anything
+      emits. See the block comment at hb_csHashScanExpr. */
+   s_iRetKeyOvr = 0;
+   {
+      HB_BOOL fChg;
+      do
+      {
+         PHB_AST_NODE pF = HB_COMP_PARAM->ast.pFuncList;
+         fChg = HB_FALSE;
+         while( pF )
+         {
+            if( pF->type == HB_AST_FUNCTION )
+               hb_csHashScanBlock( pF->value.asFunc.pBody, &fChg );
+            pF = pF->pNext;
+         }
+      }
+      while( fChg );
    }
 
    /* Emit class definitions with their methods */
@@ -5922,6 +6409,20 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                            rejects (CS0037). Each such site is a source
                            bug to be cleaned up — pick a real default
                            (`:= 0`, `:= .F.`) or drop the init. */
+                        /* The hash key-type pre-pass may have upgraded
+                           this static's registry entry (HASH → HASHN /
+                           HASHC) from subscript usage inside function
+                           bodies — that evidence outranks the weak
+                           declaration-derived HASH. */
+                        {
+                           const char * szReg = hb_csFileStaticType(
+                              pStmt->value.asVar.szName );
+                           if( szReg && szType &&
+                               hb_stricmp( szType, "HASH" ) == 0 &&
+                               hb_astIsHashFamily( szReg ) &&
+                               hb_stricmp( szReg, "HASH" ) != 0 )
+                              szType = szReg;
+                        }
                         hb_csSetFileStaticType(
                            pStmt->value.asVar.szName, szType );
                         fprintf( yyc, "public static %s %s_%s",
@@ -5930,6 +6431,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                                  pStmt->value.asVar.szName );
                         if( pStmt->value.asVar.pInit )
                         {
+                           const char * szSavedKey = s_szHashKeyCs;
                            fprintf( yyc, " = " );
                            /* The field is indented 4 spaces (class body
                               level 1); a complex hash/array literal's
@@ -5937,7 +6439,9 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                               hb_csEmitExpr reads this and resets it on
                               the way out. */
                            s_iExprIndent = 8;
+                           s_szHashKeyCs = hb_csHashKeyCsFor( szType );
                            hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
+                           s_szHashKeyCs = szSavedKey;
                            s_iExprIndent = 0;
                         }
                         fprintf( yyc, ";\n" );

@@ -31,6 +31,12 @@ static const char * hb_astStandardType( const char * szType )
 {
    if( ! szType )
       return NULL;
+   /* Key-typed hash subtypes (HASHC/HASHN) are transpiler-internal;
+      astype.ch only knows HASH. Degrade rather than fall through —
+      the OrObject wrapper would otherwise mangle them into OBJECT. */
+   if( hb_stricmp( szType, "HASHC" ) == 0 ||
+       hb_stricmp( szType, "HASHN" ) == 0 )
+      return "HASH";
    if( hb_stricmp( szType, "INTEGER"   ) == 0 ||
        hb_stricmp( szType, "DECIMAL"   ) == 0 ||
        hb_stricmp( szType, "STRING"    ) == 0 ||
@@ -415,13 +421,20 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             name (the implicit-memvar wrap the parser inserts for
             unresolved identifiers), emit just the bare var — re-parsing
             will re-wrap it the same way, so the round-trip is
-            semantically equivalent and syntactically valid. Named
-            HB_ET_ALIAS (`FIELD->x`, `MEMVAR->x`) and workarea aliases
-            (`cust->name`) fall through to the normal `alias->var`
-            emission via the HB_ET_ALIAS / HB_ET_VARIABLE handlers. */
+            semantically equivalent and syntactically valid. The wrap
+            also appears WITH the literal name "MEMVAR" (e.g. a
+            file-scope STATIC referenced from a later function —
+            test76's GetPanel); emitting that verbatim turns a static
+            reference into a runtime memvar lookup (BASE/1003), so it
+            unwraps too — mirroring gencsharp's HB_ET_ALIASVAR
+            resolution. Other named HB_ET_ALIAS (`FIELD->x`) and
+            workarea aliases (`cust->name`) fall through to the normal
+            `alias->var` emission. */
          if( pExpr->value.asAlias.pAlias &&
              pExpr->value.asAlias.pAlias->ExprType == HB_ET_ALIAS &&
-             ! pExpr->value.asAlias.pAlias->value.asSymbol.name )
+             ( ! pExpr->value.asAlias.pAlias->value.asSymbol.name ||
+               hb_stricmp( pExpr->value.asAlias.pAlias->value.asSymbol.name,
+                           "MEMVAR" ) == 0 ) )
          {
             hb_astEmitExpr( pExpr->value.asAlias.pVar, yyc, HB_FALSE );
          }
