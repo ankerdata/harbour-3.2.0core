@@ -172,6 +172,14 @@ extern void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName );
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );
 
+/* If szName matches a registered class (case-insensitive), returns the
+   canonical-cased class name as it was originally registered; NULL
+   otherwise. Used by the prefix-from-name inference so a variable
+   declared `LOCAL oFcnTranLine` resolves to type FcnTranLine even
+   when the source happens to spell the prefix-stripped suffix in a
+   different case. */
+extern const char * hb_refTabClassCanonName( PHB_REFTAB pTab, const char * szName );
+
 /* Mark szName as a class that extends HbDynamicObject (uses ::&(name)
    macro member access). The emitter widens parameter and local-variable
    types from the concrete class name to `dynamic` so callers accessing

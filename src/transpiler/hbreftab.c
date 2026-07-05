@@ -667,6 +667,15 @@ HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName )
    return e && e->fIsClass;
 }
 
+const char * hb_refTabClassCanonName( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return NULL;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return ( e && e->fIsClass ) ? e->szName : NULL;
+}
+
 void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName )
 {
    PHB_REFENTRY e;

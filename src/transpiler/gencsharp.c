@@ -61,10 +61,12 @@ static int s_iLastLine = 0;
    coordinate. s_pCompCtx->currLine is stuck at end-of-file during
    codegen so it can't be used for this. */
 static int s_iCurrentStmtLine = 0;
-/* Counter for workarea-ALIAS references encountered while emitting the
-   current file. Reset at the top of hb_compGenCSharp, inspected at the
-   end. We surface them as HB_COMP_ERR_SYNTAX so the file fails codegen
-   rather than silently producing a .cs with unsupported constructs. */
+/* Counter for unsupported constructs (workarea ALIAS, bare macros, …)
+   encountered while emitting the current file. Reset at the top of
+   hb_compGenCSharp, bumped by hb_csWarnUnsupported. Each site emits a
+   W0016 warning and a MacroStub/default placeholder, keeping the rest of
+   the file's functions available to downstream callers; the counter is
+   just for diagnostics (codegen does not hard-fail on it). */
 static int s_iAliasUnsupported = 0;
 /* pComp pointer captured at hb_compGenCSharp entry so deeply-nested
    static emitters can call hb_compGenError without each having to
@@ -2869,12 +2871,12 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_MACRO:
       {
-         /* Macros (`&name`) can't be transpiled. Surface as a hard
-            error so the file fails codegen rather than emitting a
-            placeholder where an identifier is required (e.g. member
-            access `oObj.&name` would leave nothing after the dot).
-            Emit `default` so the rest of the .cs is parseable for
-            diagnostic purposes. */
+         /* Macros (`&name`) can't be transpiled. Surface a W0016
+            warning and emit an `HbRuntime.MacroStub` placeholder — a
+            bare `default` won't do where an identifier is required
+            (e.g. member access `oObj.&name` would leave nothing after
+            the dot). The rest of the .cs still emits so downstream
+            callers keep compiling. */
          const char * szMacro = pExpr->value.asMacro.szMacro;
          char szDesc[ 128 ];
          hb_snprintf( szDesc, sizeof( szDesc ), "macro &%s",
@@ -2968,9 +2970,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          else
          {
             /* Named-alias reference (WORKAREA->field). Unsupported in C#
-               output — flag the file so it fails codegen. We still emit
-               a placeholder so the rest of the .cs is syntactically
-               valid for diagnostics. */
+               output — surface a W0016 warning and emit a placeholder so
+               the rest of the .cs stays syntactically valid and
+               downstream callers keep compiling. */
             const char * szAlias = ( pExpr->value.asAlias.pAlias &&
                                      pExpr->value.asAlias.pAlias->ExprType == HB_ET_ALIAS )
                                    ? pExpr->value.asAlias.pAlias->value.asSymbol.name : NULL;
@@ -5383,6 +5385,12 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    hb_refTabLoad( s_pRefTab, hb_refTabGetPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
 
+   /* Publish the reftab to hb_astInferFromPrefix so `o<ClassName>` /
+      `so<ClassName>` variable names resolve to the specific class
+      during emit too — nested hb_astPropagate calls save/restore
+      around this, so the reftab stays live for the whole pass. */
+   hb_astSetPrefixReftab( s_pRefTab );
+
    /* Collect STATIC function/procedure names so intra-file call sites
       can be mangled consistently with the declaration. Cross-file
       callers can't reach these (that's the language rule) so we don't
@@ -5795,6 +5803,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    }
 
    /* Cleanup */
+   hb_astSetPrefixReftab( NULL );
    hb_csFreeClasses( pClassList );
    hb_refTabFree( s_pRefTab );
    s_pRefTab = NULL;

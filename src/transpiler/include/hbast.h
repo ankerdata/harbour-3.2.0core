@@ -361,6 +361,13 @@ extern const char * hb_strCollapsePath( const char * szPath );
 /* Type inference (hbtypes.c) */
 extern const char * hb_astInferType( const char * szName, PHB_EXPR pInit );
 extern const char * hb_astInferTypeFromInit( const char * szName, const char * szInit );
+/* Publish a reftab (opaque PHB_REFTAB) that hb_astInferFromPrefix will
+   consult to resolve `o<ClassName>` / `so<ClassName>` variable names
+   to the specific class instead of the generic OBJECT fallback. Set
+   at the start of a codegen pass (and cleared at exit); hb_astPropagate
+   save/restores around its own runs so nesting is safe. Pass NULL to
+   clear. */
+extern void         hb_astSetPrefixReftab( void * pRefTab );
 /* The third argument is an opaque pointer to the active user-function
    signature table (PHB_REFTAB from hbreftab.h). It is consulted to
    resolve return types for calls to user-defined functions defined in

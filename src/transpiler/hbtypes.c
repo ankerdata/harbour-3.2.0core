@@ -16,6 +16,20 @@
 #include "hbfunctab.h"
 #include "hbreftab.h"
 
+/* Active reftab consulted by hb_astInferFromPrefix to resolve
+   `o<ClassName>` / `so<ClassName>` variable-name patterns to the
+   specific class instead of the generic OBJECT fallback. Set/cleared
+   by hb_astSetPrefixReftab; hb_astPropagate save/restores across its
+   own pass so nested calls (via hb_astInferExprType → child bodies)
+   see the same table. Callers that don't publish a table fall through
+   to the prefix-char-only behaviour. */
+static PHB_REFTAB s_pPropRefTab = NULL;
+
+void hb_astSetPrefixReftab( void * pRefTab )
+{
+   s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
+}
+
 /* Lexically collapse `<seg>/../` and `./` from a path so warning messages
    read `/a/b/c` instead of `/a/x/../b/c` (scan/gen invoke the transpiler
    with paths like `$ROOT/../easipos/...`). Purely textual — no
@@ -203,10 +217,44 @@ static const char * hb_astTypeForPrefixChar( char c )
    return NULL;
 }
 
+/* If szName follows `o<ClassName>` (or `so<ClassName>`) and the
+   suffix after the prefix matches a registered class, return the
+   canonical class name from the reftab. Otherwise NULL. Requires
+   s_pPropRefTab to be set — outside a propagation pass we have no
+   reftab to consult and the caller falls through to the generic
+   OBJECT inference. */
+static const char * hb_astClassFromObjectName( const char * szName )
+{
+   const char * szSuffix = NULL;
+   if( ! s_pPropRefTab || ! szName || ! szName[ 0 ] )
+      return NULL;
+   if( szName[ 0 ] == 'o' &&
+       szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' )
+      szSuffix = szName + 1;
+   else if( szName[ 0 ] == 's' && szName[ 1 ] == 'o' &&
+            szName[ 2 ] >= 'A' && szName[ 2 ] <= 'Z' )
+      szSuffix = szName + 2;
+   if( ! szSuffix )
+      return NULL;
+   return hb_refTabClassCanonName( s_pPropRefTab, szSuffix );
+}
+
 static const char * hb_astInferFromPrefix( const char * szName )
 {
    if( ! szName || ! szName[ 0 ] )
       return NULL;
+
+   /* `o<ClassName>` / `so<ClassName>` resolves to that specific class
+      whenever the suffix matches a registered class — so authors who
+      mark the type at the variable name (e.g. `oFcnTranLine`) get the
+      static C# binding for free, no `:= FcnTranLine():New()` seed
+      needed. Falls through to generic OBJECT for names that don't
+      match any registered class (e.g. `oLine`, `oRow`). */
+   {
+      const char * szClass = hb_astClassFromObjectName( szName );
+      if( szClass )
+         return szClass;
+   }
 
    /* The prefix is the first character, which should be lowercase.
       If the name starts with uppercase or underscore, no prefix. */
@@ -1328,9 +1376,18 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    const char * szRetType = NULL;
    HB_BOOL fConflict = HB_FALSE;
    HB_BOOL fSawUnknown = HB_FALSE;
+   PHB_REFTAB pSavedPropRefTab;
 
    if( ! pBody || pBody->type != HB_AST_BLOCK )
       return NULL;
+
+   /* Publish the reftab to hb_astInferFromPrefix's class-from-name
+      check for the duration of this pass. Save/restore rather than
+      clear-to-NULL so codegen callers (which publish the reftab for
+      the whole emit pass via hb_astSetPrefixReftab) keep it in scope
+      once nested propagate calls return. */
+   pSavedPropRefTab = s_pPropRefTab;
+   s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
 
    hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab, szFile );
 
@@ -1468,17 +1525,24 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    if( env.pRefTab )
       hb_astRefineBlock( pBody, &env );
 
-   if( fConflict )
-      return "USUAL";
-
-   /* Mixed: at least one RETURN was uninferrable. The function is
-      effectively polymorphic at the call site — don't pin it to the
-      one branch we could type, or W0024 mis-fires at correctly-typed
-      callers of the other branch (e.g. ADTRange returning either a
-      string sentinel or an aADTRange array). Leaves "only uninferrable
-      returns" as NULL — no info, reftab retains its prior default. */
-   if( fSawUnknown && szRetType )
-      return "USUAL";
-
-   return szRetType;
+   {
+      const char * szResult;
+      if( fConflict )
+         szResult = "USUAL";
+      /* Mixed: at least one RETURN was uninferrable. The function is
+         effectively polymorphic at the call site — don't pin it to the
+         one branch we could type, or W0024 mis-fires at correctly-typed
+         callers of the other branch (e.g. ADTRange returning either a
+         string sentinel or an aADTRange array). Leaves "only
+         uninferrable returns" as NULL — no info, reftab retains its
+         prior default. */
+      else if( fSawUnknown && szRetType )
+         szResult = "USUAL";
+      else
+         szResult = szRetType;
+      /* Pair with the entry save so an outer codegen-set reftab (or a
+         nesting propagate call) is restored. */
+      s_pPropRefTab = pSavedPropRefTab;
+      return szResult;
+   }
 }
