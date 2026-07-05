@@ -222,6 +222,16 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          hb_defineMapSetPath( szSwPtr + 14 );
          szSwPtr += strlen( szSwPtr );
       }
+      else if( strncmp( szSwPtr + 2, "type-audit=", 11 ) == 0 )
+      {
+         /* --type-audit=<path> activates the type-insufficiency audit:
+            every place inference falls back (USUAL returns, weak
+            hashes, OBJECT params, index-shaped ints kept decimal, ...)
+            appends a TSV row to <path> during the scan/emit pass.
+            See hb_auditSetPath in hbtypes.c. */
+         hb_auditSetPath( szSwPtr + 13 );
+         szSwPtr += strlen( szSwPtr );
+      }
       else if( strncmp( szSwPtr + 2, "filename-casing=", 16 ) == 0 )
       {
          /* --filename-casing=<path> overrides on-disk file-stem casing

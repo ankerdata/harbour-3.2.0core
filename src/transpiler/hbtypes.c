@@ -244,6 +244,114 @@ static const char * hb_astTypeForPrefixChar( char c )
    return NULL;
 }
 
+/* ================================================================
+ * Type-insufficiency audit sink (--type-audit=<path>)
+ *
+ * Emitters throughout the inference passes report every silent type
+ * fallback here as a TSV row: category, file, line, symbol, detail,
+ * suggested fix. Rows are deduped on (category, file, line, symbol)
+ * for the process lifetime; the file is opened lazily in append mode
+ * so per-file transpiler invocations accumulate into one report.
+ * ================================================================ */
+static char   s_szAuditPath[ 1024 ] = "";
+static FILE * s_pAuditFile = NULL;
+
+#define HB_AUDIT_DEDUP 4096
+static struct { char szKey[ 192 ]; } s_aAuditSeen[ HB_AUDIT_DEDUP ];
+static int s_iAuditSeen = 0;
+
+void hb_auditSetPath( const char * szPath )
+{
+   if( szPath )
+      hb_strncpy( s_szAuditPath, szPath, sizeof( s_szAuditPath ) - 1 );
+}
+
+HB_BOOL hb_auditActive( void )
+{
+   return s_szAuditPath[ 0 ] != '\0';
+}
+
+void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
+                   const char * szSymbol, const char * szDetail,
+                   const char * szFix )
+{
+   char szKey[ 192 ];
+   int  i;
+
+   if( ! hb_auditActive() || ! szCat )
+      return;
+   hb_snprintf( szKey, sizeof( szKey ), "%s|%s|%d|%s",
+                szCat, szFile ? szFile : "?", iLine,
+                szSymbol ? szSymbol : "?" );
+   for( i = 0; i < s_iAuditSeen; i++ )
+      if( strcmp( s_aAuditSeen[ i ].szKey, szKey ) == 0 )
+         return;
+   if( s_iAuditSeen < HB_AUDIT_DEDUP )
+      hb_strncpy( s_aAuditSeen[ s_iAuditSeen++ ].szKey, szKey,
+                  sizeof( s_aAuditSeen[ 0 ].szKey ) - 1 );
+   if( ! s_pAuditFile )
+   {
+      s_pAuditFile = hb_fopen( s_szAuditPath, "a" );
+      if( ! s_pAuditFile )
+         return;
+   }
+   fprintf( s_pAuditFile, "%s\t%s\t%d\t%s\t%s\t%s\n",
+            szCat,
+            szFile ? hb_strCollapsePath( szFile ) : "?",
+            iLine,
+            szSymbol ? szSymbol : "?",
+            szDetail ? szDetail : "",
+            szFix ? szFix : "" );
+   fflush( s_pAuditFile );
+}
+
+/* ---- INT-candidate tracking (per function, audit-only) ----
+   A NUMERIC variable used in index position (array subscript, hash
+   key, FOR variable) is a candidate for C# `int` emission; one used
+   as a division/power operand can't be (Harbour n/2 = 1.5, C# int/int
+   truncates). The audit reports clean candidates as INT-CANDIDATE and
+   index-used-but-disqualified ones as INT-CONFLICT — the future W0026
+   population. Reset per hb_astPropagate run. */
+#define HB_AUDIT_MAXCAND 256
+static struct
+{
+   const char * szName;
+   int          iLine;
+   HB_BOOL      fIndexUsed;
+   HB_BOOL      fNonInt;
+   int          iNonIntLine;
+} s_aIntCand[ HB_AUDIT_MAXCAND ];
+static int s_iIntCand = 0;
+
+static void hb_auditIntMark( const char * szName, int iLine,
+                             HB_BOOL fIndex, HB_BOOL fNonInt )
+{
+   int i;
+   if( ! hb_auditActive() || ! szName )
+      return;
+   for( i = 0; i < s_iIntCand; i++ )
+      if( hb_stricmp( s_aIntCand[ i ].szName, szName ) == 0 )
+         break;
+   if( i == s_iIntCand )
+   {
+      if( s_iIntCand >= HB_AUDIT_MAXCAND )
+         return;
+      s_aIntCand[ s_iIntCand ].szName = szName;
+      s_aIntCand[ s_iIntCand ].iLine = iLine;
+      s_aIntCand[ s_iIntCand ].fIndexUsed = HB_FALSE;
+      s_aIntCand[ s_iIntCand ].fNonInt = HB_FALSE;
+      s_aIntCand[ s_iIntCand ].iNonIntLine = 0;
+      s_iIntCand++;
+   }
+   if( fIndex )
+      s_aIntCand[ i ].fIndexUsed = HB_TRUE;
+   if( fNonInt && ! s_aIntCand[ i ].fNonInt )
+   {
+      s_aIntCand[ i ].fNonInt = HB_TRUE;
+      s_aIntCand[ i ].iNonIntLine = iLine;
+   }
+}
+
 /* ---- HASH key-type family ----
    "HASH" (keys unknown — weak), "HASHC" (string keys), "HASHN"
    (numeric keys). See hbast.h. */
@@ -918,6 +1026,15 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                   *pfChanged = HB_TRUE;
             }
          }
+         /* Audit: a NUMERIC variable in index position is an
+            int-emission candidate (subscript of array OR hash). */
+         if( pIdx && pIdx->ExprType == HB_ET_VARIABLE )
+         {
+            const char * szIdxT = hb_astInferExprType( pIdx, pEnv );
+            if( szIdxT && strcmp( szIdxT, "NUMERIC" ) == 0 )
+               hb_auditIntMark( pIdx->value.asSymbol.name, 0,
+                                HB_TRUE, HB_FALSE );
+         }
          hb_astObserveExpr( pBase, pEnv, pfChanged );
          hb_astObserveExpr( pIdx,  pEnv, pfChanged );
          break;
@@ -962,6 +1079,38 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       default:
          if( pExpr->ExprType >= HB_EO_POSTINC )
          {
+            /* Audit: division is THE int-emission disqualifier —
+               Harbour n/2 is 1.5, C# int/int truncates. Either
+               VARIABLE operand of a division loses candidacy. A
+               fractional-literal assignment disqualifies its LHS. */
+            if( pExpr->ExprType == HB_EO_DIV ||
+                pExpr->ExprType == HB_EO_DIVEQ )
+            {
+               PHB_EXPR pSide = pExpr->value.asOperator.pLeft;
+               int k;
+               for( k = 0; k < 2; k++,
+                    pSide = pExpr->value.asOperator.pRight )
+                  if( pSide && pSide->ExprType == HB_ET_VARIABLE )
+                  {
+                     const char * szT =
+                        hb_astInferExprType( pSide, pEnv );
+                     if( szT && strcmp( szT, "NUMERIC" ) == 0 )
+                        hb_auditIntMark( pSide->value.asSymbol.name,
+                                         0, HB_FALSE, HB_TRUE );
+                  }
+            }
+            else if( pExpr->ExprType == HB_EO_ASSIGN &&
+                     pExpr->value.asOperator.pLeft &&
+                     pExpr->value.asOperator.pLeft->ExprType ==
+                        HB_ET_VARIABLE &&
+                     pExpr->value.asOperator.pRight &&
+                     pExpr->value.asOperator.pRight->ExprType ==
+                        HB_ET_NUMERIC &&
+                     pExpr->value.asOperator.pRight->value.asNum.NumType
+                        != HB_ET_LONG )
+               hb_auditIntMark(
+                  pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                  0, HB_FALSE, HB_TRUE );
             hb_astObserveExpr( pExpr->value.asOperator.pLeft,  pEnv, pfChanged );
             hb_astObserveExpr( pExpr->value.asOperator.pRight, pEnv, pfChanged );
          }
@@ -1017,6 +1166,17 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
             hb_astObserveBlock( pStmt->value.asWhile.pBody, pEnv, pfChanged );
             break;
          case HB_AST_FOR:
+            /* Audit: FOR variables step integrally unless a bound or
+               STEP is fractional — prime int-emission candidates. */
+            if( pStmt->value.asFor.szVar )
+            {
+               PHB_EXPR pStep = pStmt->value.asFor.pStep;
+               HB_BOOL fFrac = pStep &&
+                  pStep->ExprType == HB_ET_NUMERIC &&
+                  pStep->value.asNum.NumType != HB_ET_LONG;
+               hb_auditIntMark( pStmt->value.asFor.szVar, pStmt->iLine,
+                                HB_TRUE, fFrac );
+            }
             hb_astObserveExpr( pStmt->value.asFor.pStart, pEnv, pfChanged );
             hb_astObserveExpr( pStmt->value.asFor.pEnd,   pEnv, pfChanged );
             hb_astObserveExpr( pStmt->value.asFor.pStep,  pEnv, pfChanged );
@@ -1266,6 +1426,14 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                   "sites had a different type — downgrading to USUAL\n",
                   szF, iLine, szCallee,
                   szArgType ? szArgType : "?", szPName );
+               {
+                  char szSym[ 192 ];
+                  hb_snprintf( szSym, sizeof( szSym ), "%s:%s",
+                               szCallee, szPName );
+                  hb_auditEmit( "W0022-USUAL", pEnv->szFile, iLine, szSym,
+                     szArgType ? szArgType : "conflicting call-site types",
+                     "reconcile call-site types or split the parameter" );
+               }
             }
          }
       }
@@ -1802,6 +1970,8 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    pSavedPropRefTab = s_pPropRefTab;
    s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
 
+   s_iIntCand = 0;   /* per-function int-candidate audit tracking */
+
    hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab, szFile );
 
    /* Seed parameter types from the reftab. When a previous scan pass
@@ -1940,6 +2110,16 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                   szPropType && strcmp( szPropType, "HASH" ) != 0 &&
                   hb_astIsHashFamily( szPropType ) )
             fOverride = HB_TRUE;
+         /* Audit: a hash whose keys never resolved — defaults to
+            string-keyed emission on faith. */
+         else if( strcmp( szCurType, "HASH" ) == 0 &&
+                  ( ! szPropType ||
+                    strcmp( szPropType, "HASH" ) == 0 ) )
+            hb_auditEmit( "HASH-WEAK", szFile, pStmt->iLine,
+               pStmt->value.asVar.szName,
+               "hash keys never inferred — emitting string-keyed",
+               "fine if string-keyed; else add a key-typed literal "
+               "or subscript" );
 
          if( fOverride )
             pStmt->value.asVar.szAlias = szPropType;
@@ -1972,6 +2152,42 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
          szResult = "USUAL";
       else
          szResult = szRetType;
+
+      if( hb_auditActive() )
+      {
+         const char * szFn = szFuncKey ? szFuncKey : "?";
+         int iBodyLine = pBody->iLine;
+         int i;
+         if( fConflict )
+            hb_auditEmit( "RET-SENTINEL", szFile, iBodyLine, szFn,
+               "RETURN types conflict — function degrades to USUAL",
+               "return NIL for no-result, or split the function" );
+         else if( fSawUnknown && szRetType )
+            hb_auditEmit( "RET-SENTINEL", szFile, iBodyLine, szFn,
+               "typed and uninferrable RETURNs mix — degrades to USUAL",
+               "type the uninferrable branch or return NIL" );
+         for( i = 0; i < s_iIntCand; i++ )
+         {
+            char szSym[ 160 ];
+            if( ! s_aIntCand[ i ].fIndexUsed )
+               continue;
+            hb_snprintf( szSym, sizeof( szSym ), "%s:%s",
+                         szFn, s_aIntCand[ i ].szName );
+            if( s_aIntCand[ i ].fNonInt )
+               hb_auditEmit( "INT-CONFLICT", szFile,
+                  s_aIntCand[ i ].iLine, szSym,
+                  "used as index but also in division / fractional "
+                  "assignment — must stay decimal",
+                  "wrap the division with int() or keep decimal "
+                  "(future W0026)" );
+            else
+               hb_auditEmit( "INT-CANDIDATE", szFile,
+                  s_aIntCand[ i ].iLine, szSym,
+                  "index-shaped usage only — eligible for C# int",
+                  "no action; future int inference target" );
+         }
+      }
+
       /* Pair with the entry save so an outer codegen-set reftab (or a
          nesting propagate call) is restored. */
       s_pPropRefTab = pSavedPropRefTab;

@@ -231,6 +231,26 @@ static void hb_csCheckHungarian( HB_COMP_DECL )
                         szName ? szName : "" );
                      hb_compOutErr( HB_COMP_PARAM, buffer );
                   }
+                  /* Audit: member that will emit as dynamic — no AS
+                     clause, no typed init, and Hungarian gives only
+                     OBJECT (or nothing). Every send through it is
+                     unchecked dynamic dispatch (CS1061 feed). */
+                  if( hb_auditActive() && ! fInitTyped &&
+                      ! pMember->value.asClassData.szType )
+                  {
+                     const char * szHung =
+                        hb_astInferType( szName, NULL );
+                     if( ! szHung ||
+                         hb_stricmp( szHung, "OBJECT" ) == 0 ||
+                         hb_stricmp( szHung, "USUAL"  ) == 0 )
+                        hb_auditEmit( "VAR-UNTYPED",
+                           HB_COMP_PARAM->szFile, pMember->iLine,
+                           szName,
+                           "class member emits as dynamic (no AS "
+                           "clause, no typed init)",
+                           "add AS clause / typed INIT; sends stay "
+                           "unchecked otherwise" );
+                  }
                }
                pMember = pMember->pNext;
             }

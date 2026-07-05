@@ -367,6 +367,15 @@ extern const char * hb_astInferType( const char * szName, PHB_EXPR pInit );
    on any non-family input. */
 extern HB_BOOL      hb_astIsHashFamily( const char * szType );
 extern const char * hb_astHashFamilyMerge( const char * szA, const char * szB );
+
+/* Type-insufficiency audit (hbtypes.c). Activated by --type-audit=<path>;
+   emitters append TSV rows (category, file, line, symbol, detail,
+   suggested fix), deduped per process. Inactive (no path) = zero cost. */
+extern void         hb_auditSetPath( const char * szPath );
+extern HB_BOOL      hb_auditActive( void );
+extern void         hb_auditEmit( const char * szCat, const char * szFile,
+                                  int iLine, const char * szSymbol,
+                                  const char * szDetail, const char * szFix );
 extern const char * hb_astInferTypeFromInit( const char * szName, const char * szInit );
 /* Publish a reftab (opaque PHB_REFTAB) that hb_astInferFromPrefix will
    consult to resolve `o<ClassName>` / `so<ClassName>` variable names
