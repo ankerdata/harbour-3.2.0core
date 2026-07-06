@@ -167,7 +167,14 @@ extern HB_BOOL hb_refTabIsReassigned( PHB_REFTAB pTab, const char * szFunc, int 
    for every CLASS it sees so the C# emitter can recognise
    ClassName():New() patterns even when ClassName lives in another
    file. The function does not need to be registered yet. */
-extern void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName );
+extern void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName,
+                                const char * szParent );
+/* INHERIT parent of a class row, or NULL. */
+extern const char * hb_refTabClassParent( PHB_REFTAB pTab,
+                                          const char * szName );
+/* True when szSub is szSuper or inherits from it (chain walk). */
+extern HB_BOOL hb_refTabIsKindOf( PHB_REFTAB pTab, const char * szSub,
+                                  const char * szSuper );
 
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );

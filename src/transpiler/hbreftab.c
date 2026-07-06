@@ -25,6 +25,7 @@ typedef struct HB_REFENTRY_
                                           onto the single declared form. */
    char *                szReturnType; /* inferred return type, or NULL (owned) */
    char *                szPublicOwner;/* if fIsPublic: base filename of first .prg that declared PUBLIC szName (owned) */
+   char *                szClassParent;/* if fIsClass: INHERIT parent class name, or NULL (owned) */
    int                   nParams;      /* declared parameter count, -1 = unknown */
    HB_BOOL               fVariadic;    /* function uses PCount/HB_PValue */
    HB_BOOL               fCalledVarargs; /* some call site forwards `...` to this function */
@@ -262,6 +263,8 @@ void hb_refTabFree( PHB_REFTAB pTab )
             hb_xfree( e->szReturnType );
          if( e->szPublicOwner )
             hb_xfree( e->szPublicOwner );
+         if( e->szClassParent )
+            hb_xfree( e->szClassParent );
          hb_xfree( e->szName );
          hb_xfree( e );
          e = pNext;
@@ -546,6 +549,14 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->szType && hb_stricmp( pParam->szType, szNewType ) == 0 )
       return HB_REFINE_OK;
 
+   /* Callers' int-ness never narrows a callee: an INTEGER argument is
+      a caller-side refinement (its loop var earned int), but the
+      callee body has no such evidence — adopting INTEGER into an
+      untyped slot emitted `int i` params whose SWITCH-on-defines
+      bodies then failed (easiglory CS0266 ×4). Widen at the door. */
+   if( hb_stricmp( szNewType, "INTEGER" ) == 0 )
+      szNewType = "NUMERIC";
+
    /* Numeric family: INTEGER is a refinement of NUMERIC, never a
       conflict. A slot seeing both widens to NUMERIC quietly — an int
       caller against a decimal slot costs one implicit widening. */
@@ -641,6 +652,35 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       }
    }
 
+   /* Inheritance-aware acceptance: a subclass argument satisfies a
+      superclass slot (OldTransaction into an oTransaction param —
+      the reftab now carries INHERIT edges). If instead the SLOT holds
+      the subclass and a caller passes an ancestor, widen the slot to
+      the ancestor; if the two classes only share a deeper common
+      ancestor, widen to that. Falls through to the normal resolver
+      when no relationship exists. */
+   {
+      const char * szAnc = szNewType;
+      int iDepth;
+      for( iDepth = 0; szAnc && iDepth < 16; iDepth++ )
+      {
+         if( hb_refTabIsKindOf( pTab, pParam->szType, szAnc ) )
+            break;
+         szAnc = hb_refTabClassParent( pTab, szAnc );
+      }
+      if( szAnc )
+      {
+         if( hb_stricmp( pParam->szType, szAnc ) == 0 )
+            return HB_REFINE_OK;   /* incoming is (or descends from) slot */
+         {
+            char * szDup = hb_refTabDup( szAnc );
+            hb_refTabDefer( pTab, pParam->szType );
+            pParam->szType = szDup;
+            return HB_REFINE_REFINED;
+         }
+      }
+   }
+
    /* One side OBJECT, the other a specific class: keep the specific
       class. OBJECT is just "I don't know the class" from Hungarian
       prefix — it shouldn't conflict with a concrete class name that
@@ -699,12 +739,26 @@ HB_BOOL hb_refTabIsNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
    return ( e->nilbits & ( ( ( HB_U64 ) 1 ) << iPos ) ) != 0;
 }
 
-void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName )
+void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName,
+                         const char * szParent )
 {
    PHB_REFENTRY e;
    if( ! pTab || ! szName )
       return;
    e = hb_refTabFindOrCreate( pTab, szName );
+
+   /* INHERIT parent — feeds hb_refTabIsKindOf so a subclass satisfies
+      a superclass-typed slot instead of conflicting (OldTransaction
+      into an oTransaction parameter). NULL keeps any prior parent (a
+      load-time row may have set it before the declaration re-marks). */
+   if( szParent && *szParent &&
+       ( ! e->szClassParent ||
+         hb_stricmp( e->szClassParent, szParent ) != 0 ) )
+   {
+      if( e->szClassParent )
+         hb_refTabDefer( pTab, e->szClassParent );
+      e->szClassParent = hb_refTabDup( szParent );
+   }
 
    /* Overwrite szName with the declaration-site casing, mirroring
       hb_refTabAddFunc. A prior entry may carry the spelling of a
@@ -754,6 +808,32 @@ void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName )
    e->fDefined      = HB_TRUE;
    if( e->nParams < 0 )
       e->nParams = 0;
+}
+
+const char * hb_refTabClassParent( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return NULL;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return ( e && e->fIsClass ) ? e->szClassParent : NULL;
+}
+
+/* True when szSub is szSuper or inherits from it (INHERIT chain,
+   depth-capped against cycles). */
+HB_BOOL hb_refTabIsKindOf( PHB_REFTAB pTab, const char * szSub,
+                           const char * szSuper )
+{
+   int iDepth;
+   if( ! pTab || ! szSub || ! szSuper )
+      return HB_FALSE;
+   for( iDepth = 0; szSub && iDepth < 16; iDepth++ )
+   {
+      if( hb_stricmp( szSub, szSuper ) == 0 )
+         return HB_TRUE;
+      szSub = hb_refTabClassParent( pTab, szSub );
+   }
+   return HB_FALSE;
 }
 
 HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName )
@@ -1029,6 +1109,11 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
             if( e->bitCallArities )
                fprintf( fp, "\tA=%llx",
                         ( unsigned long long ) e->bitCallArities );
+            /* Optional trailing "I=<Parent>" carries the INHERIT
+               parent for class rows — same prefix-keyed tail-field
+               convention as A=. */
+            if( e->fIsClass && e->szClassParent )
+               fprintf( fp, "\tI=%s", e->szClassParent );
             fprintf( fp, "\n" );
          }
       }
@@ -1150,7 +1235,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          if( fClassDyn )
             hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
          else if( fIsClass )
-            hb_refTabMarkClass( pTab, fields[ 0 ] );
+            hb_refTabMarkClass( pTab, fields[ 0 ], NULL );
          if( fSpread )
             hb_refTabMarkCalledVarargs( pTab, fields[ 0 ] );
       }
@@ -1230,6 +1315,9 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                pe->bitCallArities = ( HB_U64 ) strtoull(
                   fields[ i ] + 2, NULL, 16 );
          }
+         else if( fields[ i ][ 0 ] == 'I' && fields[ i ][ 1 ] == '=' &&
+                  fields[ i ][ 2 ] )
+            hb_refTabMarkClass( pTab, fields[ 0 ], fields[ i ] + 2 );
       }
    }
 
@@ -1919,7 +2007,8 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
          while( p )
          {
             if( p->type == HB_AST_CLASS && p->value.asClass.szName )
-               hb_refTabMarkClass( pTab, p->value.asClass.szName );
+               hb_refTabMarkClass( pTab, p->value.asClass.szName,
+                                   p->value.asClass.szParent );
             p = p->pNext;
          }
       }

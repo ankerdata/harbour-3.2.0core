@@ -1484,7 +1484,31 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                else if( szHashMerge )
                   *pszRetType = szHashMerge;
                else
-                  *pfConflict = HB_TRUE;
+               {
+                  /* Related classes merge to their nearest common
+                     ancestor (Transaction vs OldTransaction returns);
+                     unrelated types conflict as before. */
+                  const char * szAnc = NULL;
+                  if( s_pPropRefTab )
+                  {
+                     const char * szUp = szType;
+                     int iDepth;
+                     for( iDepth = 0; szUp && iDepth < 16; iDepth++ )
+                     {
+                        if( hb_refTabIsKindOf( s_pPropRefTab,
+                                               *pszRetType, szUp ) )
+                        {
+                           szAnc = szUp;
+                           break;
+                        }
+                        szUp = hb_refTabClassParent( s_pPropRefTab, szUp );
+                     }
+                  }
+                  if( szAnc )
+                     *pszRetType = szAnc;
+                  else
+                     *pfConflict = HB_TRUE;
+               }
             }
          }
          else
