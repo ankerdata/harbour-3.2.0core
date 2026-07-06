@@ -317,6 +317,15 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 initializer — emits as dynamic, so every send through it\n"
 "#                 is unchecked dynamic dispatch (the CS1061 feed).\n"
 "#                 Fix: AS clause or a typed INIT.\n"
+"#   NAME-CONTRACT a variable/parameter whose name claims one type while the\n"
+"#                 evidence says another (aLine receiving ':nType' sends holds\n"
+"#                 an object; a param name disagreeing with its converged\n"
+"#                 slot). Fix: rename per the soft-typing convention.\n"
+"#   TYPED-VIEW    a discriminant branch (oVar:nType == CONST) whose body\n"
+"#                 sends N messages to the still-dynamic oVar. Fix: a\n"
+"#                 branch-local typed view — `local o<Class>` assigned from\n"
+"#                 oVar at the branch top — turns the accesses into\n"
+"#                 compile-checked members via name-matches-class.\n"
 "#   INT-CONFLICT  a numeric used as an array/hash index (looks like an int)\n"
 "#                 but disqualified from C# int emission: 'hard' = division /\n"
 "#                 fractional value (also fires warning W0026); 'soft' = a\n"
@@ -1110,6 +1119,176 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
    }
 }
 
+/* Count member sends on szVar inside an expression / block — the
+   payoff weight for a branch-local typed view (audit TYPED-VIEW). */
+static int hb_astCountSendsOnExpr( PHB_EXPR pExpr, const char * szVar )
+{
+   int n = 0;
+   if( ! pExpr )
+      return 0;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_SEND:
+         if( pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+             hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name,
+                         szVar ) == 0 )
+            n++;
+         n += hb_astCountSendsOnExpr( pExpr->value.asMessage.pObject, szVar );
+         n += hb_astCountSendsOnExpr( pExpr->value.asMessage.pParms, szVar );
+         return n;
+      case HB_ET_FUNCALL:
+         return hb_astCountSendsOnExpr( pExpr->value.asFunCall.pParms, szVar );
+      case HB_ET_ARRAYAT:
+         return hb_astCountSendsOnExpr( pExpr->value.asList.pExprList, szVar ) +
+                hb_astCountSendsOnExpr( pExpr->value.asList.pIndex, szVar );
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR pI = pExpr->value.asList.pExprList;
+         for( ; pI; pI = pI->pNext )
+            n += hb_astCountSendsOnExpr( pI, szVar );
+         return n;
+      }
+      case HB_ET_CODEBLOCK:
+      {
+         PHB_EXPR pI = pExpr->value.asCodeblock.pExprList;
+         for( ; pI; pI = pI->pNext )
+            n += hb_astCountSendsOnExpr( pI, szVar );
+         return n;
+      }
+      default:
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+            return hb_astCountSendsOnExpr( pExpr->value.asOperator.pLeft, szVar ) +
+                   hb_astCountSendsOnExpr( pExpr->value.asOperator.pRight, szVar );
+         return 0;
+   }
+}
+
+static int hb_astCountSendsOn( PHB_AST_NODE pBlock, const char * szVar )
+{
+   PHB_AST_NODE pStmt;
+   int n = 0;
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return 0;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            n += hb_astCountSendsOnExpr( pStmt->value.asExprStmt.pExpr, szVar );
+            break;
+         case HB_AST_RETURN:
+            n += hb_astCountSendsOnExpr( pStmt->value.asReturn.pExpr, szVar );
+            break;
+         case HB_AST_QOUT:
+         case HB_AST_QQOUT:
+            n += hb_astCountSendsOnExpr( pStmt->value.asQOut.pExprList, szVar );
+            break;
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+         case HB_AST_PUBLIC:
+         case HB_AST_PRIVATE:
+            n += hb_astCountSendsOnExpr( pStmt->value.asVar.pInit, szVar );
+            break;
+         case HB_AST_IF:
+            n += hb_astCountSendsOnExpr( pStmt->value.asIf.pCondition, szVar );
+            n += hb_astCountSendsOn( pStmt->value.asIf.pThen, szVar );
+            {
+               PHB_AST_NODE pE = pStmt->value.asIf.pElseIfs;
+               for( ; pE; pE = pE->pNext )
+               {
+                  n += hb_astCountSendsOnExpr( pE->value.asElseIf.pCondition, szVar );
+                  n += hb_astCountSendsOn( pE->value.asElseIf.pBody, szVar );
+               }
+            }
+            n += hb_astCountSendsOn( pStmt->value.asIf.pElse, szVar );
+            break;
+         case HB_AST_DOWHILE:
+            n += hb_astCountSendsOnExpr( pStmt->value.asWhile.pCondition, szVar );
+            n += hb_astCountSendsOn( pStmt->value.asWhile.pBody, szVar );
+            break;
+         case HB_AST_FOR:
+            n += hb_astCountSendsOn( pStmt->value.asFor.pBody, szVar );
+            break;
+         case HB_AST_FOREACH:
+            n += hb_astCountSendsOn( pStmt->value.asForEach.pBody, szVar );
+            break;
+         default:
+            break;
+      }
+   }
+   return n;
+}
+
+/* TYPED-VIEW audit: a branch guarded by `oVar:<disc> == <CONST>` whose
+   body sends messages to the same dynamic (OBJECT/USUAL) oVar is a
+   candidate for a branch-local typed view — `local o<Class>; 
+   o<Class> := oVar` at the branch top gives compile-checked member
+   access via the name-matches-class convention. Handles a bare EQ
+   condition and drills into .OR. chains for the first EQ. */
+static void hb_astAuditTypedView( PHB_EXPR pCond, PHB_AST_NODE pBody,
+                                  HB_TYPEENV * pEnv, int iLine )
+{
+   PHB_EXPR pEq = pCond;
+   PHB_EXPR pRecv, pRhs;
+   const char * szVar;
+   const char * szT;
+   int nSends;
+
+   if( ! hb_auditActive() || ! pBody )
+      return;
+   /* unwrap parens / drill OR chains */
+   while( pEq )
+   {
+      if( ( pEq->ExprType == HB_ET_LIST || pEq->ExprType == HB_ET_ARGLIST ) &&
+          pEq->value.asList.pExprList && ! pEq->value.asList.pExprList->pNext )
+         pEq = pEq->value.asList.pExprList;
+      else if( pEq->ExprType == HB_EO_OR || pEq->ExprType == HB_EO_AND )
+         pEq = pEq->value.asOperator.pLeft;
+      else
+         break;
+   }
+   if( ! pEq || ( pEq->ExprType != HB_EO_EQ &&
+                  pEq->ExprType != HB_EO_EQUAL ) )
+      return;
+   if( ! pEq->value.asOperator.pLeft ||
+       pEq->value.asOperator.pLeft->ExprType != HB_ET_SEND )
+      return;
+   pRecv = pEq->value.asOperator.pLeft->value.asMessage.pObject;
+   pRhs  = pEq->value.asOperator.pRight;
+   if( ! pRecv || pRecv->ExprType != HB_ET_VARIABLE )
+      return;
+   szVar = pRecv->value.asSymbol.name;
+   /* Sends on Self are typed by the enclosing class already — a
+      branch-local view has nothing to add. */
+   if( hb_stricmp( szVar, "Self" ) == 0 )
+      return;
+   szT = hb_astInferExprType( pRecv, pEnv );
+   if( szT && hb_stricmp( szT, "OBJECT" ) != 0 &&
+       hb_stricmp( szT, "USUAL" ) != 0 )
+      return;   /* already concretely typed */
+   nSends = hb_astCountSendsOn( pBody, szVar );
+   if( nSends >= 2 )
+   {
+      char szDetail[ 160 ];
+      const char * szDisc =
+         pEq->value.asOperator.pLeft->value.asMessage.szMessage;
+      const char * szConst =
+         ( pRhs && pRhs->ExprType == HB_ET_VARIABLE )
+            ? pRhs->value.asSymbol.name : "<const>";
+      hb_snprintf( szDetail, sizeof( szDetail ),
+         "branch on :%s == %s; %d dynamic sends to '%s' in body",
+         szDisc ? szDisc : "?", szConst, nSends, szVar );
+      hb_auditEmit( "TYPED-VIEW", pEnv->szFile, iLine, szVar, szDetail,
+         "branch-local typed view: local o<Class> := var at branch top" );
+   }
+}
+
 /* ================================================================
  * Hash key-type observation (Pass 2 companion)
  *
@@ -1173,6 +1352,33 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
          break;
 
       case HB_ET_SEND:
+         /* Audit: a message send on a variable whose name claims a
+            scalar type (aLine:nType — arrays don't receive sends) is
+            a naming-contract violation: the variable actually holds
+            an object and its stale Hungarian poisons inference at
+            every call site it feeds. Near-zero false positives. */
+         if( hb_auditActive() &&
+             pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+             pExpr->value.asMessage.szMessage )
+         {
+            PHB_EXPR pRecv = pExpr->value.asMessage.pObject;
+            const char * szT = hb_astInferExprType( pRecv, pEnv );
+            /* __enum* are Harbour's FOR-EACH enumerator messages —
+               valid on any iteration variable, not a naming clue. */
+            if( hb_astIsScalarTag( szT ) &&
+                strncmp( pExpr->value.asMessage.szMessage, "__enum", 6 )
+                   != 0 )
+            {
+               char szDetail[ 160 ];
+               hb_snprintf( szDetail, sizeof( szDetail ),
+                  "name claims %s but receives send ':%s' — holds an "
+                  "object", szT, pExpr->value.asMessage.szMessage );
+               hb_auditEmit( "NAME-CONTRACT", pEnv->szFile,
+                  s_iObserveLine, pRecv->value.asSymbol.name, szDetail,
+                  "rename to o<...> (soft-typing contract)" );
+            }
+         }
          hb_astObserveExpr( pExpr->value.asMessage.pObject, pEnv, pfChanged );
          hb_astObserveExpr( pExpr->value.asMessage.pParms,  pEnv, pfChanged );
          break;
@@ -1337,12 +1543,18 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
             break;
          case HB_AST_IF:
             hb_astObserveExpr( pStmt->value.asIf.pCondition, pEnv, pfChanged );
+            hb_astAuditTypedView( pStmt->value.asIf.pCondition,
+                                  pStmt->value.asIf.pThen, pEnv,
+                                  pStmt->iLine );
             hb_astObserveBlock( pStmt->value.asIf.pThen, pEnv, pfChanged );
             {
                PHB_AST_NODE p = pStmt->value.asIf.pElseIfs;
                while( p )
                {
                   hb_astObserveExpr( p->value.asElseIf.pCondition, pEnv, pfChanged );
+                  hb_astAuditTypedView( p->value.asElseIf.pCondition,
+                                        p->value.asElseIf.pBody, pEnv,
+                                        p->iLine );
                   hb_astObserveBlock( p->value.asElseIf.pBody, pEnv, pfChanged );
                   p = p->pNext;
                }

@@ -428,10 +428,16 @@ static void hb_csWarnUnsupported( const char * szDesc )
 {
    if( s_pCompCtx )
    {
+      /* s_iCurrentStmtLine, NOT s_pCompCtx->currLine: the parser's
+         counter is frozen near end-of-file by the time codegen runs,
+         so warnings pointed at meaningless lines (kpprt's comma-op
+         reported the tail of an unrelated function). */
       fprintf( stderr, "hbtranspiler: %s(%d): warning W0016  Unsupported construct '%s'\n",
                s_pCompCtx->currModule
                   ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
-               s_pCompCtx->currLine, szDesc ? szDesc : "?" );
+               s_iCurrentStmtLine > 0
+                  ? s_iCurrentStmtLine : s_pCompCtx->currLine,
+               szDesc ? szDesc : "?" );
    }
 }
 
@@ -3197,7 +3203,35 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                comma-separated emit. */
             if( pExpr->ExprType == HB_ET_LIST && pItem && pItem->pNext )
             {
-               hb_csWarnUnsupported( "comma-operator (expr1, expr2)" );
+               /* Name the leading sub-expressions so the construct is
+                  findable — the line number alone has proven too
+                  coarse for a 2000-line file. */
+               char szDesc[ 160 ];
+               char szParts[ 96 ] = "";
+               PHB_EXPR pI = pItem;
+               int n;
+               for( n = 0; pI && n < 3; pI = pI->pNext, n++ )
+               {
+                  const char * szN = "<expr>";
+                  if( pI->ExprType == HB_ET_VARIABLE )
+                     szN = pI->value.asSymbol.name;
+                  else if( pI->ExprType == HB_ET_FUNCALL &&
+                           pI->value.asFunCall.pFunName &&
+                           pI->value.asFunCall.pFunName->ExprType ==
+                              HB_ET_FUNNAME )
+                     szN = pI->value.asFunCall.pFunName->value.asSymbol.name;
+                  else if( pI->ExprType == HB_ET_STRING )
+                     szN = "<string>";
+                  else if( pI->ExprType == HB_ET_NUMERIC )
+                     szN = "<num>";
+                  if( n )
+                     hb_strncat( szParts, ", ", sizeof( szParts ) - 1 );
+                  hb_strncat( szParts, szN, sizeof( szParts ) - 1 );
+               }
+               hb_snprintf( szDesc, sizeof( szDesc ),
+                            "comma-operator (%s%s)", szParts,
+                            pI ? ", ..." : "" );
+               hb_csWarnUnsupported( szDesc );
                fprintf( yyc, "HbRuntime.MacroStub" );
                break;
             }
