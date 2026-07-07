@@ -553,6 +553,14 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
       if( pItem->ExprType == HB_ET_VARREF ||
           pItem->ExprType == HB_ET_REFERENCE )
          continue;
+      /* Only warn when `@` was POSSIBLE: a bare variable could have
+         been passed by-ref and wasn't — the lost-result shape worth
+         flagging (SockClose(pSock) leaving a dangling handle). A
+         literal or computed expression (`Tax(..., 0)`) cannot take
+         `@` at all — that is the intentional-discard idiom for an
+         optional out-parameter, not a bug. */
+      if( pItem->ExprType != HB_ET_VARIABLE )
+         continue;
       if( iFirstMissing < 0 )
          iFirstMissing = iPos;
    }

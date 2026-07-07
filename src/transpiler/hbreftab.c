@@ -1722,11 +1722,17 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
               - Self:method(...) inside a method body, where the
                 enclosing class is known via pCtx->szClass
               - ::method(...) (the same thing, syntactic sugar)
-            For everything else we leave the lookup as the bare method
-            name; the type-aware refinement walker in hb_astPropagate
-            picks up the strongly-typed cases. */
+            Everything else marks NOTHING: the old bare-method-name
+            fallback ref-marked same-named free functions from
+            unrelated sends — the COM proxies' `:Finalise(@cError)`
+            ref-marked free Finalise(oTransaction)'s first param,
+            turning it `ref` in C# and spraying W0020 at every honest
+            caller. Typed receivers are handled by the refinement
+            walker in hb_astPropagate (which resolves the class and
+            marks the canonical key); untypeable receivers dispatch
+            dynamically in C#, where by-ref needs no signature. */
          const char * szMethod = pExpr->value.asMessage.szMessage;
-         const char * szLookup = szMethod;
+         const char * szLookup = NULL;
          char szKeyBuf[ 256 ];
 
          if( szMethod && pCtx && pCtx->szClass )
@@ -1822,16 +1828,31 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
          /* Operators (>= HB_EO_POSTINC) live in the asOperator union */
          if( pExpr->ExprType >= HB_EO_POSTINC )
          {
-            /* Whole-variable assignment to a parameter (`p := expr`, not
-               `p[i] := expr` whose LHS is HB_ET_ARRAYAT) marks the slot
-               reassigned — the only reason a by-ref array slot needs the
-               `ref`. */
-            if( pExpr->ExprType == HB_EO_ASSIGN &&
-                pExpr->value.asOperator.pLeft &&
-                pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
-               hb_refTabMaybeMarkReassigned(
-                  pTab, pCtx,
-                  pExpr->value.asOperator.pLeft->value.asSymbol.name );
+            /* Whole-variable write to a parameter marks the slot
+               reassigned — a plain `p := expr`, a compound assignment
+               (`p += x`), or an increment/decrement (`p++`). All write
+               p; a by-ref array slot needs `ref` for any of them, and
+               W0020/W0023 accuracy depends on catching them (a caller
+               omitting `@` on an accumulator like `nTotal += ...`
+               otherwise looks harmless). Indexed writes (`p[i] :=`,
+               LHS is HB_ET_ARRAYAT) mutate the array in place through
+               the existing reference and don't count. */
+            {
+               HB_EXPRTYPE et = pExpr->ExprType;
+               HB_BOOL fWrite =
+                  et == HB_EO_ASSIGN  || et == HB_EO_PLUSEQ ||
+                  et == HB_EO_MINUSEQ || et == HB_EO_MULTEQ ||
+                  et == HB_EO_DIVEQ   || et == HB_EO_MODEQ  ||
+                  et == HB_EO_EXPEQ   || et == HB_EO_PREINC ||
+                  et == HB_EO_POSTINC || et == HB_EO_PREDEC ||
+                  et == HB_EO_POSTDEC;
+               if( fWrite &&
+                   pExpr->value.asOperator.pLeft &&
+                   pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+                  hb_refTabMaybeMarkReassigned(
+                     pTab, pCtx,
+                     pExpr->value.asOperator.pLeft->value.asSymbol.name );
+            }
             hb_refTabScanExpr( pTab, pExpr->value.asOperator.pLeft, pCtx );
             hb_refTabScanExpr( pTab, pExpr->value.asOperator.pRight, pCtx );
          }
