@@ -1376,6 +1376,58 @@ static void hb_csEndShimBlock( void )
       isn't in the table, we fall back to emitting `default` for the
       missing slot (safe but less pretty).
 */
+/* Resolve a `obj:Method(...)` SEND to the reftab key whose by-ref
+   signature the arguments should match — the canonical method key
+   `<Class>::<Class>__<Method>` when the receiver is a registered
+   class, else NULL. NULL means "no signature": a dynamic/untypeable
+   receiver dispatches dynamically in C# (no `ref` possible), and —
+   crucially — we must NOT let the bare method name fall through to
+   hb_csCallParam's file-static resolution, which would bind a proxy's
+   `:TransactionHistory(aArr)` to a same-file static
+   `TransactionHistory(cWiTrxId-byref, ...)` and mis-`ref` the args. */
+static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
+                                     char * szBuf, HB_SIZE nBuf )
+{
+   const char * szClass = NULL;
+
+   if( ! szMethod )
+      return NULL;
+
+   if( ! pObj )
+      szClass = s_szCurrentClass[ 0 ] ? s_szCurrentClass : NULL;
+   else if( pObj->ExprType == HB_ET_VARIABLE )
+   {
+      if( hb_stricmp( pObj->value.asSymbol.name, "Self" ) == 0 )
+         szClass = s_szCurrentClass[ 0 ] ? s_szCurrentClass : NULL;
+      else
+      {
+         const char * szT = hb_csArgVarType( pObj->value.asSymbol.name );
+         if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
+            szClass = szT;
+      }
+   }
+   else if( pObj->ExprType == HB_ET_SEND &&
+            pObj->value.asMessage.szMessage )
+   {
+      const char * szT = hb_csArgVarType( pObj->value.asMessage.szMessage );
+      if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
+         szClass = szT;
+   }
+
+   if( szClass )
+   {
+      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szClass, szClass, szMethod );
+      return szBuf;
+   }
+   /* Unresolved receiver: return an empty sentinel, NOT the bare method
+      name — hb_csEmitCallArgs treats "" as "no known signature" and
+      emits every arg plainly. (A NULL szFunc would make hb_csCallParam
+      fall back too, but "" is explicit and can't be confused with a
+      real name.) */
+   szBuf[ 0 ] = '\0';
+   return szBuf;
+}
+
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc )
 {
    PHB_EXPR pHead;
@@ -2943,9 +2995,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          }
          if( pExpr->value.asMessage.pParms )
          {
+            char szKeyBuf[ 256 ];
             fprintf( yyc, "(" );
-            hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
-                               pExpr->value.asMessage.pParms, yyc );
+            hb_csEmitCallArgs(
+               hb_csSendRefKey( pExpr->value.asMessage.pObject,
+                                pExpr->value.asMessage.szMessage,
+                                szKeyBuf, sizeof( szKeyBuf ) ),
+               pExpr->value.asMessage.pParms, yyc );
             fprintf( yyc, ")" );
          }
          else if( pExpr->value.asMessage.szMessage &&
