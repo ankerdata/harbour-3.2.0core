@@ -1,24 +1,24 @@
 // Test 64: a plain variable passed to a by-ref parameter without
 // Harbour's `@`.
 //
-// Once a parameter is reached by-ref anywhere, the C# parameter
-// emits `ref` — and C# then requires `ref` at EVERY call site
-// (CS1620), where Harbour happily takes a bare argument (by-value
-// at that site). The transpiler now emits `ref` for a plain-
-// variable argument to a by-ref parameter.
-//
-// NB: that gives the callee write-back the bare Harbour call did
-// not have. For a parameter designed to be passed `@` that is the
-// intent — but to keep the .prg / .cs outputs identical this test
-// reads Inc()'s RETURN value, not the post-call variable.
+// Once a parameter is reached by-ref anywhere, the C# parameter emits
+// `ref`, and C# then requires `ref` at EVERY call site (CS1620) —
+// where Harbour happily takes a bare argument BY VALUE. The transpiler
+// keeps that by-value semantics faithful: a bare argument emits
+// `ref HbDiscard<T>.Seed(x)`, so the callee sees x's value but its
+// write-back is discarded and the caller's x is untouched (see
+// test80 for the full matrix). Emitting `ref x` would write back —
+// the divergence W0020 warns about.
 
 PROCEDURE Main()
    LOCAL n := 5
 
    Inc( @n )                              // @ form marks the param by-ref
-   ? "viaref=" + LTrim( Str( n ) )        // 15
+   ? "viaref=" + LTrim( Str( n ) )        // 15 — write-back
 
-   ? "bare=" + LTrim( Str( Inc( n ) ) )   // bare arg — emitted as `ref n`
+   n := 5
+   ? "bare=" + LTrim( Str( Inc( n ) ) )   // Inc's RETURN is 15...
+   ? "kept=" + LTrim( Str( n ) )          // ...but n stays 5 (discarded)
 RETURN
 
 FUNCTION Inc( nVal )

@@ -1539,12 +1539,54 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          }
          else if( pArg->ExprType == HB_ET_VARIABLE && szFunc )
          {
-            /* Plain variable into a by-ref param without the Harbour @:
-               C# requires `ref` once the param emits ref (CS1620). A
-               non-reassigned array param emits plain, so no `ref` here. */
+            /* Plain variable into a by-ref param WITHOUT Harbour's `@`.
+               In Harbour this is by value — the caller's variable is
+               NOT written back. C# forces a `ref` (the slot emitted
+               ref for the `@` callers, CS1620 otherwise), so bind a
+               throwaway seeded with the variable's value:
+               `ref HbDiscard<T>.Seed(x)` gives the callee x as input
+               and discards its write-back — faithful by-value
+               semantics (`ref x` here would write back, the silent
+               divergence W0020 warns about). A non-reassigned array
+               param emits plain (element mutation flows through the
+               reference), so no shim there. */
             const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
-            if( pP && pP->fByRef && ! hb_csParamElidesArrayRef( szFunc, iPos ) )
-               fprintf( yyc, "ref " );
+            if( pP && pP->fByRef &&
+                ! hb_csParamElidesArrayRef( szFunc, iPos ) )
+            {
+               const char * szSlot =
+                  ( pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+                     ? pP->szType
+                     : hb_astInferType( pP->szName, NULL );
+               const char * szCs = hb_csTypeMap( szSlot );
+               /* `dynamic` can't be a generic holder here: Seed's ref
+                  return would bind dynamically and CS1510. `object` is
+                  the same at runtime and ref-compatible with a
+                  `ref dynamic` parameter. */
+               HB_BOOL fDynSlot = hb_stricmp( szCs, "dynamic" ) == 0;
+               const char * szHold = fDynSlot ? "object" : szCs;
+               const char * szNil = pP->fNilable ? "?" : "";
+               /* Cast the argument ONLY when it is itself dynamic-typed
+                  — a dynamic argument makes Seed dynamically-dispatched
+                  (CS1510), and the cast to the holder type forces static
+                  binding (a runtime convert). A concrete-typed argument
+                  binds statically already; casting it would turn a real
+                  type mismatch (wrong arg vs the slot) from the usual
+                  CS1503/1620 into a spurious CS0030. */
+               const char * szArgT = ( pArg->ExprType == HB_ET_VARIABLE )
+                  ? hb_csArgVarType( pArg->value.asSymbol.name ) : NULL;
+               HB_BOOL fArgDyn = ! szArgT ||
+                  hb_stricmp( hb_csTypeMap( szArgT ), "dynamic" ) == 0;
+               fprintf( yyc, "ref HbDiscard<%s%s>.Seed(", szHold, szNil );
+               if( fArgDyn )
+                  fprintf( yyc, "(%s%s)(", szHold, szNil );
+               hb_csEmitExpr( pArg, yyc, HB_FALSE );
+               if( fArgDyn )
+                  fprintf( yyc, ")" );
+               fprintf( yyc, ")" );
+               pItem = pItem->pNext;
+               continue;
+            }
          }
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
          pItem = pItem->pNext;

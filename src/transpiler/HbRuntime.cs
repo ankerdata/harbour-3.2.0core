@@ -1354,9 +1354,26 @@ public static class HbObjectExtensions
     public static HbSuperRef Super(this object obj) =>
         new HbSuperRef { t = obj?.GetType().BaseType };
 }
-// Shared throwaway storage for omitted by-ref output arguments. A
-// Harbour caller may omit a by-ref param (Foo(n) where Foo(n, @out));
-// C# can't omit a ref param, so the transpiler passes
-// `ref HbDiscard<T>.Value` for the omitted slot. The write-back lands
-// here and is discarded -- matching Harbour's NIL-arg semantics.
-public static class HbDiscard<T> { public static T Value = default!; }
+// Harbour passes parameters by value; `@` opts into by-reference.
+// C# `ref` is per-signature, so a param that ANY caller @-passes emits
+// `ref` for ALL callers. This holder reconciles the callers who did
+// NOT write `@` — they must still satisfy the `ref`, but Harbour
+// semantics say their variable is untouched:
+//
+//   * omitted slot (Foo(a, , c)) or literal -> `ref HbDiscard<T>.Value`
+//     — no input to preserve; the write-back is discarded.
+//   * bare variable  (Foo(x) into a by-ref param) -> the callee still
+//     sees x's VALUE as input, but the write-back must NOT reach the
+//     caller's x. `ref HbDiscard<T>.Seed(x)` seeds the throwaway with
+//     x, hands out a ref to it, and drops the write — exactly Harbour's
+//     by-value semantics for an un-@'d argument (in-out and out-only
+//     both correct).
+//
+// [ThreadStatic] so concurrent calls (the app builds with
+// -DMULTITHREAD) don't race on the shared slot; Seed always assigns
+// before the ref is read within the same call expression.
+public static class HbDiscard<T>
+{
+   [System.ThreadStatic] public static T Value;
+   public static ref T Seed(T v) { Value = v; return ref Value; }
+}
