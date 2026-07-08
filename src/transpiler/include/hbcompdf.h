@@ -450,6 +450,18 @@ typedef struct HB_EXPR_
    struct HB_EXPR_ * pNext;   /* next expression in the list of expressions */
 } HB_EXPR, * PHB_EXPR;
 
+#ifdef HB_TRANSPILER
+/* Set in asSymbol.flags of an HB_ET_VARIABLE argument that the source
+   marked with a call-site by-value comment marker (a block comment whose
+   sole content is `@`, placed immediately before the argument). It means
+   "I know this parameter is by-ref; I am deliberately passing by value
+   here" — so W0020 (omits '@' on ref parameter) is suppressed for it.
+   This is the mirror of the declaration-site marker, which means the
+   opposite ("this parameter IS by-ref"). Emission is unchanged: the arg
+   still passes by value (the faithful discard default). */
+#define HB_EXPRFLAG_BYREFSKIP  0x40000000
+#endif
+
 typedef struct HB_ENUMERATOR_
 {
    const char * szName;
@@ -875,6 +887,13 @@ typedef struct _HB_COMP
       struct _HB_AST_NODE * pCurrBlock;
       HB_BOOL               fSuppressExprStmt;  /* suppress next expression statement capture */
    } ast;
+   /* Armed by the lexer when it sees a call-site by-value marker comment
+      (block comment whose content is `@`); consumed by the next
+      hb_compExprNewVar to tag that variable's expr with
+      HB_EXPRFLAG_BYREFSKIP so W0020 skips it. Bounded to the marked
+      variable: consumed by the next variable, and cleared on a
+      function-name identifier so `Func(...)` calls do not inherit it. */
+   HB_BOOL               fByRefSkipPending;
 #endif
 } HB_COMP, * PHB_COMP;
 

@@ -3963,13 +3963,24 @@ yyreduce:
 
   case 53:
 #line 371 "harbour.y" /* yacc.c:1646  */
-    { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); (yyval.iNumber) = 1; }
+    { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); (yyval.iNumber) = 1;
+#ifdef HB_TRANSPILER
+      /* A `@` marker on a FORMAL PARAMETER is the declaration-site kind
+         (re-synthesized by genhb from the reftab); it must NOT arm the
+         call-site by-value flag, or it would leak into the body. */
+      HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;
+#endif
+    }
 #line 3964 "harboury.c" /* yacc.c:1646  */
     break;
 
   case 54:
 #line 372 "harbour.y" /* yacc.c:1646  */
-    { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); (yyval.iNumber)++; }
+    { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); (yyval.iNumber)++;
+#ifdef HB_TRANSPILER
+      HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;   /* see case 53 */
+#endif
+    }
 #line 3970 "harboury.c" /* yacc.c:1646  */
     break;
 
@@ -4506,7 +4517,15 @@ yyreduce:
 
   case 150:
 #line 644 "harbour.y" /* yacc.c:1646  */
-    { (yyval.asExpr) = hb_compExprNewVar( (yyvsp[0].string), HB_COMP_PARAM ); }
+    { (yyval.asExpr) = hb_compExprNewVar( (yyvsp[0].string), HB_COMP_PARAM );
+#ifdef HB_TRANSPILER
+      /* A call-site by-value marker (a `@` block comment before this
+         argument) armed the lexer; tag this variable so W0020 skips it.
+         asSymbol.flags is otherwise uninitialised for a variable. */
+      (yyval.asExpr)->value.asSymbol.flags = HB_COMP_PARAM->fByRefSkipPending ? HB_EXPRFLAG_BYREFSKIP : 0;
+      HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;
+#endif
+    }
 #line 4501 "harboury.c" /* yacc.c:1646  */
     break;
 

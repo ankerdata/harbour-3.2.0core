@@ -532,6 +532,27 @@ static PHB_PP_TOKEN hb_comp_skipComments( PHB_PP_TOKEN pToken )
       pToken = pToken->pNext;
    return pToken;
 }
+/* A call-site by-value marker is a block comment whose only content is
+   `@` — written immediately before an argument to say "deliberately
+   by value here, don't warn (W0020)". Accept the raw comment token with
+   or without its block-comment delimiters and with surrounding blanks,
+   e.g. an inner text of "@", " @ ", or the whole token. Reject "@foo",
+   "@@", and line comments. */
+static HB_BOOL hb_comp_isByRefSkipComment( const char * s )
+{
+   if( ! s )
+      return HB_FALSE;
+   if( s[ 0 ] == '/' && s[ 1 ] == '*' )
+      s += 2;
+   while( *s == ' ' || *s == '\t' )
+      s++;
+   if( *s != '@' )
+      return HB_FALSE;
+   s++;
+   while( *s == ' ' || *s == '\t' )
+      s++;
+   return *s == '\0' || ( s[ 0 ] == '*' && s[ 1 ] == '/' );
+}
 /* One-step peek: first non-comment sibling after t. */
 #define HB_COMP_PEEK( t )   hb_comp_skipComments( ( t )->pNext )
 /* Two-step peek: first non-comment sibling after the first non-comment
@@ -605,10 +626,25 @@ hb_comp_yylex_restart:
 #ifdef HB_TRANSPILER
       case HB_PP_TOKEN_COMMENT:
       {
-         /* Capture comment as AST node and get next token */
-         PHB_AST_NODE pNode = hb_astNew( HB_AST_COMMENT, HB_COMP_PARAM->currLine );
-         pNode->value.asComment.szText = hb_compIdentifierNew( HB_COMP_PARAM, pToken->value, HB_IDENT_COPY );
-         hb_astAppend( HB_COMP_PARAM, pNode );
+         /* A `@` block comment is NOT an ordinary comment: it is the
+            call-site by-value marker. Don't file it as a floating
+            HB_AST_COMMENT (which would detach from its argument on
+            round-trip and could misalign on a multi-arg call). Instead
+            arm the next variable; the marker is re-synthesized inline by
+            genhb from HB_EXPRFLAG_BYREFSKIP — the mirror of how the
+            declaration-site marker is synthesized from the reftab.
+            A formal-parameter reduction disarms it (see harbour.y). */
+         if( hb_comp_isByRefSkipComment( pToken->value ) )
+         {
+            HB_COMP_PARAM->fByRefSkipPending = HB_TRUE;
+         }
+         else
+         {
+            /* Ordinary comment: capture as AST node for -k preservation. */
+            PHB_AST_NODE pNode = hb_astNew( HB_AST_COMMENT, HB_COMP_PARAM->currLine );
+            pNode->value.asComment.szText = hb_compIdentifierNew( HB_COMP_PARAM, pToken->value, HB_IDENT_COPY );
+            hb_astAppend( HB_COMP_PARAM, pNode );
+         }
          goto hb_comp_yylex_restart;
       }
 #endif

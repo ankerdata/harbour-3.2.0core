@@ -692,6 +692,23 @@ A few non-obvious things it preserves:
   parameter in a `FUNCTION`/`PROCEDURE` signature (by-ref is purely
   call-site in the language), so these are emitted as inline comments
   that stock Harbour treats as whitespace.
+- **`/*@*/` at call sites** — the *mirror* of the parameter marker: on
+  a call argument, `Foo(/*@*/x)` means "I know this parameter is by-ref;
+  I am passing by value here on purpose." It suppresses **W0020** ("omits
+  '@' on ref parameter") for that one argument. Emission is unchanged —
+  the argument still passes by value (the faithful discard default);
+  only the warning is silenced. Detected in the lexer
+  ([`complex.c`](complex.c)) — which treats it as a special token, *not*
+  an ordinary comment, so it is never filed as a floating
+  `HB_AST_COMMENT` — and carried on the variable expression
+  (`HB_EXPRFLAG_BYREFSKIP`, set in the `Variable : IdentName` grammar
+  action) to the W0020 check in [`gencsharp.c`](gencsharp.c). A formal
+  parameter reduction (`ParamList`) disarms it, so a declaration-site
+  `/*@*/` on a parameter cannot leak into the body. On `-GT`, genhb
+  re-emits it inline attached to its argument (like the declaration-site
+  marker, synthesized from the reftab), so it round-trips faithfully.
+  Place it immediately before the variable argument — see
+  [`test81.prg`](tests/test81.prg).
 - **Empty argument slots** — `Fred(x, , z)` round-trips intact.
 
 ---

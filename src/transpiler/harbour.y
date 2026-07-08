@@ -368,8 +368,19 @@ AsArray    : AS_ARRAY                      { $$ = hb_compVarTypeNew( HB_COMP_PAR
            | AS_CLASS_ARRAY IdentName      { $$ = hb_compVarTypeNew( HB_COMP_PARAM, 's', $2 );   }
            ;
 
-ParamList  : IdentName AsType                { hb_compVariableAdd( HB_COMP_PARAM, $1, $2 ); $$ = 1; }
-           | ParamList ',' IdentName AsType  { hb_compVariableAdd( HB_COMP_PARAM, $3, $4 ); $$++; }
+ParamList  : IdentName AsType                { hb_compVariableAdd( HB_COMP_PARAM, $1, $2 ); $$ = 1;
+#ifdef HB_TRANSPILER
+      /* A `@` marker on a FORMAL PARAMETER is the declaration-site kind
+         (re-synthesized by genhb from the reftab); it must NOT arm the
+         call-site by-value flag, or it would leak into the body. */
+      HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;
+#endif
+      }
+           | ParamList ',' IdentName AsType  { hb_compVariableAdd( HB_COMP_PARAM, $3, $4 ); $$++;
+#ifdef HB_TRANSPILER
+      HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;   /* see above */
+#endif
+      }
            ;
 
 /* NOTE: This allows the use of Expression as a statement.
@@ -641,7 +652,15 @@ HashList : Expression HASHOP EmptyExpression                { $$ = hb_compExprAd
 
 /* Variables
  */
-Variable : IdentName          { $$ = hb_compExprNewVar( $1, HB_COMP_PARAM ); }
+Variable : IdentName          { $$ = hb_compExprNewVar( $1, HB_COMP_PARAM );
+#ifdef HB_TRANSPILER
+      /* A call-site by-value marker (a `@` block comment before this
+         argument) armed the lexer; tag this variable so W0020 skips it.
+         asSymbol.flags is otherwise uninitialised for a variable. */
+      $$->value.asSymbol.flags = HB_COMP_PARAM->fByRefSkipPending ? HB_EXPRFLAG_BYREFSKIP : 0;
+      HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;
+#endif
+   }
          ;
 
 VarAlias : IdentName ALIASOP  { $$ = hb_compExprNewAlias( $1, HB_COMP_PARAM ); }

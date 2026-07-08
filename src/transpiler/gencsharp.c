@@ -561,6 +561,11 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
          optional out-parameter, not a bug. */
       if( pItem->ExprType != HB_ET_VARIABLE )
          continue;
+      /* A call-site `@` by-value marker on this argument (the mirror of
+         the declaration-site out-param marker) says the by-value pass is
+         deliberate — honour it and stay silent. */
+      if( pItem->value.asSymbol.flags & HB_EXPRFLAG_BYREFSKIP )
+         continue;
       if( iFirstMissing < 0 )
          iFirstMissing = iPos;
    }

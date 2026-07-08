@@ -165,6 +165,13 @@ static void hb_astEmitCallArgs( PHB_EXPR pParms, FILE * yyc )
 
       if( pItem->ExprType == HB_ET_VARREF )
          fprintf( yyc, "@" );
+      /* A deliberate by-value pass to a by-ref parameter carries the
+         call-site `@` marker on the variable expr — re-emit it inline so
+         the intent (and its W0020 suppression) survives the round-trip
+         attached to this argument, not floated off as a stray comment. */
+      else if( pItem->ExprType == HB_ET_VARIABLE &&
+               ( pItem->value.asSymbol.flags & HB_EXPRFLAG_BYREFSKIP ) )
+         fprintf( yyc, "/*@*/" );
       hb_astEmitExpr( pItem, yyc, HB_FALSE );
       pItem = pItem->pNext;
    }

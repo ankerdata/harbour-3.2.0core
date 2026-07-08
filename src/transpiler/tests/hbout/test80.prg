@@ -56,19 +56,16 @@ PROCEDURE Main()
 RETURN
 
 PROCEDURE AddTo( /*@*/nTarget AS NUMERIC, nAmount AS NUMERIC )
-   /*@*/
    nTarget := nTarget + nAmount
 RETURN
 
    // Reads nVal (proving the seeded input survives), writes it, and also
    // returns 3x so the caller can observe the computed value regardless.
 FUNCTION Grow( nVal AS NUMERIC ) AS NUMERIC
-   /*@*/
    LOCAL nWas := nVal AS NUMERIC
    nVal := nVal * 3
 RETURN nWas * 3
 
 PROCEDURE SetTag( /*@*/cInto AS STRING, cValue AS STRING )
-   /*@*/
    cInto := cValue
 RETURN
