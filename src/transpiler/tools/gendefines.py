@@ -448,6 +448,33 @@ def cs_escape_string(s: str) -> str:
     return '@"' + s.replace('"', '""') + '"'
 
 
+def cs_type_token(t: str, val: object) -> str:
+    """The C# type for a define value: int | long | decimal | string | bool.
+
+    The single source of truth for both the emitted `const` declaration
+    and the type column in defines_map.txt, so the transpiler's inference
+    (which reads the map) can never disagree with what was emitted.
+
+    Integer-valued numerics are `int` (enum-like flags / codes / IDs /
+    indices — kept cast-free at subscripts, HASHN keys and `as int`
+    members), or `long` when they exceed Int32 (bit-flag masks used in
+    bitwise ops, which decimal cannot do). Fractional literals and values
+    beyond Int64 stay `decimal`. The only unsafe case is CONST_int /
+    CONST_int, which truncates — redefine such a divisor as a float."""
+    if t == 'string':
+        return 'string'
+    if t == 'bool':
+        return 'bool'
+    if isinstance(val, float):
+        return 'decimal'
+    if isinstance(val, int):
+        if -2147483648 <= val <= 2147483647:
+            return 'int'
+        if -9223372036854775808 <= val <= 9223372036854775807:
+            return 'long'
+    return 'decimal'
+
+
 def emit_cs(used: Dict[str, Tuple[str, object]], class_name: str,
             source_basename: str) -> str:
     lines = [
@@ -459,21 +486,21 @@ def emit_cs(used: Dict[str, Tuple[str, object]], class_name: str,
     ]
     for name in sorted(used):
         t, val = used[name]
-        if t == 'string':
+        tok = cs_type_token(t, val)
+        if tok == 'string':
             assert isinstance(val, str)
+            lines.append(f'    public const string {name} = {cs_escape_string(val)};')
+        elif tok == 'bool':
             lines.append(
-                f'    public const string {name} = {cs_escape_string(val)};'
-            )
-        elif t == 'bool':
-            lines.append(
-                f'    public const bool {name} = '
-                f'{"true" if val else "false"};'
-            )
+                f'    public const bool {name} = {"true" if val else "false"};')
+        elif tok == 'int':
+            lines.append(f'    public const int {name} = {val};')
+        elif tok == 'long':
+            lines.append(f'    public const long {name} = {val}L;')
+        elif isinstance(val, float):
+            lines.append(f'    public const decimal {name} = {val}m;')
         else:
-            if isinstance(val, float):
-                lines.append(f'    public const decimal {name} = {val}m;')
-            else:
-                lines.append(f'    public const decimal {name} = {val};')
+            lines.append(f'    public const decimal {name} = {val};')
     lines.append('}')
     return '\n'.join(lines) + '\n'
 
@@ -502,18 +529,21 @@ def write_map(header_first: Dict[str, Tuple[str, Tuple[str, object]]],
               prg_defines: Dict[str, Dict[str, Tuple[str, object]]],
               tokens: Set[str], class_suffix: str,
               output_dir: str) -> Tuple[int, int, str]:
-    """Emit defines_map.txt (NAME<TAB>ClassName<TAB>Owner).
+    """Emit defines_map.txt (NAME<TAB>ClassName<TAB>Owner<TAB>Type).
 
     Owner is empty for header-origin globals and `basename.prg` for
-    file-local prg defines. Returns (global_count, local_count, path)."""
+    file-local prg defines. Type is int|long|decimal|string|bool — the
+    transpiler reads it to type a define reference in inference.
+    Returns (global_count, local_count, path)."""
     map_path = os.path.join(output_dir, 'defines_map.txt')
     global_lines = []
     for name in sorted(header_first):
         if name not in tokens:
             continue
-        basename, _ = header_first[name]
+        basename, (t, val) = header_first[name]
         global_lines.append(
-            f'{name}\t{class_name_for(basename, class_suffix)}\t')
+            f'{name}\t{class_name_for(basename, class_suffix)}\t\t'
+            f'{cs_type_token(t, val)}')
 
     local_lines = []
     for prg_basename in sorted(prg_defines):
@@ -521,7 +551,9 @@ def write_map(header_first: Dict[str, Tuple[str, Tuple[str, object]]],
         for name in sorted(prg_defines[prg_basename]):
             if name not in tokens:
                 continue
-            local_lines.append(f'{name}\t{cls}\t{prg_basename}')
+            t, val = prg_defines[prg_basename][name]
+            local_lines.append(
+                f'{name}\t{cls}\t{prg_basename}\t{cs_type_token(t, val)}')
 
     with open(map_path, 'w') as f:
         f.write('\n'.join(global_lines + local_lines))

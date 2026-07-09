@@ -15,6 +15,7 @@
 #include "hbast.h"
 #include "hbfunctab.h"
 #include "hbreftab.h"
+#include "hbdefinemap.h"
 
 /* Active reftab consulted by hb_astInferFromPrefix to resolve
    `o<ClassName>` / `so<ClassName>` variable-name patterns to the
@@ -187,6 +188,33 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
             const char * szRet =
                hb_funcTabReturnType( pName->value.asSymbol.name );
             return szRet ? szRet : "USUAL";
+         }
+         break;
+      }
+
+      case HB_ET_VARIABLE:
+      {
+         /* A mapped #define reference carries the exact C# type it was
+            emitted with (defines_map.txt type column). Typing it here —
+            the shared inference choke point — makes every path agree with
+            the emitted const: an integer-valued define is INTEGER, which
+            keeps it cast-free at array subscripts / HASHN keys and stops
+            the INTEGER-vs-decimal W0022 against `as int` members.
+            long/decimal stay NUMERIC (INTEGER emits as C# int, which
+            would overflow a >Int32 bit-flag mask); string/bool map
+            through. Non-define identifiers return NULL as before, so the
+            caller's typeEnv / Hungarian handling is unaffected. */
+         const char * szDefType = pExpr->value.asSymbol.name
+            ? hb_defineMapLookupType( pExpr->value.asSymbol.name ) : NULL;
+         if( szDefType )
+         {
+            if( hb_stricmp( szDefType, "int" ) == 0 )
+               return "INTEGER";
+            if( hb_stricmp( szDefType, "string" ) == 0 )
+               return "STRING";
+            if( hb_stricmp( szDefType, "bool" ) == 0 )
+               return "LOGICAL";
+            return "NUMERIC";   /* long, decimal */
          }
          break;
       }

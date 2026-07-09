@@ -72,6 +72,12 @@ extern const char * hb_defineMapLookupCanon( const char * szName,
    should skip the inline PPDEFINE const. */
 extern HB_BOOL hb_defineMapIsLocalOwned( const char * szName );
 
+/* Returns the C# type token recorded for NAME (int|long|decimal|string|
+   bool), or NULL if unknown / not a mapped define. Lets type inference
+   type a define reference the same way it was emitted. Local-first,
+   like hb_defineMapLookupCanon. */
+extern const char * hb_defineMapLookupType( const char * szName );
+
 HB_EXTERN_END
 
 #endif /* HB_DEFINEMAP_H_ */

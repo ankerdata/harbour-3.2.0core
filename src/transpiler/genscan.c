@@ -265,7 +265,23 @@ void hb_compGenScan( HB_COMP_DECL, PHB_FNAME pFileName )
    PHB_REFTAB   pTab;
    const char * szPath = hb_refTabGetPath();
 
-   HB_SYMBOL_UNUSED( pFileName );
+   /* Point the define map at this file so a file-local #define shadows a
+      case-colliding global during scan-time type inference — e.g. each
+      easicds*.prg has `#define Error -1` (int) while socketcommands.ch
+      has a global `ERROR` string. Without the current file set, the
+      local lookup was skipped and `Error` resolved to the wrong global
+      type, mis-firing W0024 (STRING into a numeric slot). The emitter
+      sets this too (see hb_compGenCSharp); the scan needs it as well. */
+   if( pFileName && pFileName->szName )
+   {
+      char szBasename[ HB_PATH_MAX ];
+      hb_snprintf( szBasename, sizeof( szBasename ), "%s%s",
+                   pFileName->szName,
+                   pFileName->szExtension ? pFileName->szExtension : ".prg" );
+      hb_defineMapSetCurrentFile( szBasename );
+   }
+   else
+      hb_defineMapSetCurrentFile( NULL );
 
    pTab = hb_refTabNew();
 

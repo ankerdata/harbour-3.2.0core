@@ -16,6 +16,7 @@ typedef struct HB_DEFENTRY_
    char *                szKey;       /* compound "owner\tname" (lowercased) — owned */
    char *                szCanonName; /* canonical-cased NAME for emission — owned */
    char *                szClass;     /* owning class name — owned */
+   char *                szType;      /* C# type token: int|long|decimal|string|bool — owned, may be NULL */
    struct HB_DEFENTRY_ * pNext;
 } HB_DEFENTRY, * PHB_DEFENTRY;
 
@@ -136,7 +137,8 @@ static PHB_DEFENTRY hb_defMapFind( PHB_DEFENTRY * table, const char * szKey,
 }
 
 static void hb_defMapInsert( PHB_DEFENTRY * table, const char * szOwner,
-                             const char * szName, const char * szClass )
+                             const char * szName, const char * szClass,
+                             const char * szType )
 {
    char *       szKey = hb_defMapKeyJoin( szOwner, szName );
    HB_SIZE      slot  = hb_defMapHash( szKey ) & ( HB_DEFMAP_BUCKETS - 1 );
@@ -165,6 +167,7 @@ static void hb_defMapInsert( PHB_DEFENTRY * table, const char * szOwner,
    e->szKey       = szKey;
    e->szCanonName = hb_defMapDup( szName );
    e->szClass     = hb_defMapDup( szClass );
+   e->szType      = ( szType && *szType ) ? hb_defMapDup( szType ) : NULL;
    e->pNext       = table[ slot ];
    table[ slot ]  = e;
 }
@@ -181,6 +184,8 @@ static void hb_defMapClear( PHB_DEFENTRY * table )
          hb_xfree( e->szKey );
          hb_xfree( e->szCanonName );
          hb_xfree( e->szClass );
+         if( e->szType )
+            hb_xfree( e->szType );
          hb_xfree( e );
          e = next;
       }
@@ -244,8 +249,10 @@ void hb_defineMapLoad( void )
       char * szName;
       char * szClass;
       char * szOwner;
+      char * szType = NULL;
       char * szTab1;
       char * szTab2;
+      char * szTab3;
       char * szEnd;
 
       /* Trim trailing newline(s). */
@@ -272,6 +279,15 @@ void hb_defineMapLoad( void )
       {
          *szTab2 = '\0';
          szOwner = szTab2 + 1;
+         /* Optional 4th column: the C# type token. */
+         szTab3 = strchr( szOwner, '\t' );
+         if( szTab3 )
+         {
+            *szTab3 = '\0';
+            szType = szTab3 + 1;
+            if( ! *szType )
+               szType = NULL;
+         }
          if( ! *szOwner )
             szOwner = NULL;
       }
@@ -280,9 +296,9 @@ void hb_defineMapLoad( void )
          continue;
 
       if( szOwner )
-         hb_defMapInsert( s_locals, szOwner, szName, szClass );
+         hb_defMapInsert( s_locals, szOwner, szName, szClass, szType );
       else
-         hb_defMapInsert( s_globals, "", szName, szClass );
+         hb_defMapInsert( s_globals, "", szName, szClass, szType );
    }
 
    fclose( fh );
@@ -344,4 +360,23 @@ HB_BOOL hb_defineMapIsLocalOwned( const char * szName )
    if( ! s_fLoaded )
       hb_defineMapLoad();
    return hb_defMapFindBy( s_locals, s_szCurrentFile, szName ) != NULL;
+}
+
+const char * hb_defineMapLookupType( const char * szName )
+{
+   PHB_DEFENTRY e;
+
+   if( ! szName || ! *szName )
+      return NULL;
+   if( ! s_fLoaded )
+      hb_defineMapLoad();
+
+   if( s_szCurrentFile[ 0 ] )
+   {
+      e = hb_defMapFindBy( s_locals, s_szCurrentFile, szName );
+      if( e )
+         return e->szType;
+   }
+   e = hb_defMapFindBy( s_globals, "", szName );
+   return e ? e->szType : NULL;
 }
