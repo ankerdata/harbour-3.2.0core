@@ -145,6 +145,28 @@ public static partial class HbRuntime
     public static decimal Log(decimal n) => (decimal)Math.Log((double)n);
     public static decimal Exp(decimal n) => (decimal)Math.Exp((double)n);
 
+    // Harbour bit ops (hb_bit*). Variadic like the RTL functions; operands
+    // are truncated to Int64. Result stays long so callers can compare it
+    // to an int/long/decimal mask (`hb_bitAnd(nFlags, MASK) == MASK`).
+    public static dynamic hb_bitAnd(params dynamic[] args)
+    {
+        long r = ~0L;
+        foreach (var a in args) r &= Convert.ToInt64(a);
+        return r;
+    }
+    public static dynamic hb_bitOr(params dynamic[] args)
+    {
+        long r = 0L;
+        foreach (var a in args) r |= Convert.ToInt64(a);
+        return r;
+    }
+    public static dynamic hb_bitXor(params dynamic[] args)
+    {
+        long r = 0L;
+        foreach (var a in args) r ^= Convert.ToInt64(a);
+        return r;
+    }
+
     // ---- String functions ----
 
     public static decimal Len(dynamic x)
