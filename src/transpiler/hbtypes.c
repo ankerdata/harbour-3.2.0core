@@ -16,6 +16,7 @@
 #include "hbfunctab.h"
 #include "hbreftab.h"
 #include "hbdefinemap.h"
+#include "hbfieldtypes.h"
 
 /* Active reftab consulted by hb_astInferFromPrefix to resolve
    `o<ClassName>` / `so<ClassName>` variable-name patterns to the
@@ -665,6 +666,7 @@ typedef struct
 {
    const char * szName;
    const char * szType;
+   HB_BOOL      fFrozen;   /* conflict-widened — refuse re-refinement */
 } HB_TYPEENV_ENTRY;
 
 typedef struct
@@ -688,11 +690,19 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
 {
    int i;
 
-   /* Update existing entry */
+   /* Update existing entry. A conflict-frozen slot refuses further
+      refinement: two unrelated classes already widened it to USUAL,
+      and letting the next fixed-point iteration lift it back to one
+      arm's class re-triggers the widening — an USUAL <-> class
+      oscillation that spins hb_astPropagate forever (adt2tbl/getrcptm/
+      xzutil scan timeouts once ConstructORMTable made polymorphic
+      class locals common). Returning FALSE leaves pfChanged alone. */
    for( i = 0; i < pEnv->count; i++ )
    {
       if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
       {
+         if( pEnv->entries[ i ].fFrozen )
+            return HB_FALSE;
          pEnv->entries[ i ].szType = szType;
          return HB_TRUE;
       }
@@ -703,6 +713,7 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
    {
       pEnv->entries[ pEnv->count ].szName = szName;
       pEnv->entries[ pEnv->count ].szType = szType;
+      pEnv->entries[ pEnv->count ].fFrozen = HB_FALSE;
       pEnv->count++;
       return HB_TRUE;
    }
@@ -719,6 +730,35 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
    exit( 1 );
 }
 
+/* Set szName to szType and freeze the slot against re-refinement —
+   used when class widening hits UNRELATED classes and must park the
+   variable at USUAL permanently (a real ancestor stays unfrozen: a
+   third sibling may widen it further up the chain, which is monotonic
+   and terminates). */
+static HB_BOOL hb_typeEnvFreeze( HB_TYPEENV * pEnv, const char * szName,
+                                 const char * szType )
+{
+   int i;
+
+   for( i = 0; i < pEnv->count; i++ )
+   {
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
+      {
+         HB_BOOL fChanged = ! pEnv->entries[ i ].fFrozen ||
+            hb_stricmp( pEnv->entries[ i ].szType, szType ) != 0;
+         pEnv->entries[ i ].szType  = szType;
+         pEnv->entries[ i ].fFrozen = HB_TRUE;
+         return fChanged;
+      }
+   }
+   if( hb_typeEnvSet( pEnv, szName, szType ) )
+   {
+      pEnv->entries[ pEnv->count - 1 ].fFrozen = HB_TRUE;
+      return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
 static const char * hb_typeEnvGet( HB_TYPEENV * pEnv, const char * szName )
 {
    int i;
@@ -730,6 +770,10 @@ static const char * hb_typeEnvGet( HB_TYPEENV * pEnv, const char * szName )
    }
    return NULL;
 }
+
+/* Line+key warning dedup shared by W0028-W0032 — defined with the ORM
+   contract checks below. */
+static HB_BOOL hb_astOrmSeen( int iLine, const char * szKey );
 
 /*
  * Infer the type of an expression using the type environment.
@@ -778,6 +822,39 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
                 ( hb_stricmp( szMsg, "NEW" ) == 0 ||
                   hb_stricmp( szMsg, "INIT" ) == 0 ) )
                return pCall->value.asFunCall.pFunName->value.asSymbol.name;
+         }
+
+         /* ORM def-class receiver — `oDepartment:nNo` where the
+            receiver's type is a mapped def class (seeded by the
+            ConstructORMTable pattern below and carried through the
+            normal class-type propagation). The def files fully type
+            every field, so the accessor resolves to its exact type:
+            oDepartment:nNo INTEGER but oPLU:nNo NUMERIC(long-backed) —
+            per-class, never a global accessor merge. Map misses fall
+            through: ORM base members (Seek/RecLock/lReadOnly...) keep
+            their existing handling.
+
+            The receiver is typed by a VARIABLE typeEnv lookup ONLY —
+            deliberately not hb_astInferExprType. Recursing into the
+            receiver subtree on every SEND type query re-infers shared
+            subtrees per enclosing query, which goes super-linear on
+            deep expressions: adt2tbl/getrcptm/xzutil blew a 60s scan
+            timeout (baseline 0.08s) with the recursive form. Variable
+            receivers are the whole ORM convention anyway. */
+         if( pExpr->value.asMessage.szMessage &&
+             pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE )
+         {
+            const char * szRecvType = hb_typeEnvGet( pEnv,
+               pExpr->value.asMessage.pObject->value.asSymbol.name );
+            if( szRecvType && hb_fieldTypesClassCanon( szRecvType ) )
+            {
+               const char * szCs = hb_fieldTypesMember(
+                  szRecvType, pExpr->value.asMessage.szMessage, NULL );
+               const char * szHb = hb_fieldTypesHbType( szCs );
+               if( szHb )
+                  return szHb;
+            }
          }
 
          /* SELF:member — check type environment first (for class DATA types),
@@ -895,7 +972,36 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          {
             const char * szFunc =
                pExpr->value.asFunCall.pFunName->value.asSymbol.name;
-            const char * szRet = hb_funcTabReturnType( szFunc );
+            const char * szRet;
+
+            /* ORM construction — ConstructORMTable(XxxDef(...), ...)
+               names the def class lexically in its first argument;
+               when XxxDef is in the fieldtypes map the expression IS
+               an instance of the generated model class (emitted as
+               `new XxxDef(...)`), so return the canonical class name.
+               Checked before the generic return-type tables: reftab
+               knows ConstructORMTable only as OBJECT-returning. The
+               3 corpus sites that pass a variable/hash instead of a
+               XxxDef() call miss here and stay dynamic. */
+            if( hb_stricmp( szFunc, "ConstructORMTable" ) == 0 )
+            {
+               PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+               PHB_EXPR pFirst = pParms;
+               if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                               pParms->ExprType == HB_ET_ARGLIST ) )
+                  pFirst = pParms->value.asList.pExprList;
+               if( pFirst && pFirst->ExprType == HB_ET_FUNCALL &&
+                   pFirst->value.asFunCall.pFunName &&
+                   pFirst->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+               {
+                  const char * szCanon = hb_fieldTypesClassCanon(
+                     pFirst->value.asFunCall.pFunName->value.asSymbol.name );
+                  if( szCanon )
+                     return szCanon;
+               }
+            }
+
+            szRet = hb_funcTabReturnType( szFunc );
             if( szRet )
                return szRet;
             if( pEnv && pEnv->pRefTab )
@@ -908,6 +1014,28 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
    }
 
    return NULL;
+}
+
+/* A concrete class name — anything that is not one of the built-in
+   scalar / marker type tags (mirrors hbreftab's hb_refTabIsScalarType,
+   which is file-static there). Used to decide when two differing
+   assignment types are both classes and should widen to a common
+   ancestor rather than conflict. OBJECT/USUAL are markers, not classes. */
+static HB_BOOL hb_astIsClassType( const char * sz )
+{
+   if( ! sz || ! *sz )
+      return HB_FALSE;
+   return
+      hb_stricmp( sz, "NUMERIC"   ) != 0 && hb_stricmp( sz, "INTEGER"   ) != 0 &&
+      hb_stricmp( sz, "DECIMAL"   ) != 0 && hb_stricmp( sz, "STRING"    ) != 0 &&
+      hb_stricmp( sz, "CHARACTER" ) != 0 && hb_stricmp( sz, "LOGICAL"   ) != 0 &&
+      hb_stricmp( sz, "DATE"      ) != 0 && hb_stricmp( sz, "TIMESTAMP" ) != 0 &&
+      hb_stricmp( sz, "ARRAY"     ) != 0 && hb_stricmp( sz, "HASH"      ) != 0 &&
+      hb_stricmp( sz, "HASHC"     ) != 0 && hb_stricmp( sz, "HASHN"     ) != 0 &&
+      hb_stricmp( sz, "BLOCK"     ) != 0 && hb_stricmp( sz, "CODEBLOCK" ) != 0 &&
+      hb_stricmp( sz, "NIL"       ) != 0 && hb_stricmp( sz, "SYMBOL"    ) != 0 &&
+      hb_stricmp( sz, "POINTER"   ) != 0 && hb_stricmp( sz, "OBJECT"    ) != 0 &&
+      hb_stricmp( sz, "USUAL"     ) != 0 && hb_stricmp( sz, "FUNREF"    ) != 0;
 }
 
 /* Try to propagate type for a variable assignment */
@@ -963,6 +1091,53 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
       {
          if( hb_typeEnvSet( pEnv, szVarName, szMerged ) )
             *pfChanged = HB_TRUE;
+      }
+   }
+   /* A different concrete class assigned over an existing one — a
+      polymorphic builder (`oNew := FcnTranLine():New()` in one arm,
+      `GenTranLine():New()` in another). Widen to the nearest common
+      ancestor via the INHERIT edges — the same rule the RETURN-type and
+      by-ref-param paths use — so the emitted local is the base class
+      every sibling assignment upcasts to, not the first arm's narrow
+      class (which the others then fail to convert to: CS0029). Unrelated
+      classes fall back to USUAL (dynamic). Class names only, so numeric /
+      hash / scalar locals keep their own merge rules above. */
+   else if( s_pPropRefTab && hb_astIsClassType( szCurType ) )
+   {
+      const char * szNewType = hb_astInferExprType( pRHS, pEnv );
+      if( szNewType && hb_astIsClassType( szNewType ) &&
+          hb_stricmp( szCurType, szNewType ) != 0 )
+      {
+         const char * szAnc = NULL;
+         const char * szUp  = szNewType;
+         int iDepth;
+         for( iDepth = 0; szUp && iDepth < 16; iDepth++ )
+         {
+            if( hb_refTabIsKindOf( s_pPropRefTab, szCurType, szUp ) )
+            {
+               szAnc = szUp;
+               break;
+            }
+            szUp = hb_refTabClassParent( s_pPropRefTab, szUp );
+         }
+         if( szAnc )
+         {
+            /* Related classes — widen to the common ancestor. Left
+               unfrozen: a third sibling may widen further up the
+               chain (monotonic, terminates). */
+            if( hb_stricmp( szCurType, szAnc ) != 0 &&
+                hb_typeEnvSet( pEnv, szVarName, szAnc ) )
+               *pfChanged = HB_TRUE;
+         }
+         else
+         {
+            /* Unrelated classes — park at USUAL and FREEZE, or the
+               next fixed-point pass re-refines USUAL back to the
+               first arm's class and the widening here flips it back:
+               an oscillation that never converges. */
+            if( hb_typeEnvFreeze( pEnv, szVarName, "USUAL" ) )
+               *pfChanged = HB_TRUE;
+         }
       }
    }
 }
@@ -1380,13 +1555,16 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
          break;
 
       case HB_ET_SEND:
-         /* Audit: a message send on a variable whose name claims a
+         /* W0032 — a message send on a variable whose name claims a
             scalar type (aLine:nType — arrays don't receive sends) is
             a naming-contract violation: the variable actually holds
             an object and its stale Hungarian poisons inference at
-            every call site it feeds. Near-zero false positives. */
-         if( hb_auditActive() &&
-             pExpr->value.asMessage.pObject &&
+            every call site it feeds. Near-zero false positives.
+            Promoted from the NAME-CONTRACT audit category (the W0021
+            graduation pattern): every instance has a definite fix —
+            rename to o<...>. The audit row remains as the structured
+            mirror. */
+         if( pExpr->value.asMessage.pObject &&
              pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
              pExpr->value.asMessage.szMessage )
          {
@@ -1402,6 +1580,16 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                hb_snprintf( szDetail, sizeof( szDetail ),
                   "name claims %s but receives send ':%s' — holds an "
                   "object", szT, pExpr->value.asMessage.szMessage );
+               if( ! hb_astOrmSeen( s_iObserveLine,
+                                    pRecv->value.asSymbol.name ) )
+                  fprintf( stderr,
+                     "hbtranspiler: %s(%d): warning W0032  "
+                     "'%s' %s — rename to o<...> (soft-typing "
+                     "contract)\n",
+                     pEnv->szFile ? hb_strCollapsePath( pEnv->szFile )
+                                  : "?",
+                     s_iObserveLine, pRecv->value.asSymbol.name,
+                     szDetail );
                hb_auditEmit( "NAME-CONTRACT", pEnv->szFile,
                   s_iObserveLine, pRecv->value.asSymbol.name, szDetail,
                   "rename to o<...> (soft-typing contract)" );
@@ -1921,6 +2109,220 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
    }
 }
 
+/* ---- ORM def-class contract checks (W0028..W0031) ----
+   With --fieldtypes loaded, a def-class receiver's members are a
+   closed, fully-typed contract, so violations can be surfaced at SCAN
+   time (-GF: warnings.txt + --type-audit) instead of hours later as
+   CS1061/CS0266/CS0037/CS0029 in the dotnet build. That keeps the
+   scan phase alone viable as a CI contract-checker for the source
+   branch. Non-halting; dedup'd across the scan+emit passes (same
+   pattern as W0024). */
+#define HB_ORM_DEDUP 4096
+static struct { int iLine; char szKey[ 96 ]; } s_aOrmWarned[ HB_ORM_DEDUP ];
+static int s_iOrmWarned = 0;
+
+static HB_BOOL hb_astOrmSeen( int iLine, const char * szKey )
+{
+   int i;
+
+   for( i = 0; i < s_iOrmWarned; i++ )
+      if( s_aOrmWarned[ i ].iLine == iLine &&
+          strcmp( s_aOrmWarned[ i ].szKey, szKey ) == 0 )
+         return HB_TRUE;
+   if( s_iOrmWarned < HB_ORM_DEDUP )
+   {
+      s_aOrmWarned[ s_iOrmWarned ].iLine = iLine;
+      hb_strncpy( s_aOrmWarned[ s_iOrmWarned ].szKey, szKey,
+                  sizeof( s_aOrmWarned[ 0 ].szKey ) - 1 );
+      s_iOrmWarned++;
+   }
+   return HB_FALSE;
+}
+
+/* The def-class name when pRecv is a VARIABLE env-typed as a mapped
+   ORM class, else NULL. Variable receivers only — same cheap, non-
+   recursive rule as the inference hook. */
+static const char * hb_astOrmRecvClass( PHB_EXPR pRecv, HB_TYPEENV * pEnv )
+{
+   const char * szT;
+
+   if( ! pRecv || pRecv->ExprType != HB_ET_VARIABLE )
+      return NULL;
+   szT = hb_typeEnvGet( pEnv, pRecv->value.asSymbol.name );
+   return ( szT && hb_fieldTypesClassCanon( szT ) ) ? szT : NULL;
+}
+
+/* W0028 — a member that is not in the def class's field set (or the
+   OrmTable base surface), or one written with non-canonical casing.
+   The former never persisted at runtime in Harbour either (the shHash
+   only scatters/gathers contract fields) and is a CS1061 in C#; the
+   latter runs fine in case-insensitive Harbour but not in C#. */
+static void hb_astOrmMemberCheck( PHB_EXPR pSend, HB_TYPEENV * pEnv,
+                                  int iLine )
+{
+   const char * szClass;
+   const char * szMsg;
+   const char * szCanon = NULL;
+
+   if( ! pSend || pSend->ExprType != HB_ET_SEND ||
+       ! pSend->value.asMessage.szMessage )
+      return;
+   szClass = hb_astOrmRecvClass( pSend->value.asMessage.pObject, pEnv );
+   if( ! szClass )
+      return;
+   szMsg = pSend->value.asMessage.szMessage;
+
+   if( hb_fieldTypesMember( szClass, szMsg, &szCanon ) ||
+       hb_fieldTypesMember( "OrmTable", szMsg, &szCanon ) )
+   {
+      if( szCanon && strcmp( szCanon, szMsg ) != 0 &&
+          ! hb_astOrmSeen( iLine, szMsg ) )
+      {
+         fprintf( stderr,
+            "hbtranspiler: %s(%d): warning W0028  "
+            "'%s:%s' — the def contract spells it '%s' "
+            "(C# is case-sensitive)\n",
+            pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?", iLine,
+            szClass, szMsg, szCanon );
+         hb_auditEmit( "ORM-MEMBER", pEnv->szFile, iLine, szMsg,
+                       "case mismatch vs def contract", szCanon );
+      }
+   }
+   else if( ! hb_astOrmSeen( iLine, szMsg ) )
+   {
+      fprintf( stderr,
+         "hbtranspiler: %s(%d): warning W0028  "
+         "'%s:%s' — no such field in the %s def contract "
+         "(never persists at runtime; CS1061 in C#)\n",
+         pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?", iLine,
+         szClass, szMsg, szClass );
+      hb_auditEmit( "ORM-MEMBER", pEnv->szFile, iLine, szMsg,
+                    "member not in def contract", szClass );
+   }
+}
+
+/* Typed-field write checks:
+     W0029 — decimal-shaped RHS (or a /= ^= %= compound) into an
+             int/long field: CS0266 at build, silent truncation risk
+             in Harbour.
+     W0030 — NIL into a value-typed field: CS0037; a DBF field can't
+             hold NIL either.
+     W0031 — cross-kind RHS (STRING into a numeric field, ...): CS0029;
+             the same class of 9.0 bug W0024 catches for locals, but
+             against the def contract instead of the Hungarian prefix. */
+static void hb_astOrmAssignCheck( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                  int iLine )
+{
+   PHB_EXPR pLhs = pExpr->value.asOperator.pLeft;
+   PHB_EXPR pRhs = pExpr->value.asOperator.pRight;
+   const char * szClass;
+   const char * szCs;
+   const char * szRhsT;
+   const char * szKind;
+   char szSym[ 128 ];
+
+   if( ! pLhs || pLhs->ExprType != HB_ET_SEND ||
+       ! pLhs->value.asMessage.szMessage || ! pRhs )
+      return;
+   szClass = hb_astOrmRecvClass( pLhs->value.asMessage.pObject, pEnv );
+   if( ! szClass )
+      return;
+   szCs = hb_fieldTypesMember( szClass, pLhs->value.asMessage.szMessage,
+                               NULL );
+   if( ! szCs || strcmp( szCs, "method" ) == 0 )
+      return;
+   hb_snprintf( szSym, sizeof( szSym ), "%s:%s", szClass,
+                pLhs->value.asMessage.szMessage );
+
+   if( pRhs->ExprType == HB_ET_NIL )
+   {
+      if( strcmp( szCs, "string" ) != 0 &&
+          ! hb_astOrmSeen( iLine, szSym ) )
+      {
+         fprintf( stderr,
+            "hbtranspiler: %s(%d): warning W0030  "
+            "NIL assigned into value-typed field '%s' (%s) — "
+            "a table field can't hold NIL (CS0037 in C#)\n",
+            pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?", iLine, szSym, szCs );
+         hb_auditEmit( "ORM-NIL", pEnv->szFile, iLine, szSym,
+                       "NIL into value-typed field", szCs );
+      }
+      return;
+   }
+
+   /* /=, %=, ^= produce fractional/decimal results in Harbour no
+      matter the operand types — always a narrowing write on an
+      int/long field. */
+   if( ( strcmp( szCs, "int" ) == 0 || strcmp( szCs, "long" ) == 0 ) &&
+       ( pExpr->ExprType == HB_EO_DIVEQ ||
+         pExpr->ExprType == HB_EO_MODEQ ||
+         pExpr->ExprType == HB_EO_EXPEQ ) )
+   {
+      if( ! hb_astOrmSeen( iLine, szSym ) )
+      {
+         fprintf( stderr,
+            "hbtranspiler: %s(%d): warning W0029  "
+            "compound /=/%%=/^= on integer field '%s' — Harbour "
+            "division is float; result won't fit the %s field "
+            "(CS0266 in C#)\n",
+            pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?", iLine, szSym, szCs );
+         hb_auditEmit( "ORM-NARROW", pEnv->szFile, iLine, szSym,
+                       "float compound-assign on int/long field", szCs );
+      }
+      return;
+   }
+
+   szRhsT = hb_astInferExprType( pRhs, pEnv );
+   if( ! szRhsT || strcmp( szRhsT, "USUAL" ) == 0 ||
+       strcmp( szRhsT, "OBJECT" ) == 0 )
+      return;   /* unknown/dynamic RHS — nothing provable */
+
+   if( ( strcmp( szCs, "int" ) == 0 || strcmp( szCs, "long" ) == 0 ) &&
+       strcmp( szRhsT, "NUMERIC" ) == 0 )
+   {
+      if( ! hb_astOrmSeen( iLine, szSym ) )
+      {
+         fprintf( stderr,
+            "hbtranspiler: %s(%d): warning W0029  "
+            "decimal-shaped value written into %s field '%s' — "
+            "wrap with Int() or retype the field (CS0266 in C#)\n",
+            pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?", iLine, szCs, szSym );
+         hb_auditEmit( "ORM-NARROW", pEnv->szFile, iLine, szSym,
+                       "decimal-shaped RHS into int/long field", szCs );
+      }
+      return;
+   }
+
+   szKind = NULL;
+   if( strcmp( szCs, "int" ) == 0 || strcmp( szCs, "long" ) == 0 ||
+       strcmp( szCs, "decimal" ) == 0 )
+      szKind = "NUMERIC";
+   else if( strcmp( szCs, "string" ) == 0 )
+      szKind = "STRING";
+   else if( strcmp( szCs, "bool" ) == 0 )
+      szKind = "LOGICAL";
+   else if( strcmp( szCs, "date" ) == 0 )
+      szKind = "DATE";
+   else if( strcmp( szCs, "timestamp" ) == 0 )
+      szKind = "TIMESTAMP";
+
+   if( szKind && strcmp( szRhsT, szKind ) != 0 &&
+       ! ( strcmp( szKind, "NUMERIC" ) == 0 &&
+           strcmp( szRhsT, "INTEGER" ) == 0 ) &&
+       ! hb_astOrmSeen( iLine, szSym ) )
+   {
+      fprintf( stderr,
+         "hbtranspiler: %s(%d): warning W0031  "
+         "%s value written into '%s' — the def contract says %s "
+         "(CS0029 in C#)\n",
+         pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+         iLine, szRhsT, szSym,
+         szKind );
+      hb_auditEmit( "ORM-TYPE", pEnv->szFile, iLine, szSym,
+                    szRhsT, szKind );
+   }
+}
+
 static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine );
 
 static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
@@ -2075,6 +2477,10 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          const char * szRecvName = NULL;
          char szKey[ 256 ];
          const char * szLookup = NULL;
+
+         /* ORM def-class member contract (W0028) — scan-phase
+            surfacing of what would otherwise be a CS1061. */
+         hb_astOrmMemberCheck( pExpr, pEnv, iLine );
 
          if( pExpr->value.asMessage.pObject )
          {
@@ -2253,6 +2659,20 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
       case HB_ET_ARRAYAT:
          hb_astRefineExpr( pExpr->value.asList.pExprList, pEnv, iLine );
          hb_astRefineExpr( pExpr->value.asList.pIndex,    pEnv, iLine );
+         break;
+
+      case HB_EO_ASSIGN:
+      case HB_EO_PLUSEQ:
+      case HB_EO_MINUSEQ:
+      case HB_EO_MULTEQ:
+      case HB_EO_DIVEQ:
+      case HB_EO_MODEQ:
+      case HB_EO_EXPEQ:
+         /* Typed-field write checks (W0029/W0030/W0031) — scan-phase
+            surfacing of CS0266/CS0037/CS0029 at ORM field writes. */
+         hb_astOrmAssignCheck( pExpr, pEnv, iLine );
+         hb_astRefineExpr( pExpr->value.asOperator.pLeft,  pEnv, iLine );
+         hb_astRefineExpr( pExpr->value.asOperator.pRight, pEnv, iLine );
          break;
 
       default:

@@ -49,6 +49,7 @@
 #ifdef HB_TRANSPILER
 #include "hbreftab.h"
 #include "hbdefinemap.h"
+#include "hbfieldtypes.h"
 #include "hbhbxcanon.h"
 #include "hbfilecase.h"
 #endif
@@ -220,6 +221,16 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          /* --defines-map=<path> activates the per-source-file const-class
             rewriter. See include/hbdefinemap.h. */
          hb_defineMapSetPath( szSwPtr + 14 );
+         szSwPtr += strlen( szSwPtr );
+      }
+      else if( strncmp( szSwPtr + 2, "fieldtypes=", 11 ) == 0 )
+      {
+         /* --fieldtypes=<path> loads the ORM def-class field-type map
+            (fieldtypes.tsv from gen-fieldtypes.py) so
+            ConstructORMTable(XxxDef()) receivers type as class XxxDef
+            and their field accesses resolve to exact C# types. See
+            include/hbfieldtypes.h. */
+         hb_fieldTypesSetPath( szSwPtr + 13 );
          szSwPtr += strlen( szSwPtr );
       }
       else if( strncmp( szSwPtr + 2, "type-audit=", 11 ) == 0 )

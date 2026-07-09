@@ -15,6 +15,7 @@
 #include "hbreftab.h"
 #include "hbfunctab.h"
 #include "hbdefinemap.h"
+#include "hbfieldtypes.h"
 #include "hbhbxcanon.h"
 #include "hbfilecase.h"
 
@@ -143,17 +144,39 @@ static const char * hb_csHashKeyCsFor( const char * szType )
           ? "decimal" : "string";
 }
 
+static const char * hb_csLocalTypeGet( const char * szName );
+
 /* Writes into an INTEGER-typed variable need an (int) coercion for
    anything but an int literal: the classifier proved integral-ness in
    Harbour terms, but the C#-side types still disagree (Len() returns
    decimal). Reads need nothing — int widens implicitly. */
 static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
 {
-   return ! ( pExpr && pExpr->ExprType == HB_ET_NUMERIC &&
-              pExpr->value.asNum.NumType == HB_ET_LONG );
-}
+   if( pExpr && pExpr->ExprType == HB_ET_NUMERIC &&
+       pExpr->value.asNum.NumType == HB_ET_LONG )
+      return HB_FALSE;
 
-static const char * hb_csLocalTypeGet( const char * szName );
+   /* An ORM def-class field access whose generated model property is
+      already C# int needs no coercion either — `int n = oDept.nNo`
+      is int = int. */
+   if( pExpr && pExpr->ExprType == HB_ET_SEND &&
+       pExpr->value.asMessage.szMessage &&
+       pExpr->value.asMessage.pObject &&
+       pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE )
+   {
+      const char * szRecvType = hb_csLocalTypeGet(
+         pExpr->value.asMessage.pObject->value.asSymbol.name );
+      if( szRecvType && hb_fieldTypesClassCanon( szRecvType ) )
+      {
+         const char * szCs = hb_fieldTypesMember( szRecvType,
+            pExpr->value.asMessage.szMessage, NULL );
+         if( szCs && hb_stricmp( szCs, "int" ) == 0 )
+            return HB_FALSE;
+      }
+   }
+
+   return HB_TRUE;
+}
 
 static HB_BOOL hb_csVarIsInteger( const char * szName )
 {
@@ -2702,6 +2725,39 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             {
                fprintf( yyc, "hbva" );
                break;
+            }
+
+            /* ORM construction — ConstructORMTable(XxxDef(...), ...)
+               with a mapped def class emits as
+               `new <CanonClass>(<original args>)`: the generated
+               strongly-typed model (gen-fieldtypes.py --emit-models)
+               replaces the dynamic Table metaclass, and the def-array
+               argument still reaches the OrmTable base ctor so runtime
+               metadata is unchanged. Canonical class casing comes from
+               the map (a source-side `PluDef()` site must construct
+               the generated `PLUDef`). Unmapped/indirect first args
+               fall through to the plain call. */
+            if( szName && hb_stricmp( szName, "ConstructORMTable" ) == 0 )
+            {
+               PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+               PHB_EXPR pFirst = pParms;
+               if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                               pParms->ExprType == HB_ET_ARGLIST ) )
+                  pFirst = pParms->value.asList.pExprList;
+               if( pFirst && pFirst->ExprType == HB_ET_FUNCALL &&
+                   pFirst->value.asFunCall.pFunName &&
+                   pFirst->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+               {
+                  const char * szCanon = hb_fieldTypesClassCanon(
+                     pFirst->value.asFunCall.pFunName->value.asSymbol.name );
+                  if( szCanon )
+                  {
+                     fprintf( yyc, "new %s(", szCanon );
+                     hb_csEmitCallArgs( szName, pParms, yyc );
+                     fprintf( yyc, ")" );
+                     break;
+                  }
+               }
             }
 
             if( szName )

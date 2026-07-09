@@ -19,7 +19,8 @@ clang -Isrc/transpiler/include -I./include -Isrc/transpiler -DHB_TRANSPILER -fno
   src/transpiler/hbast.c src/transpiler/hbclsparse.c \
   src/transpiler/hbcomp.c src/transpiler/hbmain.c \
   src/transpiler/hbtypes.c src/transpiler/hbreftab.c \
-  src/transpiler/hbdefinemap.c src/transpiler/hbhbxcanon.c \
+  src/transpiler/hbdefinemap.c src/transpiler/hbfieldtypes.c \
+  src/transpiler/hbhbxcanon.c \
   src/transpiler/hbfilecase.c \
   src/transpiler/hbfunctab.c src/transpiler/hbvartypes.c \
   src/transpiler/ppcomp.c \

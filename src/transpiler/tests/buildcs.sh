@@ -61,13 +61,20 @@ python3 "$REPO_ROOT/src/transpiler/tools/gendefines.py" \
    --output-dir  "$DEFINES_DIR" > /dev/null 2>&1
 DEFINES_MAP="$DEFINES_DIR/defines_map.txt"
 
+# ORM def-class field-type map + model fixture (test83). The map only
+# affects ConstructORMTable(<class-in-map>()) call sites, so passing it
+# suite-wide is inert for every other test.
+ORM_DIR="$SCRIPT_DIR/orm"
+FT_OPT=""
+[ -s "$ORM_DIR/fieldtypes.tsv" ] && FT_OPT="--fieldtypes=$ORM_DIR/fieldtypes.tsv"
+
 # Pass 2 — regenerate all .cs files with the populated table. Output
 # goes into csout/ rather than next to each .prg so the tests/ tree
 # stays legible (a git status ignores the transpiled outputs).
 MAP_OPT=""
 [ -s "$DEFINES_MAP" ] && MAP_OPT="--defines-map=$DEFINES_MAP"
 for f in "$SCRIPT_DIR"/test*.prg; do
-   "$TRANSPILER" "${PRELOAD_OPT[@]}" $MAP_OPT -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" \
+   "$TRANSPILER" "${PRELOAD_OPT[@]}" $MAP_OPT $FT_OPT -I"$REPO_ROOT/include" -I"$SCRIPT_DIR" \
       -o"$CSOUT/" "$f" -GS -q 2>/dev/null
 done
 
@@ -114,6 +121,12 @@ EOF
    # class is a few `public const` lines, no runtime cost.
    if [ -d "$DEFINES_DIR" ]; then
       for d in "$DEFINES_DIR"/*.cs; do
+         [ -f "$d" ] && cp "$d" "$projdir/$(basename "$d")"
+      done
+   fi
+   # ORM model fixture (test83) — tiny typed classes, inert elsewhere.
+   if [ -d "$ORM_DIR" ]; then
+      for d in "$ORM_DIR"/*.cs; do
          [ -f "$d" ] && cp "$d" "$projdir/$(basename "$d")"
       done
    fi
