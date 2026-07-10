@@ -32,7 +32,7 @@ public static partial class Program
         dynamic[] aConfirm = new dynamic[5];
         // 2-D — only outer dim sized eagerly
         dynamic[] aGrid = new dynamic[2];
-        int nI = default;
+        long nI = default;
 
         for (nI = 1; nI <= 3; nI++)
         {

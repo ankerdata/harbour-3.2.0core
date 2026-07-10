@@ -18,7 +18,7 @@ public static partial class Program
         Dictionary<string, dynamic> hData = new Dictionary<string, dynamic> { { "a", 1 }, { "b", 2 }, { "c", 3 } };
         // note the duplicate 1
         dynamic[] aNums = new dynamic[] { 3, 1, 2, 1 };
-        int i = default;
+        long i = default;
         string cOut = default;
 
         HbRuntime.QOut("round_2.5=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Round(2.5m, 0))));

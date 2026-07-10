@@ -7,7 +7,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        int i = default;
+        long i = default;
         decimal nSum = 0;
         dynamic[] aItems = new dynamic[] { "apple", "banana", "cherry" };
         string cItem = default;

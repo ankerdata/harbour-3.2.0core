@@ -19,11 +19,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         dynamic[] aItems = new dynamic[] { "alpha", "beta", "gamma", "delta" };
-        int i = default;
-        int nIdx = 1;
-        int nLast = (int)(HbRuntime.Len(aItems));
+        long i = default;
+        long nIdx = 1;
+        long nLast = (long)(HbRuntime.Len(aItems));
         // division → stays decimal, W0026
-        decimal nHalf = 4 / 2;
+        decimal nHalf = (decimal)(4) / 2;
 
         for (i = 1; i <= HbRuntime.Len(aItems); i++)
         {
@@ -31,12 +31,12 @@ public static partial class Program
         }
 
         // integral arithmetic keeps int
-        nIdx = (int)(nIdx + 2);
+        nIdx = (long)(nIdx + 2);
         HbRuntime.QOut("a=", aItems[nIdx - 1]);
         HbRuntime.QOut("b=", aItems[nLast - 1]);
         // decimal index — cast path
-        HbRuntime.QOut("c=", aItems[(int)(nHalf) - 1]);
-        HbRuntime.QOut("d=", aItems[(int)(FirstReal(aItems)) - 1]);
+        HbRuntime.QOut("c=", aItems[(long)(nHalf) - 1]);
+        HbRuntime.QOut("d=", aItems[(long)(FirstReal(aItems)) - 1]);
         // int widens into decimal math
         HbRuntime.QOut("e=", HbRuntime.Str(nIdx * 1.5m, 6, 1));
         // (explicit width: Harbour's
@@ -48,13 +48,13 @@ public static partial class Program
         // Returns an always-int local: the function's return type resolves to
         // INTEGER and callers may chain it straight into subscripts.
     }
-    public static int FirstReal(dynamic[] aList = default)
+    public static long FirstReal(dynamic[] aList = default)
     {
-        int nPos = 1;
+        long nPos = 1;
 
         while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[nPos - 1]))
         {
-            nPos = (int)(nPos + 1);
+            nPos = (long)(nPos + 1);
         }
 
         return nPos;

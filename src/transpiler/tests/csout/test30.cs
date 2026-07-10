@@ -29,7 +29,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        int i = default;
+        long i = default;
         decimal nHits = 0;
 
         for (i = 1; i <= 10; i++)

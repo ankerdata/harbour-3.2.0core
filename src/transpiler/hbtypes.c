@@ -209,13 +209,16 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
             ? hb_defineMapLookupType( pExpr->value.asSymbol.name ) : NULL;
          if( szDefType )
          {
-            if( hb_stricmp( szDefType, "int" ) == 0 )
+            if( hb_stricmp( szDefType, "int" ) == 0 ||
+                hb_stricmp( szDefType, "long" ) == 0 )
+               /* single integral tier — INTEGER emits C# long, so
+                  >Int32 bit-flag masks are integral too now */
                return "INTEGER";
             if( hb_stricmp( szDefType, "string" ) == 0 )
                return "STRING";
             if( hb_stricmp( szDefType, "bool" ) == 0 )
                return "LOGICAL";
-            return "NUMERIC";   /* long, decimal */
+            return "NUMERIC";   /* decimal */
          }
          break;
       }
@@ -675,6 +678,9 @@ typedef struct
    int          count;
    PHB_REFTAB   pRefTab;        /* active user-function table, or NULL */
    const char * szFile;         /* source file currently being walked (for warnings) */
+   char         szSelfClass[ 128 ]; /* owning class when walking a method
+                                       body (parsed from the func key
+                                       `Class::Class__Method`), else "" */
 } HB_TYPEENV;
 
 static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
@@ -683,6 +689,7 @@ static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
    pEnv->count   = 0;
    pEnv->pRefTab = pRefTab;
    pEnv->szFile  = szFile;
+   pEnv->szSelfClass[ 0 ] = '\0';
 }
 
 static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
@@ -1645,32 +1652,18 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       default:
          if( pExpr->ExprType >= HB_EO_POSTINC )
          {
-            /* Division is THE hard int-emission disqualifier —
-               Harbour n/2 is 1.5, C# int/int truncates. Either
-               VARIABLE operand of a division loses candidacy (hard —
-               W0026 when index-used). A fractional-literal assignment
-               is hard too. Any other assignment whose RHS isn't
-               provably integral is a soft disqualifier: the variable
-               stays decimal but only the audit reports it. */
-            if( pExpr->ExprType == HB_EO_DIV ||
-                pExpr->ExprType == HB_EO_DIVEQ )
-            {
-               PHB_EXPR pSide = pExpr->value.asOperator.pLeft;
-               int k;
-               for( k = 0; k < 2; k++,
-                    pSide = pExpr->value.asOperator.pRight )
-                  if( pSide && pSide->ExprType == HB_ET_VARIABLE )
-                  {
-                     const char * szT =
-                        hb_astInferExprType( pSide, pEnv );
-                     if( szT && ( strcmp( szT, "NUMERIC" ) == 0 ||
-                                  strcmp( szT, "INTEGER" ) == 0 ) )
-                        hb_auditIntMark( pSide->value.asSymbol.name,
-                                         s_iObserveLine,
-                                         HB_INT_MARK_HARD );
-                  }
-            }
-            else if( ( pExpr->ExprType == HB_EO_ASSIGN ||
+            /* READING an int in a division is fine since the emitter
+               forces decimal division when both operands are C#-
+               integral ((decimal)a / b — hb_csExprIsCsIntegral), so
+               division operands no longer lose int candidacy. What
+               still disqualifies is WRITING a fractional value into
+               the variable: a fractional-literal assignment, an
+               assignment whose RHS is a division result, and the
+               /= %= ^= compounds below. Any other assignment whose
+               RHS isn't provably integral is a soft disqualifier:
+               the variable stays decimal but only the audit reports
+               it. */
+            if( ( pExpr->ExprType == HB_EO_ASSIGN ||
                        pExpr->ExprType == HB_EO_PLUSEQ ||
                        pExpr->ExprType == HB_EO_MINUSEQ ||
                        pExpr->ExprType == HB_EO_MULTEQ ) &&
@@ -2278,7 +2271,11 @@ static void hb_astOrmAssignCheck( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       return;   /* unknown/dynamic RHS — nothing provable */
 
    if( ( strcmp( szCs, "int" ) == 0 || strcmp( szCs, "long" ) == 0 ) &&
-       strcmp( szRhsT, "NUMERIC" ) == 0 )
+       strcmp( szRhsT, "NUMERIC" ) == 0 &&
+       /* a provably-integral RHS (int literal, INTEGER-typed var,
+          int arithmetic, Len()-family returns) writes cleanly — only
+          genuinely decimal-shaped values narrow */
+       ! hb_astExprIsIntegral( pRhs, pEnv, NULL ) )
    {
       if( ! hb_astOrmSeen( iLine, szSym ) )
       {
@@ -2321,6 +2318,109 @@ static void hb_astOrmAssignCheck( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       hb_auditEmit( "ORM-TYPE", pEnv->szFile, iLine, szSym,
                     szRhsT, szKind );
    }
+}
+
+/* ---- MEMBER-TYPE evidence (audit-only recon) ----
+   A user-class member meeting an ORM-typed field in an assignment or
+   comparison ties that member to the field's exact C# type — the
+   data-flow that lets POSStatus/Transaction/TranLine members be
+   annotated AS INTEGER / AS LONG systematically instead of by name
+   guessing (Transaction's nSale* members are renamed copies of ORM
+   data no name-join can see). Emitted per site into --type-audit as
+   MEMBER-TYPE rows; MEMBER-DIV rows record division involvement (the
+   W0026-style disqualifier — an int-annotated member in `/` would
+   truncate where Harbour gives a float). scripts/member-types.py
+   aggregates sites into per-member proposals. */
+
+/* SEND on an ORM def-class receiver -> the field's exact cs token. */
+static const char * hb_astOrmFieldCs( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
+{
+   const char * szClass;
+   const char * szCs;
+
+   if( ! pExpr || pExpr->ExprType != HB_ET_SEND ||
+       ! pExpr->value.asMessage.szMessage )
+      return NULL;
+   szClass = hb_astOrmRecvClass( pExpr->value.asMessage.pObject, pEnv );
+   if( ! szClass )
+      return NULL;
+   szCs = hb_fieldTypesMember( szClass, pExpr->value.asMessage.szMessage,
+                               NULL );
+   return ( szCs && strcmp( szCs, "method" ) != 0 ) ? szCs : NULL;
+}
+
+/* A USER-class member send: Self:member (class from the enclosing
+   method key) or var:member where the var's env type is a concrete
+   class that is NOT an ORM def class. */
+static HB_BOOL hb_astUserMemberSend( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                     const char ** pszOwner,
+                                     const char ** pszMember )
+{
+   PHB_EXPR pRecv;
+
+   if( ! pExpr || pExpr->ExprType != HB_ET_SEND ||
+       ! pExpr->value.asMessage.szMessage )
+      return HB_FALSE;
+   pRecv = pExpr->value.asMessage.pObject;
+   if( ! pRecv || pRecv->ExprType != HB_ET_VARIABLE )
+      return HB_FALSE;
+
+   if( hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+   {
+      if( ! pEnv->szSelfClass[ 0 ] )
+         return HB_FALSE;
+      *pszOwner  = pEnv->szSelfClass;
+      *pszMember = pExpr->value.asMessage.szMessage;
+      return HB_TRUE;
+   }
+
+   {
+      const char * szT = hb_typeEnvGet( pEnv, pRecv->value.asSymbol.name );
+      if( szT && hb_astIsClassType( szT ) &&
+          ! hb_fieldTypesClassCanon( szT ) )
+      {
+         *pszOwner  = szT;
+         *pszMember = pExpr->value.asMessage.szMessage;
+         return HB_TRUE;
+      }
+   }
+   return HB_FALSE;
+}
+
+static void hb_astMemberTypeEvidence( PHB_EXPR pMember, const char * szCs,
+                                      const char * szVia,
+                                      HB_TYPEENV * pEnv, int iLine )
+{
+   const char * szOwner;
+   const char * szMemberName;
+   char szSym[ 160 ];
+   char szDetail[ 96 ];
+
+   if( ! hb_auditActive() || ! szCs )
+      return;
+   if( ! hb_astUserMemberSend( pMember, pEnv, &szOwner, &szMemberName ) )
+      return;
+   hb_snprintf( szSym, sizeof( szSym ), "%s::%s", szOwner, szMemberName );
+   hb_snprintf( szDetail, sizeof( szDetail ), "%s via %s", szCs, szVia );
+   hb_auditEmit( "MEMBER-TYPE", pEnv->szFile, iLine, szSym, szDetail,
+                 szCs );
+}
+
+static void hb_astMemberDivEvidence( PHB_EXPR pMember, HB_TYPEENV * pEnv,
+                                     int iLine, const char * szOp )
+{
+   const char * szOwner;
+   const char * szMemberName;
+   char szSym[ 160 ];
+
+   if( ! hb_auditActive() )
+      return;
+   if( ! hb_astUserMemberSend( pMember, pEnv, &szOwner, &szMemberName ) )
+      return;
+   hb_snprintf( szSym, sizeof( szSym ), "%s::%s", szOwner, szMemberName );
+   hb_auditEmit( "MEMBER-DIV", pEnv->szFile, iLine, szSym, szOp,
+                 "fractional compound-assign writes into the member — "
+                 "must stay NUMERIC" );
 }
 
 static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine );
@@ -2671,9 +2771,50 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          /* Typed-field write checks (W0029/W0030/W0031) — scan-phase
             surfacing of CS0266/CS0037/CS0029 at ORM field writes. */
          hb_astOrmAssignCheck( pExpr, pEnv, iLine );
+         /* MEMBER-TYPE evidence, both directions:
+              ::member  := oOrm:field   (member takes the field's type)
+              oOrm:field := ::member    (member feeds a typed field) */
+         hb_astMemberTypeEvidence( pExpr->value.asOperator.pLeft,
+            hb_astOrmFieldCs( pExpr->value.asOperator.pRight, pEnv ),
+            "assign-from-field", pEnv, iLine );
+         hb_astMemberTypeEvidence( pExpr->value.asOperator.pRight,
+            hb_astOrmFieldCs( pExpr->value.asOperator.pLeft, pEnv ),
+            "feeds-field", pEnv, iLine );
+         /* A /= %= ^= on a member is division involvement no matter
+            what the RHS is. */
+         if( pExpr->ExprType == HB_EO_DIVEQ ||
+             pExpr->ExprType == HB_EO_MODEQ ||
+             pExpr->ExprType == HB_EO_EXPEQ )
+            hb_astMemberDivEvidence( pExpr->value.asOperator.pLeft,
+                                     pEnv, iLine, "compound /= %= ^=" );
          hb_astRefineExpr( pExpr->value.asOperator.pLeft,  pEnv, iLine );
          hb_astRefineExpr( pExpr->value.asOperator.pRight, pEnv, iLine );
          break;
+
+      case HB_EO_EQUAL:
+      case HB_EO_EQ:
+      case HB_EO_NE:
+      case HB_EO_LT:
+      case HB_EO_GT:
+      case HB_EO_LE:
+      case HB_EO_GE:
+         /* MEMBER-TYPE evidence from comparisons — `oPlu:nNo ==
+            ::nSalePluNo` ties the member to the field's type just as
+            firmly as an assignment. */
+         hb_astMemberTypeEvidence( pExpr->value.asOperator.pLeft,
+            hb_astOrmFieldCs( pExpr->value.asOperator.pRight, pEnv ),
+            "compare", pEnv, iLine );
+         hb_astMemberTypeEvidence( pExpr->value.asOperator.pRight,
+            hb_astOrmFieldCs( pExpr->value.asOperator.pLeft, pEnv ),
+            "compare", pEnv, iLine );
+         hb_astRefineExpr( pExpr->value.asOperator.pLeft,  pEnv, iLine );
+         hb_astRefineExpr( pExpr->value.asOperator.pRight, pEnv, iLine );
+         break;
+
+      /* Division READS no longer block int/long annotation — the
+         emitter forces decimal division when both operands are C#-
+         integral. Only the fractional compound WRITES (the /= %= ^=
+         case in the assignment handling above) still emit MEMBER-DIV. */
 
       default:
          if( pExpr->ExprType >= HB_EO_POSTINC )
@@ -2879,6 +3020,24 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    s_iIntCand = 0;   /* per-function int-candidate audit tracking */
 
    hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab, szFile );
+
+   /* Method bodies carry their class in the reftab func key
+      (`Class::Class__Method`) — keep it in the env so member-level
+      evidence (MEMBER-TYPE audit) can attribute Self sends. STATIC
+      free functions use `FileBase::Name` keys with the same separator;
+      only a tail that repeats the prefix + "__" is a method key. */
+   if( szFuncKey )
+   {
+      const char * szSep = strstr( szFuncKey, "::" );
+      HB_SIZE nCls = szSep ? ( HB_SIZE ) ( szSep - szFuncKey ) : 0;
+      if( nCls > 0 && nCls < sizeof( env.szSelfClass ) &&
+          hb_strnicmp( szSep + 2, szFuncKey, nCls ) == 0 &&
+          szSep[ 2 + nCls ] == '_' && szSep[ 3 + nCls ] == '_' )
+      {
+         memcpy( env.szSelfClass, szFuncKey, nCls );
+         env.szSelfClass[ nCls ] = '\0';
+      }
+   }
 
    /* Seed parameter types from the reftab. When a previous scan pass
       refined a callee parameter from OBJECT to a specific class (e.g.

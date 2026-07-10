@@ -19,7 +19,7 @@ public static partial class Program
 {
     public static dynamic MinMax(dynamic[] aData, ref dynamic xLo, ref dynamic xHi)
     {
-        int i = default;
+        long i = default;
         xLo = aData[0];
         xHi = aData[0];
         for (i = 2; i <= HbRuntime.Len(aData); i++)

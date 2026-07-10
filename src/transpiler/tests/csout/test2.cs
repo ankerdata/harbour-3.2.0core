@@ -8,7 +8,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nSum = 0;
-        int i = default;
+        long i = default;
         string cResult = default;
 
         for (i = 1; i <= 10; i++)

@@ -28,10 +28,11 @@ static void hb_csEmitIndent( FILE * yyc, int iIndent );
 
 /* Emit a dim expression inside an `new dynamic[<dim>]` allocation. A
    long integer literal goes bare (`5`); anything else is wrapped in
-   `(int)(...)` to coerce whatever Harbour computed at runtime — a
-   `#define`d constant, a `decimal` local, etc. — into the int that
-   C# `new T[n]` requires. NULL pDim falls back to a literal 0 so the
-   site still compiles. */
+   `(long)(...)` — C# array-creation sizes take long natively, and the
+   cast coerces whatever Harbour computed at runtime (a `#define`d
+   constant, a `decimal` local, ...). Single integral tier: nothing the
+   emitter produces is Int32. NULL pDim falls back to a literal 0 so
+   the site still compiles. */
 static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
 {
    if( ! pDim )
@@ -45,7 +46,7 @@ static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
       fprintf( yyc, "%" HB_PFS "d", pDim->value.asNum.val.l );
       return;
    }
-   fprintf( yyc, "(int)(" );
+   fprintf( yyc, "(long)(" );
    hb_csEmitExpr( pDim, yyc, HB_FALSE );
    fprintf( yyc, ")" );
 }
@@ -170,7 +171,8 @@ static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
       {
          const char * szCs = hb_fieldTypesMember( szRecvType,
             pExpr->value.asMessage.szMessage, NULL );
-         if( szCs && hb_stricmp( szCs, "int" ) == 0 )
+         if( szCs && ( hb_stricmp( szCs, "int" ) == 0 ||
+                       hb_stricmp( szCs, "long" ) == 0 ) )
             return HB_FALSE;
       }
    }
@@ -188,6 +190,89 @@ static HB_BOOL hb_csVarIsInteger( const char * szName )
    to C# int (source-side `as int` — the dialog-model convention).
    Writes into such members need the same (int) coercion as int locals. */
 static HB_BOOL hb_csMemberIsInteger( const char * szMember );
+
+/* Emit-side: does this expression have a C#-integral static type
+   (int/long)? Drives the (decimal) cast that keeps `/` on Harbour
+   float semantics — C# int/int truncates (7/2 == 3, Harbour 3.5).
+   Errs in the safe direction: a wrong TRUE adds a harmless (decimal)
+   cast to an already-decimal division; a wrong FALSE risks silent
+   truncation, so every int source the emitter can produce is
+   enumerated:
+     - integer literals (C# infers int/long)
+     - INTEGER-typed locals/statics (Pass 2.5)
+     - int/long #define consts (defines map)
+     - ORM def-class int/long fields (fieldtypes map)
+     - `as int` members of the current class
+     - +,-,*,%,unary over integral operands (C# int arithmetic stays
+       int); / and ^ excluded — they emit decimal-producing forms. */
+static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_NUMERIC:
+         return pExpr->value.asNum.NumType == HB_ET_LONG;
+
+      case HB_ET_VARIABLE:
+      {
+         const char * szName = pExpr->value.asSymbol.name;
+         const char * szDefType;
+         if( hb_csVarIsInteger( szName ) )
+            return HB_TRUE;
+         szDefType = hb_defineMapLookupType( szName );
+         return szDefType && ( hb_stricmp( szDefType, "int" ) == 0 ||
+                               hb_stricmp( szDefType, "long" ) == 0 );
+      }
+
+      case HB_ET_SEND:
+         if( pExpr->value.asMessage.szMessage &&
+             pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE )
+         {
+            PHB_EXPR pRecv = pExpr->value.asMessage.pObject;
+            if( hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+               return hb_csMemberIsInteger(
+                  pExpr->value.asMessage.szMessage );
+            {
+               const char * szRecvType =
+                  hb_csLocalTypeGet( pRecv->value.asSymbol.name );
+               if( szRecvType && hb_fieldTypesClassCanon( szRecvType ) )
+               {
+                  const char * szCs = hb_fieldTypesMember( szRecvType,
+                     pExpr->value.asMessage.szMessage, NULL );
+                  return szCs && ( strcmp( szCs, "int" ) == 0 ||
+                                   strcmp( szCs, "long" ) == 0 );
+               }
+            }
+         }
+         return HB_FALSE;
+
+      case HB_EO_PLUS:
+      case HB_EO_MINUS:
+      case HB_EO_MULT:
+      case HB_EO_MOD:
+         return hb_csExprIsCsIntegral( pExpr->value.asOperator.pLeft ) &&
+                hb_csExprIsCsIntegral( pExpr->value.asOperator.pRight );
+
+      case HB_EO_NEGATE:
+      case HB_EO_PREINC:
+      case HB_EO_PREDEC:
+      case HB_EO_POSTINC:
+      case HB_EO_POSTDEC:
+         return hb_csExprIsCsIntegral( pExpr->value.asOperator.pLeft );
+
+      default:
+         break;
+   }
+   /* Parenthesised single-element list */
+   if( ( pExpr->ExprType == HB_ET_LIST ||
+         pExpr->ExprType == HB_ET_ARGLIST ) &&
+       pExpr->value.asList.pExprList &&
+       ! pExpr->value.asList.pExprList->pNext )
+      return hb_csExprIsCsIntegral( pExpr->value.asList.pExprList );
+   return HB_FALSE;
+}
 
 /* Find the registry slot szName resolves to under the current scope:
    a STATIC owned by the function being walked/emitted wins, then a
@@ -832,7 +917,7 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember )
                             szMember ) == 0 )
                return pMember->value.asClassData.szType &&
                       hb_stricmp( hb_csTypeMap(
-                         pMember->value.asClassData.szType ), "int" ) == 0;
+                         pMember->value.asClassData.szType ), "long" ) == 0;
          }
          return HB_FALSE;
       }
@@ -1682,11 +1767,17 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "dynamic";
    if( hb_stricmp( szHbType, "NUMERIC" ) == 0 )
       return "decimal";
-   if( hb_stricmp( szHbType, "INTEGER" ) == 0 )
-      /* Pass 2.5 int candidacy: a numeric whose whole life is
-         index-shaped. int widens to decimal implicitly, so every
-         consumer boundary is free; subscripts skip the (int) cast. */
-      return "int";
+   if( hb_stricmp( szHbType, "INTEGER" ) == 0 ||
+       hb_stricmp( szHbType, "int" ) == 0 )
+      /* Harbour's integral type is 64-bit; emitting Int32 only
+         manufactured width distinctions Harbour doesn't have (a
+         len-9 vs len-10 def field, int-vs-long #define tiers). ALL
+         integrals are C# long (Alex's ruling, 2026-07-10): long
+         widens to decimal implicitly, indexes arrays natively, and
+         BCL int-only call sites already receive explicit casts.
+         "int" is the legacy source-side `as int` member spelling —
+         same meaning, superseded by AS INTEGER. */
+      return "long";
    if( hb_stricmp( szHbType, "STRING" ) == 0 ||
        hb_stricmp( szHbType, "CHARACTER" ) == 0 )
       return "string";
@@ -3091,7 +3182,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                    Hungarian on a `h<X>` / `sh<X>` name (variable or
                    message).
                Dictionary<string, dynamic> accepts any string key; the
-               array branch wraps in `(int)(...) - 1` which is wrong
+               array branch wraps in `(long)(...) - 1` which is wrong
                for hashes and produces CS errors at runtime indices. */
             HB_BOOL fHash = HB_FALSE;
             PHB_EXPR pIdx = pExpr->value.asList.pIndex;
@@ -3170,7 +3261,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             /* Variable or expression index — cast and subtract at runtime */
             else
             {
-               fprintf( yyc, "[(int)(" );
+               fprintf( yyc, "[(long)(" );
                hb_csEmitExpr( pIdx, yyc, HB_FALSE );
                fprintf( yyc, ") - 1]" );
             }
@@ -3777,9 +3868,32 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                /* Write into an int-typed variable or `as int` class
                   member — coerce the RHS. */
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
-               fprintf( yyc, " = (int)(" );
+               fprintf( yyc, " = (long)(" );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
                fprintf( yyc, ")" );
+            }
+            else if( pExpr->ExprType == HB_EO_DIV &&
+                     hb_csExprIsCsIntegral( pExpr->value.asOperator.pLeft ) &&
+                     hb_csExprIsCsIntegral( pExpr->value.asOperator.pRight ) )
+            {
+               /* Harbour `/` is ALWAYS float (7/2 == 3.5); C# int/int
+                  truncates. Both operands are statically C#-integral
+                  here, so force decimal division by casting the left
+                  operand. A decimal on either side already gives
+                  decimal division — this fires only when both sides
+                  are int-shaped, so ordinary decimal divisions stay
+                  cast-free. This is what lets int/long typing (Pass
+                  2.5 locals, int defines, ORM fields, AS INTEGER/AS
+                  LONG members) spread without division semantics
+                  pushing everything back to decimal. */
+               if( fParen )
+                  fprintf( yyc, "(" );
+               fprintf( yyc, "(decimal)(" );
+               hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+               fprintf( yyc, ") / " );
+               hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_TRUE );
+               if( fParen )
+                  fprintf( yyc, ")" );
             }
             else if( pExpr->ExprType == HB_EO_ASSIGN &&
                      pExpr->value.asOperator.pLeft &&
@@ -4249,7 +4363,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                      hb_csNeedsIntCast( pNode->value.asVar.pInit );
                   s_szHashKeyCs = hb_csHashKeyCsFor( szType );
                   if( fIntCast )
-                     fprintf( yyc, "(int)(" );
+                     fprintf( yyc, "(long)(" );
                   hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
                   if( fIntCast )
                      fprintf( yyc, ")" );
@@ -4481,7 +4595,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             if( hb_csVarIsInteger( pNode->value.asFor.szVar ) &&
                 hb_csNeedsIntCast( pNode->value.asFor.pStart ) )
             {
-               fprintf( yyc, "(int)(" );
+               fprintf( yyc, "(long)(" );
                hb_csEmitExpr( pNode->value.asFor.pStart, yyc, HB_FALSE );
                fprintf( yyc, ")" );
             }
@@ -5442,7 +5556,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
             const char * szInitCs =
                hb_csTranslateInit( pMember->value.asClassData.szInit );
             HB_BOOL fIntCast = HB_FALSE;
-            if( szType && hb_stricmp( hb_csTypeMap( szType ), "int" ) == 0 )
+            if( szType && hb_stricmp( hb_csTypeMap( szType ), "long" ) == 0 )
             {
                const char * q = szInitCs;
                if( *q == '-' || *q == '+' )
@@ -5453,7 +5567,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                      fIntCast = HB_TRUE;
             }
             if( fIntCast )
-               fprintf( yyc, " = (int)(%s);", szInitCs );
+               fprintf( yyc, " = (long)(%s);", szInitCs );
             else
                fprintf( yyc, " = %s;", szInitCs );
          }

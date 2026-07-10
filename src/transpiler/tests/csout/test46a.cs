@@ -16,7 +16,7 @@ public static partial class Program
 {
     public static void SaveFlags(string cFile, ref dynamic[] aFlag, decimal nCount = default)
     {
-        int i = default;
+        long i = default;
 
         HbRuntime.ASize(ref aFlag, nCount);
         for (i = 1; i <= nCount; i++)

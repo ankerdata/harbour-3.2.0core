@@ -249,10 +249,11 @@ const char * hb_fieldTypesHbType( const char * szCsToken )
 {
    if( ! szCsToken )
       return NULL;
-   if( hb_stricmp( szCsToken, "int" ) == 0 )
+   if( hb_stricmp( szCsToken, "int" ) == 0 ||
+       hb_stricmp( szCsToken, "long" ) == 0 )
+      /* single integral tier: INTEGER emits C# long */
       return "INTEGER";
-   if( hb_stricmp( szCsToken, "long" ) == 0 ||
-       hb_stricmp( szCsToken, "decimal" ) == 0 )
+   if( hb_stricmp( szCsToken, "decimal" ) == 0 )
       return "NUMERIC";
    if( hb_stricmp( szCsToken, "string" ) == 0 )
       return "STRING";

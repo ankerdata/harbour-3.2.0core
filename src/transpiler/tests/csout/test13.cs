@@ -23,7 +23,7 @@ public static partial class Program
     public static decimal SumEvenTo(decimal nMax = default)
     {
         decimal nSum = 0;
-        int i = default;
+        long i = default;
 
         for (i = 1; i <= nMax; i++)
         {
@@ -45,7 +45,7 @@ public static partial class Program
     {
         string cItem = default;
         decimal nPos = 0;
-        int i = default;
+        long i = default;
 
         // Nested FOR with EXIT
         for (i = 1; i <= HbRuntime.Len(aItems); i++)

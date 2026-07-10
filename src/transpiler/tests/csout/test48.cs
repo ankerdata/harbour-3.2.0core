@@ -18,7 +18,7 @@ public static partial class Program
     {
         dynamic[] aFields = new dynamic[] { "one", "two", "three" };
         string cMemberName = default;
-        int i = default;
+        long i = default;
         string cAccum = "";
 
         // Use cMemberName inside a FOR-loop body first (nested scope).

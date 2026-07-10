@@ -455,12 +455,11 @@ def cs_type_token(t: str, val: object) -> str:
     and the type column in defines_map.txt, so the transpiler's inference
     (which reads the map) can never disagree with what was emitted.
 
-    Integer-valued numerics are `int` (enum-like flags / codes / IDs /
-    indices — kept cast-free at subscripts, HASHN keys and `as int`
-    members), or `long` when they exceed Int32 (bit-flag masks used in
-    bitwise ops, which decimal cannot do). Fractional literals and values
-    beyond Int64 stay `decimal`. The only unsafe case is CONST_int /
-    CONST_int, which truncates — redefine such a divisor as a float."""
+    ALL integer-valued numerics are `long` — the single integral tier
+    (Harbour's integral type is 64-bit; an Int32 sub-tier only
+    manufactured width distinctions, and the emitter's division fix
+    keeps CONST/CONST on Harbour float semantics). Fractional literals
+    and values beyond Int64 stay `decimal`."""
     if t == 'string':
         return 'string'
     if t == 'bool':
@@ -468,8 +467,6 @@ def cs_type_token(t: str, val: object) -> str:
     if isinstance(val, float):
         return 'decimal'
     if isinstance(val, int):
-        if -2147483648 <= val <= 2147483647:
-            return 'int'
         if -9223372036854775808 <= val <= 9223372036854775807:
             return 'long'
     return 'decimal'

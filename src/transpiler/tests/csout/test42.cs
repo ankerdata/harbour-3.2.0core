@@ -36,7 +36,7 @@ public class Record : HbDynamicObject
 
     public dynamic DumpFields(dynamic[] aFields = default)
     {
-        int i = default;
+        long i = default;
         dynamic xVal = default;
         string cType = default;
         for (i = 1; i <= HbRuntime.Len(aFields); i++)

@@ -16,7 +16,7 @@ public static partial class Program
         decimal nTotal = 0;
         decimal nLen = default;
         decimal nPos = default;
-        int i = default;
+        long i = default;
         string cName = default;
         decimal nItem = default;
         string cText = "  Hello World  ";

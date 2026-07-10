@@ -4,18 +4,18 @@ using static Program;
 
 // Test 82: numeric #define type tiering.
 //
-// A numeric #define is typed by its literal value: an integer that fits
-// Int32 -> `int`, an integer beyond Int32 -> `long` (bit-flag masks /
-// large ids), a fractional literal -> `decimal`. gendefines emits the
-// const at that type AND records it in defines_map.txt; the transpiler
-// (hbtypes.c) reads the map to type a reference the same way.
+// A numeric #define is typed by its literal value: ANY integer ->
+// `long` (the single integral tier — Harbour integers are 64-bit, no
+// Int32 sub-tier), a fractional literal -> `decimal`. gendefines emits
+// the const at that type AND records it in defines_map.txt; the
+// transpiler (hbtypes.c) reads the map to type a reference the same
+// way (both integral tokens infer as INTEGER, which emits C# long).
 //
-// This is guarded two ways at once. Mistyping is a COMPILE error: a
-// >Int32 value declared `int` overflows the literal (CS0031); a
-// fractional declared `int` will not convert (CS0266) — so if the long
-// or decimal tier regressed, buildcs.sh would fail here. And the
-// RUNTIME values below must still match the Harbour (.prg) run, which
-// catches a wrong-but-compilable typing.
+// Guarded two ways at once. Mistyping is a COMPILE error: a fractional
+// declared integral will not convert (CS0266); BIGVAL exceeds Int32 so
+// any regression back to an int tier overflows the literal (CS0031).
+// And the RUNTIME values below must still match the Harbour (.prg)
+// run, which catches wrong-but-compilable typing.
 public static partial class Program
 {
     public static void Main(string[] args)

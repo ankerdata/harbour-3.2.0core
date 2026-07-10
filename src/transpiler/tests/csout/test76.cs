@@ -48,7 +48,7 @@ public static partial class Program
     public static Dictionary<decimal, dynamic> BuildPanels()
     {
         Dictionary<decimal, dynamic> hOut = new Dictionary<decimal, dynamic> {  };
-        int nKey = default;
+        long nKey = default;
 
         for (nKey = 1; nKey <= 5; nKey++)
         {

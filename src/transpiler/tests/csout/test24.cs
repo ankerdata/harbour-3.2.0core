@@ -37,7 +37,7 @@ public static partial class Program
         // C2
         // comment with no ; here
         dynamic[] aCodes = new dynamic[] { "alpha", "bravo", "charlie" };
-        int n = default;
+        long n = default;
 
         // comment on IF line
         if (x == 1)

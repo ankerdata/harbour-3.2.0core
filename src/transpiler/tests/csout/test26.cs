@@ -40,7 +40,7 @@ public static partial class Program
         // so the assignment compiles cleanly. Separately, tStamp's
         // TIMESTAMP → DateTime mapping is covered by test27.
         DateOnly dDate = HbRuntime.Date();
-        int i = default;
+        long i = default;
 
         // Exercise function-scope STATIC mangling three times to confirm
         // the var persists across calls and the references all point at
