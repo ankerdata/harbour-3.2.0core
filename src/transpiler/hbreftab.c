@@ -11,6 +11,7 @@
 #include "hbcomp.h"
 #include "hbast.h"
 #include "hbreftab.h"
+#include "hbfieldtypes.h"
 
 #define HB_REFTAB_BUCKETS  1024  /* power of two */
 #define HB_REFTAB_MAXPARAM 64    /* hard cap; matches the by-ref bitmap width */
@@ -816,7 +817,13 @@ const char * hb_refTabClassParent( PHB_REFTAB pTab, const char * szName )
    if( ! pTab || ! szName )
       return NULL;
    e = hb_refTabFindEntry( pTab, szName, NULL );
-   return ( e && e->fIsClass ) ? e->szClassParent : NULL;
+   if( e && e->fIsClass && e->szClassParent )
+      return e->szClassParent;
+   /* ORM def classes live in the fieldtypes map, not the reftab —
+      their family-base edges (`=inherit` rows) join the same walk so
+      IsKindOf and the class-widening paths see TableIndexDef ->
+      TableFieldsBase exactly like a source INHERIT. */
+   return hb_fieldTypesClassParent( szName );
 }
 
 /* True when szSub is szSuper or inherits from it (INHERIT chain,

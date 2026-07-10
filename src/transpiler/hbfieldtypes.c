@@ -16,6 +16,8 @@ typedef struct HB_FTENTRY_
    char *               szKey;      /* "class\tmember" lowercased; member "" = class row — owned */
    char *               szCanon;    /* canonical spelling (class or member) — owned */
    char *               szType;     /* C# type token for member rows, NULL for class rows — owned */
+   char *               szParent;   /* class rows only: family base from an
+                                       `=inherit` row, else NULL — owned */
    struct HB_FTENTRY_ * pNext;
 } HB_FTENTRY, * PHB_FTENTRY;
 
@@ -115,10 +117,11 @@ static void hb_ftInsert( const char * szClass, const char * szMember,
    }
 
    e = ( PHB_FTENTRY ) hb_xgrab( sizeof( HB_FTENTRY ) );
-   e->szKey   = szKey;
-   e->szCanon = hb_ftDup( szCanon );
-   e->szType  = ( szType && *szType ) ? hb_ftDup( szType ) : NULL;
-   e->pNext   = s_table[ slot ];
+   e->szKey    = szKey;
+   e->szCanon  = hb_ftDup( szCanon );
+   e->szType   = ( szType && *szType ) ? hb_ftDup( szType ) : NULL;
+   e->szParent = NULL;
+   e->pNext    = s_table[ slot ];
    s_table[ slot ] = e;
 }
 
@@ -153,6 +156,8 @@ void hb_fieldTypesFree( void )
          hb_xfree( e->szCanon );
          if( e->szType )
             hb_xfree( e->szType );
+         if( e->szParent )
+            hb_xfree( e->szParent );
          hb_xfree( e );
          e = pNext;
       }
@@ -207,6 +212,21 @@ void hb_fieldTypesLoad( void )
       /* class row (member "") registers the canonical class spelling;
          inserted once thanks to first-writer-wins */
       hb_ftInsert( szClass, "", szClass, NULL );
+
+      /* `Class<TAB>=inherit<TAB>Base` — family-base parent edge.
+         Feeds hb_fieldTypesClassParent so the class-widening walks
+         (hbreftab IsKindOf/ClassParent) can land a polymorphic def-
+         class slot on its fully-typed family base instead of USUAL. */
+      if( strcmp( szMember, "=inherit" ) == 0 )
+      {
+         PHB_FTENTRY eCls = hb_ftFind( szClass, "" );
+         if( eCls && ! eCls->szParent )
+            eCls->szParent = hb_ftDup( szType );
+         /* the base needs a class row too (canonical spelling) */
+         hb_ftInsert( szType, "", szType, NULL );
+         continue;
+      }
+
       hb_ftInsert( szClass, szMember, szMember, szType );
    }
 
@@ -224,6 +244,21 @@ const char * hb_fieldTypesClassCanon( const char * szClass )
 
    e = hb_ftFind( szClass, "" );
    return e ? e->szCanon : NULL;
+}
+
+/* Family-base parent of a def class (from `=inherit` rows), or NULL.
+   Returned pointer is owned by the map. */
+const char * hb_fieldTypesClassParent( const char * szClass )
+{
+   PHB_FTENTRY e;
+
+   if( ! szClass || ! *szClass )
+      return NULL;
+   if( ! s_fLoaded )
+      hb_fieldTypesLoad();
+
+   e = hb_ftFind( szClass, "" );
+   return e ? e->szParent : NULL;
 }
 
 const char * hb_fieldTypesMember( const char * szClass,

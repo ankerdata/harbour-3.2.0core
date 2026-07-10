@@ -1,7 +1,14 @@
 # class	accessor	cs_type	dbfield	len	dec	def
-TestDeptDef	nNo	int	DEPTNO	5	0	test83
+TestDeptDef	nNo	long	DEPTNO	5	0	test83
 TestDeptDef	nClerkNo	long	CLERKNO	10	0	test83
 TestDeptDef	cName	string	NAME	30	0	test83
 TestDeptDef	lDisable	bool	DISABLE	1	0	test83
 TestDeptDef	nRate	decimal	RATE	6	2	test83
 TestDeptDef	dSince	date	SINCE	8	0	test83
+TestBranchDef	nNo	long	DEPTNO	5	0	test85
+TestBranchDef	cName	string	NAME	30	0	test85
+TestBranchDef	nRegion	long	REGION	3	0	test85
+TestFamBase	nNo	long	DEPTNO	5	0	test85
+TestFamBase	cName	string	NAME	30	0	test85
+TestDeptDef	=inherit	TestFamBase	-	0	0	-
+TestBranchDef	=inherit	TestFamBase	-	0	0	-

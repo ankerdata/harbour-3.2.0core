@@ -47,6 +47,11 @@ extern void hb_fieldTypesFree( void );
    from the map (e.g. "PLUDef" for a "pludef" query), or NULL. */
 extern const char * hb_fieldTypesClassCanon( const char * szClass );
 
+/* Family-base parent of a def class (from `Class<TAB>=inherit<TAB>Base`
+   rows), or NULL. Lets class-widening land a polymorphic def-class
+   slot on its fully-typed family base instead of USUAL. */
+extern const char * hb_fieldTypesClassParent( const char * szClass );
+
 /* Look up a field accessor on a def class. Returns the C# type token
    (int|long|decimal|string|bool|date|timestamp) or NULL when the
    member isn't a mapped field (ORM base members like Seek/RecLock
