@@ -404,6 +404,7 @@ static struct
    const char * szName;
    int          iLine;
    HB_BOOL      fIndexUsed;
+   HB_BOOL      fSinkUsed;    /* value flows into an INTEGER sink (member/field/param) */
    HB_BOOL      fNonIntHard;
    HB_BOOL      fNonIntSoft;
    int          iNonIntLine;
@@ -413,6 +414,7 @@ static int s_iIntCand = 0;
 #define HB_INT_MARK_INDEX 1
 #define HB_INT_MARK_HARD  2
 #define HB_INT_MARK_SOFT  3
+#define HB_INT_MARK_SINK  4
 
 static void hb_auditIntMark( const char * szName, int iLine, int iKind )
 {
@@ -429,6 +431,7 @@ static void hb_auditIntMark( const char * szName, int iLine, int iKind )
       s_aIntCand[ s_iIntCand ].szName = szName;
       s_aIntCand[ s_iIntCand ].iLine = iLine;
       s_aIntCand[ s_iIntCand ].fIndexUsed = HB_FALSE;
+      s_aIntCand[ s_iIntCand ].fSinkUsed = HB_FALSE;
       s_aIntCand[ s_iIntCand ].fNonIntHard = HB_FALSE;
       s_aIntCand[ s_iIntCand ].fNonIntSoft = HB_FALSE;
       s_aIntCand[ s_iIntCand ].iNonIntLine = 0;
@@ -436,6 +439,8 @@ static void hb_auditIntMark( const char * szName, int iLine, int iKind )
    }
    if( iKind == HB_INT_MARK_INDEX )
       s_aIntCand[ i ].fIndexUsed = HB_TRUE;
+   else if( iKind == HB_INT_MARK_SINK )
+      s_aIntCand[ i ].fSinkUsed = HB_TRUE;
    else if( ! s_aIntCand[ i ].fNonIntHard && ! s_aIntCand[ i ].fNonIntSoft )
       s_aIntCand[ i ].iNonIntLine = iLine;
    if( iKind == HB_INT_MARK_HARD )
@@ -782,6 +787,56 @@ static const char * hb_typeEnvGet( HB_TYPEENV * pEnv, const char * szName )
    contract checks below. */
 static HB_BOOL hb_astOrmSeen( int iLine, const char * szKey );
 
+/* Concrete-class type test — defined with the propagation machinery
+   below; needed early by the SEND member-type consult. */
+static HB_BOOL hb_astIsClassType( const char * sz );
+
+/* Lean, depth-capped resolver for the CLASS a receiver expression
+   resolves to: variable receivers (Self / typeEnv class) and nested
+   object-member chains (`a:b:c`) via the class-typed member registry
+   (POSStatus::oClerk -> Clerk, name-seeded at scan). Deliberately NOT
+   hb_astInferExprType — it does only reftab hash lookups, no
+   constructor / ORM / operator inference, so calling it per SEND query
+   stays cheap. The recursive FULL-inference form once blew scan from
+   0.08s to 60s; the depth cap and lean body are what keep this safe. */
+static HB_BOOL hb_astIsClassType( const char * sz );  /* fwd, defined below */
+
+static const char * hb_astResolveRecvClass( PHB_EXPR pRecv,
+                                            HB_TYPEENV * pEnv, int iDepth )
+{
+   if( ! pRecv || iDepth > 3 || ! pEnv )
+      return NULL;
+
+   if( pRecv->ExprType == HB_ET_VARIABLE )
+   {
+      if( hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+         return pEnv->szSelfClass[ 0 ] ? pEnv->szSelfClass : NULL;
+      {
+         const char * szT = hb_typeEnvGet( pEnv,
+            pRecv->value.asSymbol.name );
+         return ( szT && hb_astIsClassType( szT ) ) ? szT : NULL;
+      }
+   }
+
+   if( pRecv->ExprType == HB_ET_SEND &&
+       pRecv->value.asMessage.szMessage && pEnv->pRefTab )
+   {
+      const char * szInner = hb_astResolveRecvClass(
+         pRecv->value.asMessage.pObject, pEnv, iDepth + 1 );
+      int iUp;
+      for( iUp = 0; szInner && iUp < 16; iUp++ )
+      {
+         const char * szMT = hb_refTabReturnType( pEnv->pRefTab,
+            hb_refTabMethodKey( szInner,
+               pRecv->value.asMessage.szMessage ) );
+         if( szMT && hb_astIsClassType( szMT ) )
+            return szMT;   /* the member is class-typed -> that class */
+         szInner = hb_refTabClassParent( pEnv->pRefTab, szInner );
+      }
+   }
+   return NULL;
+}
+
 /*
  * Infer the type of an expression using the type environment.
  * This extends hb_astInferFromExpr to handle variables and operators.
@@ -861,6 +916,34 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
                const char * szHb = hb_fieldTypesHbType( szCs );
                if( szHb )
                   return szHb;
+            }
+         }
+
+         /* Declared class-member types — `Class::member` reftab rows
+            registered from CLASS VAR ... AS <type> declarations at
+            scan time. This is what makes a cross-file
+            `oTransaction:nSaleClkNo` read as its declared AS INTEGER
+            instead of the Hungarian prefix (the type env only seeds
+            members of same-file classes). Walks the INHERIT chain so
+            subclass receivers see ancestor members. */
+         if( pExpr->value.asMessage.szMessage &&
+             pExpr->value.asMessage.pObject &&
+             pEnv && pEnv->pRefTab )
+         {
+            /* Resolve the receiver's class — variable OR nested chain
+               (oPOSStatus:oClerk:...) — then look the member up along
+               its INHERIT chain. */
+            const char * szCls = hb_astResolveRecvClass(
+               pExpr->value.asMessage.pObject, pEnv, 0 );
+            int iDepth;
+            for( iDepth = 0; szCls && iDepth < 16; iDepth++ )
+            {
+               const char * szMT = hb_refTabReturnType( pEnv->pRefTab,
+                  hb_refTabMethodKey( szCls,
+                     pExpr->value.asMessage.szMessage ) );
+               if( szMT )
+                  return szMT;
+               szCls = hb_refTabClassParent( pEnv->pRefTab, szCls );
             }
          }
 
@@ -1179,6 +1262,44 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                      pExpr->value.asOperator.pLeft->value.asSymbol.name,
                      pExpr->value.asOperator.pRight, pEnv, pfChanged );
                }
+               /* `hb_default(@param, <expr>)` types param from its
+                  default value — the idiom ORM helpers use to construct
+                  their table param in-body (`hb_default(@oTableIndex,
+                  ConstructORMTable(TableIndexDef()))`), which otherwise
+                  leaves the param slot generic OBJECT and every
+                  param:field read untyped. Routed through the same
+                  refinement as a plain `:=`, so it only upgrades an
+                  OBJECT/USUAL/unknown param, never overrides a
+                  caller-established class. */
+               else if( pExpr->ExprType == HB_ET_FUNCALL &&
+                        pExpr->value.asFunCall.pFunName &&
+                        pExpr->value.asFunCall.pFunName->ExprType ==
+                           HB_ET_FUNNAME &&
+                        pExpr->value.asFunCall.pFunName->value.asSymbol.name &&
+                        hb_stricmp(
+                           pExpr->value.asFunCall.pFunName->value.asSymbol.name,
+                           "HB_DEFAULT" ) == 0 )
+               {
+                  PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+                  PHB_EXPR pArg = ( pParms &&
+                     ( pParms->ExprType == HB_ET_LIST ||
+                       pParms->ExprType == HB_ET_ARGLIST ) )
+                     ? pParms->value.asList.pExprList : pParms;
+                  if( pArg && pArg->pNext )
+                  {
+                     const char * szVar = NULL;
+                     if( pArg->ExprType == HB_ET_VARREF )
+                        szVar = pArg->value.asSymbol.name;
+                     else if( pArg->ExprType == HB_ET_REFERENCE &&
+                              pArg->value.asReference &&
+                              pArg->value.asReference->ExprType ==
+                                 HB_ET_VARIABLE )
+                        szVar = pArg->value.asReference->value.asSymbol.name;
+                     if( szVar )
+                        hb_astPropagateVar( szVar, pArg->pNext,
+                                            pEnv, pfChanged );
+                  }
+               }
             }
             break;
 
@@ -1259,6 +1380,42 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    usable line without threading a parameter through every visit. */
 static int s_iObserveLine = 0;
 
+/* Mark the bare variables reachable through +,-,*,negate on the RHS of
+   an assignment whose LHS is an INTEGER sink (member/field/param). The
+   value is consumed in an integral context, so — absent a fractional
+   or division disqualifier already recorded against them — those
+   variables are themselves integral. Division / other shapes stop the
+   descent: a divided value flowing into an int member is the genuine
+   truncation W0029 exists to flag, not something to silently retype. */
+static void hb_astMarkSinkVars( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_VARIABLE:
+         hb_auditIntMark( pExpr->value.asSymbol.name, s_iObserveLine,
+                          HB_INT_MARK_SINK );
+         return;
+      case HB_EO_PLUS:
+      case HB_EO_MINUS:
+      case HB_EO_MULT:
+         hb_astMarkSinkVars( pExpr->value.asOperator.pLeft );
+         hb_astMarkSinkVars( pExpr->value.asOperator.pRight );
+         return;
+      case HB_EO_NEGATE:
+         hb_astMarkSinkVars( pExpr->value.asOperator.pLeft );
+         return;
+      default:
+         if( ( pExpr->ExprType == HB_ET_LIST ||
+               pExpr->ExprType == HB_ET_ARGLIST ) &&
+             pExpr->value.asList.pExprList &&
+             ! pExpr->value.asList.pExprList->pNext )
+            hb_astMarkSinkVars( pExpr->value.asList.pExprList );
+         return;
+   }
+}
+
 /* Provably-integral expression: safe as the RHS of an assignment to a
    C#-int variable. Conservative — anything unproven is non-integral.
    Literals without a fractional part, a small set of index-producing
@@ -1324,6 +1481,16 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       case HB_EO_POSTDEC:
          return hb_astExprIsIntegral( pExpr->value.asOperator.pLeft,
                                       pEnv, szSelf );
+      case HB_ET_SEND:
+         /* A member/field read that resolves to INTEGER — an ORM
+            int/long field (fieldtypes map) or an AS INTEGER member
+            (Class::member reftab row). Without this a `nX := oClerk:nNo`
+            initializer soft-disqualified nX from int candidacy, and the
+            sink pass below couldn't chain int-ness through it. */
+      {
+         const char * szT = hb_astInferExprType( pExpr, pEnv );
+         return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+      }
       default:
          return HB_FALSE;
    }
@@ -1686,6 +1853,22 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                else if( ! hb_astExprIsIntegral( pRhs, pEnv, szLhs ) )
                   hb_auditIntMark( szLhs, s_iObserveLine,
                                    HB_INT_MARK_SOFT );
+            }
+            /* Sink inference: `<intMember/field> := <expr>` — the RHS
+               flows into an INTEGER sink, so its bare variables are
+               integral candidates (drains the W0029 pile at the root
+               instead of casting at each write). Plain assignment only;
+               compound results are decimal-shaped. */
+            else if( pExpr->ExprType == HB_EO_ASSIGN &&
+                     pExpr->value.asOperator.pLeft &&
+                     pExpr->value.asOperator.pLeft->ExprType ==
+                        HB_ET_SEND &&
+                     pExpr->value.asOperator.pRight )
+            {
+               const char * szLT = hb_astInferExprType(
+                  pExpr->value.asOperator.pLeft, pEnv );
+               if( szLT && hb_stricmp( szLT, "INTEGER" ) == 0 )
+                  hb_astMarkSinkVars( pExpr->value.asOperator.pRight );
             }
             else if( ( pExpr->ExprType == HB_EO_MODEQ ||
                        pExpr->ExprType == HB_EO_DIVEQ ||
@@ -2219,7 +2402,68 @@ static void hb_astOrmAssignCheck( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       return;
    szClass = hb_astOrmRecvClass( pLhs->value.asMessage.pObject, pEnv );
    if( ! szClass )
+   {
+      /* not an ORM def class — a USER class member declared AS INTEGER
+         (scan-registered `Class::member` rows) gets the same W0029
+         narrowing check, mirroring the emitter's (long) coercion so
+         suspicious decimal writers stay visible at scan. */
+      PHB_EXPR pRecv = pLhs->value.asMessage.pObject;
+      const char * szCls = NULL;
+      if( pRecv && pRecv->ExprType == HB_ET_VARIABLE && pEnv->pRefTab )
+      {
+         if( hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+            szCls = pEnv->szSelfClass[ 0 ] ? pEnv->szSelfClass : NULL;
+         else
+         {
+            const char * szT = hb_typeEnvGet( pEnv,
+               pRecv->value.asSymbol.name );
+            if( szT && hb_astIsClassType( szT ) &&
+                ! hb_fieldTypesClassCanon( szT ) )
+               szCls = szT;
+         }
+      }
+      if( szCls )
+      {
+         int iDepth;
+         for( iDepth = 0; szCls && iDepth < 16; iDepth++ )
+         {
+            const char * szMT = hb_refTabReturnType( pEnv->pRefTab,
+               hb_refTabMethodKey( szCls,
+                  pLhs->value.asMessage.szMessage ) );
+            if( szMT )
+            {
+               if( hb_stricmp( szMT, "INTEGER" ) == 0 )
+               {
+                  const char * szRhsUT = hb_astInferExprType( pRhs, pEnv );
+                  if( szRhsUT && strcmp( szRhsUT, "NUMERIC" ) == 0 &&
+                      ! hb_astExprIsIntegral( pRhs, pEnv, NULL ) )
+                  {
+                     char szUSym[ 128 ];
+                     hb_snprintf( szUSym, sizeof( szUSym ), "%s:%s",
+                                  szCls, pLhs->value.asMessage.szMessage );
+                     /* AUDIT-ONLY (was scan-warning W0029). A plain
+                        decimal-into-AS-INTEGER-member write COMPILES —
+                        the emitter inserts the (long) cast — so this
+                        fails the "warning = definite fix, reaches zero"
+                        rule (most are correct as-is; intended
+                        truncations never clear). Demoted to the
+                        ORM-NARROW audit for deliberate truncation
+                        hunting; the compound /= %= ^= case below (a
+                        real CS0266) stays a warning. */
+                     if( ! hb_astOrmSeen( iLine, szUSym ) )
+                        hb_auditEmit( "ORM-NARROW", pEnv->szFile, iLine,
+                                      szUSym,
+                                      "decimal RHS into AS INTEGER member",
+                                      "long" );
+                  }
+               }
+               break;
+            }
+            szCls = hb_refTabClassParent( pEnv->pRefTab, szCls );
+         }
+      }
       return;
+   }
    szCs = hb_fieldTypesMember( szClass, pLhs->value.asMessage.szMessage,
                                NULL );
    if( ! szCs || strcmp( szCs, "method" ) == 0 )
@@ -2277,16 +2521,12 @@ static void hb_astOrmAssignCheck( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
           genuinely decimal-shaped values narrow */
        ! hb_astExprIsIntegral( pRhs, pEnv, NULL ) )
    {
+      /* AUDIT-ONLY (was scan-warning W0029) — plain decimal-into-int-
+         field write compiles via the emitter's (long) cast. Same
+         demotion rationale as the AS INTEGER member case above. */
       if( ! hb_astOrmSeen( iLine, szSym ) )
-      {
-         fprintf( stderr,
-            "hbtranspiler: %s(%d): warning W0029  "
-            "decimal-shaped value written into %s field '%s' — "
-            "wrap with Int() or retype the field (CS0266 in C#)\n",
-            pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?", iLine, szCs, szSym );
          hb_auditEmit( "ORM-NARROW", pEnv->szFile, iLine, szSym,
                        "decimal-shaped RHS into int/long field", szCs );
-      }
       return;
    }
 
@@ -3149,11 +3389,21 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       int i;
       for( i = 0; i < s_iIntCand; i++ )
       {
-         if( ! s_aIntCand[ i ].fIndexUsed )
+         /* Two positive signals earn INTEGER: index-shaped use (a
+            subscript MUST be int) and sink flow (the value is written
+            into an INTEGER member/field). Either, absent a
+            disqualifier, upgrades the local. */
+         if( ! s_aIntCand[ i ].fIndexUsed && ! s_aIntCand[ i ].fSinkUsed )
             continue;
          if( s_aIntCand[ i ].fNonIntHard )
          {
-            if( ! hb_astHungSeen( s_aIntCand[ i ].iNonIntLine,
+            /* Only the index signal warrants W0026: "you index with it
+               but it can't be int." A sink-only conflict (a fractional
+               value written into an int member) is already flagged as
+               W0029 at the write site — don't double-warn; just leave
+               it decimal. */
+            if( s_aIntCand[ i ].fIndexUsed &&
+                ! hb_astHungSeen( s_aIntCand[ i ].iNonIntLine,
                                   s_aIntCand[ i ].szName ) )
                fprintf( stderr,
                   "hbtranspiler: %s(%d): warning W0026  "

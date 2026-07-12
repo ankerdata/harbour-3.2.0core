@@ -2032,11 +2032,99 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
           pFirst->value.asFunc.pBody->type == HB_AST_BLOCK )
       {
          PHB_AST_NODE p = pFirst->value.asFunc.pBody->value.asBlock.pFirst;
-         while( p )
-         {
+         /* Sub-pass 0a: mark every class BEFORE registering members, so
+            the object-member name-seed below can guard on
+            hb_refTabIsClass(stem) — the stem's class may be declared
+            later in source order than the class that references it. */
+         for( ; p; p = p->pNext )
             if( p->type == HB_AST_CLASS && p->value.asClass.szName )
                hb_refTabMarkClass( pTab, p->value.asClass.szName,
                                    p->value.asClass.szParent );
+         p = pFirst->value.asFunc.pBody->value.asBlock.pFirst;
+         while( p )
+         {
+            if( p->type == HB_AST_CLASS && p->value.asClass.szName )
+            {
+               PHB_AST_NODE pMember;
+
+               /* Register declared member types as `Class::member`
+                  rows (a namespace distinct from method keys, whose
+                  tails are always `Class__Method`). This is what lets
+                  a cross-file `oTransaction:nSaleClkNo` read type as
+                  the declared AS INTEGER instead of falling back to
+                  the Hungarian prefix — the missing half of member
+                  annotations (emission honored them; inference only
+                  saw same-file Self sends). */
+               for( pMember = p->value.asClass.pMembers; pMember;
+                    pMember = pMember->pNext )
+               {
+                  const char * szTag = NULL;
+                  const char * szT;
+
+                  if( pMember->type != HB_AST_CLASSDATA ||
+                      ! pMember->value.asClassData.szName ||
+                      ! pMember->value.asClassData.szType )
+                     continue;
+                  szT = pMember->value.asClassData.szType;
+
+                  if( hb_stricmp( szT, "INTEGER" ) == 0 ||
+                      hb_stricmp( szT, "int" ) == 0 )
+                     szTag = "INTEGER";
+                  else if( hb_stricmp( szT, "NUMERIC" ) == 0 )
+                     szTag = "NUMERIC";
+                  else if( hb_stricmp( szT, "CHARACTER" ) == 0 ||
+                           hb_stricmp( szT, "STRING" ) == 0 ||
+                           hb_stricmp( szT, "Char" ) == 0 )
+                     szTag = "STRING";
+                  else if( hb_stricmp( szT, "LOGICAL" ) == 0 ||
+                           hb_stricmp( szT, "Logic" ) == 0 )
+                     szTag = "LOGICAL";
+                  else if( hb_stricmp( szT, "DATE" ) == 0 )
+                     szTag = "DATE";
+                  else if( hb_stricmp( szT, "TIMESTAMP" ) == 0 )
+                     szTag = "TIMESTAMP";
+                  else if( hb_stricmp( szT, "ARRAY" ) == 0 )
+                     szTag = "ARRAY";
+                  else if( hb_stricmp( szT, "HASH" ) == 0 )
+                     szTag = "HASH";
+                  else if( hb_stricmp( szT, "OBJECT" ) == 0 )
+                  {
+                     /* Name-seed an object member to its class:
+                        `VAR oClerk AS OBJECT` -> class Clerk (the
+                        Hungarian o+ClassName convention W0025 already
+                        enforces). This is what lets a nested chain
+                        `oPOSStatus:oClerk:nNo` resolve — the receiver
+                        oClerk gets a class, then :nNo resolves against
+                        it. A stem that names no real class just fails
+                        the later Class::member lookup, so it's safe to
+                        register unconditionally. */
+                     const char * szM = pMember->value.asClassData.szName;
+                     if( szM && ( szM[ 0 ] == 'o' || szM[ 0 ] == 'O' ) &&
+                         szM[ 1 ] >= 'A' && szM[ 1 ] <= 'Z' &&
+                         hb_refTabIsClass( pTab, szM + 1 ) )
+                        /* stem must name a REAL class — else a bogus
+                           name (oPLU -> "PLU", oOrmTable -> "OrmTable")
+                           would propagate as a receiver type and poison
+                           the ORM contract checks + emission (CS0246). */
+                        szTag = szM + 1;
+                  }
+                  /* other tags (CODEBLOCK, class names, ...) add no
+                     inference value yet — skip rather than guess */
+
+                  if( szTag )
+                  {
+                     const char * szKey = hb_refTabMethodKey(
+                        p->value.asClass.szName,
+                        pMember->value.asClassData.szName );
+                     /* AddFunc first: it sets fDefined, without which
+                        the save loop drops the row and the per-file
+                        scan processes never share member types. */
+                     hb_refTabAddFunc( pTab, szKey, 0, NULL, NULL,
+                                       HB_FALSE );
+                     hb_refTabSetReturnType( pTab, szKey, szTag );
+                  }
+               }
+            }
             p = p->pNext;
          }
       }

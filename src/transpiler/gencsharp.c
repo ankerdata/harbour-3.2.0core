@@ -146,6 +146,7 @@ static const char * hb_csHashKeyCsFor( const char * szType )
 }
 
 static const char * hb_csLocalTypeGet( const char * szName );
+static HB_BOOL hb_csSendMemberIsInteger( PHB_EXPR pSend );
 
 /* Writes into an INTEGER-typed variable need an (int) coercion for
    anything but an int literal: the classifier proved integral-ness in
@@ -175,6 +176,9 @@ static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
                        hb_stricmp( szCs, "long" ) == 0 ) )
             return HB_FALSE;
       }
+      /* declared-integral user-class member reads are already long */
+      if( hb_csSendMemberIsInteger( pExpr ) )
+         return HB_FALSE;
    }
 
    return HB_TRUE;
@@ -245,6 +249,8 @@ static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
                                    strcmp( szCs, "long" ) == 0 );
                }
             }
+            /* user-class members declared AS INTEGER */
+            return hb_csSendMemberIsInteger( pExpr );
          }
          return HB_FALSE;
 
@@ -271,6 +277,46 @@ static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
        pExpr->value.asList.pExprList &&
        ! pExpr->value.asList.pExprList->pNext )
       return hb_csExprIsCsIntegral( pExpr->value.asList.pExprList );
+   return HB_FALSE;
+}
+
+static HB_BOOL hb_csSendMemberIsInteger( PHB_EXPR pSend )
+{
+   PHB_EXPR pRecv;
+   const char * szCls;
+   int iDepth;
+
+   if( ! pSend || pSend->ExprType != HB_ET_SEND ||
+       ! pSend->value.asMessage.szMessage )
+      return HB_FALSE;
+   pRecv = pSend->value.asMessage.pObject;
+   if( ! pRecv || pRecv->ExprType != HB_ET_VARIABLE )
+      return HB_FALSE;
+   if( hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+      return hb_csMemberIsInteger( pSend->value.asMessage.szMessage );
+   szCls = hb_csLocalTypeGet( pRecv->value.asSymbol.name );
+   if( ! szCls )
+      return HB_FALSE;
+   /* ORM def-class field (map, not reftab) — integral tokens are C#
+      long, so a decimal write needs the same coercion as an AS INTEGER
+      member (oClock.nClerkNo = nDecimalLocal). */
+   if( hb_fieldTypesClassCanon( szCls ) )
+   {
+      const char * szCs = hb_fieldTypesMember( szCls,
+         pSend->value.asMessage.szMessage, NULL );
+      return szCs && ( hb_stricmp( szCs, "int" ) == 0 ||
+                       hb_stricmp( szCs, "long" ) == 0 );
+   }
+   if( ! s_pRefTab || ! hb_refTabIsClass( s_pRefTab, szCls ) )
+      return HB_FALSE;
+   for( iDepth = 0; szCls && iDepth < 16; iDepth++ )
+   {
+      const char * szMT = hb_refTabReturnType( s_pRefTab,
+         hb_refTabMethodKey( szCls, pSend->value.asMessage.szMessage ) );
+      if( szMT )
+         return hb_stricmp( szMT, "INTEGER" ) == 0;
+      szCls = hb_refTabClassParent( s_pRefTab, szCls );
+   }
    return HB_FALSE;
 }
 
@@ -3855,18 +3901,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                             HB_ET_VARIABLE &&
                          hb_csVarIsInteger(
                             pExpr->value.asOperator.pLeft->value.asSymbol.name ) ) ||
-                       ( pExpr->value.asOperator.pLeft->ExprType ==
-                            HB_ET_SEND &&
-                         pExpr->value.asOperator.pLeft->value.asMessage.pObject &&
-                         pExpr->value.asOperator.pLeft->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
-                         hb_stricmp( pExpr->value.asOperator.pLeft->value.asMessage.pObject->value.asSymbol.name,
-                                     "Self" ) == 0 &&
-                         hb_csMemberIsInteger(
-                            pExpr->value.asOperator.pLeft->value.asMessage.szMessage ) ) ) &&
+                       hb_csSendMemberIsInteger(
+                          pExpr->value.asOperator.pLeft ) ) &&
                      hb_csNeedsIntCast( pExpr->value.asOperator.pRight ) )
             {
-               /* Write into an int-typed variable or `as int` class
-                  member — coerce the RHS. */
+               /* Write into an int-typed variable or a class member
+                  declared integral (Self `as int`, or any class-typed
+                  receiver's AS INTEGER member via the scan-registered
+                  Class::member reftab rows) — coerce the RHS. */
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
                fprintf( yyc, " = (long)(" );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
@@ -6287,6 +6329,14 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             szSlotType = pP->szType;
          if( ! szSlotType )
             szSlotType = hb_astInferType( pVar->szName, NULL );
+
+         /* Register the param in the local-type map (reset just above,
+            before the body walk) so member-typed emission — the (long)
+            write coercion into AS INTEGER members, ORM field lookups —
+            sees a class-typed receiver arriving as a parameter, e.g.
+            SetTableHeader(oTransaction, ...). Without this only
+            self-constructed objects were typed. */
+         hb_csLocalTypeSet( pVar->szName, szSlotType );
 
          if( nParam > 0 || fIsMain )
             fprintf( yyc, ", " );

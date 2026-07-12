@@ -70,7 +70,7 @@ public static partial class Program
         // through-base copy: branch takes 5/Alpha
         Stamp(oBranch, oDept);
         // then diverges: 9
-        oBranch.nNo = oBranch.nNo + 4;
+        oBranch.nNo = (long)(oBranch.nNo + 4);
         oBranch.cName = "Beta";
         oDept.nClerkNo = 9999999999;
         oBranch.nRegion = 42;
