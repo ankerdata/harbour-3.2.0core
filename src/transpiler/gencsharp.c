@@ -2414,6 +2414,21 @@ static HB_BOOL hb_csInlineHasTopLevelComma( const char * szVal )
    return HB_FALSE;
 }
 
+/* Trim leading and trailing blanks in place. */
+static void hb_csTrimBoth( char * sz )
+{
+   char *  p = sz;
+   HB_SIZE n;
+
+   while( *p == ' ' || *p == '\t' )
+      p++;
+   if( p != sz )
+      memmove( sz, p, strlen( p ) + 1 );
+   n = strlen( sz );
+   while( n > 0 && ( sz[ n - 1 ] == ' ' || sz[ n - 1 ] == '\t' ) )
+      sz[ --n ] = '\0';
+}
+
 static const char * hb_csTranslateInit( const char * szVal )
 {
    static char s_szBuf[ 512 ];
@@ -2421,6 +2436,7 @@ static const char * hb_csTranslateInit( const char * szVal )
 
    if( ! szVal )
       return szVal;
+
 
    nLen = strlen( szVal );
 
@@ -2507,6 +2523,77 @@ static const char * hb_csTranslateInit( const char * szVal )
          s_szBuf[ nLen ] = 'm';
          s_szBuf[ nLen + 1 ] = '\0';
          return s_szBuf;
+      }
+   }
+
+   /* `{ |a, b| expr }` — a codeblock initialiser. The INLINE
+      translator below has no notion of codeblock syntax and passes the
+      braces through verbatim, emitting `{ || true }` into C# (CS1525
+      invalid expression term). Lower it to the same shape the AST
+      emitter produces for HB_ET_CODEBLOCK: an explicit Func<> cast,
+      needed because C# cannot infer a delegate type for a lambda
+      assigned to a `dynamic` field. Arity comes from the parameter
+      list, and the body goes through the INLINE translator with those
+      parameters declared so they are not mistaken for functions. */
+   {
+      const char * p = szVal;
+
+      while( *p == ' ' || *p == '\t' )
+         p++;
+      if( *p == '{' )
+      {
+         const char * pBar = NULL;
+         p++;
+         while( *p == ' ' || *p == '\t' )
+            p++;
+         if( *p == '|' )
+            pBar = strchr( p + 1, '|' );
+         if( pBar )
+         {
+            const char * pClose = strrchr( pBar, '}' );
+
+            if( pClose && pClose > pBar )
+            {
+               static char s_szCB[ 1024 ];
+               char szParams[ 256 ], szBody[ 512 ];
+               HB_SIZE nP = ( HB_SIZE ) ( pBar - ( p + 1 ) );
+               HB_SIZE nB = ( HB_SIZE ) ( pClose - ( pBar + 1 ) );
+
+               if( nP < sizeof( szParams ) && nB < sizeof( szBody ) )
+               {
+                  int iCount = 0, iOff = 0, j;
+                  char szFunc[ 160 ];
+                  const char * q;
+
+                  memcpy( szParams, p + 1, nP );
+                  szParams[ nP ] = '\0';
+                  memcpy( szBody, pBar + 1, nB );
+                  szBody[ nB ] = '\0';
+                  hb_csTrimBoth( szParams );
+                  hb_csTrimBoth( szBody );
+
+                  if( *szParams )
+                  {
+                     iCount = 1;
+                     for( q = szParams; *q; q++ )
+                        if( *q == ',' )
+                           iCount++;
+                  }
+
+                  szFunc[ 0 ] = '\0';
+                  for( j = 0; j <= iCount &&
+                       iOff < ( int ) sizeof( szFunc ) - 12; j++ )
+                     iOff += hb_snprintf( szFunc + iOff,
+                                          sizeof( szFunc ) - iOff,
+                                          "dynamic%s", j < iCount ? ", " : "" );
+
+                  hb_snprintf( s_szCB, sizeof( s_szCB ),
+                               "((Func<%s>)((%s) => %s))", szFunc, szParams,
+                               hb_csTranslateInline( szBody, szParams ) );
+                  return s_szCB;
+               }
+            }
+         }
       }
    }
 
