@@ -715,6 +715,16 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
       {
          if( pEnv->entries[ i ].fFrozen )
             return HB_FALSE;
+         /* A write that stores the same type is not a change. Callers
+            OR this into pfChanged and pass 2 loops while fChanged, so
+            reporting a no-op write as a change spins on an env that
+            has already stabilised. hb_typeEnvFreeze below already
+            compares before reporting; this is the same guard here. */
+         if( pEnv->entries[ i ].szType == szType )
+            return HB_FALSE;
+         if( pEnv->entries[ i ].szType && szType &&
+             hb_stricmp( pEnv->entries[ i ].szType, szType ) == 0 )
+            return HB_FALSE;
          pEnv->entries[ i ].szType = szType;
          return HB_TRUE;
       }
@@ -1158,6 +1168,20 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
        hb_astIsNameSeededClass( szVarName, szCurType ) )
    {
       const char * szNewType = hb_astInferExprType( pRHS, pEnv );
+      /* OBJECT is the generic `o`-prefix fallback, strictly weaker than
+         a concrete class: refining OBJECT -> Transaction is an upgrade,
+         the reverse is not. Without this guard a name-seeded class is
+         treated as overridable (see the condition above), so one
+         assignment whose RHS infers OBJECT and another that infers the
+         class ping-pong the slot forever — each write reports a change
+         and pass 2 loops while fChanged. The fFrozen guard below only
+         covers the USUAL <-> class case, not OBJECT <-> class.
+         Reproduced by easiposx/fsplitpl.prg with FnSplitPLU's params
+         still un-refined (oTransaction1:OBJECT) in the reftab. */
+      if( szNewType && szCurType &&
+          strcmp( szNewType, "OBJECT" ) == 0 &&
+          hb_astIsClassType( szCurType ) )
+         szNewType = NULL;
       if( szNewType && ( ! szCurType || strcmp( szCurType, szNewType ) != 0 ) )
       {
          /* Only mark the fixed-point loop dirty when the env actually
