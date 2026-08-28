@@ -327,7 +327,15 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
       if( ! s_pAuditFile )
          return;
       /* Fresh file — write the self-describing header. Appending
-         invocations (one per source file) land mid-file and skip it. */
+         invocations (one per source file) land mid-file and skip it.
+
+         Seek to the end first: ftell() on a stream just opened in
+         append mode is implementation-defined. glibc positions at
+         end-of-file so the size comes back non-zero, but MSVC reports
+         0 until the first write — which made every one of the ~250
+         invocations re-emit the 41-line header, burying the 1803 data
+         rows under 10k lines of repeated comment. */
+      fseek( s_pAuditFile, 0, SEEK_END );
       if( ftell( s_pAuditFile ) == 0 )
          fprintf( s_pAuditFile,
 "# Harbour transpiler type-insufficiency audit (--type-audit)\n"
