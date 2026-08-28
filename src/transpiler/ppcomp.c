@@ -48,9 +48,36 @@
 #include "hbcomp.h"
 #ifdef HB_TRANSPILER
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>        /* getpid, unlink for preload scratch files */
+#if defined( HB_OS_WIN )
+#  include <process.h>   /* _getpid for preload scratch files */
+#else
+#  include <unistd.h>    /* getpid for preload scratch files */
+#endif
 #include "hbast.h"
+
+#if defined( _MSC_VER )
+#  define HB_PRELOAD_GETPID()  _getpid()
+#else
+#  define HB_PRELOAD_GETPID()  getpid()
+#endif
+
+/* Directory for the preload scratch files. On Windows P_tmpdir is
+   "\\" — the root of the current drive, which is normally not
+   writable — so honour TEMP/TMP there instead. */
+static const char * hb_compPreloadTmpDir( void )
+{
+#if defined( HB_OS_WIN )
+   const char * pszDir = getenv( "TEMP" );
+
+   if( ! pszDir || ! *pszDir )
+      pszDir = getenv( "TMP" );
+   return ( pszDir && *pszDir ) ? pszDir : ".";
+#else
+   return P_tmpdir ? P_tmpdir : "/tmp";
+#endif
+}
 
 /* Optional path to a project-specific preload list. Set via
    --preload-list=<path> on the command line. The file names one
@@ -742,14 +769,15 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
                      char szTmp[ HB_PATH_MAX ];
                      static unsigned s_iPreloadSeq = 0;
                      hb_snprintf( szTmp, sizeof( szTmp ),
-                                  "%s/hbpreload_%u_%u.ch",
-                                  P_tmpdir ? P_tmpdir : "/tmp",
-                                  ( unsigned ) getpid(),
+                                  "%s%chbpreload_%u_%u.ch",
+                                  hb_compPreloadTmpDir(),
+                                  HB_OS_PATH_DELIM_CHR,
+                                  ( unsigned ) HB_PRELOAD_GETPID(),
                                   ++s_iPreloadSeq );
                      if( hb_compPreloadFilter( szResolved, szTmp ) )
                      {
                         hb_pp_readRules( HB_COMP_PARAM->pLex->pPP, szTmp );
-                        unlink( szTmp );
+                        remove( szTmp );
                      }
                      else
                      {

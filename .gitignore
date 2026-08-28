@@ -43,6 +43,7 @@ obj
 .vscode
 *.code-workspace
 build.log
+build-arm64.log
 
 # Claude Code session data (transcripts, settings)
 /.claude/

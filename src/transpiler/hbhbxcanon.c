@@ -14,9 +14,8 @@
 
 #include "hbcomp.h"
 #include "hbhbxcanon.h"
+#include "hbapifs.h"
 #include <ctype.h>
-#include <dirent.h>
-#include <sys/stat.h>
 
 typedef struct
 {
@@ -172,43 +171,47 @@ HB_BOOL hb_hbxCanonLoad( const char * szPath )
    an error — auto-load callers silently accept that). */
 HB_SIZE hb_hbxCanonLoadDir( const char * szDir, HB_BOOL fRecurse )
 {
-   DIR *           dp;
-   struct dirent * de;
-   HB_SIZE         nLoaded = 0;
-   char            szPath[ HB_PATH_MAX ];
+   PHB_FFIND ffind;
+   HB_SIZE   nLoaded = 0;
+   char      szMask[ HB_PATH_MAX ];
+   char      szPath[ HB_PATH_MAX ];
 
    if( ! szDir || ! *szDir )
       return 0;
-   dp = opendir( szDir );
-   if( ! dp )
+
+   hb_snprintf( szMask, sizeof( szMask ), "%s%c*",
+                szDir, HB_OS_PATH_DELIM_CHR );
+
+   /* HB_FA_DIRECTORY in the mask makes directories show up alongside
+      regular files; hidden and system entries stay filtered out. */
+   ffind = hb_fsFindFirst( szMask, HB_FA_DIRECTORY );
+   if( ! ffind )
       return 0;
 
-   while( ( de = readdir( dp ) ) != NULL )
+   do
    {
-      struct stat st;
-      HB_SIZE     nLen;
+      HB_SIZE nLen;
 
-      if( de->d_name[ 0 ] == '.' )
+      if( ffind->szName[ 0 ] == '.' )
          continue;
-      hb_snprintf( szPath, sizeof( szPath ), "%s/%s", szDir, de->d_name );
-      if( stat( szPath, &st ) != 0 )
-         continue;
-      if( S_ISDIR( st.st_mode ) )
+      hb_snprintf( szPath, sizeof( szPath ), "%s%c%s",
+                   szDir, HB_OS_PATH_DELIM_CHR, ffind->szName );
+      if( ( ffind->attr & HB_FA_DIRECTORY ) != 0 )
       {
          if( fRecurse )
             nLoaded += hb_hbxCanonLoadDir( szPath, HB_FALSE );
          continue;
       }
-      if( ! S_ISREG( st.st_mode ) )
-         continue;
-      nLen = strlen( de->d_name );
+      nLen = strlen( ffind->szName );
       if( nLen < 5 ||
-          strcmp( de->d_name + nLen - 4, ".hbx" ) != 0 )
+          strcmp( ffind->szName + nLen - 4, ".hbx" ) != 0 )
          continue;
       if( hb_hbxCanonLoad( szPath ) )
          nLoaded++;
    }
-   closedir( dp );
+   while( hb_fsFindNext( ffind ) );
+
+   hb_fsFindClose( ffind );
    return nLoaded;
 }
 

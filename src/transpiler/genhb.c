@@ -195,7 +195,7 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_NUMERIC:
          if( pExpr->value.asNum.NumType == HB_ET_LONG )
-            fprintf( yyc, "%" HB_PFS "d", pExpr->value.asNum.val.l );
+            fprintf( yyc, "%" HB_PF64 "d", pExpr->value.asNum.val.l );
          else
             fprintf( yyc, "%.*f", pExpr->value.asNum.bDec,
                      pExpr->value.asNum.val.d );

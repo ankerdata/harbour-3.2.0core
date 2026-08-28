@@ -10,22 +10,36 @@ repo (see its CLAUDE.md and README.md).
 
 ```
 cp src/transpiler/harbour.yyc src/transpiler/harboury.c   # ALWAYS after editing harbour.yyc
-bash src/transpiler/build.sh                              # → bin/hbtranspiler
+bash src/transpiler/build.sh                              # → bin/hbtranspiler (macOS/Linux)
+src\transpiler\build.bat                                  # → bin/hbtranspiler.exe (Windows/MSVC)
 bash src/transpiler/tests/verify.sh                       # full suite (~60 s)
 ```
 
 - The build compiles `harboury.c`, not `harbour.yyc`. Forgetting the
   copy makes grammar edits silently no-ops.
-- `build.sh`'s source list is the truth. The transpiler is AST-only:
+- `build.sh`'s source list is the truth, and `build.bat` carries the
+  same list — a new `.c` must be added to BOTH or the Windows build
+  breaks at link time. The transpiler is AST-only:
   `pcodestubs.c` replaces `hbpcode.c`; base expression constructors
   live in the prebuilt `libhbcommon.a`, so hooks must go in compiled
   TUs (`complex.c`, `harboury.c`, `gencsharp.c`), not `src/common/`.
 - `gencsharp.c` compiles with `-w` — a duplicate tentative definition
   once merged two registries silently (SIGSEGV). Keep an eye on it.
-- Windows build of the transpiler itself is an open item; `build.sh`
-  is bash/clang.
+- Windows build works (`build.bat`, MSVC/x86, links the `hbcommon` +
+  `hbnortl` that `call-win-make.bat` produces). Verified by
+  regenerating `tests/hbout/` + `tests/csout/` — 186 tracked reference
+  files, byte-identical to the macOS output.
+- On an ARM64 Windows host, prefer the native build: run
+  `call-win-make-arm64.bat`, then `build.bat` with `HB_ARCH=arm64`,
+  `HB_LIBDIR=lib\win\msvcarm64` and
+  `HB_OUT=bin\hbtranspiler-arm64.exe`. The x86 binary runs under
+  emulation and is ~2x slower (easipos scan 21m47s vs 10m52s); output
+  is byte-identical. `build.bat` defaults to x86 deliberately —
+  `PROCESSOR_ARCHITECTURE` reads `AMD64` inside an emulated shell, so
+  auto-detection would silently pick the wrong target.
 
-Run modes: `-GS` C# emit, `-GT` Harbour `.hb` round-trip, `-GF -q`
+Run modes: `-GS` C# emit, `-GT` Harbour round-trip (emits `.prg` into
+`-o<dir>/` — without `-o` it overwrites the input), `-GF -q`
 scan-only (populate `--reftab=`). Flags the pipeline always passes:
 `--reftab --preload-list --var-types --defines-map --fieldtypes
 --filename-casing -DECR -DMULTITHREAD` plus the include paths — see

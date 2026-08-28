@@ -43,7 +43,7 @@ static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
    if( pDim->ExprType == HB_ET_NUMERIC &&
        pDim->value.asNum.NumType == HB_ET_LONG )
    {
-      fprintf( yyc, "%" HB_PFS "d", pDim->value.asNum.val.l );
+      fprintf( yyc, "%" HB_PF64 "d", pDim->value.asNum.val.l );
       return;
    }
    fprintf( yyc, "(long)(" );
@@ -2701,7 +2701,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_NUMERIC:
          if( pExpr->value.asNum.NumType == HB_ET_LONG )
-            fprintf( yyc, "%" HB_PFS "d", pExpr->value.asNum.val.l );
+            fprintf( yyc, "%" HB_PF64 "d", pExpr->value.asNum.val.l );
          else
             fprintf( yyc, "%.*fm", pExpr->value.asNum.bDec,
                      pExpr->value.asNum.val.d );
@@ -3291,7 +3291,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      pIdx->ExprType == HB_ET_NUMERIC &&
                      pIdx->value.asNum.NumType == HB_ET_LONG )
             {
-               fprintf( yyc, "[%" HB_PFS "d]",
+               fprintf( yyc, "[%" HB_PF64 "d]",
                         pIdx->value.asNum.val.l - 1 );
             }
             /* INTEGER-typed variable index (Pass 2.5 int candidacy) —

@@ -1,7 +1,7 @@
 # Harbour Transpiler
 
 A whole-program source-to-source transpiler that turns Harbour `.prg`
-code into either canonical Harbour `.hb` (round-trip) or strongly-typed
+code into either canonical Harbour `.prg` (round-trip) or strongly-typed
 C# `.cs`.
 
 It is built **on top of** the Harbour 3.2 compiler front-end: it reuses
@@ -23,14 +23,17 @@ strongly-typed C# output from dynamically-typed Harbour source.
 ## Quick start
 
 ```bash
-# Build the transpiler.
-bash src/transpiler/build.sh
+# Build the transpiler — pick the one for your platform.
+bash src/transpiler/build.sh      # macOS/Linux (clang)
+src\transpiler\build.bat          # Windows (MSVC)
 
-# Round-trip a single .prg through the transpiler back to .hb.
-bin/hbtranspiler -Iinclude src/transpiler/tests/test1.prg -GT
+# Round-trip a single .prg back to canonical Harbour. Always pass -o:
+# -GT output keeps the .prg extension, so without it the input file
+# is overwritten in place.
+bin/hbtranspiler -Iinclude -osrc/transpiler/tests/hbout/ src/transpiler/tests/test1.prg -GT
 
 # Generate C# from a single .prg.
-bin/hbtranspiler -Iinclude src/transpiler/tests/test1.prg -GS
+bin/hbtranspiler -Iinclude -osrc/transpiler/tests/csout/ src/transpiler/tests/test1.prg -GS
 ```
 
 For multi-file projects, see [Whole-codebase workflow](#whole-codebase-workflow)
@@ -45,11 +48,11 @@ The transpiler is invoked the same way as the Harbour compiler. The
 
 | Flag  | Output                  | Description                                          |
 |-------|--------------------------|------------------------------------------------------|
-| `-GT` | `<file>.hb`              | Round-trip to canonical Harbour source              |
+| `-GT` | `<o-dir>/<file>.prg`     | Round-trip to canonical Harbour source — pass `-o`  |
 | `-GS` | `<file>.cs`              | Strongly-typed C# source                             |
 | `-GF` | *(none — updates table)* | Function-table scan only; required before `-GS`/`-GT` on multi-file projects |
 
-`-GT` is useful as a regression test: re-parsing the generated `.hb`
+`-GT` is useful as a regression test: re-parsing the generated `.prg`
 under stock Harbour should produce a binary that runs identically to
 the binary built from the original `.prg`. The test suite enforces
 this on every test (see [tests/](tests/)).
@@ -58,7 +61,7 @@ Additional CLI flags:
 
 | Flag                    | Purpose                                                           |
 |-------------------------|-------------------------------------------------------------------|
-| `-o<dir>/`              | Redirect `.cs` / `.hb` output to `<dir>/` instead of alongside the `.prg` |
+| `-o<dir>/`              | Redirect `.cs` / `.prg` output to `<dir>/` instead of alongside the source. **Required for `-GT`**, whose output shares the `.prg` extension and otherwise overwrites the input |
 | `--reftab=<path>`       | Override the default `hbreftab.tab` location                      |
 | `--defines-map=<path>`  | Qualify identifier references to per-source `<Name>Const` classes and type `#define` references (see [Defines map](#defines-map)) |
 | `--fieldtypes=<path>`   | ORM def-class field-type map (`fieldtypes.tsv`) — `ConstructORMTable(XxxDef())` receivers type as class `XxxDef` and their field accesses resolve to exact C# types (see [ORM def-class typing](#orm-def-class-typing)) |
@@ -102,7 +105,7 @@ canonical command line).
    (genscan.c)      (genhb.c)            (gencsharp.c)
         │                │                │
         ▼                ▼                ▼
-  hbreftab.tab         .hb              .cs
+  hbreftab.tab         .prg             .cs
 ```
 
 The AST is built once during parsing and is then walked by whichever
@@ -796,10 +799,10 @@ arg shape ──┤
 
 ---
 
-## `.hb` round-trip emitter (`-GT`)
+## Harbour round-trip emitter (`-GT`)
 
 The `-GT` mode regenerates idiomatic Harbour from the AST. Its job is
-to be the test oracle: a `.prg` → `.hb` → compile-with-stock-Harbour
+to be the test oracle: a `.prg` → transpiled `.prg` → compile-with-stock-Harbour
 loop should produce a working binary, semantically equivalent to the
 direct `.prg` → compile path.
 
@@ -808,7 +811,7 @@ A few non-obvious things it preserves:
 - **`AS TYPE` annotations** on locals, parameters, and return values
   (inferred when not in the source). Stripped at parse time by
   [`include/astype.ch`](../../include/astype.ch) which is auto-included
-  by every emitted `.hb` so stock Harbour ignores the annotations.
+  by every emitted file so stock Harbour ignores the annotations.
   Parameter types come from the same `hbreftab.tab` the C# emitter
   uses, so the two outputs stay in lockstep.
 - **`@` at call sites** — `Foo(@x, @y)` round-trips intact.
@@ -851,12 +854,12 @@ bash verify.sh
 # Or run individual stages:
 bash runtests.sh    # Round-trip every .prg through -GT
 bash buildprg.sh    # Compile each .prg with stock Harbour (baseline)
-bash buildhb.sh     # Compile each generated .hb with stock Harbour
+bash buildhb.sh     # Compile each generated hbout/*.prg with stock Harbour
 bash buildcs.sh     # Compile each generated .cs with dotnet
 bash runprg.sh      # Run prgexe/ and record stdout
 bash runhb.sh       # Run hbexe/ and record stdout
 bash runcs.sh       # Run csexe/ via dotnet run and record stdout
-bash comparehb.sh   # .hb stdout must match .prg stdout
+bash comparehb.sh   # round-trip stdout must match original .prg stdout
 bash comparecs.sh   # .cs stdout must match .prg stdout
 bash errors/run.sh  # Negative tests — each .prg must fail -GS with a specific error
 ```
