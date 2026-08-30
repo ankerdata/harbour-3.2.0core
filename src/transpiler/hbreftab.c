@@ -1767,6 +1767,36 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
             }
          }
 
+         /* Typed receiver: `GetsoEasiCdS():GetPrepaidCard(@aHistory)`.
+            The accessor's recorded return type names the class, so the
+            send resolves to the same canonical key a Self-call builds.
+            hb_refTabScanArgList needs that key for the by-ref
+            reassignment propagation: without it, a parameter the caller
+            only forwards with `@` into a reassigning method never gets
+            its own W flag, its `ref` is elided, and the callee's
+            `aHistory := {}` lands in a local the caller never sees.
+            Keyed on a RESOLVED class, so this does not reopen the
+            bare-method-name over-marking described above. */
+         if( ! szLookup && szMethod )
+         {
+            PHB_EXPR pObj = pExpr->value.asMessage.pObject;
+
+            if( pObj && pObj->ExprType == HB_ET_FUNCALL &&
+                pObj->value.asFunCall.pFunName &&
+                pObj->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+            {
+               const char * szType = hb_refTabReturnType( pTab,
+                  pObj->value.asFunCall.pFunName->value.asSymbol.name );
+
+               if( szType && hb_refTabIsClass( pTab, szType ) )
+               {
+                  hb_snprintf( szKeyBuf, sizeof( szKeyBuf ), "%s::%s__%s",
+                               szType, szType, szMethod );
+                  szLookup = szKeyBuf;
+               }
+            }
+         }
+
          hb_refTabScanExpr( pTab, pExpr->value.asMessage.pObject, pCtx );
          hb_refTabScanArgList( pTab, szLookup,
                                pExpr->value.asMessage.pParms, pCtx );
