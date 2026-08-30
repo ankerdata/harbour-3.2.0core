@@ -237,20 +237,38 @@ void hb_hbxCanonAutoLoad( const char * szExePath )
       so a dev checkout layout picks up its own hbx files even when
       cwd points elsewhere (e.g. easipos-transpiled runs gen-cs from
       its own root, not from harbour-core). */
-   if( szExePath && strchr( szExePath, '/' ) )
+   if( szExePath )
    {
-      const char * slash = strrchr( szExePath, '/' );
-      HB_SIZE      nBinDir = ( HB_SIZE ) ( slash - szExePath );
+      const char * slash  = strrchr( szExePath, '/' );
+#if defined( HB_OS_WIN )
+      /* Windows hands us a backslash path (HBTRANSPILER is set to
+         an absolute name like C:\dev\harbour-core\bin\hbtranspiler.exe),
+         so testing only for '/' skipped this branch entirely and
+         left the canon set empty - every RTL name then emitted bare
+         and lower-cased instead of HbRuntime.<CanonicalName>. Take
+         whichever separator comes last so a mixed path works too. */
+      const char * bslash = strrchr( szExePath, '\\' );
+#endif
       char         szPrefix[ HB_PATH_MAX ];
-      if( nBinDir + 12 < sizeof( szPrefix ) )
+      HB_SIZE      nBinDir;
+
+#if defined( HB_OS_WIN )
+      if( ! slash || ( bslash && bslash > slash ) )
+         slash = bslash;
+#endif
+      if( slash )
       {
-         memcpy( szPrefix, szExePath, nBinDir );
-         hb_strncpy( szPrefix + nBinDir, "/../include",
-                     sizeof( szPrefix ) - nBinDir - 1 );
-         hb_hbxCanonLoadDir( szPrefix, HB_FALSE );
-         hb_strncpy( szPrefix + nBinDir, "/../contrib",
-                     sizeof( szPrefix ) - nBinDir - 1 );
-         hb_hbxCanonLoadDir( szPrefix, HB_TRUE );
+         nBinDir = ( HB_SIZE ) ( slash - szExePath );
+         if( nBinDir + 12 < sizeof( szPrefix ) )
+         {
+            memcpy( szPrefix, szExePath, nBinDir );
+            hb_strncpy( szPrefix + nBinDir, "/../include",
+                        sizeof( szPrefix ) - nBinDir - 1 );
+            hb_hbxCanonLoadDir( szPrefix, HB_FALSE );
+            hb_strncpy( szPrefix + nBinDir, "/../contrib",
+                        sizeof( szPrefix ) - nBinDir - 1 );
+            hb_hbxCanonLoadDir( szPrefix, HB_TRUE );
+         }
       }
    }
 
