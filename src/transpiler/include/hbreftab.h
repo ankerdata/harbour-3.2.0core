@@ -76,6 +76,15 @@ struct HB_REFPARAM_
                                already propagates through the shared
                                reference — so a by-ref array slot that is
                                never reassigned can drop the `ref`. */
+   HB_BOOL fDeclDefault;    /* set if the body declares a default for this
+                               slot as a top-level statement — `DEFAULT p
+                               TO v` or `hb_default(@p, v)`. On a value-
+                               typed slot at or before the function's last
+                               by-ref parameter the emitter takes the slot
+                               nullable at the boundary (no C# default can
+                               sit there), so a caller that omits it must
+                               pass null, not the value-type zero. Written
+                               as pflag `D`. */
 };
 
 /* Result of hb_refTabRefineParamType. Distinguishing these lets the
@@ -162,6 +171,21 @@ extern void hb_refTabMarkReassigned( PHB_REFTAB pTab, const char * szFunc, int i
 
 /* Returns HB_TRUE if iPos is reassigned (whole-variable) in the body. */
 extern HB_BOOL hb_refTabIsReassigned( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* Mark parameter iPos of szFunc as carrying a declared default — a
+   top-level `DEFAULT p TO v` / `hb_default(@p, v)` in the body. Same
+   lifecycle rules as hb_refTabMark. */
+extern void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* Returns HB_TRUE if iPos carries a declared default. */
+extern HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* If pStmt is a declared default — the `IF p == NIL ; p := v ; END` that
+   common.ch's DEFAULT expands to, or `hb_default(@p, v)` — return the
+   value expression and the parameter name through pszParam. Shape only:
+   the scan marks the slot, the emitter decides what to do with it. */
+extern PHB_EXPR hb_refTabStmtDeclaredDefault( PHB_AST_NODE pStmt,
+                                              const char ** pszParam );
 
 /* Mark szName as a known user-defined class. The scanner sets this
    for every CLASS it sees so the C# emitter can recognise
@@ -284,6 +308,8 @@ extern void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL );
  *   pflags  = a string of flag letters, or "-" for none:
  *               R = by-ref (some call site uses @var)
  *               N = nilable (function body compares/assigns NIL)
+ *               C = conflict, W = reassigned in the body
+ *               D = declared default (top-level DEFAULT / hb_default)
  *             Letters can combine in any order, e.g. "RN" or "NR".
  *
  * Loading merges into the existing table; later definitions overwrite

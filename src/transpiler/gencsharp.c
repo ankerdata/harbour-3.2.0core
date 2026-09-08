@@ -82,6 +82,74 @@ static PHB_AST_NODE s_pCurrentFuncNode = NULL;  /* AST node of function currentl
                                                    when resolving identifier
                                                    references the parser wrapped
                                                    as implicit memvar aliases. */
+/* Boundary-defaulted parameters of the function being emitted: a strict
+   value slot whose declared default is not a C# constant goes nullable
+   at the boundary (`decimal? nIndex = null`) and is normalised into a
+   strict local where the DEFAULT stood (`decimal nIndex_ = nIndex ??
+   <expr>;`). From that statement on, every reference to the parameter
+   emits the local's name instead — the alias is activated when the
+   normalising statement is emitted, so an earlier reference still sees
+   the nullable parameter and fails typed use, which is the right
+   signal. See hb_csBoundaryParamDefault. */
+#define HB_CS_MAX_PARAM_ALIAS 64
+static struct
+{
+   const char * szName;
+   char         szAlias[ 136 ];
+   HB_BOOL      fActive;
+} s_aParamAlias[ HB_CS_MAX_PARAM_ALIAS ];
+static int s_iParamAliasCount = 0;
+
+static void hb_csParamAliasReset( void )
+{
+   s_iParamAliasCount = 0;
+}
+
+static int hb_csParamAliasIdx( const char * szName )
+{
+   int i;
+   for( i = 0; szName && i < s_iParamAliasCount; i++ )
+      if( hb_stricmp( s_aParamAlias[ i ].szName, szName ) == 0 )
+         return i;
+   return -1;
+}
+
+/* The alias name for szName, registering it (inactive) on first use. */
+static const char * hb_csParamAliasName( const char * szName )
+{
+   int i = hb_csParamAliasIdx( szName );
+   if( i < 0 )
+   {
+      if( ! szName || s_iParamAliasCount >= HB_CS_MAX_PARAM_ALIAS )
+         return szName;
+      i = s_iParamAliasCount++;
+      s_aParamAlias[ i ].szName  = szName;
+      s_aParamAlias[ i ].fActive = HB_FALSE;
+      hb_snprintf( s_aParamAlias[ i ].szAlias,
+                   sizeof( s_aParamAlias[ i ].szAlias ), "%s_", szName );
+   }
+   return s_aParamAlias[ i ].szAlias;
+}
+
+static void hb_csParamAliasActivate( const char * szName )
+{
+   int i = hb_csParamAliasIdx( szName );
+   if( i >= 0 )
+      s_aParamAlias[ i ].fActive = HB_TRUE;
+}
+
+/* The active alias for szName, or NULL to emit the name itself. */
+static const char * hb_csParamAliasLookup( const char * szName )
+{
+   int i = hb_csParamAliasIdx( szName );
+   return i >= 0 && s_aParamAlias[ i ].fActive ? s_aParamAlias[ i ].szAlias : NULL;
+}
+
+static HB_BOOL s_fCurrentSpread = HB_FALSE;  /* the function/method being
+                                              emitted was widened to `params
+                                              dynamic[] hbva`: its params are
+                                              dynamic locals, so a NIL guard
+                                              on one is live, never lifted. */
 static char s_szCurrentClass[ 128 ] = "";  /* class name of the method currently
                                               being emitted; "" for free functions.
                                               Lets `Self:classvar` emit `Class.var`
@@ -890,6 +958,205 @@ static HB_BOOL hb_csConditionNeedsBoolUnwrap( PHB_EXPR pExpr )
    return HB_FALSE;
 }
 
+/* ---- Declared parameter defaults ----
+
+   `DEFAULT p TO v` (common.ch expands it to `IF p == NIL ; p := v ; END`)
+   and `hb_default(@p, v)` are Harbour's optional-parameter idiom. On a
+   nilable slot the emitted guard works as written (`T? p = null`). On a
+   strict value slot — n/l/d/t Hungarian, which hb_refTabSetNilable keeps
+   non-nullable by design — `p` can never be null in C#, so the guard is
+   dead (CS0472 / CS8073) and an omitted argument silently arrives as
+   `default` (false, 0, 0001-01-01) where Harbour gives v. When v is a
+   C# constant the default belongs on the declaration instead:
+   `bool lKeepChange = true`. The guard is then dropped from the body
+   and the short overload forwards the same constant. Non-constant
+   defaults (`date()`, a GetFlag() call) are left alone: the guard stays
+   and still warns, which is the correct signal that the slot needs a
+   source decision. */
+
+static HB_BOOL hb_csIsFileStatic( const char * szName );
+
+/* True when pExpr emits as a C# constant expression — what a parameter
+   default may be. Strings are excluded on purpose: a value slot never
+   legitimately defaults to one. */
+static HB_BOOL hb_csIsCsConstExpr( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_LOGICAL:
+      case HB_ET_NUMERIC:
+         return HB_TRUE;
+      case HB_EO_NEGATE:
+         return pExpr->value.asOperator.pLeft &&
+                pExpr->value.asOperator.pLeft->ExprType == HB_ET_NUMERIC;
+      case HB_ET_VARIABLE:
+      {
+         /* A `#define` the defines map qualifies to a `<Name>Const`
+            member, which is a C# const. Same precedence as the
+            HB_ET_VARIABLE emit: anything that resolves earlier (a
+            local, a PUBLIC, a file STATIC / MEMVAR) is not a define. */
+         const char * szName  = pExpr->value.asSymbol.name;
+         const char * szCanon = NULL;
+         return szName &&
+                ! hb_csResolveLocal( szName ) &&
+                ! ( s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) ) &&
+                ! hb_csIsFileStatic( szName ) &&
+                ! hb_csIsFileMemvar( szName ) &&
+                hb_defineMapLookupCanon( szName, &szCanon ) != NULL;
+      }
+      default:
+         break;
+   }
+   return HB_FALSE;
+}
+
+/* Slot type as the signature emits it: the reftab's refined type unless
+   USUAL, else Hungarian inference. */
+static const char * hb_csSlotTypeName( const char * szFnKey, int iPos,
+                                       const char * szParam )
+{
+   const HB_REFPARAM * pP = hb_refTabParam( s_pRefTab, szFnKey, iPos );
+   if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+      return pP->szType;
+   return hb_astInferType( szParam, NULL );
+}
+
+/* The declared default for slot iPos of function/method szFnKey (its AST
+   node pFunc), or NULL when there is none: the slot must be a strict
+   value slot (non-nilable, value-typed in C#), and a declared default
+   must sit among the body's TOP-LEVEL statements — one nested in an IF
+   is conditional and stays where it is. First match wins; the statement
+   comes back through ppStmt so the emitter can recognise it by
+   identity. */
+static PHB_EXPR hb_csDeclaredParamDefault( PHB_AST_NODE pFunc,
+                                           const char * szFnKey, int iPos,
+                                           const char * szParam,
+                                           PHB_AST_NODE * ppStmt )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ppStmt )
+      *ppStmt = NULL;
+   if( ! pFunc || ! szFnKey || ! szParam || ! s_pRefTab ||
+       hb_refTabIsNilable( s_pRefTab, szFnKey, iPos ) ||
+       ! hb_csIsValueType( hb_csSlotTypeName( szFnKey, iPos, szParam ) ) )
+      return NULL;
+
+   pStmt = pFunc->value.asFunc.pBody;
+   if( pStmt && pStmt->type == HB_AST_BLOCK )
+      pStmt = pStmt->value.asBlock.pFirst;
+   for( ; pStmt; pStmt = pStmt->pNext )
+   {
+      const char * szName = NULL;
+      PHB_EXPR pVal = hb_refTabStmtDeclaredDefault( pStmt, &szName );
+      if( pVal && szName && hb_stricmp( szName, szParam ) == 0 )
+      {
+         if( ppStmt )
+            *ppStmt = pStmt;
+         return pVal;
+      }
+   }
+   return NULL;
+}
+
+/* Index of the last by-ref slot of szFnKey, -1 when it has none. A
+   by-value slot at or before it cannot carry a C# default (a `ref`
+   parameter cannot be omitted, so nothing before it can be either). */
+static int hb_csLastRefSlot( const char * szFnKey )
+{
+   int i, iLast = -1;
+   int n = hb_refTabParamCount( s_pRefTab, szFnKey );
+   for( i = 0; i < n; i++ )
+      if( hb_refTabIsRef( s_pRefTab, szFnKey, i ) )
+         iLast = i;
+   return iLast;
+}
+
+/* A constant declared default that can live on the declaration as
+   `= <const>` — the slot sits after the last by-ref parameter — or on a
+   by-ref slot, where only the short overload's forwarded storage can
+   carry it. The guard is dropped either way. */
+static PHB_EXPR hb_csLiftedParamDefault( PHB_AST_NODE pFunc,
+                                         const char * szFnKey, int iPos,
+                                         const char * szParam )
+{
+   PHB_EXPR pVal = hb_csDeclaredParamDefault( pFunc, szFnKey, iPos, szParam,
+                                              NULL );
+   if( ! pVal || ! hb_csIsCsConstExpr( pVal ) )
+      return NULL;
+   return ( hb_refTabIsRef( s_pRefTab, szFnKey, iPos ) ||
+            iPos > hb_csLastRefSlot( szFnKey ) ) ? pVal : NULL;
+}
+
+/* A declared default on a by-value slot that cannot be a C# default —
+   the value is not a constant, or the slot sits at or before the last
+   by-ref parameter: nullable at the boundary, normalised into a strict
+   local where the DEFAULT stands (see the alias table above). Callers
+   that omit such a slot pad null; they see it through the reftab's `D`
+   flag. A by-ref slot cannot take the nullable boundary — the caller's
+   variable would have to be `T?` too — so its guard stays as written. */
+static PHB_EXPR hb_csBoundaryParamDefault( PHB_AST_NODE pFunc,
+                                           const char * szFnKey, int iPos,
+                                           const char * szParam )
+{
+   PHB_EXPR pVal;
+
+   if( ! s_pRefTab || hb_refTabIsRef( s_pRefTab, szFnKey, iPos ) )
+      return NULL;
+   pVal = hb_csDeclaredParamDefault( pFunc, szFnKey, iPos, szParam, NULL );
+   if( ! pVal )
+      return NULL;
+   return ( ! hb_csIsCsConstExpr( pVal ) ||
+            iPos <= hb_csLastRefSlot( szFnKey ) ) ? pVal : NULL;
+}
+
+/* What pStmt is to the current function: 0 = an ordinary statement,
+   1 = a lifted constant default (nothing to emit), 2 = a boundary
+   default (emit the normalising local). Identity against the first
+   top-level declared default keeps a nested or repeated copy of the
+   same guard — a different node — where it is. */
+static int hb_csStmtDefaultKind( PHB_AST_NODE pStmt, const char ** pszParam,
+                                 PHB_EXPR * ppVal, const char ** pszType )
+{
+   const char * szName = NULL;
+   PHB_EXPR pVal;
+   int i, nParams;
+
+   if( s_fCurrentSpread || ! s_pCurrentFuncNode || ! s_szCurrentFunc[ 0 ] ||
+       ! s_pRefTab )
+      return 0;
+   pVal = hb_refTabStmtDeclaredDefault( pStmt, &szName );
+   if( ! pVal || ! szName )
+      return 0;
+   nParams = hb_refTabParamCount( s_pRefTab, s_szCurrentFunc );
+   for( i = 0; i < nParams; i++ )
+   {
+      const HB_REFPARAM * pP = hb_refTabParam( s_pRefTab, s_szCurrentFunc, i );
+      PHB_AST_NODE pDecl = NULL;
+      if( ! pP || ! pP->szName || hb_stricmp( pP->szName, szName ) != 0 )
+         continue;
+      if( hb_csDeclaredParamDefault( s_pCurrentFuncNode, s_szCurrentFunc, i,
+                                     pP->szName, &pDecl ) != pVal ||
+          pDecl != pStmt )
+         return 0;
+      if( pszParam )
+         *pszParam = pP->szName;
+      if( ppVal )
+         *ppVal = pVal;
+      if( pszType )
+         *pszType = hb_csSlotTypeName( s_szCurrentFunc, i, pP->szName );
+      if( hb_refTabIsRef( s_pRefTab, s_szCurrentFunc, i ) )
+         return hb_csIsCsConstExpr( pVal ) ? 1 : 0;
+      if( hb_csIsCsConstExpr( pVal ) &&
+          i > hb_csLastRefSlot( s_szCurrentFunc ) )
+         return 1;
+      return 2;
+   }
+   return 0;
+}
+
 /* Harbour builtins that may reallocate their first array argument.
    The HbRuntime overload takes `ref dynamic[]` so the new array
    propagates back; the emitter inserts `ref` at the call site. AIns,
@@ -1631,10 +1898,13 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
       named arg that skips it: an omitted ref becomes
       `ref HbDiscard<T>.Value` (a shared throwaway whose write-back the
       Harbour caller discarded anyway), an omitted by-value becomes
-      `default`. Slots past the last ref are defaulted in the canonical
-      so trailing omissions there are still dropped. A non-ref callee
-      keeps the original behaviour: a gap flips later real slots into
-      named-arg form. */
+      `default` — or `default(T?)`, i.e. null, when the callee declares
+      a default for that value slot (reftab `D`): it then takes the slot
+      nullable at the boundary and normalises, and the value-type zero
+      would silently replace the declared value. Slots past the last
+      ref are defaulted in the canonical, so a gap there flips the later
+      real slots into named-arg form and trailing omissions are simply
+      dropped — same as a non-ref callee. */
    {
       int iLastRef = -1;
       int iEnd, j;
@@ -1652,7 +1922,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( ! pArg || pArg->ExprType == HB_ET_NONE )
          {
             /* Omitted slot. */
-            if( iLastRef >= 0 )
+            if( iLastRef >= 0 && iPos <= iLastRef )
             {
                const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
                if( ! fFirst )
@@ -1676,8 +1946,11 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                      fprintf( yyc, "ref HbDiscard<%s%s>.Value",
                               szCs, pP->fNilable ? "?" : "" );
                   else
-                     fprintf( yyc, "default(%s%s)",
-                              szCs, pP && pP->fNilable ? "?" : "" );
+                     fprintf( yyc, "default(%s%s)", szCs,
+                              pP && ( pP->fNilable ||
+                                      ( pP->fDeclDefault &&
+                                        hb_csIsValueType( szSlot ) ) )
+                                 ? "?" : "" );
                }
             }
             else
@@ -2876,8 +3149,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   single LOCAL/PARAMETER declaration; collapsing to
                   the declared form here eliminates the whole class
                   of CS0103 that would otherwise surface per-reference
-                  (each mis-cased call site is a distinct C# name). */
-               fprintf( yyc, "%s", szLocal );
+                  (each mis-cased call site is a distinct C# name).
+                  A boundary-defaulted parameter emits its normalised
+                  local once the DEFAULT has been passed. */
+               const char * szAlias = hb_csParamAliasLookup( szLocal );
+               fprintf( yyc, "%s", szAlias ? szAlias : szLocal );
             }
             else
             {
@@ -4130,6 +4406,41 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 {
    if( ! pNode )
       return;
+
+   /* A declared default (hb_csStmtDefaultKind). Lifted constant: nothing
+      to emit — advance the line bookkeeping so the gap to the next
+      statement is measured from here (0 at the top of a body means "no
+      gap check" and stays). Boundary: the normalising local takes the
+      guard's place, and from here on the parameter's references emit the
+      local's name. The default expression is emitted before the alias
+      goes active, so `?? <expr>` reads the raw parameter of any other
+      slot it names. */
+   {
+      const char * szDefParam = NULL;
+      const char * szDefType  = NULL;
+      PHB_EXPR     pDefVal    = NULL;
+      int iKind = hb_csStmtDefaultKind( pNode, &szDefParam, &pDefVal,
+                                        &szDefType );
+      if( iKind == 1 )
+      {
+         if( s_iLastLine > 0 && pNode->iLine > 0 )
+            s_iLastLine = pNode->iLine;
+         return;
+      }
+      if( iKind == 2 )
+      {
+         hb_csEmitBlankLines( yyc, pNode->iLine );
+         if( pNode->iLine > 0 )
+            s_iCurrentStmtLine = pNode->iLine;
+         hb_csEmitIndent( yyc, iIndent );
+         fprintf( yyc, "%s %s = %s ?? ", hb_csTypeMap( szDefType ),
+                  hb_csParamAliasName( szDefParam ), szDefParam );
+         hb_csEmitExpr( pDefVal, yyc, HB_FALSE );
+         fprintf( yyc, ";\n" );
+         hb_csParamAliasActivate( szDefParam );
+         return;
+      }
+   }
 
    if( pNode->iLine > 0 )
       s_iCurrentStmtLine = pNode->iLine;
@@ -5386,6 +5697,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       const char * szKey =
          hb_refTabMethodKey( szClass, pFunc->value.asFunc.szName );
       hb_csLocalTypeReset();
+      hb_csParamAliasReset();
       s_iShimDepth = 0;
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
       hb_strncpy( s_szCurrentClass, szClass ? szClass : "",
@@ -5451,6 +5763,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             ( hb_refTabIsCalledVarargs( s_pRefTab, szMethName ) ||
               hb_refTabIsVariadic      ( s_pRefTab, szMethName ) ) &&
             iLastRef < 0;
+         s_fCurrentSpread = fMethodSpread;
 
          if( fMethodSpread )
             fprintf( yyc, "params dynamic[] hbva" );
@@ -5473,12 +5786,32 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                fprintf( yyc, ", " );
             if( fThisRef )
                fprintf( yyc, "ref " );
-            fprintf( yyc, "%s%s %s",
-                     hb_csTypeMap( szSlotType ),
-                     fThisNilable ? "?" : "",
-                     pVar->szName );
-            if( ! fThisRef && iPos > iLastRef )
-               fprintf( yyc, fThisNilable ? " = null" : " = default" );
+            {
+               /* A non-constant declared default makes the slot nullable
+                  at the boundary (hb_csBoundaryParamDefault). */
+               PHB_EXPR pBoundary = fThisRef ? NULL :
+                  hb_csBoundaryParamDefault( pFunc, szMethName, iPos,
+                                             pVar->szName );
+               HB_BOOL fNullable = fThisNilable || pBoundary != NULL;
+               if( pBoundary )
+                  hb_csParamAliasName( pVar->szName );
+               fprintf( yyc, "%s%s %s",
+                        hb_csTypeMap( szSlotType ),
+                        fNullable ? "?" : "",
+                        pVar->szName );
+               if( ! fThisRef && iPos > iLastRef )
+               {
+                  PHB_EXPR pDef = hb_csLiftedParamDefault(
+                     pFunc, szMethName, iPos, pVar->szName );
+                  if( pDef )
+                  {
+                     fprintf( yyc, " = " );
+                     hb_csEmitExpr( pDef, yyc, HB_FALSE );
+                  }
+                  else
+                     fprintf( yyc, fNullable ? " = null" : " = default" );
+               }
+            }
             nParam++;
             iPos++;
             pVar = pVar->pNext;
@@ -5529,6 +5862,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    s_szCurrentFunc[ 0 ] = '\0';
    s_szCurrentClass[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
+   s_fCurrentSpread = HB_FALSE;
    s_szStaticScope = NULL;
 }
 
@@ -6297,6 +6631,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    {
       char szKeyBuf[ 256 ];
       hb_csLocalTypeReset();
+      hb_csParamAliasReset();
       s_iShimDepth = 0;
       hb_strncpy( s_szCurrentFunc,
                   hb_csFuncRefKey( pFunc->value.asFunc.szName,
@@ -6388,6 +6723,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
       if( fSpread && iLastRef >= 0 )
          fSpread = HB_FALSE;  /* ref-taking callee: keep typed signature */
+      s_fCurrentSpread = fSpread;
 
       if( fSpread )
       {
@@ -6429,16 +6765,38 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             fprintf( yyc, ", " );
          if( fThisRef )
             fprintf( yyc, "ref " );
-         fprintf( yyc, "%s%s %s",
-                  hb_csTypeMap( szSlotType ),
-                  fThisNilable ? "?" : "",
-                  pVar->szName );
-         if( fWantDefaults && ! fThisRef && iPos > iLastRef )
          {
-            /* Nilable params default to null (preserves Harbour NIL
-               semantics); non-nilable strongly-typed params get the
-               value-type zero via `default`. */
-            fprintf( yyc, fThisNilable ? " = null" : " = default" );
+            /* A non-constant declared default makes the slot nullable at
+               the boundary (hb_csBoundaryParamDefault); the body is
+               normalised where the DEFAULT stands. */
+            PHB_EXPR pBoundary = fThisRef ? NULL :
+               hb_csBoundaryParamDefault( pFunc, szFnName, iPos,
+                                          pVar->szName );
+            HB_BOOL fNullable = fThisNilable || pBoundary != NULL;
+            if( pBoundary )
+               hb_csParamAliasName( pVar->szName );
+            fprintf( yyc, "%s%s %s",
+                     hb_csTypeMap( szSlotType ),
+                     fNullable ? "?" : "",
+                     pVar->szName );
+            if( fWantDefaults && ! fThisRef && iPos > iLastRef )
+            {
+               /* A `DEFAULT p TO <const>` in the body is the declared
+                  default of a strict value slot (hb_csLiftedParamDefault).
+                  Otherwise nilable and boundary params default to null
+                  (preserves Harbour NIL semantics); non-nilable
+                  strongly-typed params get the value-type zero via
+                  `default`. */
+               PHB_EXPR pDef = hb_csLiftedParamDefault(
+                  pFunc, szFnName, iPos, pVar->szName );
+               if( pDef )
+               {
+                  fprintf( yyc, " = " );
+                  hb_csEmitExpr( pDef, yyc, HB_FALSE );
+               }
+               else
+                  fprintf( yyc, fNullable ? " = null" : " = default" );
+            }
          }
          nParam++;
          iPos++;
@@ -6573,7 +6931,23 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             szCsType = hb_csTypeMap( szSlotType );
             if( k > 0 )
                fprintf( yyc, ", " );
-            fprintf( yyc, "%s %s = default", szCsType, pP->szName );
+            {
+               /* Same nullability as the canonical slot: a nilable or
+                  boundary-defaulted slot must arrive as null, not as the
+                  value-type zero, or the callee's default never fires. */
+               PHB_EXPR pDef = hb_csLiftedParamDefault(
+                  pFunc, szFnName, k, pP->szName );
+               HB_BOOL fNullable =
+                  hb_refTabIsNilable( s_pRefTab, szFnName, k ) ||
+                  ( ! pDef && hb_csBoundaryParamDefault(
+                       pFunc, szFnName, k, pP->szName ) != NULL );
+               fprintf( yyc, "%s%s %s = ", szCsType, fNullable ? "?" : "",
+                        pP->szName );
+               if( pDef )
+                  hb_csEmitExpr( pDef, yyc, HB_FALSE );
+               else
+                  fprintf( yyc, fNullable ? "null" : "default" );
+            }
             pP = pP->pNext;
          }
          fprintf( yyc, ")\n" );
@@ -6600,8 +6974,25 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                if( ! szSlotType && pQ )
                   szSlotType = hb_astInferType( pQ->szName, NULL );
                hb_csEmitIndent( yyc, iIndent + 1 );
-               fprintf( yyc, "%s _arg%d = default;\n",
-                        hb_csTypeMap( szSlotType ), k );
+               {
+                  /* Forward a lifted default too — the canonical's own
+                     `= <const>` never applies to an explicit argument —
+                     and pass null, not the value-type zero, into a
+                     nilable or boundary-defaulted slot. */
+                  PHB_EXPR pDef = pQ ? hb_csLiftedParamDefault(
+                     pFunc, szFnName, k, pQ->szName ) : NULL;
+                  HB_BOOL fNullable =
+                     hb_refTabIsNilable( s_pRefTab, szFnName, k ) ||
+                     ( ! pDef && pQ && hb_csBoundaryParamDefault(
+                          pFunc, szFnName, k, pQ->szName ) != NULL );
+                  fprintf( yyc, "%s%s _arg%d = ", hb_csTypeMap( szSlotType ),
+                           fNullable ? "?" : "", k );
+                  if( pDef )
+                     hb_csEmitExpr( pDef, yyc, HB_FALSE );
+                  else
+                     fprintf( yyc, fNullable ? "null" : "default" );
+               }
+               fprintf( yyc, ";\n" );
                if( pQ )
                   pQ = pQ->pNext;
             }
@@ -6636,6 +7027,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 
    s_szCurrentFunc[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
+   s_fCurrentSpread = HB_FALSE;
 }
 
 /* ---- Main entry point ---- */

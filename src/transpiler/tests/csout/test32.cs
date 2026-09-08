@@ -48,19 +48,11 @@ public static partial class Program
         return;
     }
 
-    public static void Probe(decimal nKind = default, bool lReady = default)
+    public static void Probe(decimal nKind = 0, bool lReady = false)
     {
         // DEFAULT ... TO ... // comment — std.ch translate rule.
         // default kind
-        if (nKind == null)
-        {
-            nKind = 0;
-        }
         // not ready by default
-        if (lReady == null)
-        {
-            lReady = false;
-        }
         if (lReady)
         {
             HbRuntime.QOut("kind=" + HbRuntime.LTrim(HbRuntime.Str(nKind)) + " ready=Y");

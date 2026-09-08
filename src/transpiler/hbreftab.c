@@ -320,12 +320,14 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
       int            nOld   = e->nParams;
       HB_BOOL        fOldConflict[ HB_REFTAB_MAXPARAM ];
       HB_BOOL        fOldReassigned[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL        fOldDeclDefault[ HB_REFTAB_MAXPARAM ];
 
       /* Remember the conflict / reassigned bits before we free pOld. */
       for( i = 0; i < HB_REFTAB_MAXPARAM; i++ )
       {
          fOldConflict[ i ] = HB_FALSE;
          fOldReassigned[ i ] = HB_FALSE;
+         fOldDeclDefault[ i ] = HB_FALSE;
       }
       if( pOld )
       {
@@ -333,6 +335,7 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
          {
             fOldConflict[ i ] = pOld[ i ].fConflict;
             fOldReassigned[ i ] = pOld[ i ].fReassigned;
+            fOldDeclDefault[ i ] = pOld[ i ].fDeclDefault;
          }
       }
 
@@ -400,6 +403,7 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
             ( e->nilbits & ( ( ( HB_U64 ) 1 ) << i ) ) != 0;
          e->pParams[ i ].fConflict = fOldConflict[ i ];
          e->pParams[ i ].fReassigned = fOldReassigned[ i ];
+         e->pParams[ i ].fDeclDefault = fOldDeclDefault[ i ];
       }
 
       /* Free the old parameter array now that we've pulled what we
@@ -451,6 +455,28 @@ HB_BOOL hb_refTabIsReassigned( PHB_REFTAB pTab, const char * szFunc, int iPos )
    e = hb_refTabFindEntry( pTab, szFunc, NULL );
    return e && e->pParams && iPos < e->nParams &&
           e->pParams[ iPos ].fReassigned;
+}
+
+void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindOrCreate( pTab, szFunc );
+   if( e->pParams && iPos < e->nParams )
+      e->pParams[ iPos ].fDeclDefault = HB_TRUE;
+}
+
+HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   return e && e->pParams && iPos < e->nParams &&
+          e->pParams[ iPos ].fDeclDefault;
 }
 
 /* Value-typed Hungarian prefixes — n (numeric), l (logical), d (date),
@@ -1026,7 +1052,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
    fprintf( fp, "#           P = public var, A = public var with array-dim, - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown; for P entries this slot holds the owning .prg basename\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
-   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, - = none\n" );
+   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, - = none\n" );
    fprintf( fp, "#\n" );
    fprintf( fp, "# THIS FILE IS GENERATED — see `hbtranspiler -GF`\n" );
 
@@ -1095,12 +1121,14 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                   ( e->nilbits & ( ( ( HB_U64 ) 1 ) << p ) ) != 0;
                HB_BOOL fConflict = e->pParams[ p ].fConflict;
                HB_BOOL fReassigned = e->pParams[ p ].fReassigned;
-               char flags[ 6 ];
+               HB_BOOL fDeclDefault = e->pParams[ p ].fDeclDefault;
+               char flags[ 8 ];
                int  k = 0;
                if( fByRef )     flags[ k++ ] = 'R';
                if( fNilable )   flags[ k++ ] = 'N';
                if( fConflict )  flags[ k++ ] = 'C';
                if( fReassigned) flags[ k++ ] = 'W';
+               if( fDeclDefault) flags[ k++ ] = 'D';
                if( k == 0 )     flags[ k++ ] = '-';
                flags[ k ] = '\0';
                fprintf( fp, "\t%s:%s:%s",
@@ -1177,6 +1205,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       HB_BOOL nils[ HB_REFTAB_MAXPARAM ];
       HB_BOOL cons[ HB_REFTAB_MAXPARAM ];
       HB_BOOL reas[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL decl[ HB_REFTAB_MAXPARAM ];
       int i;
 
       if( line[ 0 ] == '#' || line[ 0 ] == '\n' || line[ 0 ] == '\0' )
@@ -1271,6 +1300,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          nils[ i ]  = HB_FALSE;
          cons[ i ]  = HB_FALSE;
          reas[ i ]  = HB_FALSE;
+         decl[ i ]  = HB_FALSE;
          for( c = pf; *c; c++ )
          {
             if( *c == 'R' || *c == 'r' )
@@ -1281,6 +1311,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                cons[ i ] = HB_TRUE;
             else if( *c == 'W' || *c == 'w' )
                reas[ i ] = HB_TRUE;
+            else if( *c == 'D' || *c == 'd' )
+               decl[ i ] = HB_TRUE;
          }
       }
 
@@ -1295,6 +1327,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             hb_refTabSetNilable( pTab, fields[ 0 ], i );
          if( reas[ i ] )
             hb_refTabMarkReassigned( pTab, fields[ 0 ], i );
+         if( decl[ i ] )
+            hb_refTabMarkDeclDefault( pTab, fields[ 0 ], i );
       }
       /* Rehydrate conflict flags by reaching into the entry directly;
          there is no public setter because conflicts are meant to be
@@ -2046,6 +2080,95 @@ static const char * hb_refTabFuncClass( PHB_AST_NODE pFunc )
    return NULL;
 }
 
+/* Peel single-element list wrappers the parser leaves around
+   conditions and statement expressions. */
+static PHB_EXPR hb_refTabPeelList( PHB_EXPR pExpr )
+{
+   while( pExpr &&
+          ( pExpr->ExprType == HB_ET_LIST ||
+            pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList &&
+          ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   return pExpr;
+}
+
+PHB_EXPR hb_refTabStmtDeclaredDefault( PHB_AST_NODE pStmt,
+                                       const char ** pszParam )
+{
+   PHB_EXPR pExpr;
+
+   if( ! pStmt || ! pszParam )
+      return NULL;
+
+   if( pStmt->type == HB_AST_IF )
+   {
+      PHB_EXPR pCond = hb_refTabPeelList( pStmt->value.asIf.pCondition );
+      PHB_AST_NODE pThen = pStmt->value.asIf.pThen;
+      PHB_EXPR pLeft, pRight;
+
+      if( pStmt->value.asIf.pElseIfs || pStmt->value.asIf.pElse )
+         return NULL;
+      if( ! pCond ||
+          ( pCond->ExprType != HB_EO_EQ && pCond->ExprType != HB_EO_EQUAL ) )
+         return NULL;
+      pLeft  = pCond->value.asOperator.pLeft;
+      pRight = pCond->value.asOperator.pRight;
+      if( ! pLeft || pLeft->ExprType != HB_ET_VARIABLE ||
+          ! pLeft->value.asSymbol.name ||
+          ! pRight || pRight->ExprType != HB_ET_NIL )
+         return NULL;
+
+      /* The THEN block must be exactly `p := v`. */
+      if( pThen && pThen->type == HB_AST_BLOCK )
+         pThen = pThen->value.asBlock.pFirst;
+      if( ! pThen || pThen->pNext || pThen->type != HB_AST_EXPRSTMT )
+         return NULL;
+      pExpr = hb_refTabPeelList( pThen->value.asExprStmt.pExpr );
+      if( ! pExpr || pExpr->ExprType != HB_EO_ASSIGN ||
+          ! pExpr->value.asOperator.pLeft ||
+          pExpr->value.asOperator.pLeft->ExprType != HB_ET_VARIABLE ||
+          ! pExpr->value.asOperator.pLeft->value.asSymbol.name ||
+          hb_stricmp( pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                      pLeft->value.asSymbol.name ) != 0 )
+         return NULL;
+      *pszParam = pLeft->value.asSymbol.name;
+      return pExpr->value.asOperator.pRight;
+   }
+
+   if( pStmt->type == HB_AST_EXPRSTMT )
+   {
+      PHB_EXPR pArg;
+
+      pExpr = hb_refTabPeelList( pStmt->value.asExprStmt.pExpr );
+      if( ! pExpr || pExpr->ExprType != HB_ET_FUNCALL ||
+          ! pExpr->value.asFunCall.pFunName ||
+          pExpr->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+          ! pExpr->value.asFunCall.pFunName->value.asSymbol.name ||
+          hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name,
+                      "HB_DEFAULT" ) != 0 )
+         return NULL;
+      pArg = pExpr->value.asFunCall.pParms;
+      if( pArg && ( pArg->ExprType == HB_ET_LIST ||
+                    pArg->ExprType == HB_ET_ARGLIST ) )
+         pArg = pArg->value.asList.pExprList;
+      if( ! pArg || ! pArg->pNext || pArg->pNext->pNext )
+         return NULL;
+      if( pArg->ExprType == HB_ET_VARREF && pArg->value.asSymbol.name )
+         *pszParam = pArg->value.asSymbol.name;
+      else if( pArg->ExprType == HB_ET_REFERENCE &&
+               pArg->value.asReference &&
+               pArg->value.asReference->ExprType == HB_ET_VARIABLE &&
+               pArg->value.asReference->value.asSymbol.name )
+         *pszParam = pArg->value.asReference->value.asSymbol.name;
+      else
+         return NULL;
+      return pArg->pNext;
+   }
+
+   return NULL;
+}
+
 void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
 {
    PHB_AST_NODE pFunc;
@@ -2273,6 +2396,35 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
 
                if( pFunc->value.asFunc.pBody )
                   hb_refTabScanStmt( pTab, pFunc->value.asFunc.pBody, &ctx );
+
+               /* Declared defaults: a top-level `DEFAULT p TO v` /
+                  `hb_default(@p, v)` marks slot p with `D`, so a caller
+                  in another file knows the emitter may take the slot
+                  nullable at the boundary and pads null rather than the
+                  value-type zero. A nested one is conditional, not a
+                  declaration, and is not marked. */
+               {
+                  PHB_AST_NODE pStmt = pFunc->value.asFunc.pBody;
+                  if( pStmt && pStmt->type == HB_AST_BLOCK )
+                     pStmt = pStmt->value.asBlock.pFirst;
+                  for( ; pStmt; pStmt = pStmt->pNext )
+                  {
+                     const char * szDefName = NULL;
+                     int k;
+                     if( ! hb_refTabStmtDeclaredDefault( pStmt, &szDefName ) ||
+                         ! szDefName )
+                        continue;
+                     for( k = 0; k < nParams; k++ )
+                     {
+                        if( names[ k ] &&
+                            hb_stricmp( names[ k ], szDefName ) == 0 )
+                        {
+                           hb_refTabMarkDeclDefault( pTab, szKeyBuf, k );
+                           break;
+                        }
+                     }
+                  }
+               }
 
                /* Promote the variadic flag if we found PCount() etc. */
                if( ctx.fVariadic )
