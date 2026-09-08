@@ -255,7 +255,11 @@ public static partial class HbRuntime
     {
         if (val == null) return true;
         if (val is decimal d) return d == 0;
+        if (val is long l) return l == 0;
         if (val is string s) return s.Trim().Length == 0;
+        // Harbour's empty date (CToD("")) is DateOnly's default here.
+        if (val is DateOnly dt) return dt == default;
+        if (val is DateTime ts) return ts == default;
         if (val is bool b) return !b;
         if (val is System.Array a) return a.Length == 0;
         if (val is System.Collections.IDictionary h) return h.Count == 0;
