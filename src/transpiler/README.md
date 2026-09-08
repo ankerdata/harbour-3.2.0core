@@ -68,8 +68,8 @@ Additional CLI flags:
 | `--var-types=<path>`    | `NAME<TAB>TYPE` hints for non-Hungarian names (`i`, `j`, `k` …): accepted by the W0021 gate and fed to inference ([`hbvartypes.c`](hbvartypes.c)) |
 | `--preload-list=<path>` | Extra `.ch` headers whose rules are loaded at startup on top of `std.ch` + `common.ch` (see test47) |
 | `--filename-casing=<path>` | `<stem><TAB><CamelCase>` map overriding on-disk file-stem casing for derived identifiers — file-static prefixes, file-mangled STATIC FUNCTION names, `<Name>Const` classes ([`hbfilecase.c`](hbfilecase.c)) |
-| `--hbx=<path>`          | Merge an `.hbx` file's `DYNAMIC` entries into the canonical function-name map so `hb_bitand` / `hb_bitAnd` / `hb_BitAnd` all emit one spelling ([`hbhbxcanon.c`](hbhbxcanon.c)); repeatable |
-| `--type-audit=<path>`   | Append a TSV row for every place inference fell back (USUAL return, weak hash, OBJECT param, blocked int candidate, ORM narrowing …) — the type-debt leaderboard; never gates |
+| `--hbx=<path>`          | Merge an `.hbx` file's `DYNAMIC` entries into the canonical function-name map so `hb_bitand` / `hb_bitAnd` / `hb_BitAnd` all emit one spelling ([`hbhbxcanon.c`](hbhbxcanon.c)); repeatable. Adds to what the startup auto-load found — `/opt/harbour/{include/harbour,contrib}`, then `<bin>/../include` and `<bin>/../contrib` relative to the transpiler binary, then cwd-relative `include/` and `contrib/`. The binary-relative walk is what makes an absolute `HBTRANSPILER` path work from another repo's root; it once tested for `/` only, so on Windows the canon set loaded empty and every RTL name emitted bare and lower-cased (`hb_bitand`, invisible to the stub generator) — 2140 build errors that read as unrelated |
+| `--type-audit=<path>`   | Append a TSV row for every place inference fell back (USUAL return, weak hash, OBJECT param, blocked int candidate, ORM narrowing …) — the type-debt leaderboard; never gates. The file is opened in append mode across a whole pipeline run and the 41-line header is written only when the file is empty (an explicit seek — `ftell()` on a fresh append stream is 0 under MSVC, which once re-emitted the header per invocation) |
 
 The driver pipeline in the sibling `easipos-transpiled` repo passes all
 of these on every invocation (`scripts/transpile_common.py` is the one
@@ -126,6 +126,7 @@ inference engine that `-GS` uses.
 |-----------------------------------|-------------------------------------------------------------------------|
 | **Build / driver**                |                                                                          |
 | [`build.sh`](build.sh)            | Single-shot clang command — produces `bin/hbtranspiler`                 |
+| [`build.bat`](build.bat)          | MSVC counterpart: `vcvarsall` + `cl` + `link` against the `hbcommon`/`hbnortl` libs `call-win-make.bat` builds. `HB_ARCH` / `HB_LIBDIR` / `HB_OUT` select the target (x86 default; `arm64` against `lib/win/msvcarm64` for a native binary, ~2× faster than x86 emulation on an ARM64 host, byte-identical output) |
 | [`hbmain.c`](hbmain.c)            | Top-level driver: dispatches to the chosen `-G*` back-end               |
 | [`cmdcheck.c`](cmdcheck.c)        | Command-line option parser (`-G*` flag handling lives here)             |
 | **Front-end (largely unchanged)** |                                                                          |
@@ -156,7 +157,7 @@ inference engine that `-GS` uses.
 | [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime.cs` + Harbour doc blocks |
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |
 | **Tests**                         |                                                                          |
-| [`tests/`](tests/)                | Numbered `.prg` test cases + drivers (`runtests.sh`, `buildprg.sh`, `buildhb.sh`, `buildcs.sh`) |
+| [`tests/`](tests/)                | Numbered `.prg` test cases + drivers: `verify.sh` over the bash stages (`runtests.sh`, `buildprg.sh`, `buildhb.sh`, `buildcs.sh`, …) on macOS/Linux, `runtests.bat` → `runsuite.py` on Windows |
 | **Vendored Harbour sources**      |                                                                          |
 | [`include/`](include/), [`src/`](src/) | Copies of the handful of stock-Harbour files the transpiler must tweak, so the Harbour tree itself stays pristine — see [Vendored Harbour sources](#vendored-harbour-sources) |
 
@@ -272,6 +273,9 @@ NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
                R = by-ref (some call site uses @var)
                N = nilable (body compares/assigns to NIL)
                C = conflict (two call sites disagreed on the type)
+               W = reassigned as a whole in the body (`p := expr`)
+               D = declared default — a top-level `DEFAULT p TO v` /
+                   `hb_default(@p, v)` in the body (see NIL semantics)
              Letters can combine in any order, e.g. "RN" or "NR".
 ```
 
@@ -301,6 +305,15 @@ Six pieces of cross-file information feed the emitters:
    usually harmless (e.g. `SockClose(oSocket)` nilling a closed
    socket), but it is a genuine semantic shift for any bare caller
    that relied on by-value. See [test64.prg](tests/test64.prg).
+
+   The scan resolves the receiver of a method send before it looks the
+   callee up: `oCdS:Query(@aHistory)` keys on the receiver's recorded
+   class (`EasiCdS::EasiCdS__Query`), not on `Self:` / `::` sends only.
+   That is what lets by-ref *reassignment* propagate through a
+   forwarder — a parameter merely passed on with `@` into a method that
+   reassigns it keeps its own `ref` instead of decaying to a W0023
+   "redundant `@`" and a local copy the caller never sees. See
+   [test86.prg](tests/test86.prg).
 2. **Declared parameter count** — lets the emitter add `= default` (or
    `= null` for nilable) to trailing params so `Fred(x)` calling
    `PROCEDURE Fred(a, b, c)` works.
@@ -380,6 +393,15 @@ of [`hb_refTabCollect`](hbreftab.c) (see [Scan pipeline](#scan-pipeline)).
 A slot that reaches a genuine cross-site conflict is frozen (`C` flag)
 so the loop cannot oscillate; the type environment likewise freezes a
 USUAL↔class oscillation once polymorphic ORM locals became common.
+OBJECT is one-way too: it is the generic `o`-prefix fallback and
+strictly weaker than a concrete class, so `OBJECT → Transaction` is a
+refinement and the reverse is refused. Pass 2 of `hb_astPropagate`
+loops to a fixed point with no iteration cap, and two call sites
+disagreeing about an `oTransaction` slot once ping-ponged it
+`Transaction ↔ OBJECT` forever — a latent 100 %-CPU hang in the scan
+gate, reproducible with `fsplitpl.prg` against an un-refined reftab.
+`hb_typeEnvSet` also reports "changed" only when the stored type
+actually differs, as defence in depth.
 
 Working multi-file demos:
 
@@ -634,6 +656,62 @@ code exercises them.
 
 See [test18.prg](tests/test18.prg) for the full demo.
 
+**Strict value slots.** The `N` flag is refused for a value-typed
+Hungarian parameter — `n`/`l`/`d`/`t` — even when the body has a NIL
+guard (`hb_refTabSetNilable`). The name is the type contract: such a
+parameter is a number / logical / date, never NIL, and making it `T?`
+put a `decimal? → decimal` CS1503 on every typed call site downstream.
+See [test53.prg](tests/test53.prg).
+
+**Declared defaults.** That leaves the optional-parameter idiom —
+`DEFAULT lLoud TO .T.` (common.ch expands it to
+`IF lLoud == NIL ; lLoud := .T. ; END`) or `hb_default(@lLoud, .T.)` —
+whose guard can never fire on a strict value slot: `lLoud == null` is
+always false for a `bool` (CS0472 / CS8073), and a caller that omits
+the argument silently gets `default` — `false`, `0`, `0001-01-01` —
+where Harbour gives the declared value. In the easipos corpus that was
+223 compiler warnings and, with no warning at all, 135
+`hb_default(ref lX, …)` calls whose null check never fires. The emitter
+now reads a top-level `DEFAULT` / `hb_default` on a strict value slot
+as the declaration it is. When the value is a C# constant (`.T.`/`.F.`,
+a numeric literal, a defines-map member) and the slot sits after the
+function's last by-ref parameter, it becomes the parameter's default —
+`bool lLoud = true` — and the dead guard is dropped from the body. See
+[test87.prg](tests/test87.prg).
+
+When no C# default can carry it — the value is an expression
+(`hb_default(@nIndex, oTransaction:GetSaleIndex() + 1)`, `DEFAULT
+dArchive TO Date()`), or the slot sits at or before a `ref` parameter,
+where C# allows no default at all — the slot goes **nullable at the
+boundary only**:
+
+```csharp
+public static void IncBuffIdx(…, decimal nLineType = default, decimal? nIndex = null)
+{
+    TextTranLine oTextLine = default;
+
+    decimal nIndex_ = nIndex ?? oTransaction.GetSaleIndex() + 1;   // where the DEFAULT stood
+    … every later reference to nIndex emits nIndex_ …
+```
+
+The parameter keeps its Harbour name, so named-argument callers are
+unaffected; the normalising local is emitted at the `DEFAULT`'s own
+position, not hoisted, so a default that reads an earlier LOCAL keeps
+its evaluation order and `??` short-circuits exactly as the guard did;
+a reference *before* the `DEFAULT` still sees `T?` and fails typed use,
+which is the right signal. An explicit `NIL` argument takes the default
+too, as in Harbour. Only top-level statements qualify — a `DEFAULT`
+nested in an `IF` is conditional and stays where it is — and by-ref
+slots are excluded (the caller's variable would have to be `T?`).
+The scan records every declared default as pflag `D`, which is how a
+caller in another file knows to pad `default(T?)` — null — rather than
+the value-type zero into an omitted pre-ref slot (`Tally( , @n )` →
+`Tally(default(decimal?), ref n)`); the short overload forwards null
+the same way. A gap *after* the last `ref` switches the later
+arguments to named form (`Accrue(ref nTot, nTimes: 2)`) so the
+canonical's own default applies. See [test88.prg](tests/test88.prg).
+Guards on nilable (reference-typed) slots are untouched throughout.
+
 ---
 
 ## C# emission features
@@ -660,6 +738,9 @@ See [test18.prg](tests/test18.prg) for the full demo.
 | `Fred(x)` short call             | `Fred(x)` (relies on `= default` on declaration)         |
 | `Fred(x, , z)` middle gap        | `Fred(x, nC: z)` (named argument syntax)                 |
 | `IF nB != NIL`                   | `if (nB != null)` with `nB` emitted as `decimal?`        |
+| `DEFAULT lX TO .T.` / `hb_default(@nX, 40)` on a value slot | `bool lX = true` / `decimal nX = 40` on the declaration; the guard is dropped (see [NIL semantics](#nil-semantics)) |
+| `DEFAULT nIdx TO <expr>` on a value slot (or any declared default at/before a `ref`) | `decimal? nIdx = null` at the boundary, `decimal nIdx_ = nIdx ?? <expr>;` where the guard stood, later references aliased to `nIdx_`; callers pad `default(decimal?)` into a pre-ref gap |
+| `VAR bFilter AS CODEBLOCK INIT { \|\| .T. }` | `private dynamic bFilter = ((Func<dynamic>)(() => true));` — the codeblock is parsed, not passed through as text |
 | Array index `a[i]`               | `a[(long)(i) - 1]` (1-based → 0-based; `long` indexes C# arrays natively) |
 | `a / b` with both operands C#-integral | `(decimal)(a) / b` — Harbour `/` is always float (`7/2 == 3.5`); the cast is emitted only when both sides are statically `long` (int literals, INTEGER locals, int/long defines, ORM int fields, `AS INTEGER` members). `%` needs no cast; `^` already routes via `HbRuntime.Pow`. See [test84.prg](tests/test84.prg) |
 | `oX.nIntMember := <decimal expr>` | `oX.nIntMember = (long)(expr);` — writes into `AS INTEGER` members and int/long ORM fields are coerced; the truncation is recorded in the audit (`ORM-NARROW`) |
@@ -864,7 +945,43 @@ bash comparecs.sh   # .cs stdout must match .prg stdout
 bash errors/run.sh  # Negative tests — each .prg must fail -GS with a specific error
 ```
 
-Current counts: **86 positive tests (some as a/b multi-file pairs) + 6 negative tests, all pass via `verify.sh`**.
+On Windows the `.sh` drivers fail two ways — they hand `hbmk2` and
+`dotnet` absolute POSIX paths (`-o/c/Users/...`), and running them
+through Git Bash puts `/usr/bin` ahead of MSVC so GNU `link` shadows
+`link.exe` — so use the Python runner instead:
+
+```bat
+cd src\transpiler\tests
+runtests.bat            rem gen + prg + cs + run
+runtests.bat gen        rem regenerate hbout/ and csout/ only
+runtests.bat prg|cs|run rem a single stage
+```
+
+[`runtests.bat`](tests/runtests.bat) sets up `vcvarsall` and the
+Harbour `bin` directory, then calls [`runsuite.py`](tests/runsuite.py)
+directly — never through a shell, which is what keeps the linker
+straight. Overrides: `HB_ARCH` (vcvarsall target, default `x86` to
+match the stock Harbour install the tests link against), `HB_INSTALL`
+(the Harbour prefix providing `hbmk2`), `HBTRANSPILER` (the binary,
+default `bin/hbtranspiler.exe`). `gen` reproduces the bash reftab
+protocol exactly — clear `hbreftab.tab`, `-GF` every source, `-GT`,
+then `-GF` again *without* clearing, `-GS` — because clearing before
+the `-GS` pass produces false diffs (test79 emits `Animal` vs
+`dynamic`). `runsuite.py` covers the `.prg`-vs-`.cs` stages
+(`runtests.sh` + `buildcs.sh`, `buildprg.sh`, `runprg.sh` /
+`runcs.sh` / `comparecs.sh`); the `-GT` round-trip build
+(`buildhb.sh` / `runhb.sh` / `comparehb.sh`), `verifyreftab.sh` and
+`errors/run.sh` are bash-only.
+
+Current counts: **89 positive tests (96 source files — some are a/b
+multi-file pairs; 192 tracked reference outputs under `hbout/` and
+`csout/`) + 6 negative tests, all pass via `verify.sh` and
+`runtests.bat`**. The `tests/defines/<Name>Const.cs` classes that
+`gendefines.py` harvests from the tests' `.ch` and `.prg` files during
+`gen` are tracked as reference output too — the C# build compiles them
+— so a diff there after a regeneration means `gendefines.py` changed.
+Its `defines_map.txt` sibling is an emitter-side intermediate like
+`hbreftab.tab` and is ignored.
 
 The test suite is intentionally small and incremental — each numbered
 test exercises one feature in isolation. New tests usually expose new
@@ -940,6 +1057,9 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 83        | ORM def-class field typing via `--fieldtypes`          |
 | 84        | Harbour float-division semantics over C#-integral operands |
 | 85        | Def-class family bases — polymorphic params widen to a typed base |
+| 86        | Typed receivers in the reftab's method-send scan — a by-ref param forwarded into a reassigning method keeps its `ref` |
+| 87        | Declared defaults — `DEFAULT p TO <const>` / `hb_default(@p, <const>)` lifted onto strict value slots, function / method / short-overload forms |
+| 88        | Boundary defaults — non-constant or pre-`ref` declared defaults: `T?` at the boundary, normalising local, alias, reftab `D`, null padding, named post-`ref` gaps |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
@@ -1038,6 +1158,16 @@ resolves to `PanelsConst.PANELSIGNON` instead of a bare
 fires when the identifier isn't a known function. See
 [test73.prg](tests/test73.prg).
 
+A codeblock initialiser is the one INIT form the text translator does
+not handle: `VAR bFilter AS CODEBLOCK INIT { || .t. }` used to lower
+`.t.` and pass the braces through verbatim — `{ || true }`, a CS1525
+parse error that masked every semantic error in the build behind "1
+error". The emitter now parses the codeblock, takes the arity from its
+parameter list, runs the body through the INLINE translator with those
+parameters declared, and emits the same explicit `Func<>` cast the AST
+emitter uses for `HB_ET_CODEBLOCK` (C# cannot infer a delegate type
+for a lambda assigned to a `dynamic` field).
+
 ---
 
 ## Limitations and future work
@@ -1059,7 +1189,19 @@ fires when the identifier isn't a known function. See
   is the next CI item.
 - **`INLINE` method bodies are translated textually**
   (`hb_csTranslateInline`), so a subscript inside one gets no 1→0
-  conversion — any that compiles is off by one at runtime.
+  conversion — any that compiles is off by one at runtime. (A
+  codeblock `CLASS VAR` INIT is the exception — it is parsed; see
+  [Defines map](#defines-map).)
+- **NIL tests on value slots that are not declared defaults** still
+  emit dead code. A `DEFAULT` nested inside an `IF` is conditional and
+  is left as written (12 sites in easipos — hoist it in source where
+  that is equivalent). A hand-written "was it passed?" test on a
+  value-typed name (`IF lJnlStatus != NIL` — ~50 sites) is dead the
+  other way round: `DevStatus()` with no arguments reaches
+  `SetJnlOn(false)`, and the accessor idiom `IF lOK != NIL ;
+  slFiscalOK := lOK ; ENDIF ; RETURN slFiscalOK` turns every read into
+  a write of `false`. Those need a per-site source decision (split
+  getter/setter, `x` prefix, or drop the test), not an emitter rule.
 - **HbRuntime widening for nilable types** — only `Str()` / `ToString()`
   currently accept `decimal?`. Other helpers (`Len`, `Val`, etc.) will
   need similar widening as real-world code hits them.
@@ -1079,18 +1221,28 @@ fires when the identifier isn't a known function. See
 | `harboury.c`, `harboury.h`| `harbour.yyc` (run `cp harbour.yyc harboury.c` after editing) |
 | `hbfuncs.tab`             | `tools/genfunctab.py`                           |
 | `hbreftab.tab`            | `bin/hbtranspiler -GF`                          |
+| `tests/hbout/`, `tests/csout/`, `tests/defines/` | The test runners' `gen` stage — reference outputs, regenerated and diffed, never edited |
 
 ---
 
 ## Build requirements
 
-- `clang` (the build script is hardcoded to it; gcc would also work
-  with minor edits)
-- macOS / Linux for building the transpiler itself (a Windows build of
-  `bin/hbtranspiler` is an open item). The *driver pipeline* in
-  easipos-transpiled is pure Python and already runs on Windows given
-  a transpiler binary.
-- Optional: `dotnet` SDK 6.0+ for running the C# test pipeline
-- Optional: Python 3.8+ for regenerating `hbfuncs.tab`
-- Optional: stock `harbour` binary on the `PATH` for `buildhb.sh` and
-  `buildprg.sh`
+- macOS / Linux: `clang` (`build.sh` is hardcoded to it; gcc would
+  also work with minor edits).
+- Windows: Visual Studio's MSVC via `build.bat`, linking against the
+  libs `call-win-make.bat` produces (or `call-win-make-arm64.bat` for a
+  native ARM64 binary — contribs off, no `install`; the transpiler
+  links straight out of `lib/win/msvcarm64` and the pipeline needs
+  only architecture-independent contrib headers). `build.bat` keeps
+  x86 as its default rather than detecting the host, because
+  `PROCESSOR_ARCHITECTURE` reports `AMD64` inside an emulated shell.
+  The *driver pipeline* in easipos-transpiled is pure Python and runs
+  on either platform given a binary.
+- Optional: `dotnet` SDK (the test runners target `net10.0`) for the
+  C# stages.
+- Optional: Python 3 for `runsuite.py`, `tools/gendefines.py` and
+  regenerating `hbfuncs.tab` (`py` on Windows — the `python` shim
+  there is a Store alias).
+- Optional: a stock Harbour install — `harbour` on the `PATH` for
+  `buildhb.sh` / `buildprg.sh`, `hbmk2` (via `HB_INSTALL`) for
+  `runtests.bat`.
