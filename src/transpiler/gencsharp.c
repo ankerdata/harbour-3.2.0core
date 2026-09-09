@@ -1332,6 +1332,7 @@ static HB_BOOL hb_csIsBuiltinObjMsg( const char * szMsg )
    so nested calls don't inherit it. */
 static const HB_BOOL * s_aRefShim     = NULL;
 static int             s_iRefShimBase = 0;   /* name base of the call being emitted */
+static HB_BOOL         s_fBaseCallArgs = HB_FALSE;  /* emitting the args of a `base.M(...)` call */
 /* Shim-block nesting depth, used as the `_hbref<base>` / `_hbcall<base>`
    id: incremented on entering a shim/hoist block and decremented on
    leaving, so a nested block gets a higher base than its enclosing one
@@ -2199,6 +2200,29 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                fprintf( yyc, ")" );
                pItem = pItem->pNext;
                continue;
+            }
+         }
+         /* `base.M(...)` is bound statically and cannot be when an
+            argument is dynamic (CS1971): a dynamic-typed variable is cast
+            to the parent slot's type — `object` for a dynamic slot, which
+            binds statically and converts to `dynamic` for free. Only a
+            variable can be typed here; a concrete-typed one is left
+            alone so a real mismatch still reads as CS1503. */
+         if( s_fBaseCallArgs && pArg->ExprType == HB_ET_VARIABLE )
+         {
+            const char * szArgT = hb_csArgVarType( pArg->value.asSymbol.name );
+            if( ! szArgT || hb_stricmp( hb_csTypeMap( szArgT ), "dynamic" ) == 0 )
+            {
+               const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+               const char * szCs = "dynamic";   /* no row: `object` is always safe */
+               HB_BOOL fDynSlot;
+               if( pP )
+                  szCs = hb_csTypeMap(
+                     ( pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+                        ? pP->szType : hb_astInferType( pP->szName, NULL ) );
+               fDynSlot = hb_stricmp( szCs, "dynamic" ) == 0;
+               fprintf( yyc, "(%s%s)", fDynSlot ? "object" : szCs,
+                        ( ! fDynSlot && pP && pP->fNilable ) ? "?" : "" );
             }
          }
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
@@ -3628,12 +3652,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "(" );
                s_aRefShim = aSendShim;
                s_iRefShimBase = iSendShimBase;
+               s_fBaseCallArgs = HB_TRUE;
                hb_csEmitCallArgs(
                   szParent ? hb_csMethodKeyInChain( szParent,
                                                     pExpr->value.asMessage.szMessage,
                                                     szSuperKey, sizeof( szSuperKey ) )
                            : "",
                   pExpr->value.asMessage.pParms, yyc );
+               s_fBaseCallArgs = HB_FALSE;
                fprintf( yyc, ")" );
             }
             break;
