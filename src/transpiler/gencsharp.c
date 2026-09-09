@@ -3351,6 +3351,27 @@ static HB_BOOL hb_csCtorEmitsCast( PHB_EXPR pExpr, const char * szCtor )
           hb_csCtorDeclares( szCtor, "Init" );
 }
 
+/* `dDate++` / `--dDate` is date arithmetic in Harbour; C# DateOnly and
+   DateTime have no ++. For an operand the emitter knows as a DATE or
+   TIMESTAMP variable, emit `d = d.AddDays( +-1 )` and report it handled
+   (the pre / post distinction only matters in expression position,
+   where the corpus never puts a date step). */
+static HB_BOOL hb_csEmitDateStep( PHB_EXPR pLeft, int iDelta, FILE * yyc )
+{
+   const char * szT;
+   if( ! pLeft || pLeft->ExprType != HB_ET_VARIABLE )
+      return HB_FALSE;
+   szT = hb_csArgVarType( pLeft->value.asSymbol.name );
+   if( ! szT || ( hb_stricmp( szT, "DATE" ) != 0 &&
+                  hb_stricmp( szT, "TIMESTAMP" ) != 0 ) )
+      return HB_FALSE;
+   hb_csEmitExpr( pLeft, yyc, HB_FALSE );
+   fprintf( yyc, " = " );
+   hb_csEmitExpr( pLeft, yyc, HB_TRUE );
+   fprintf( yyc, ".AddDays(%d)", iDelta );
+   return HB_TRUE;
+}
+
 /* ---- Expression emitter ---- */
 
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
@@ -3616,6 +3637,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   const char * szMapped = hb_csFuncMap( szName );
                   if( szMapped == szName && s_pRefTab )
                      szMapped = hb_refTabFuncCanon( s_pRefTab, szName );
+                  /* Harbour resolves `name( ... )` as a function call
+                     whatever locals are in scope; C# sees the local and
+                     refuses (CS0149: easipayback's `local nTax` beside
+                     the tax.prg function nTax). Every free function is
+                     a Program static, so qualify — the same treatment a
+                     user ToString gets against object.ToString. */
+                  if( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) )
+                     fprintf( yyc, "Program." );
                   fprintf( yyc, "%s", szMapped );
                   /* Flag call sites that pass more args than the
                      declaration takes — that's a source-level bug
@@ -4686,21 +4715,29 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_EO_PREINC:
+         if( hb_csEmitDateStep( pExpr->value.asOperator.pLeft, 1, yyc ) )
+            break;
          fprintf( yyc, "++" );
          hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_TRUE );
          break;
 
       case HB_EO_PREDEC:
+         if( hb_csEmitDateStep( pExpr->value.asOperator.pLeft, -1, yyc ) )
+            break;
          fprintf( yyc, "--" );
          hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_TRUE );
          break;
 
       case HB_EO_POSTINC:
+         if( hb_csEmitDateStep( pExpr->value.asOperator.pLeft, 1, yyc ) )
+            break;
          hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_TRUE );
          fprintf( yyc, "++" );
          break;
 
       case HB_EO_POSTDEC:
+         if( hb_csEmitDateStep( pExpr->value.asOperator.pLeft, -1, yyc ) )
+            break;
          hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_TRUE );
          fprintf( yyc, "--" );
          break;
