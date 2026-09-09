@@ -869,6 +869,48 @@ HB_BOOL hb_refTabIsKindOf( PHB_REFTAB pTab, const char * szSub,
    return HB_FALSE;
 }
 
+int hb_refTabMemberNameKind( PHB_REFTAB pTab, const char * szMember )
+{
+   HB_SIZE i;
+   int iKind = 0;
+   if( ! pTab || ! szMember )
+      return 0;
+   for( i = 0; i < HB_REFTAB_BUCKETS && iKind != 3; i++ )
+   {
+      PHB_REFENTRY e;
+      for( e = pTab->buckets[ i ]; e; e = e->pNext )
+      {
+         const char * szSep;
+         const char * szTail;
+         const char * szUs;
+         char szOwner[ 128 ];
+         HB_SIZE nOwner;
+         if( e->nParams < 0 || ! e->szName )
+            continue;               /* a stub is not a declaration */
+         szSep = strstr( e->szName, "::" );
+         if( ! szSep )
+            continue;
+         nOwner = ( HB_SIZE ) ( szSep - e->szName );
+         if( nOwner == 0 || nOwner >= sizeof( szOwner ) )
+            continue;
+         memcpy( szOwner, e->szName, nOwner );
+         szOwner[ nOwner ] = '\0';
+         if( ! hb_refTabIsClass( pTab, szOwner ) )
+            continue;               /* `file::func`, a static function */
+         szTail = szSep + 2;
+         szUs = strstr( szTail, "__" );
+         if( szUs )
+         {
+            if( hb_stricmp( szUs + 2, szMember ) == 0 )
+               iKind |= 1;
+         }
+         else if( hb_stricmp( szTail, szMember ) == 0 )
+            iKind |= 2;
+      }
+   }
+   return iKind;
+}
+
 HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
                                    const char * szMember )
 {

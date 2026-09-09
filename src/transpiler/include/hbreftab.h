@@ -206,6 +206,13 @@ extern HB_BOOL hb_refTabIsKindOf( PHB_REFTAB pTab, const char * szSub,
    read on a PrintableTranLine-typed variable holding an FcnTranLine. */
 extern HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
                                           const char * szMember );
+/* Across every class the table knows: is szMember a METHOD name
+   (`Class::Class__member`), a member / property name (`Class::member`),
+   both, or neither — bit 1 method, bit 2 member. For a send whose
+   receiver's class is unknown: a bare send to a name that is a method
+   everywhere is a call; empty parentheses on a name that is a member
+   everywhere are dropped. */
+extern int hb_refTabMemberNameKind( PHB_REFTAB pTab, const char * szMember );
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );
 

@@ -68,6 +68,8 @@ static const char * hb_csTypeMap( const char * szHbType );
 static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
                                        HB_SIZE nBuf );
 static HB_BOOL hb_csIsFileMemvar( const char * szName );
+static HB_BOOL hb_csIsFileStatic( const char * szName );
+static const char * hb_csFileStaticType( const char * szName );
 
 /* Track last source line for blank line preservation */
 static int s_iLastLine = 0;
@@ -269,7 +271,21 @@ static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
 static HB_BOOL hb_csVarIsInteger( const char * szName )
 {
    const char * szT = hb_csLocalTypeGet( szName );
+   /* a file STATIC seeded from an integer define is `long` too */
+   if( ! szT && hb_csIsFileStatic( szName ) )
+      szT = hb_csFileStaticType( szName );
    return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+}
+
+/* The assignment operators whose right side is written into the left:
+   a decimal reaching an integral lvalue through any of them needs the
+   (long) coercion. `/=` and `^=` stay out — they produce a fraction by
+   construction and are the audit's business. */
+static HB_BOOL hb_csIsIntWriteOp( int iType )
+{
+   return iType == HB_EO_ASSIGN || iType == HB_EO_PLUSEQ ||
+          iType == HB_EO_MINUSEQ || iType == HB_EO_MULTEQ ||
+          iType == HB_EO_MODEQ;
 }
 
 /* True when the current class declares szMember with a type that maps
@@ -2661,6 +2677,13 @@ static const char * hb_csTranslateInline( const char * szVal,
             nIn++;   /* bare `::` with no identifier — skip second ':' */
          continue;
       }
+      /* `obj:member` — a single-colon send: the dot. (`::` was handled
+         above, `:=` is next; an identifier character decides.) */
+      if( p[ nIn ] == ':' && nIn + 1 < nLen && hb_csInlineIsIdCh( p[ nIn + 1 ] ) )
+      {
+         s_szBuf[ nOut++ ] = '.';
+         continue;
+      }
       /* := → = (assignment, rewriting only when not followed by '=') */
       if( p[ nIn ] == ':' && nIn + 1 < nLen && p[ nIn + 1 ] == '=' )
       {
@@ -3930,6 +3953,23 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                                                    szMsgIn ) )
                   fViaDynamic = HB_TRUE;
             }
+            else if( ! szRecvClass && s_pRefTab && szMsgIn &&
+                     pExpr->value.asMessage.pObject &&
+                     ! hb_csIsBuiltinObjMsg( szMsgIn ) )
+            {
+               /* Receiver of unknown class — `dynamic` in C#, where the
+                  DLR reads `d.Name` as a field or property: a method
+                  sent bare throws at runtime, and so do `()` on a
+                  property. If the name is a method on every class
+                  declaring it, or a member on every one, the reftab
+                  settles the parentheses; a name that is both somewhere
+                  stays as written. */
+               int iKind = hb_refTabMemberNameKind( s_pRefTab, szMsgIn );
+               if( iKind == 1 )
+                  fMethodRow = HB_TRUE;
+               else if( iKind == 2 )
+                  fDataRow = HB_TRUE;
+            }
 
             if( pExpr->value.asMessage.pObject )
             {
@@ -4696,7 +4736,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
                fprintf( yyc, ")" );
             }
-            else if( pExpr->ExprType == HB_EO_ASSIGN &&
+            else if( hb_csIsIntWriteOp( pExpr->ExprType ) &&
                      pExpr->value.asOperator.pLeft &&
                      ( ( pExpr->value.asOperator.pLeft->ExprType ==
                             HB_ET_VARIABLE &&
@@ -4706,12 +4746,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                           pExpr->value.asOperator.pLeft ) ) &&
                      hb_csNeedsIntCast( pExpr->value.asOperator.pRight ) )
             {
-               /* Write into an int-typed variable or a class member
+               /* Write into an int-typed variable (a Pass 2.5 local, a
+                  file STATIC seeded from a define) or a class member
                   declared integral (Self `as int`, or any class-typed
                   receiver's AS INTEGER member via the scan-registered
-                  Class::member reftab rows) — coerce the RHS. */
+                  Class::member reftab rows) — coerce the RHS, for `:=`
+                  and the compound `+=` family alike. */
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
-               fprintf( yyc, " = (long)(" );
+               fprintf( yyc, "%s(long)(", hb_csOperatorStr( pExpr->ExprType ) );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
                fprintf( yyc, ")" );
             }
@@ -5260,15 +5302,24 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                                       iIndent + 1 );
                   /* the call — hb_csEmitCallArgs swaps in `ref _hbref<base>_N` */
                   hb_csEmitIndent( yyc, iIndent + 1 );
-                  if( pAsgnLeft )
                   {
-                     hb_csEmitExpr( pAsgnLeft, yyc, HB_FALSE );
-                     fprintf( yyc, " = " );
+                     /* the same (long) coercion a plain `n := call` gets
+                        when n is integral and the call is not */
+                     HB_BOOL fIntCast = pAsgnLeft &&
+                        ( ( pAsgnLeft->ExprType == HB_ET_VARIABLE &&
+                            hb_csVarIsInteger( pAsgnLeft->value.asSymbol.name ) ) ||
+                          hb_csSendMemberIsInteger( pAsgnLeft ) ) &&
+                        hb_csNeedsIntCast( pCall );
+                     if( pAsgnLeft )
+                     {
+                        hb_csEmitExpr( pAsgnLeft, yyc, HB_FALSE );
+                        fprintf( yyc, fIntCast ? " = (long)(" : " = " );
+                     }
+                     s_aRefShim = aShim;
+                     s_iRefShimBase = iBase;
+                     hb_csEmitExpr( pCall, yyc, HB_FALSE );
+                     fprintf( yyc, fIntCast ? ");\n" : ";\n" );
                   }
-                  s_aRefShim = aShim;
-                  s_iRefShimBase = iBase;
-                  hb_csEmitExpr( pCall, yyc, HB_FALSE );
-                  fprintf( yyc, ";\n" );
                   hb_csEmitShimWriteback( pHead, aShim, iBase, yyc, iIndent + 1 );
                   hb_csEmitIndent( yyc, iIndent );
                   fprintf( yyc, "}\n" );
@@ -5655,7 +5706,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                hb_csEmitExpr( pNode->value.asFor.pStart, yyc, HB_FALSE );
             fprintf( yyc, "; %s %s ", pNode->value.asFor.szVar,
                      fDescend ? ">=" : "<=" );
-            hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_FALSE );
+            /* fParen: `TO ( nLen := Len( a ) )` keeps its parentheses —
+               C# `=` binds looser than `<=` (CS0131) */
+            hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_TRUE );
             fprintf( yyc, "; %s", pNode->value.asFor.szVar );
             if( pNode->value.asFor.pStep )
             {
@@ -6474,6 +6527,46 @@ static void hb_csEmitInlineStatements( const char * szExpr, HB_BOOL fReturnLast,
    }
 }
 
+/* An ACCESS / ASSIGN pair with INLINE bodies emits as a property with
+   real accessors — an auto-property would drop the bodies. `pGet` /
+   `pSet` may each be NULL. The body goes through the inline text
+   translator, as an INLINE method's does; a setter binds its declared
+   parameter to `value` first. */
+static void hb_csEmitInlineProperty( const char * szScope, const char * szCsType,
+                                     const char * szName, PHB_AST_NODE pGet,
+                                     PHB_AST_NODE pSet, FILE * yyc )
+{
+   const char * szGet = pGet ? pGet->value.asClassData.szInit : NULL;
+   const char * szSet = pSet ? pSet->value.asClassData.szInit : NULL;
+   fprintf( yyc, "%s %s %s {", szScope, szCsType, szName );
+   if( pGet )
+   {
+      if( szGet )
+      {
+         fprintf( yyc, " get { " );
+         hb_csEmitInlineStatements( hb_csTranslateInline( szGet, NULL ), HB_TRUE, yyc );
+         fprintf( yyc, "}" );
+      }
+      else
+         fprintf( yyc, " get => default;" );
+   }
+   if( pSet )
+   {
+      if( szSet )
+      {
+         const char * szParm = pSet->value.asClassData.szParams;
+         fprintf( yyc, " set { " );
+         if( szParm && *szParm )
+            fprintf( yyc, "dynamic %s = value; ", szParm );
+         hb_csEmitInlineStatements( hb_csTranslateInline( szSet, szParm ), HB_FALSE, yyc );
+         fprintf( yyc, "}" );
+      }
+      else
+         fprintf( yyc, " set { }" );
+   }
+   fprintf( yyc, " }" );
+}
+
 /* Find class entry by name (case-insensitive) */
 static HB_CS_CLASS * hb_csFindClass( HB_CS_CLASS * pList, const char * szName )
 {
@@ -6819,18 +6912,23 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                      }
                      pScan = pScan->pNext;
                   }
-                  /* KNOWN GAP: the ACCESS / ASSIGN body — an INLINE
-                     expression (kept in szInit / szParams) or a METHOD
-                     definition (skipped below) — is not emitted; this
-                     is an auto-property that reads default. The inline
-                     text needs the expression parser, not the text
-                     translator: bare RTL names, nested sends and
-                     1-based indexes do not survive a rewrite. */
-                  fprintf( yyc, "%s %s %s { get;%s }",
-                           szScope,
-                           hb_csTypeMap( szType ? szType : "USUAL" ),
-                           pMember->value.asClassData.szName,
-                           pAssign ? " set;" : "" );
+                  /* An INLINE body becomes the accessor's body. KNOWN
+                     GAP: an ACCESS whose body is a METHOD definition
+                     (skipped below) is still an auto-property reading
+                     default; and the inline translator does not rebase
+                     a 1-based subscript — keep those in a method. */
+                  if( pMember->value.asClassData.szInit ||
+                      ( pAssign && pAssign->value.asClassData.szInit ) )
+                     hb_csEmitInlineProperty( szScope,
+                              hb_csTypeMap( szType ? szType : "USUAL" ),
+                              pMember->value.asClassData.szName,
+                              pMember, pAssign, yyc );
+                  else
+                     fprintf( yyc, "%s %s %s { get;%s }",
+                              szScope,
+                              hb_csTypeMap( szType ? szType : "USUAL" ),
+                              pMember->value.asClassData.szName,
+                              pAssign ? " set;" : "" );
                }
                break;
 
@@ -6856,10 +6954,16 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                      pMember = pMember->pNext;
                      continue;
                   }
-                  fprintf( yyc, "%s %s %s { get; set; }",
-                           szScope,
-                           hb_csTypeMap( szType ? szType : "USUAL" ),
-                           pMember->value.asClassData.szName );
+                  if( pMember->value.asClassData.szInit )
+                     hb_csEmitInlineProperty( szScope,
+                              hb_csTypeMap( szType ? szType : "USUAL" ),
+                              pMember->value.asClassData.szName,
+                              NULL, pMember, yyc );
+                  else
+                     fprintf( yyc, "%s %s %s { get; set; }",
+                              szScope,
+                              hb_csTypeMap( szType ? szType : "USUAL" ),
+                              pMember->value.asClassData.szName );
                }
                break;
 
