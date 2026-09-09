@@ -10,6 +10,11 @@
 // corpus). Where the fraction is real — a division, a quantity — the
 // corpus says `Int()` in source so Harbour truncates too, and the
 // coercion then only restates it.
+// A file STATIC takes its type from its initialiser alone (Pass 2.5
+// only sees the body a variable is declared in), so `snHalf` below is
+// long from LAMP_LOW; the division written into it from Main — a hard
+// disqualifier — demotes it to decimal in the emitter's pre-pass, and
+// it holds 0.5 as Harbour does.
 // Second: `FOR i := 1 TO ( nLen := Len( a ) )` — an assignment used as
 // an operand keeps its parentheses in C#, where `=` binds looser than
 // `<=` (CS0131).
@@ -18,6 +23,7 @@
 #include "hbclass.ch"
 
 STATIC snLamp := LAMP_OFF
+STATIC snHalf := LAMP_LOW
 
 CLASS Ledger
    VAR nCovers AS INTEGER INIT 0
@@ -48,7 +54,8 @@ PROCEDURE Main()
    LOCAL nLen, i
 
    SetLamp( LAMP_LOW )
-   ? "lamp=" + LTrim( Str( snLamp ) )
+   snHalf := LAMP_LOW / 2
+   ? "lamp=" + LTrim( Str( snLamp ) ) + " half=" + IIF( snHalf * 2 == 1, "kept", "lost" )
    oLedger:Add( 2.7 )
    ? "covers=" + LTrim( Str( oLedger:Add( 1 ) ) )
    nResult := oLedger:Gauge( "tea", @cOut )

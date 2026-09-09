@@ -6567,6 +6567,145 @@ static void hb_csEmitInlineProperty( const char * szScope, const char * szCsType
    fprintf( yyc, " }" );
 }
 
+/* A hard integer disqualifier as a right-hand side: a division, a
+   power, a fractional literal. Mirrors Pass 2.5's rule for locals. */
+static HB_BOOL hb_csExprIsFractional( PHB_EXPR p )
+{
+   return p && ( p->ExprType == HB_EO_DIV || p->ExprType == HB_EO_POWER ||
+                 ( p->ExprType == HB_ET_NUMERIC &&
+                   p->value.asNum.NumType != HB_ET_LONG ) );
+}
+
+/* Integer demotion of file STATICs: a write of a hard disqualifier into
+   a STATIC the registry holds as INTEGER makes it NUMERIC. Any function
+   of the file counts — the declaration's initialiser alone typed it. */
+static void hb_csIntDemoteExpr( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_FUNCALL:
+         hb_csIntDemoteExpr( pExpr->value.asFunCall.pParms );
+         break;
+      case HB_ET_SEND:
+         hb_csIntDemoteExpr( pExpr->value.asMessage.pObject );
+         hb_csIntDemoteExpr( pExpr->value.asMessage.pParms );
+         break;
+      case HB_ET_LIST: case HB_ET_ARGLIST: case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAYAT: case HB_ET_IIF:
+      {
+         PHB_EXPR p;
+         for( p = pExpr->value.asList.pExprList; p; p = p->pNext )
+            hb_csIntDemoteExpr( p );
+         break;
+      }
+      default:
+         if( pExpr->ExprType >= HB_EO_ASSIGN && pExpr->ExprType <= HB_EO_PREDEC )
+         {
+            PHB_EXPR pL = pExpr->value.asOperator.pLeft;
+            PHB_EXPR pR = pExpr->value.asOperator.pRight;
+            if( pL && pL->ExprType == HB_ET_VARIABLE &&
+                hb_csIsFileStatic( pL->value.asSymbol.name ) )
+            {
+               const char * szT = hb_csFileStaticType( pL->value.asSymbol.name );
+               if( szT && hb_stricmp( szT, "INTEGER" ) == 0 &&
+                   ( pExpr->ExprType == HB_EO_DIVEQ ||
+                     pExpr->ExprType == HB_EO_EXPEQ ||
+                     ( hb_csIsIntWriteOp( pExpr->ExprType ) &&
+                       hb_csExprIsFractional( pR ) ) ) )
+                  hb_csSetFileStaticType( pL->value.asSymbol.name, "NUMERIC" );
+            }
+            hb_csIntDemoteExpr( pL );
+            hb_csIntDemoteExpr( pR );
+         }
+         break;
+   }
+}
+
+static void hb_csIntDemoteBlock( PHB_AST_NODE pBlock )
+{
+   PHB_AST_NODE pStmt;
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            hb_csIntDemoteExpr( pStmt->value.asExprStmt.pExpr );
+            break;
+         case HB_AST_RETURN:
+            hb_csIntDemoteExpr( pStmt->value.asReturn.pExpr );
+            break;
+         case HB_AST_LOCAL: case HB_AST_STATIC:
+         case HB_AST_PUBLIC: case HB_AST_PRIVATE:
+            hb_csIntDemoteExpr( pStmt->value.asVar.pInit );
+            break;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pE;
+            hb_csIntDemoteExpr( pStmt->value.asIf.pCondition );
+            hb_csIntDemoteBlock( pStmt->value.asIf.pThen );
+            for( pE = pStmt->value.asIf.pElseIfs; pE; pE = pE->pNext )
+            {
+               hb_csIntDemoteExpr( pE->value.asElseIf.pCondition );
+               hb_csIntDemoteBlock( pE->value.asElseIf.pBody );
+            }
+            hb_csIntDemoteBlock( pStmt->value.asIf.pElse );
+            break;
+         }
+         case HB_AST_DOWHILE:
+            hb_csIntDemoteExpr( pStmt->value.asWhile.pCondition );
+            hb_csIntDemoteBlock( pStmt->value.asWhile.pBody );
+            break;
+         case HB_AST_FOR:
+            hb_csIntDemoteExpr( pStmt->value.asFor.pStart );
+            hb_csIntDemoteExpr( pStmt->value.asFor.pEnd );
+            hb_csIntDemoteExpr( pStmt->value.asFor.pStep );
+            hb_csIntDemoteBlock( pStmt->value.asFor.pBody );
+            break;
+         case HB_AST_FOREACH:
+            hb_csIntDemoteExpr( pStmt->value.asForEach.pEnum );
+            hb_csIntDemoteBlock( pStmt->value.asForEach.pBody );
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pC;
+            for( pC = pStmt->value.asDoCase.pCases; pC; pC = pC->pNext )
+            {
+               hb_csIntDemoteExpr( pC->value.asCase.pCondition );
+               hb_csIntDemoteBlock( pC->value.asCase.pBody );
+            }
+            hb_csIntDemoteBlock( pStmt->value.asDoCase.pOtherwise );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE pC;
+            hb_csIntDemoteExpr( pStmt->value.asSwitch.pSwitch );
+            for( pC = pStmt->value.asSwitch.pCases; pC; pC = pC->pNext )
+            {
+               hb_csIntDemoteExpr( pC->value.asCase.pCondition );
+               hb_csIntDemoteBlock( pC->value.asCase.pBody );
+            }
+            hb_csIntDemoteBlock( pStmt->value.asSwitch.pDefault );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_csIntDemoteBlock( pStmt->value.asSeq.pBody );
+            hb_csIntDemoteBlock( pStmt->value.asSeq.pRecover );
+            hb_csIntDemoteBlock( pStmt->value.asSeq.pAlways );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_csIntDemoteBlock( pStmt->value.asWithObj.pBody );
+            break;
+         default:
+            break;
+      }
+   }
+}
+
 /* Find class entry by name (case-insensitive) */
 static HB_CS_CLASS * hb_csFindClass( HB_CS_CLASS * pList, const char * szName )
 {
@@ -8250,7 +8389,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      const char * szT = hb_astInferType(
                         pStmt->value.asVar.szName,
                         pStmt->value.asVar.pInit );
-                     if( hb_astIsHashFamily( szT ) )
+                     if( hb_astIsHashFamily( szT ) ||
+                         ( szT && hb_stricmp( szT, "INTEGER" ) == 0 ) )
                         hb_csSetFileStaticType(
                            pStmt->value.asVar.szName, szT );
                   }
@@ -8285,6 +8425,28 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          }
       }
       while( fChg );
+      s_szStaticScope = NULL;
+   }
+
+   /* Integer demotion pre-pass: a file STATIC seeded from an integer
+      define is `long`; a hard disqualifier written into it from ANY
+      function of the file — a division, a `^`, a fractional literal,
+      `/=`, `^=` — makes it `decimal` (kpprt's `snKPPluLen := KPLINELEN
+      / 2`). A soft write leaves it `long` and the assignment coerces.
+      Mirrors Pass 2.5's hard rule for locals, which only sees the
+      body a variable is declared in. */
+   {
+      PHB_AST_NODE pF = HB_COMP_PARAM->ast.pFuncList;
+      while( pF )
+      {
+         if( pF->type == HB_AST_FUNCTION )
+         {
+            s_szStaticScope = ( pF == s_pFileDeclFunc )
+               ? NULL : pF->value.asFunc.szName;
+            hb_csIntDemoteBlock( pF->value.asFunc.pBody );
+         }
+         pF = pF->pNext;
+      }
       s_szStaticScope = NULL;
    }
 
@@ -8422,6 +8584,13 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                                hb_stricmp( szType, "HASH" ) == 0 &&
                                hb_astIsHashFamily( szReg ) &&
                                hb_stricmp( szReg, "HASH" ) != 0 )
+                              szType = szReg;
+                           /* ... and the integer pre-pass may have
+                              demoted an INTEGER static to NUMERIC on a
+                              hard disqualifier in some function body. */
+                           if( szReg && szType &&
+                               hb_stricmp( szType, "INTEGER" ) == 0 &&
+                               hb_stricmp( szReg, "NUMERIC" ) == 0 )
                               szType = szReg;
                         }
                         hb_csSetFileStaticType(

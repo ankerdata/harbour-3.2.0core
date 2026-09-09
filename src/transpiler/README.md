@@ -732,6 +732,67 @@ arguments to named form (`Accrue(ref nTot, nTimes: 2)`) so the
 canonical's own default applies. See [test88.prg](tests/test88.prg).
 Guards on nilable (reference-typed) slots are untouched throughout.
 
+### How a variable gets its type — the ladder
+
+The passes above are the machinery; this is the order in which a
+single variable's C# type is decided, from the weakest evidence to the
+strongest. Later rungs override earlier ones.
+
+1. **The Hungarian prefix** is the default for every local, parameter
+   and member: `n` `decimal`, `c` `string`, `l` `bool`, `d` `DateOnly`,
+   `t` `DateTime`, `a` `dynamic[]`, `h` `Dictionary<string, dynamic>`,
+   `o` the class of that name when one exists (`oTransaction` →
+   `Transaction`) and `dynamic` otherwise, `x` `dynamic` on purpose.
+   A name that lies about its contents is a bug (W0021 / W0024).
+2. **A declaration** overrides the prefix: `AS INTEGER` is `long` and
+   is the only integral annotation; `AS <type>`; a `VAR o<Class>`
+   member is name-seeded to that class.
+3. **Initialisers and defines**: a `#define` with an integer value is
+   integer tier (the defines map), and a LOCAL or STATIC initialised
+   from an integer literal, such a define, or another integer variable
+   becomes an INTEGER *candidate*.
+4. **Pass 2.5, per function**: the candidate stays `long` only if every
+   write to it is provably integral (integer literals, defines, `+ - *
+   %` of integrals, `++`) and it is used as an index or feeds an
+   integer member. A fractional literal, a division result, `/=` or
+   `^=` disqualify it — W0026 at that site if it was index-used.
+   Parameters are never retyped this way; their type is the reftab
+   slot. A **file STATIC** takes its type from its initialiser and is
+   demoted only by a hard disqualifier in any function of the file (a
+   division or a fraction written into it); a soft write leaves it
+   `long`, and the assignment coerces (test98).
+5. **Across files, the reftab**: a parameter slot refines from what
+   callers pass (OBJECT to a class, USUAL to a concrete type, two
+   classes to their common ancestor); integer callers never narrow a
+   NUMERIC slot; a real conflict widens to USUAL with a W0022. Return
+   types come from the RETURN expressions, member types from their
+   declarations, and a `Class():New(…)` call site refines the
+   constructor's own slots (test93).
+6. Anything still unknown is `dynamic`.
+
+Day to day: the prefix is the contract, `AS INTEGER` promises "never a
+fraction" so anything fractional flowing into one needs `Int()` or
+`Round()` at the feed, and a define'd constant makes a static integer.
+
+### Where to look when you lose track
+
+- **The generated `.cs`** is the ground truth: the declaration says
+  `long` or `decimal`, and a cast or `HbDiscard` shim at a call site
+  says what the emitter had to reconcile.
+- **`reftab.tab`**: one row per function, method and typed member —
+  `SetCurrentPanel - - 1 nPanel:NUMERIC:-` is the slot the callers
+  agreed on; `Transaction::nTtlCovers - INTEGER 0` is the declared
+  member. `Class::Class__m` rows are methods, `Class::member` rows are
+  members and properties; flags on a slot are `R` by-ref, `N` nilable,
+  `W` reassigned, `C` conflict, `D` declared default.
+- **The type audit** (`notes/type-audit.tsv` in easipos-transpiled):
+  ORM-NARROW and INT-CONFLICT rows are exactly "a decimal feeds an
+  integer", per site; MEMBER-TYPE rows say what evidence a member's
+  type rests on. It is a leaderboard, not a gate.
+- **The scan log**: W0026 names the site that demoted an index-used
+  variable, W0022 the caller that conflicted with the others, W0024 a
+  name whose prefix disagrees with what it holds.
+
 ---
 
 ## C# emission features
