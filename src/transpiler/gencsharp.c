@@ -4384,20 +4384,179 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
    }
 }
 
-/* Check if a block ends with EXIT/BREAK/RETURN (maps to break/throw/return in C#) */
+/* ---- Reachability ----
+
+   Harbour requires a FUNCTION to end with RETURN — a level-1 warning
+   otherwise, and the corpus builds with -w3 -es2 — so a function whose
+   last real statement never completes (IF/ELSE with every arm
+   returning, DO CASE with OTHERWISE all returning, DO WHILE .T. with no
+   EXIT) still carries a final RETURN that no path reaches, and C# flags
+   it (CS0162). The emitter skips exactly that statement. The same
+   predicate decides whether a SWITCH case needs its trailing `break;`,
+   and it looks past comment nodes: a comment preserved after `exit` /
+   `return` used to hide the jump and earn the case a second `break;`. */
+
+static PHB_AST_NODE s_pUnreachableReturn = NULL;  /* set while emitting a body */
+
+static PHB_AST_NODE hb_csBlockFirstStmt( PHB_AST_NODE pBlock )
+{
+   if( ! pBlock )
+      return NULL;
+   return pBlock->type == HB_AST_BLOCK ? pBlock->value.asBlock.pFirst : pBlock;
+}
+
+/* Last statement of a block, ignoring trailing comment nodes. */
+static PHB_AST_NODE hb_csBlockLastStmt( PHB_AST_NODE pBlock )
+{
+   PHB_AST_NODE p, pLast = NULL;
+   for( p = hb_csBlockFirstStmt( pBlock ); p; p = p->pNext )
+      if( p->type != HB_AST_COMMENT )
+         pLast = p;
+   return pLast;
+}
+
+/* True when the loop body holds an EXIT that leaves THIS loop. Nested
+   loops and SWITCHes own their EXITs, so they are not entered. */
+static HB_BOOL hb_csLoopBodyHasExit( PHB_AST_NODE pBlock )
+{
+   PHB_AST_NODE p;
+   for( p = hb_csBlockFirstStmt( pBlock ); p; p = p->pNext )
+   {
+      switch( p->type )
+      {
+         case HB_AST_EXIT:
+            return HB_TRUE;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pElseIf;
+            if( hb_csLoopBodyHasExit( p->value.asIf.pThen ) ||
+                hb_csLoopBodyHasExit( p->value.asIf.pElse ) )
+               return HB_TRUE;
+            for( pElseIf = p->value.asIf.pElseIfs; pElseIf; pElseIf = pElseIf->pNext )
+               if( hb_csLoopBodyHasExit( pElseIf->value.asElseIf.pBody ) )
+                  return HB_TRUE;
+            break;
+         }
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = p->value.asDoCase.pCases; pCase; pCase = pCase->pNext )
+               if( hb_csLoopBodyHasExit( pCase->value.asCase.pBody ) )
+                  return HB_TRUE;
+            if( hb_csLoopBodyHasExit( p->value.asDoCase.pOtherwise ) )
+               return HB_TRUE;
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            if( hb_csLoopBodyHasExit( p->value.asSeq.pBody ) ||
+                hb_csLoopBodyHasExit( p->value.asSeq.pRecover ) ||
+                hb_csLoopBodyHasExit( p->value.asSeq.pAlways ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_WITHOBJECT:
+            if( hb_csLoopBodyHasExit( p->value.asWithObj.pBody ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_BLOCK:
+            if( hb_csLoopBodyHasExit( p ) )
+               return HB_TRUE;
+            break;
+         default:
+            break;
+      }
+   }
+   return HB_FALSE;
+}
+
+static HB_BOOL hb_csBlockNeverFallsThrough( PHB_AST_NODE pBlock, HB_BOOL fExitEnds );
+
+/* True when control never continues from pStmt to the next statement
+   of the same block. fExitEnds says what EXIT means at this point:
+   inside a SWITCH case body it ends the case (C# `break;`), so it
+   counts; asked about the statement AFTER a SWITCH, an EXIT in a case
+   is how control gets there, so it does not. */
+static HB_BOOL hb_csStmtNeverFallsThrough( PHB_AST_NODE pStmt, HB_BOOL fExitEnds )
+{
+   switch( pStmt->type )
+   {
+      case HB_AST_RETURN:
+      case HB_AST_BREAK:
+      case HB_AST_LOOP:
+         return HB_TRUE;
+      case HB_AST_EXIT:
+         return fExitEnds;
+      case HB_AST_IF:
+      {
+         PHB_AST_NODE pElseIf;
+         if( ! pStmt->value.asIf.pElse ||
+             ! hb_csBlockNeverFallsThrough( pStmt->value.asIf.pThen, fExitEnds ) )
+            return HB_FALSE;
+         for( pElseIf = pStmt->value.asIf.pElseIfs; pElseIf; pElseIf = pElseIf->pNext )
+            if( ! hb_csBlockNeverFallsThrough( pElseIf->value.asElseIf.pBody, fExitEnds ) )
+               return HB_FALSE;
+         return hb_csBlockNeverFallsThrough( pStmt->value.asIf.pElse, fExitEnds );
+      }
+      case HB_AST_DOCASE:
+      {
+         PHB_AST_NODE pCase;
+         if( ! pStmt->value.asDoCase.pOtherwise )
+            return HB_FALSE;
+         for( pCase = pStmt->value.asDoCase.pCases; pCase; pCase = pCase->pNext )
+            if( ! hb_csBlockNeverFallsThrough( pCase->value.asCase.pBody, fExitEnds ) )
+               return HB_FALSE;
+         return hb_csBlockNeverFallsThrough( pStmt->value.asDoCase.pOtherwise, fExitEnds );
+      }
+      case HB_AST_SWITCH:
+      {
+         PHB_AST_NODE pCase;
+         if( ! pStmt->value.asSwitch.pDefault )
+            return HB_FALSE;
+         for( pCase = pStmt->value.asSwitch.pCases; pCase; pCase = pCase->pNext )
+            if( pCase->value.asCase.pCondition &&
+                ! hb_csBlockNeverFallsThrough( pCase->value.asCase.pBody, HB_FALSE ) )
+               return HB_FALSE;
+         return hb_csBlockNeverFallsThrough( pStmt->value.asSwitch.pDefault, HB_FALSE );
+      }
+      case HB_AST_DOWHILE:
+      {
+         PHB_EXPR pCond = pStmt->value.asWhile.pCondition;
+         while( pCond &&
+                ( pCond->ExprType == HB_ET_LIST || pCond->ExprType == HB_ET_ARGLIST ) &&
+                pCond->value.asList.pExprList && ! pCond->value.asList.pExprList->pNext )
+            pCond = pCond->value.asList.pExprList;
+         return pCond && pCond->ExprType == HB_ET_LOGICAL && pCond->value.asLogical &&
+                ! hb_csLoopBodyHasExit( pStmt->value.asWhile.pBody );
+      }
+      default:
+         return HB_FALSE;
+   }
+}
+
+static HB_BOOL hb_csBlockNeverFallsThrough( PHB_AST_NODE pBlock, HB_BOOL fExitEnds )
+{
+   PHB_AST_NODE pLast = hb_csBlockLastStmt( pBlock );
+   return pLast && hb_csStmtNeverFallsThrough( pLast, fExitEnds );
+}
+
+/* The function-final RETURN Harbour requires but no path reaches, or NULL. */
+static PHB_AST_NODE hb_csUnreachableFinalReturn( PHB_AST_NODE pBody )
+{
+   PHB_AST_NODE p, pPrev = NULL, pLast = NULL;
+   for( p = hb_csBlockFirstStmt( pBody ); p; p = p->pNext )
+   {
+      if( p->type == HB_AST_COMMENT )
+         continue;
+      pPrev = pLast;
+      pLast = p;
+   }
+   return pLast && pLast->type == HB_AST_RETURN && pPrev &&
+          hb_csStmtNeverFallsThrough( pPrev, HB_FALSE ) ? pLast : NULL;
+}
+
+/* A SWITCH case body that already ends in a jump needs no `break;`. */
 static HB_BOOL hb_csBlockEndsWithBreak( PHB_AST_NODE pBlock )
 {
-   PHB_AST_NODE pLast = NULL;
-   if( ! pBlock )
-      return HB_FALSE;
-   if( pBlock->type == HB_AST_BLOCK )
-      pLast = pBlock->value.asBlock.pLast;
-   else
-      pLast = pBlock;
-   if( ! pLast )
-      return HB_FALSE;
-   return pLast->type == HB_AST_EXIT || pLast->type == HB_AST_BREAK ||
-          pLast->type == HB_AST_RETURN;
+   return hb_csBlockNeverFallsThrough( pBlock, HB_TRUE );
 }
 
 /* ---- Statement emitter ---- */
@@ -4440,6 +4599,15 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          hb_csParamAliasActivate( szDefParam );
          return;
       }
+   }
+
+   /* The function-final RETURN no path reaches (hb_csUnreachableFinalReturn):
+      Harbour insists on it, C# would report CS0162 on it. */
+   if( pNode == s_pUnreachableReturn )
+   {
+      if( s_iLastLine > 0 && pNode->iLine > 0 )
+         s_iLastLine = pNode->iLine;
+      return;
    }
 
    if( pNode->iLine > 0 )
@@ -5855,7 +6023,11 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          }
       }
       else
+         {
+         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
+         s_pUnreachableReturn = NULL;
+      }
    }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
@@ -6836,7 +7008,11 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       }
    }
    if( pFunc->value.asFunc.pBody )
-      hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
+      {
+         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
+         hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
+         s_pUnreachableReturn = NULL;
+      }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
 

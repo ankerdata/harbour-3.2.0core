@@ -62,8 +62,6 @@ public static partial class Program
     public static dynamic DoSomething()
     {
         throw new Exception();
-
-        return null;
     }
 
     public static dynamic CleanUp()
