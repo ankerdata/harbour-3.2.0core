@@ -350,6 +350,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             const char * szDataName;
             const char * szType = NULL;
             const char * szInit = NULL;
+            const char * szParams = NULL;
             int iKind = HB_AST_DATA_INSTANCE;
             int iMemberScope = iScope;
             HB_BOOL fReadOnly = HB_FALSE;
@@ -371,10 +372,49 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             szDataName = hb_clsSaveId( HB_COMP_PARAM, pToken );
             pToken = hb_clsNextToken( HB_COMP_PARAM );
 
+            /* `ASSIGN Name( xNew ) INLINE ...` — the setter's parameter
+               (an ACCESS may carry empty parentheses). */
+            if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_LEFT_PB )
+            {
+               char szBuf[ 256 ];
+               HB_SIZE n = 0;
+               pToken = hb_clsNextToken( HB_COMP_PARAM );
+               while( pToken &&
+                      HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_RIGHT_PB &&
+                      ! hb_clsTokenIsEOL( pToken ) )
+               {
+                  if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD )
+                  {
+                     if( n > 0 && n < sizeof( szBuf ) - 3 )
+                     {
+                        szBuf[ n++ ] = ',';
+                        szBuf[ n++ ] = ' ';
+                     }
+                     if( n + pToken->len < sizeof( szBuf ) - 1 )
+                     {
+                        memcpy( szBuf + n, pToken->value, pToken->len );
+                        n += pToken->len;
+                     }
+                  }
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+               }
+               szBuf[ n ] = '\0';
+               if( n > 0 )
+                  szParams = hb_compIdentifierNew( HB_COMP_PARAM, szBuf, HB_IDENT_COPY );
+               if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_RIGHT_PB )
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+            }
+
             /* Parse optional clauses in any order until EOL */
             while( ! hb_clsTokenIsEOL( pToken ) )
             {
-               if( hb_clsTokenIs( pToken, "AS" ) )
+               if( hb_clsTokenIs( pToken, "INLINE" ) )
+               {
+                  /* the accessor's body, kept as the INIT text is */
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  szInit = hb_clsCollectLine( HB_COMP_PARAM, &pToken );
+               }
+               else if( hb_clsTokenIs( pToken, "AS" ) )
                {
                   pToken = hb_clsNextToken( HB_COMP_PARAM );
                   szType = hb_clsSaveId( HB_COMP_PARAM, pToken );
@@ -417,6 +457,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             pData->value.asClassData.szName    = szDataName;
             pData->value.asClassData.szType    = szType;
             pData->value.asClassData.szInit    = szInit;
+            pData->value.asClassData.szParams  = szParams;
             pData->value.asClassData.iScope    = iMemberScope;
             pData->value.asClassData.iKind     = iKind;
             pData->value.asClassData.fReadOnly = fReadOnly;
@@ -510,6 +551,82 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             pMethod->value.asClassMethod.iScope       = iMemberScope;
             pMethod->value.asClassMethod.fProcedure   = fProcedure;
             hb_clsAddMember( pClass, pMethod );
+         }
+         else if( hb_clsTokenIs( pToken, "MESSAGE" ) )
+         {
+            /* `MESSAGE <name>[(params)] METHOD <target>[(...)]` —
+               hbclass.ch's alias: <name> is another message for the
+               method <target>. Read as `METHOD <name>(params) INLINE
+               ::<target>(params)`, so it gets a reftab row, a C# method
+               and its declared spelling like any other member. */
+            PHB_AST_NODE pMethod;
+            const char * szMsgName;
+            const char * szTarget = NULL;
+            const char * szParams = NULL;
+            char szParamBuf[ 256 ];
+            char szInlineBuf[ 512 ];
+
+            pToken = hb_clsNextToken( HB_COMP_PARAM );
+            szMsgName = hb_clsSaveId( HB_COMP_PARAM, pToken );
+            pToken = hb_clsNextToken( HB_COMP_PARAM );
+            if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_LEFT_PB )
+            {
+               HB_SIZE n = 0;
+               pToken = hb_clsNextToken( HB_COMP_PARAM );
+               while( pToken &&
+                      HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_RIGHT_PB &&
+                      ! hb_clsTokenIsEOL( pToken ) )
+               {
+                  if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD )
+                  {
+                     if( n > 0 && n < sizeof( szParamBuf ) - 3 )
+                     {
+                        szParamBuf[ n++ ] = ',';
+                        szParamBuf[ n++ ] = ' ';
+                     }
+                     if( n + pToken->len < sizeof( szParamBuf ) - 1 )
+                     {
+                        memcpy( szParamBuf + n, pToken->value, pToken->len );
+                        n += pToken->len;
+                     }
+                  }
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+               }
+               szParamBuf[ n ] = '\0';
+               if( n > 0 )
+                  szParams = hb_compIdentifierNew( HB_COMP_PARAM, szParamBuf, HB_IDENT_COPY );
+               if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_RIGHT_PB )
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+            }
+            /* METHOD <target>; whatever else is on the line is ignored */
+            while( pToken && ! hb_clsTokenIsEOL( pToken ) )
+            {
+               if( hb_clsTokenIs( pToken, "METHOD" ) )
+               {
+                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  if( pToken && ! hb_clsTokenIsEOL( pToken ) )
+                     szTarget = hb_clsSaveId( HB_COMP_PARAM, pToken );
+                  break;
+               }
+               pToken = hb_clsNextToken( HB_COMP_PARAM );
+            }
+            hb_clsSkipLine( HB_COMP_PARAM, pToken );
+            if( szMsgName && szTarget )
+            {
+               hb_snprintf( szInlineBuf, sizeof( szInlineBuf ), "::%s(%s)",
+                            szTarget, szParams ? szParams : "" );
+               pMethod = hb_astNew( HB_AST_CLASSMETHOD, hb_clsCurrLine( HB_COMP_PARAM ) );
+               pMethod->value.asClassMethod.szName       = szMsgName;
+               pMethod->value.asClassMethod.szClass      = NULL;
+               pMethod->value.asClassMethod.szParams     = szParams;
+               pMethod->value.asClassMethod.pBody        = NULL;
+               pMethod->value.asClassMethod.szInline     =
+                  hb_compIdentifierNew( HB_COMP_PARAM, szInlineBuf, HB_IDENT_COPY );
+               pMethod->value.asClassMethod.iScope       = iScope;
+               pMethod->value.asClassMethod.fProcedure   = HB_FALSE;
+               pMethod->value.asClassMethod.fMessageAlias = HB_TRUE;
+               hb_clsAddMember( pClass, pMethod );
+            }
          }
          else
          {

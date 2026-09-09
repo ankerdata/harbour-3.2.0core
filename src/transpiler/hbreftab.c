@@ -885,13 +885,15 @@ HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
              hb_stricmp( e->szName, szClass ) == 0 ||
              ! hb_refTabIsKindOf( pTab, e->szName, szClass ) )
             continue;
+         /* defined rows only (nParams >= 0): a stub from a mark or an
+            assignment is not a declaration */
          hb_snprintf( szKey, sizeof( szKey ), "%s::%s__%s",
                       e->szName, e->szName, szMember );
-         if( hb_refTabFindEntry( pTab, szKey, NULL ) )
+         if( hb_refTabParamCount( pTab, szKey ) >= 0 )
             return HB_TRUE;
          /* a typed VAR's row is keyed `Class::member` */
          hb_snprintf( szKey, sizeof( szKey ), "%s::%s", e->szName, szMember );
-         if( hb_refTabFindEntry( pTab, szKey, NULL ) )
+         if( hb_refTabParamCount( pTab, szKey ) >= 0 )
             return HB_TRUE;
       }
    }
@@ -2243,9 +2245,73 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                   const char * szTag = NULL;
                   const char * szT;
 
+                  if( pMember->type == HB_AST_CLASSMETHOD &&
+                      pMember->value.asClassMethod.szName &&
+                      pMember->value.asClassMethod.szInline )
+                  {
+                     /* An INLINE method (a MESSAGE alias included) has no
+                        function body for Pass 1 to register, so its row
+                        comes from here: a cross-file `o:Len` then
+                        resolves and, sent bare, is emitted as the call
+                        it is. Parameters from the declaration's list;
+                        the return type stays unknown. A body definition
+                        of the same name (a previous pass) is left alone. */
+                     char szMKey[ 256 ];
+                     char szPBuf[ 256 ];
+                     const char * apNames[ HB_REFTAB_MAXPARAM ];
+                     int nP = 0;
+                     const char * szP = pMember->value.asClassMethod.szParams;
+                     if( szP && *szP )
+                     {
+                        char * q = szPBuf;
+                        hb_strncpy( szPBuf, szP, sizeof( szPBuf ) - 1 );
+                        while( *q && nP < HB_REFTAB_MAXPARAM )
+                        {
+                           while( *q == ' ' || *q == ',' )
+                              q++;
+                           if( ! *q )
+                              break;
+                           apNames[ nP++ ] = q;
+                           while( *q && *q != ',' && *q != ' ' )
+                              q++;
+                           if( *q )
+                              *q++ = '\0';
+                        }
+                     }
+                     if( pMember->value.asClassMethod.fMessageAlias && nP == 0 )
+                        /* a parameterless MESSAGE alias emits as a C#
+                           property (`o:Len` bare is its use), so its row
+                           takes the member form */
+                        hb_snprintf( szMKey, sizeof( szMKey ), "%s::%s",
+                                     p->value.asClass.szName,
+                                     pMember->value.asClassMethod.szName );
+                     else
+                        hb_snprintf( szMKey, sizeof( szMKey ), "%s::%s__%s",
+                                     p->value.asClass.szName, p->value.asClass.szName,
+                                     pMember->value.asClassMethod.szName );
+                     if( hb_refTabParamCount( pTab, szMKey ) < 0 )
+                        hb_refTabAddFunc( pTab, szMKey, nP, nP ? apNames : NULL,
+                                          NULL, HB_FALSE );
+                     continue;
+                  }
+
                   if( pMember->type != HB_AST_CLASSDATA ||
-                      ! pMember->value.asClassData.szName ||
-                      ! pMember->value.asClassData.szType )
+                      ! pMember->value.asClassData.szName )
+                     continue;
+                  /* Every member gets its `Class::member` row, typed or
+                     not, so a send resolves it in its declared spelling
+                     and a subclass-only member is visible — a VAR with no
+                     AS clause was invisible to both. An untyped row has
+                     no return type; inference falls back to the prefix
+                     as before. */
+                  {
+                     const char * szDKey = hb_refTabMethodKey(
+                        p->value.asClass.szName,
+                        pMember->value.asClassData.szName );
+                     if( hb_refTabParamCount( pTab, szDKey ) < 0 )
+                        hb_refTabAddFunc( pTab, szDKey, 0, NULL, NULL, HB_FALSE );
+                  }
+                  if( ! pMember->value.asClassData.szType )
                      continue;
                   szT = pMember->value.asClassData.szType;
 

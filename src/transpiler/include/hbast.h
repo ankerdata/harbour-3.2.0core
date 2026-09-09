@@ -217,7 +217,9 @@ struct _HB_AST_NODE
       {
          const char *   szName;        /* data member name */
          const char *   szType;        /* AS type (NULL if none) */
-         const char *   szInit;        /* INIT value as string (NULL if none) */
+         const char *   szInit;        /* INIT value as string (NULL if none);
+                                          an ACCESS / ASSIGN INLINE body */
+         const char *   szParams;      /* ASSIGN parameter list (NULL if none) */
          int            iScope;        /* HB_AST_SCOPE_* */
          int            iKind;         /* HB_AST_DATA_* */
          HB_BOOL        fReadOnly;     /* READONLY flag */
@@ -233,6 +235,7 @@ struct _HB_AST_NODE
          const char *   szInline;      /* INLINE expression text, or NULL */
          int            iScope;        /* HB_AST_SCOPE_* */
          HB_BOOL        fProcedure;    /* PROCEDURE (no return value) vs METHOD */
+         HB_BOOL        fMessageAlias; /* from `MESSAGE name METHOD target` */
       } asClassMethod;
 
       /* HB_AST_INCLUDE */

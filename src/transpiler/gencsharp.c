@@ -1937,13 +1937,14 @@ static const char * hb_csMethodKeyInChain( const char * szClass,
    return szBuf;
 }
 
-/* True when szKey names a row the reftab holds — a defined function,
-   method or typed member. hb_refTabFuncCanon hands back its own copy
-   of the name for a known key and the caller's pointer otherwise. */
+/* True when szKey names a DEFINED row — a function, method or typed
+   member the scan registered. A stub the scan creates for a name it
+   only marked or refined (a by-ref mark, a Self-member assignment) has
+   no parameter count yet and is not a row: treating it as one turned
+   every VAR into a method call (665 CS1955). */
 static HB_BOOL hb_csRowExists( const char * szKey )
 {
-   return szKey && s_pRefTab &&
-          hb_refTabFuncCanon( s_pRefTab, szKey ) != szKey;
+   return szKey && s_pRefTab && hb_refTabParamCount( s_pRefTab, szKey ) >= 0;
 }
 
 /* The row key of szMethod on szClass or the nearest ancestor declaring
@@ -1957,11 +1958,14 @@ static const char * hb_csClassMethodKey( const char * szClass,
    int i;
    for( i = 0; szC && szMethod && s_pRefTab && i < 16; i++ )
    {
-      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szC, szC, szMethod );
+      /* a VAR / ACCESS / ASSIGN row is keyed `Class::member`; tried
+         first so an ACCESS whose body is a METHOD definition (which
+         Pass 1 registers as `Class::Class__member`) reads as the
+         property it is */
+      hb_snprintf( szBuf, nBuf, "%s::%s", szC, szMethod );
       if( hb_csRowExists( szBuf ) )
          return szBuf;
-      /* a typed VAR's row is keyed `Class::member` */
-      hb_snprintf( szBuf, nBuf, "%s::%s", szC, szMethod );
+      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szC, szC, szMethod );
       if( hb_csRowExists( szBuf ) )
          return szBuf;
       szC = hb_refTabClassParent( s_pRefTab, szC );
@@ -3895,6 +3899,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             const char * szRecvClass = s_szSendRecvClass;
             const char * szMsgOut = szMsgIn;
             HB_BOOL fViaDynamic = HB_FALSE;
+            HB_BOOL fMethodRow  = HB_FALSE;
+            HB_BOOL fDataRow    = HB_FALSE;
             if( szRecvClass && s_pRefTab && szMsgIn &&
                 ! hb_csIsBuiltinObjMsg( szMsgIn ) )
             {
@@ -3915,6 +3921,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      szMsgOut = szTail + 2;
                   else if( szSep && szSep[ 2 ] )
                      szMsgOut = szSep + 2;
+                  fMethodRow = szTail != NULL;   /* `Class__` tail: a method row */
+                  fDataRow   = szTail == NULL;   /* `Class::member`: a field or property */
                }
                else if( pExpr->value.asMessage.pObject &&
                         ! hb_csIsDeclaredMember( szRecvClass, szMsgIn ) &&
@@ -3976,8 +3984,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "." );
                hb_csEmitExpr( pExpr->value.asMessage.pMessage, yyc, HB_FALSE );
             }
-            if( pExpr->value.asMessage.pParms )
+            if( pExpr->value.asMessage.pParms &&
+                ! ( fDataRow && ! hb_csSendHasArgs( pExpr ) ) )
             {
+               /* (`o:Len()` on a property — a parameterless MESSAGE
+                  alias — drops its empty parentheses) */
                fprintf( yyc, "(" );
                s_aRefShim = aSendShim;
                s_iRefShimBase = iSendShimBase;
@@ -3993,6 +4004,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   extension methods on `object` (HbObjectExtensions),
                   which need parens to invoke. Without this the emit
                   would be a property access that doesn't exist. */
+               fprintf( yyc, "()" );
+            }
+            else if( fMethodRow )
+            {
+               /* `oQueue:Len` — a method sent without parentheses is
+                  still a call in Harbour; C# needs the parentheses (an
+                  ACCESS is a property and has no method row). */
                fprintf( yyc, "()" );
             }
          }
@@ -6405,6 +6423,57 @@ static HB_BOOL hb_csEmitEnumPairMsg( PHB_EXPR pExpr, FILE * yyc )
    return HB_TRUE;
 }
 
+/* Emit a translated INLINE expression as statements: Harbour's
+   `(a, b, c)` sequence evaluates a, b, c in order and yields c, so each
+   top-level comma-separated part becomes a statement and the last is
+   returned when fReturnLast. A plain expression is one statement. */
+static void hb_csEmitInlineStatements( const char * szExpr, HB_BOOL fReturnLast,
+                                       FILE * yyc )
+{
+   const char * q = szExpr;
+   int          depth = 0;
+   HB_BOOL      fInStr = HB_FALSE;
+   char         cStrQ = '\0';
+   const char * pStart = q;
+   HB_BOOL      fLast = HB_FALSE;
+   while( ! fLast )
+   {
+      char c = *q;
+      if( c == '\0' )
+         fLast = HB_TRUE;
+      if( fInStr )
+      {
+         if( c == cStrQ )
+            fInStr = HB_FALSE;
+      }
+      else if( c == '"' || c == '\'' )
+      {
+         fInStr = HB_TRUE;
+         cStrQ = c;
+      }
+      else if( c == '(' || c == '[' || c == '{' )
+         depth++;
+      else if( c == ')' || c == ']' || c == '}' )
+         depth--;
+      if( fLast || ( c == ',' && depth == 0 && ! fInStr ) )
+      {
+         int nLen = ( int ) ( q - pStart );
+         while( nLen > 0 && ( pStart[ 0 ] == ' ' || pStart[ 0 ] == '\t' ) )
+         {
+            pStart++;
+            nLen--;
+         }
+         if( fLast && fReturnLast )
+            fprintf( yyc, "return %.*s; ", nLen, pStart );
+         else
+            fprintf( yyc, "%.*s; ", nLen, pStart );
+         pStart = q + 1;
+      }
+      if( ! fLast )
+         q++;
+   }
+}
+
 /* Find class entry by name (case-insensitive) */
 static HB_CS_CLASS * hb_csFindClass( HB_CS_CLASS * pList, const char * szName )
 {
@@ -6737,7 +6806,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                {
                   /* Check if there's a matching ASSIGN for this name */
                   PHB_AST_NODE pScan = pMember->pNext;
-                  HB_BOOL fHasAssign = HB_FALSE;
+                  PHB_AST_NODE pAssign = NULL;
                   while( pScan )
                   {
                      if( pScan->type == HB_AST_CLASSDATA &&
@@ -6745,16 +6814,23 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                          hb_stricmp( pScan->value.asClassData.szName,
                                      pMember->value.asClassData.szName ) == 0 )
                      {
-                        fHasAssign = HB_TRUE;
+                        pAssign = pScan;
                         break;
                      }
                      pScan = pScan->pNext;
                   }
+                  /* KNOWN GAP: the ACCESS / ASSIGN body — an INLINE
+                     expression (kept in szInit / szParams) or a METHOD
+                     definition (skipped below) — is not emitted; this
+                     is an auto-property that reads default. The inline
+                     text needs the expression parser, not the text
+                     translator: bare RTL names, nested sends and
+                     1-based indexes do not survive a rewrite. */
                   fprintf( yyc, "%s %s %s { get;%s }",
                            szScope,
                            hb_csTypeMap( szType ? szType : "USUAL" ),
                            pMember->value.asClassData.szName,
-                           fHasAssign ? " set;" : "" );
+                           pAssign ? " set;" : "" );
                }
                break;
 
@@ -6874,6 +6950,18 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                                   szParms );
          HB_BOOL      fBlock  = hb_csInlineHasTopLevelComma( szExpr );
 
+         if( pMember->value.asClassMethod.fMessageAlias &&
+             ( ! szParms || ! *szParms ) )
+         {
+            /* `MESSAGE Len METHOD StackLen`: used bare (`o:Len`) on
+               typed and dynamic receivers alike, so a property — a
+               method group has no value on a dynamic receiver. */
+            hb_csEmitIndent( yyc, 1 );
+            fprintf( yyc, "%s dynamic %s => %s;\n", szScope, szName, szExpr );
+            pMember = pMember->pNext;
+            continue;
+         }
+
          hb_csEmitIndent( yyc, 1 );
          fprintf( yyc, "%s dynamic %s(", szScope, szName );
          if( szParms && *szParms )
@@ -6907,50 +6995,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                each as a statement and returns the last. The translator
                already gave us a comma-separated C# expression list. */
             fprintf( yyc, " { " );
-            {
-               const char * q = szExpr;
-               int          depth = 0;
-               HB_BOOL      fInStr = HB_FALSE;
-               char         cStrQ = '\0';
-               const char * pStart = q;
-               HB_BOOL      fLast = HB_FALSE;
-               while( ! fLast )
-               {
-                  char c = *q;
-                  if( c == '\0' )
-                     fLast = HB_TRUE;
-                  if( fInStr )
-                  {
-                     if( c == cStrQ )
-                        fInStr = HB_FALSE;
-                  }
-                  else if( c == '"' || c == '\'' )
-                  {
-                     fInStr = HB_TRUE;
-                     cStrQ = c;
-                  }
-                  else if( c == '(' || c == '[' || c == '{' )
-                     depth++;
-                  else if( c == ')' || c == ']' || c == '}' )
-                     depth--;
-                  if( fLast || ( c == ',' && depth == 0 && ! fInStr ) )
-                  {
-                     int nLen = ( int ) ( q - pStart );
-                     while( nLen > 0 && ( pStart[ 0 ] == ' ' || pStart[ 0 ] == '\t' ) )
-                     {
-                        pStart++;
-                        nLen--;
-                     }
-                     if( fLast )
-                        fprintf( yyc, "return %.*s; ", nLen, pStart );
-                     else
-                        fprintf( yyc, "%.*s; ", nLen, pStart );
-                     pStart = q + 1;
-                  }
-                  if( ! fLast )
-                     q++;
-               }
-            }
+            hb_csEmitInlineStatements( szExpr, HB_TRUE, yyc );
             fprintf( yyc, "}\n" );
          }
          else

@@ -1098,6 +1098,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 94        | Sends on typed receivers: `X():New(a):Run()` parenthesised as a receiver; `X():New(args)` on an Init-only class calls Init; members emitted in their declared spelling; a member declared only on a subclass read through `(dynamic)` |
 | 95        | By-ref shapes: a function-returning receiver resolves the row and an omitted trailing `ref` slot takes the discard; a literal / member access at a by-ref slot inside WHILE or ELSEIF uses the inline discard; a shim write-back into an INTEGER local takes `(long)` |
 | 96        | FOR EACH: a body reading `x:__enumKey()` / `__enumValue()` iterates `HbRuntime.HbEnumPairs`; a hash, string or unknown enumerable yields VALUES through `HbRuntime.HbEnumValues`; arrays iterate directly |
+| 97        | `MESSAGE Len METHOD StackLen` — a parameterless alias is a C# property (bare `o:Len` works on typed and dynamic receivers; `o:Len()` drops its parentheses), one with parameters an INLINE method; INLINE methods get reftab rows; a method sent without parentheses is emitted as the call it is |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
