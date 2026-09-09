@@ -63,7 +63,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Person oPerson = new Person();
+        Person oPerson = (Person)new Person().New();
         HbRuntime.QOut("oPerson created");
 
         oPerson.SetAge(25);

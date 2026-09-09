@@ -37,7 +37,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Calculator oCalc = new Calculator();
+        Calculator oCalc = (Calculator)new Calculator().New();
         decimal n = 10;
 
         HbRuntime.QOut("before: n=" + HbRuntime.Str(n));

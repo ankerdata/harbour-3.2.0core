@@ -27,7 +27,7 @@ public static partial class Program
     public static decimal test10_Main_nCounter = 0;
     public static void Main(string[] args)
     {
-        MyObj oObj = new MyObj();
+        MyObj oObj = (MyObj)new MyObj().New();
 
         // WITH OBJECT test
         oObj.SetValue(42);

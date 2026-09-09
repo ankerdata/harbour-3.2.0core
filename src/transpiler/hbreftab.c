@@ -869,6 +869,35 @@ HB_BOOL hb_refTabIsKindOf( PHB_REFTAB pTab, const char * szSub,
    return HB_FALSE;
 }
 
+HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
+                                   const char * szMember )
+{
+   HB_SIZE i;
+   if( ! pTab || ! szClass || ! szMember )
+      return HB_FALSE;
+   for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
+   {
+      PHB_REFENTRY e;
+      for( e = pTab->buckets[ i ]; e; e = e->pNext )
+      {
+         char szKey[ 256 ];
+         if( ! e->fIsClass || ! e->szName ||
+             hb_stricmp( e->szName, szClass ) == 0 ||
+             ! hb_refTabIsKindOf( pTab, e->szName, szClass ) )
+            continue;
+         hb_snprintf( szKey, sizeof( szKey ), "%s::%s__%s",
+                      e->szName, e->szName, szMember );
+         if( hb_refTabFindEntry( pTab, szKey, NULL ) )
+            return HB_TRUE;
+         /* a typed VAR's row is keyed `Class::member` */
+         hb_snprintf( szKey, sizeof( szKey ), "%s::%s", e->szName, szMember );
+         if( hb_refTabFindEntry( pTab, szKey, NULL ) )
+            return HB_TRUE;
+      }
+   }
+   return HB_FALSE;
+}
+
 HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName )
 {
    PHB_REFENTRY e;

@@ -33,8 +33,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Numbers oNums = new Numbers();
-        Names oNames = new Names();
+        Numbers oNums = (Numbers)new Numbers().New();
+        Names oNames = (Names)new Names().New();
 
         oNums.Add(10);
         oNums.Add(20);

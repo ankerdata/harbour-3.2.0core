@@ -60,7 +60,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Calculator oCalc = new Calculator();
+        Calculator oCalc = (Calculator)new Calculator().New();
 
         oCalc.Add(10);
         oCalc.Add(20);

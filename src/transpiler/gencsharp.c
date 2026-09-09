@@ -30,6 +30,14 @@ static const char * hb_csMethodKeyInChain( const char * szClass,
                                            const char * szMethod,
                                            char * szBuf, HB_SIZE nBuf );
 static PHB_EXPR hb_csFunCallArgHead( PHB_EXPR pCall );
+static HB_BOOL hb_csRowExists( const char * szKey );
+static const char * hb_csClassMethodKey( const char * szClass,
+                                         const char * szMethod,
+                                         char * szBuf, HB_SIZE nBuf );
+static HB_BOOL hb_csBlockUsesEnumMsg( PHB_AST_NODE pBlock, const char * szVar );
+static HB_BOOL hb_csEmitEnumPairMsg( PHB_EXPR pExpr, FILE * yyc );
+static void hb_csEmitForEachSource( PHB_EXPR pEnum, int iDir, FILE * yyc );
+static HB_BOOL hb_csSendHasArgs( PHB_EXPR pExpr );
 static void hb_csEmitIndent( FILE * yyc, int iIndent );
 
 /* Emit a dim expression inside an `new dynamic[<dim>]` allocation. A
@@ -292,6 +300,7 @@ static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
       case HB_ET_NUMERIC:
          return pExpr->value.asNum.NumType == HB_ET_LONG;
 
+      case HB_ET_VARREF:   /* `@n` — the referent's own type */
       case HB_ET_VARIABLE:
       {
          const char * szName = pExpr->value.asSymbol.name;
@@ -1347,6 +1356,13 @@ static int             s_iShimDepth   = 0;
    expression reads the already-computed result. */
 static PHB_EXPR s_pHoistCall = NULL;
 static char     s_szHoistVar[ 96 ] = "";
+/* FOR EACH loops whose body reads an enumerator message
+   (`x:__enumKey()`): the loop runs over HbRuntime.HbEnumPairs, the
+   variable is bound to the pair's Value, and the messages read the
+   pair (`__hb_kv_<var>.Key`). Innermost last. */
+#define HB_CS_MAX_ENUMPAIR 16
+static const char * s_aEnumPairVar[ HB_CS_MAX_ENUMPAIR ];
+static int          s_iEnumPairDepth = 0;
 
 /* Look up parameter iPos of a called function in the reftab. A
    file-scoped STATIC function is keyed <FileBase>::<Name> there (the
@@ -1913,14 +1929,49 @@ static const char * hb_csMethodKeyInChain( const char * szClass,
    for( i = 0; szC && s_pRefTab && i < 16; i++ )
    {
       hb_snprintf( szBuf, nBuf, "%s::%s__%s", szC, szC, szMethod );
-      if( hb_refTabParamCount( s_pRefTab, szBuf ) > 0 ||
-          hb_refTabReturnType( s_pRefTab, szBuf ) )
+      if( hb_csRowExists( szBuf ) )
          return szBuf;
       szC = hb_refTabClassParent( s_pRefTab, szC );
    }
    hb_snprintf( szBuf, nBuf, "%s::%s__%s", szClass, szClass, szMethod );
    return szBuf;
 }
+
+/* True when szKey names a row the reftab holds — a defined function,
+   method or typed member. hb_refTabFuncCanon hands back its own copy
+   of the name for a known key and the caller's pointer otherwise. */
+static HB_BOOL hb_csRowExists( const char * szKey )
+{
+   return szKey && s_pRefTab &&
+          hb_refTabFuncCanon( s_pRefTab, szKey ) != szKey;
+}
+
+/* The row key of szMethod on szClass or the nearest ancestor declaring
+   it, or NULL when none does (hb_csMethodKeyInChain falls back to the
+   class's own key instead, which argument emission wants). */
+static const char * hb_csClassMethodKey( const char * szClass,
+                                         const char * szMethod,
+                                         char * szBuf, HB_SIZE nBuf )
+{
+   const char * szC = szClass;
+   int i;
+   for( i = 0; szC && szMethod && s_pRefTab && i < 16; i++ )
+   {
+      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szC, szC, szMethod );
+      if( hb_csRowExists( szBuf ) )
+         return szBuf;
+      /* a typed VAR's row is keyed `Class::member` */
+      hb_snprintf( szBuf, nBuf, "%s::%s", szC, szMethod );
+      if( hb_csRowExists( szBuf ) )
+         return szBuf;
+      szC = hb_refTabClassParent( s_pRefTab, szC );
+   }
+   return NULL;
+}
+
+/* The receiver class hb_csSendRefKey last resolved (NULL when it could
+   not) — the send emitter's member-name decisions read it. */
+static const char * s_szSendRecvClass = NULL;
 
 static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
                                      char * szBuf, HB_SIZE nBuf )
@@ -1961,7 +2012,30 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
       /* `Class():Method(...)` — the receiver is the class constructor. */
       szClass = pObj->value.asFunCall.pFunName->value.asSymbol.name;
    }
+   else if( pObj->ExprType == HB_ET_FUNCALL &&
+            pObj->value.asFunCall.pFunName &&
+            pObj->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+            pObj->value.asFunCall.pFunName->value.asSymbol.name &&
+            s_pRefTab )
+   {
+      /* `GetsoEasiCdS():GetVoucher(...)` — a function returning the
+         object: its reftab return type names the class. File-static
+         row first, as hb_csCallParam does. */
+      const char * szFn = pObj->value.asFunCall.pFunName->value.asSymbol.name;
+      const char * szRet = NULL;
+      if( hb_csIsFileStaticFunc( szFn ) && s_szFileBase[ 0 ] )
+      {
+         char szFnKey[ 256 ];
+         hb_snprintf( szFnKey, sizeof( szFnKey ), "%s::%s", s_szFileBase, szFn );
+         szRet = hb_refTabReturnType( s_pRefTab, szFnKey );
+      }
+      if( ! szRet )
+         szRet = hb_refTabReturnType( s_pRefTab, szFn );
+      if( szRet && hb_refTabIsClass( s_pRefTab, szRet ) )
+         szClass = szRet;
+   }
 
+   s_szSendRecvClass = szClass;
    if( szClass )
       return hb_csMethodKeyInChain( szClass, szMethod, szBuf, nBuf );
    /* Unresolved receiver: return an empty sentinel, NOT the bare method
@@ -2151,13 +2225,18 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
             if( fRefable )
                fprintf( yyc, "ref " );
          }
-         else if( pArg->ExprType == HB_ET_VARIABLE && szFunc )
+         else if( szFunc && pArg->ExprType != HB_ET_REFERENCE )
          {
-            /* Plain variable into a by-ref param WITHOUT Harbour's `@`.
-               In Harbour this is by value — the caller's variable is
-               NOT written back. C# forces a `ref` (the slot emitted
-               ref for the `@` callers, CS1620 otherwise), so bind a
-               throwaway seeded with the variable's value:
+            /* A non-`@` argument into a by-ref param — a plain variable,
+               a member access, a literal, an expression. In Harbour this
+               is by value: a variable is NOT written back, the other
+               shapes have nowhere to write to. The statement-level shim
+               block handles the shapes it collected (aShim above); this
+               inline form covers the rest, notably a WHILE or ELSEIF
+               condition where no block can be placed and hoisting would
+               evaluate the call once (CS1620). C# forces a `ref` (the
+               slot emitted ref for the `@` callers), so bind a
+               throwaway seeded with the argument's value:
                `ref HbDiscard<T>.Seed(x)` gives the callee x as input
                and discards its write-back — faithful by-value
                semantics (`ref x` here would write back, the silent
@@ -3188,6 +3267,63 @@ static const char * hb_csIsConstructor( PHB_EXPR pExpr )
    return NULL;
 }
 
+/* Whether `Class():New()` / `:Init()` names a method with a body to
+   run. For a class declared in THIS unit the AST decides — the reftab
+   is shared across units and may hold another unit's class of the same
+   name; once the INHERIT chain leaves the unit, or for a class declared
+   elsewhere, the reftab's chain answers. */
+static HB_BOOL hb_csCtorDeclares( const char * szClass, const char * szMethod )
+{
+   const char * szC = szClass;
+   int iGuard = 0;
+   while( szC && *szC && iGuard++ < 64 )
+   {
+      PHB_AST_NODE pStmt;
+      PHB_AST_NODE pFound = NULL;
+      for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+         if( pStmt->type == HB_AST_CLASS && pStmt->value.asClass.szName &&
+             hb_stricmp( pStmt->value.asClass.szName, szC ) == 0 )
+         {
+            pFound = pStmt;
+            break;
+         }
+      if( ! pFound )
+      {
+         char szKey[ 256 ];
+         return hb_csClassMethodKey( szC, szMethod, szKey, sizeof( szKey ) ) != NULL;
+      }
+      for( pStmt = pFound->value.asClass.pMembers; pStmt; pStmt = pStmt->pNext )
+         if( pStmt->type == HB_AST_CLASSMETHOD &&
+             pStmt->value.asClassMethod.szName &&
+             hb_stricmp( pStmt->value.asClassMethod.szName, szMethod ) == 0 )
+            return HB_TRUE;
+      szC = pFound->value.asClass.szParent;
+   }
+   return HB_FALSE;
+}
+
+/* Does the send carry a real (non-omitted) first argument? */
+static HB_BOOL hb_csSendHasArgs( PHB_EXPR pExpr )
+{
+   PHB_EXPR pArgs = pExpr ? pExpr->value.asMessage.pParms : NULL;
+   if( ! pArgs )
+      return HB_FALSE;
+   if( pArgs->ExprType == HB_ET_ARGLIST || pArgs->ExprType == HB_ET_LIST )
+      return pArgs->value.asList.pExprList &&
+             pArgs->value.asList.pExprList->ExprType != HB_ET_NONE;
+   return pArgs->ExprType != HB_ET_NONE;
+}
+
+/* Does the emission of this constructor call carry a `(Class)` cast —
+   arguments, or a New / Init body to run — so that as a receiver it
+   must be parenthesised? */
+static HB_BOOL hb_csCtorEmitsCast( PHB_EXPR pExpr, const char * szCtor )
+{
+   return hb_csSendHasArgs( pExpr ) ||
+          hb_csCtorDeclares( szCtor, "New" ) ||
+          hb_csCtorDeclares( szCtor, "Init" );
+}
+
 /* ---- Expression emitter ---- */
 
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
@@ -3496,27 +3632,27 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             aSendShim = s_aRefShim;
             iSendShimBase = s_iRefShimBase;
             s_aRefShim = NULL;
+            if( szCtor && s_pRefTab )
+            {
+               /* Harbour is case-insensitive: `EasiEReceipt():Init()`
+                  names the class declared as EasieReceipt (CS0246). */
+               const char * szCanon = hb_refTabClassCanonName( s_pRefTab, szCtor );
+               if( szCanon )
+                  szCtor = szCanon;
+            }
+            if( s_iEnumPairDepth > 0 && hb_csEmitEnumPairMsg( pExpr, yyc ) )
+            {
+               s_aRefShim = aSendShim;
+               s_iRefShimBase = iSendShimBase;
+               break;
+            }
             if( szCtor )
             {
                /* ClassName():New() → new ClassName()
                   ClassName():New(args) / ClassName():Init(args) → new ClassName().Method(args) */
                {
-                  /* Check if the method call has actual arguments */
                   PHB_EXPR pArgs = pExpr->value.asMessage.pParms;
-                  HB_BOOL fHasArgs = HB_FALSE;
-                  if( pArgs )
-                  {
-                     /* An ARGLIST/LIST with a non-NONE first element has real args */
-                     if( pArgs->ExprType == HB_ET_ARGLIST ||
-                         pArgs->ExprType == HB_ET_LIST )
-                     {
-                        if( pArgs->value.asList.pExprList &&
-                            pArgs->value.asList.pExprList->ExprType != HB_ET_NONE )
-                           fHasArgs = HB_TRUE;
-                     }
-                     else if( pArgs->ExprType != HB_ET_NONE )
-                        fHasArgs = HB_TRUE;
-                  }
+                  HB_BOOL fHasArgs = hb_csSendHasArgs( pExpr );
 
                   if( fHasArgs && pExpr->value.asMessage.szMessage )
                   {
@@ -3537,25 +3673,57 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                         memcpy( szMsgBuf + 1, szMsg + 1, nMsgLen );
                         szMsg = szMsgBuf;
                      }
-                     fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor, szMsg );
                      {
                         /* The constructor's row lives under the class
                            (or a parent's) — a bare "New" names nothing,
                            and an unnamed gap would slide the later
-                           arguments into it. */
+                           arguments into it. A class declaring no New
+                           but an Init is Harbour's "classy"
+                           compatibility: HBObject's New forwards to
+                           Init, so the call goes there. As a receiver
+                           (`X():New( a ):Run()`) the cast must bind to
+                           the constructor call, not to the chained
+                           member; the send emitter parenthesises it. */
                         char szCtorKey[ 256 ];
+                        const char * szCtorMsg = szMsg;
+                        const char * szKey = hb_csClassMethodKey(
+                           szCtor, pExpr->value.asMessage.szMessage,
+                           szCtorKey, sizeof( szCtorKey ) );
+                        if( hb_stricmp( pExpr->value.asMessage.szMessage, "New" ) == 0 &&
+                            ! hb_csCtorDeclares( szCtor, "New" ) &&
+                            hb_csCtorDeclares( szCtor, "Init" ) )
+                        {
+                           szKey = hb_csClassMethodKey( szCtor, "Init", szCtorKey,
+                                                        sizeof( szCtorKey ) );
+                           szCtorMsg = "Init";
+                        }
+                        fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor, szCtorMsg );
                         s_aRefShim = aSendShim;
                         s_iRefShimBase = iSendShimBase;
                         hb_csEmitCallArgs(
-                           hb_csMethodKeyInChain( szCtor,
-                                                  pExpr->value.asMessage.szMessage,
-                                                  szCtorKey, sizeof( szCtorKey ) ),
+                           szKey ? szKey
+                                 : hb_csMethodKeyInChain( szCtor,
+                                                          pExpr->value.asMessage.szMessage,
+                                                          szCtorKey, sizeof( szCtorKey ) ),
                            pArgs, yyc );
+                        fprintf( yyc, ")" );
                      }
-                     fprintf( yyc, ")" );
                   }
                   else
-                     fprintf( yyc, "new %s()", szCtor );
+                  {
+                     /* No arguments. A class whose chain declares its own
+                        New (or, classy-style, Init) still runs that body:
+                        `new X()` alone would skip it, and a constructor
+                        that sets members or registers itself would
+                        silently not. Only the hbclass default constructor
+                        — no row at all — is plain `new X()`. */
+                     if( hb_csCtorDeclares( szCtor, "New" ) )
+                        fprintf( yyc, "(%s)new %s().New()", szCtor, szCtor );
+                     else if( hb_csCtorDeclares( szCtor, "Init" ) )
+                        fprintf( yyc, "(%s)new %s().Init()", szCtor, szCtor );
+                     else
+                        fprintf( yyc, "new %s()", szCtor );
+                  }
                }
                break;
             }
@@ -3706,68 +3874,127 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             fprintf( yyc, ")" );
             break;
          }
-         if( pExpr->value.asMessage.pObject )
          {
-            /* Self:member → this.member, with two exceptions:
-               - a CLASS VAR (static) must be Class.member (CS0176);
-               - a member not declared in the class or any ancestor is
-                 routed through `((dynamic)this)`. On a dynamic class
-                 that reaches the dictionary-backed member; on a plain
-                 class it's a name Harbour resolves at runtime (e.g. a
-                 COM event-sink handler whose method was never
-                 implemented). Either way it compiles and dispatches —
-                 or throws — at runtime instead of failing CS1061. */
-            if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
-                hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
-            {
-               const char * szMsg = pExpr->value.asMessage.szMessage;
-               if( szMsg && hb_csIsClassVar( s_szCurrentClass, szMsg ) )
-                  fprintf( yyc, "%s", s_szCurrentClass );
-               else if( szMsg &&
-                        ! hb_csIsBuiltinObjMsg( szMsg ) &&
-                        ! hb_csIsDeclaredMember( s_szCurrentClass, szMsg ) )
-                  fprintf( yyc, "((dynamic)this)" );
-               else
-                  fprintf( yyc, "this" );
-            }
-            else
-               hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_TRUE );
-         }
-         else if( s_pWithObject )
-         {
-            /* No explicit object — use WITH OBJECT expression directly */
-            hb_csEmitExpr( s_pWithObject, yyc, HB_TRUE );
-         }
-         if( pExpr->value.asMessage.szMessage )
-            fprintf( yyc, ".%s", pExpr->value.asMessage.szMessage );
-         else if( pExpr->value.asMessage.pMessage )
-         {
-            fprintf( yyc, "." );
-            hb_csEmitExpr( pExpr->value.asMessage.pMessage, yyc, HB_FALSE );
-         }
-         if( pExpr->value.asMessage.pParms )
-         {
+            /* Resolve the method row before emitting anything: it gives
+               the DECLARED spelling of the member — Harbour is
+               case-insensitive, C# is not (`oTx:lSaleCdSLtyOnline`
+               against `VAR lSaleCdSLtyOnLine`) — and it tells whether a
+               member the receiver's static class lacks is declared on a
+               subclass of it (`oLine:nFixedNo` read through a
+               PrintableTranLine holding an FcnTranLine, a downcast
+               Harbour never spells), in which case the access goes
+               through (dynamic) as an undeclared Self member does. A
+               member no class in the chain or below declares stays a
+               static access, so a real typo is still a C# error. */
             char szKeyBuf[ 256 ];
-            fprintf( yyc, "(" );
-            s_aRefShim = aSendShim;
-            s_iRefShimBase = iSendShimBase;
-            hb_csEmitCallArgs(
-               hb_csSendRefKey( pExpr->value.asMessage.pObject,
-                                pExpr->value.asMessage.szMessage,
-                                szKeyBuf, sizeof( szKeyBuf ) ),
-               pExpr->value.asMessage.pParms, yyc );
-            fprintf( yyc, ")" );
-         }
-         else if( pExpr->value.asMessage.szMessage &&
-                  ( hb_stricmp( pExpr->value.asMessage.szMessage, "Super" ) == 0 ||
-                    hb_stricmp( pExpr->value.asMessage.szMessage, "className" ) == 0 ) )
-         {
-            /* Harbour: `obj:Super`, `obj:className` — bare (no parens) forms
-               of built-in OO helpers. In C# these resolve to extension
-               methods on `object` (HbObjectExtensions), which need parens
-               to invoke. Without this the emit would be a property access
-               that doesn't exist. */
-            fprintf( yyc, "()" );
+            const char * szMsgIn = pExpr->value.asMessage.szMessage;
+            const char * szKey = szMsgIn
+               ? hb_csSendRefKey( pExpr->value.asMessage.pObject, szMsgIn,
+                                  szKeyBuf, sizeof( szKeyBuf ) )
+               : NULL;
+            const char * szRecvClass = s_szSendRecvClass;
+            const char * szMsgOut = szMsgIn;
+            HB_BOOL fViaDynamic = HB_FALSE;
+            if( szRecvClass && s_pRefTab && szMsgIn &&
+                ! hb_csIsBuiltinObjMsg( szMsgIn ) )
+            {
+               char szRowBuf[ 256 ];
+               const char * szRow = hb_csClassMethodKey( szRecvClass, szMsgIn,
+                                                         szRowBuf, sizeof( szRowBuf ) );
+               if( szRow )
+               {
+                  /* the row's spelling: after `Class__` for a method,
+                     after `Class::` for a typed VAR */
+                  const char * szCanon = hb_refTabFuncCanon( s_pRefTab, szRow );
+                  const char * szSep = strstr( szCanon, "::" );
+                  const char * szTail = szSep ? strstr( szSep + 2, "__" ) : NULL;
+                  const char * szNext;
+                  while( szTail && ( szNext = strstr( szTail + 2, "__" ) ) != NULL )
+                     szTail = szNext;
+                  if( szTail && szTail[ 2 ] )
+                     szMsgOut = szTail + 2;
+                  else if( szSep && szSep[ 2 ] )
+                     szMsgOut = szSep + 2;
+               }
+               else if( pExpr->value.asMessage.pObject &&
+                        ! hb_csIsDeclaredMember( szRecvClass, szMsgIn ) &&
+                        hb_refTabMemberOnSubclass( s_pRefTab, szRecvClass,
+                                                   szMsgIn ) )
+                  fViaDynamic = HB_TRUE;
+            }
+
+            if( pExpr->value.asMessage.pObject )
+            {
+               /* Self:member → this.member, with two exceptions:
+                  - a CLASS VAR (static) must be Class.member (CS0176);
+                  - a member not declared in the class or any ancestor is
+                    routed through `((dynamic)this)`. On a dynamic class
+                    that reaches the dictionary-backed member; on a plain
+                    class it's a name Harbour resolves at runtime (e.g. a
+                    COM event-sink handler whose method was never
+                    implemented). Either way it compiles and dispatches —
+                    or throws — at runtime instead of failing CS1061. */
+               if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+                   hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
+               {
+                  if( szMsgIn && hb_csIsClassVar( s_szCurrentClass, szMsgIn ) )
+                     fprintf( yyc, "%s", s_szCurrentClass );
+                  else if( szMsgIn &&
+                           ! hb_csIsBuiltinObjMsg( szMsgIn ) &&
+                           ! hb_csIsDeclaredMember( s_szCurrentClass, szMsgIn ) )
+                     fprintf( yyc, "((dynamic)this)" );
+                  else
+                     fprintf( yyc, "this" );
+               }
+               else
+               {
+                  /* `X():New( a ):Run()` — the constructor call emits as
+                     `(X)new X().New( a )`; as a receiver the cast must
+                     bind to it, not to the chained member. */
+                  const char * szRecvCtor = fViaDynamic ? NULL
+                     : hb_csIsConstructor( pExpr->value.asMessage.pObject );
+                  HB_BOOL fCtorRecv = szRecvCtor != NULL &&
+                     hb_csCtorEmitsCast( pExpr->value.asMessage.pObject, szRecvCtor );
+                  if( fViaDynamic )
+                     fprintf( yyc, "((dynamic)" );
+                  else if( fCtorRecv )
+                     fprintf( yyc, "(" );
+                  hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_TRUE );
+                  if( fViaDynamic || fCtorRecv )
+                     fprintf( yyc, ")" );
+               }
+            }
+            else if( s_pWithObject )
+            {
+               /* No explicit object — use WITH OBJECT expression directly */
+               hb_csEmitExpr( s_pWithObject, yyc, HB_TRUE );
+            }
+            if( szMsgOut )
+               fprintf( yyc, ".%s", szMsgOut );
+            else if( pExpr->value.asMessage.pMessage )
+            {
+               fprintf( yyc, "." );
+               hb_csEmitExpr( pExpr->value.asMessage.pMessage, yyc, HB_FALSE );
+            }
+            if( pExpr->value.asMessage.pParms )
+            {
+               fprintf( yyc, "(" );
+               s_aRefShim = aSendShim;
+               s_iRefShimBase = iSendShimBase;
+               hb_csEmitCallArgs( szKey, pExpr->value.asMessage.pParms, yyc );
+               fprintf( yyc, ")" );
+            }
+            else if( szMsgIn &&
+                     ( hb_stricmp( szMsgIn, "Super" ) == 0 ||
+                       hb_stricmp( szMsgIn, "className" ) == 0 ) )
+            {
+               /* Harbour: `obj:Super`, `obj:className` — bare (no parens)
+                  forms of built-in OO helpers. In C# these resolve to
+                  extension methods on `object` (HbObjectExtensions),
+                  which need parens to invoke. Without this the emit
+                  would be a property access that doesn't exist. */
+               fprintf( yyc, "()" );
+            }
          }
          break;
 
@@ -5447,13 +5674,39 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                    pUnwrap->ExprType == HB_ET_VARREF )
                   szFEName = pUnwrap->value.asSymbol.name;
             }
+            if( szFEName && s_iEnumPairDepth < HB_CS_MAX_ENUMPAIR &&
+                hb_csBlockUsesEnumMsg( pNode->value.asForEach.pBody, szFEName ) )
+            {
+               /* Harbour binds the variable to the VALUE and hands the
+                  key out through `x:__enumKey()`; C# iterating a
+                  Dictionary yields pairs. So the loop runs over
+                  HbRuntime.HbEnumPairs — (key, value) for a hash,
+                  (1-based index, element) for an array — the variable
+                  is the pair's Value and the messages read the pair. */
+               HB_BOOL fLocal = hb_csIsMethodLocal( szFEName );
+               s_aEnumPairVar[ s_iEnumPairDepth++ ] = szFEName;
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "foreach (var __hb_kv_%s in HbRuntime.HbEnumPairs(", szFEName );
+               hb_csEmitExpr( pNode->value.asForEach.pEnum, yyc, HB_FALSE );
+               fprintf( yyc, "%s))\n", pNode->value.asForEach.iDir < 0 ? ", true" : "" );
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "{\n" );
+               hb_csEmitIndent( yyc, iIndent + 1 );
+               fprintf( yyc, "%s%s = __hb_kv_%s.Value;\n",
+                        fLocal ? "" : "dynamic ", szFEName, szFEName );
+               if( pNode->value.asForEach.pBody )
+                  hb_csEmitBlock( pNode->value.asForEach.pBody, yyc, iIndent + 1 );
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "}\n" );
+               s_iEnumPairDepth--;
+               break;
+            }
             if( szFEName && hb_csIsMethodLocal( szFEName ) )
             {
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "foreach (dynamic __hb_fe_%s in ", szFEName );
-               hb_csEmitExpr( pNode->value.asForEach.pEnum, yyc, HB_FALSE );
-               if( pNode->value.asForEach.iDir < 0 )
-                  fprintf( yyc, ".Reverse()" );
+               hb_csEmitForEachSource( pNode->value.asForEach.pEnum,
+                                       pNode->value.asForEach.iDir, yyc );
                fprintf( yyc, ")\n" );
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "{\n" );
@@ -5470,9 +5723,8 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          fprintf( yyc, "foreach (dynamic " );
          hb_csEmitExpr( pNode->value.asForEach.pVar, yyc, HB_FALSE );
          fprintf( yyc, " in " );
-         hb_csEmitExpr( pNode->value.asForEach.pEnum, yyc, HB_FALSE );
-         if( pNode->value.asForEach.iDir < 0 )
-            fprintf( yyc, ".Reverse()" );
+         hb_csEmitForEachSource( pNode->value.asForEach.pEnum,
+                                 pNode->value.asForEach.iDir, yyc );
          fprintf( yyc, ")\n" );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "{\n" );
@@ -5971,6 +6223,186 @@ static HB_BOOL hb_csBlockHasMacroSend( PHB_AST_NODE pBlock )
       pStmt = pStmt->pNext;
    }
    return HB_FALSE;
+}
+
+/* Does pExpr read an enumerator message (`x:__enumKey()`) on the FOR
+   EACH variable szVar? */
+static HB_BOOL hb_csExprUsesEnumMsg( PHB_EXPR pExpr, const char * szVar )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   for( ; pExpr; pExpr = pExpr->pNext )
+   {
+      switch( pExpr->ExprType )
+      {
+         case HB_ET_SEND:
+            if( pExpr->value.asMessage.szMessage &&
+                hb_strnicmp( pExpr->value.asMessage.szMessage, "__enum", 6 ) == 0 &&
+                pExpr->value.asMessage.pObject &&
+                pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+                hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name,
+                            szVar ) == 0 )
+               return HB_TRUE;
+            if( hb_csExprUsesEnumMsg( pExpr->value.asMessage.pObject, szVar ) ||
+                hb_csExprUsesEnumMsg( pExpr->value.asMessage.pParms, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_ET_FUNCALL:
+            if( hb_csExprUsesEnumMsg( pExpr->value.asFunCall.pParms, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_ET_LIST: case HB_ET_ARGLIST: case HB_ET_MACROARGLIST:
+         case HB_ET_ARRAYAT: case HB_ET_IIF:
+            if( hb_csExprUsesEnumMsg( pExpr->value.asList.pExprList, szVar ) )
+               return HB_TRUE;
+            break;
+         default:
+            if( pExpr->ExprType >= HB_EO_ASSIGN && pExpr->ExprType <= HB_EO_PREDEC )
+            {
+               if( hb_csExprUsesEnumMsg( pExpr->value.asOperator.pLeft, szVar ) ||
+                   hb_csExprUsesEnumMsg( pExpr->value.asOperator.pRight, szVar ) )
+                  return HB_TRUE;
+            }
+            break;
+      }
+   }
+   return HB_FALSE;
+}
+
+static HB_BOOL hb_csBlockUsesEnumMsg( PHB_AST_NODE pBlock, const char * szVar )
+{
+   PHB_AST_NODE pStmt;
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK || ! szVar )
+      return HB_FALSE;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            if( hb_csExprUsesEnumMsg( pStmt->value.asExprStmt.pExpr, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_RETURN:
+            if( hb_csExprUsesEnumMsg( pStmt->value.asReturn.pExpr, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_QOUT: case HB_AST_QQOUT:
+            if( hb_csExprUsesEnumMsg( pStmt->value.asQOut.pExprList, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pE;
+            if( hb_csExprUsesEnumMsg( pStmt->value.asIf.pCondition, szVar ) ||
+                hb_csBlockUsesEnumMsg( pStmt->value.asIf.pThen, szVar ) ||
+                hb_csBlockUsesEnumMsg( pStmt->value.asIf.pElse, szVar ) )
+               return HB_TRUE;
+            for( pE = pStmt->value.asIf.pElseIfs; pE; pE = pE->pNext )
+               if( hb_csExprUsesEnumMsg( pE->value.asElseIf.pCondition, szVar ) ||
+                   hb_csBlockUsesEnumMsg( pE->value.asElseIf.pBody, szVar ) )
+                  return HB_TRUE;
+            break;
+         }
+         case HB_AST_DOWHILE:
+            if( hb_csExprUsesEnumMsg( pStmt->value.asWhile.pCondition, szVar ) ||
+                hb_csBlockUsesEnumMsg( pStmt->value.asWhile.pBody, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_FOR:
+            if( hb_csBlockUsesEnumMsg( pStmt->value.asFor.pBody, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_FOREACH:
+            if( hb_csBlockUsesEnumMsg( pStmt->value.asForEach.pBody, szVar ) )
+               return HB_TRUE;
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pC;
+            for( pC = pStmt->value.asDoCase.pCases; pC; pC = pC->pNext )
+               if( hb_csExprUsesEnumMsg( pC->value.asCase.pCondition, szVar ) ||
+                   hb_csBlockUsesEnumMsg( pC->value.asCase.pBody, szVar ) )
+                  return HB_TRUE;
+            if( hb_csBlockUsesEnumMsg( pStmt->value.asDoCase.pOtherwise, szVar ) )
+               return HB_TRUE;
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE pC;
+            for( pC = pStmt->value.asSwitch.pCases; pC; pC = pC->pNext )
+               if( hb_csBlockUsesEnumMsg( pC->value.asCase.pBody, szVar ) )
+                  return HB_TRUE;
+            if( hb_csBlockUsesEnumMsg( pStmt->value.asSwitch.pDefault, szVar ) )
+               return HB_TRUE;
+            break;
+         }
+         default:
+            break;
+      }
+   }
+   return HB_FALSE;
+}
+
+/* The enumerable of a FOR EACH. Harbour hands out a hash's VALUES and a
+   string's characters as one-character strings; C# iterating a
+   Dictionary hands out pairs and a string chars. An array is iterated
+   directly; anything else — a hash, a string, an enumerable whose
+   static type is unknown — goes through HbRuntime.HbEnumValues. */
+static void hb_csEmitForEachSource( PHB_EXPR pEnum, int iDir, FILE * yyc )
+{
+   /* the parser hands the enumerable over wrapped in a list node */
+   PHB_EXPR pProbe = pEnum;
+   const char * szT;
+   const char * szCs;
+   HB_BOOL fArray;
+   if( pProbe && ( pProbe->ExprType == HB_ET_ARGLIST ||
+                   pProbe->ExprType == HB_ET_LIST ) &&
+       pProbe->value.asList.pExprList && ! pProbe->value.asList.pExprList->pNext )
+      pProbe = pProbe->value.asList.pExprList;
+   szT = ( pProbe && pProbe->ExprType == HB_ET_VARIABLE )
+      ? hb_csArgVarType( pProbe->value.asSymbol.name )
+      : hb_astInferType( NULL, pProbe );
+   szCs = szT ? hb_csTypeMap( szT ) : NULL;
+   fArray = ( szT && hb_stricmp( szT, "ARRAY" ) == 0 ) ||
+            ( szCs && strcmp( szCs, "dynamic[]" ) == 0 ) ||
+            ( pProbe && pProbe->ExprType == HB_ET_VARIABLE &&
+              hb_stricmp( pProbe->value.asSymbol.name, "hbva" ) == 0 );
+   if( fArray )
+   {
+      hb_csEmitExpr( pEnum, yyc, HB_FALSE );
+      if( iDir < 0 )
+         fprintf( yyc, ".Reverse()" );
+      return;
+   }
+   fprintf( yyc, "HbRuntime.HbEnumValues(" );
+   hb_csEmitExpr( pEnum, yyc, HB_FALSE );
+   fprintf( yyc, "%s)", iDir < 0 ? ", true" : "" );
+}
+
+/* `x:__enumKey()` / `x:__enumValue()` on a FOR EACH variable the pair
+   form is active for: read the pair. Other enumerator messages are
+   left to the ordinary send path. */
+static HB_BOOL hb_csEmitEnumPairMsg( PHB_EXPR pExpr, FILE * yyc )
+{
+   const char * szMsg = pExpr->value.asMessage.szMessage;
+   PHB_EXPR pObj = pExpr->value.asMessage.pObject;
+   int i;
+   if( ! szMsg || hb_strnicmp( szMsg, "__enum", 6 ) != 0 ||
+       ! pObj || pObj->ExprType != HB_ET_VARIABLE )
+      return HB_FALSE;
+   for( i = s_iEnumPairDepth - 1; i >= 0; i-- )
+      if( hb_stricmp( s_aEnumPairVar[ i ], pObj->value.asSymbol.name ) == 0 )
+         break;
+   if( i < 0 )
+      return HB_FALSE;
+   if( hb_stricmp( szMsg, "__enumKey" ) == 0 )
+      fprintf( yyc, "__hb_kv_%s.Key", s_aEnumPairVar[ i ] );
+   else if( hb_stricmp( szMsg, "__enumValue" ) == 0 )
+      fprintf( yyc, "__hb_kv_%s.Value", s_aEnumPairVar[ i ] );
+   else
+      return HB_FALSE;
+   return HB_TRUE;
 }
 
 /* Find class entry by name (case-insensitive) */

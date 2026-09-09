@@ -56,7 +56,7 @@ public static partial class Program
     {
         dynamic xArg = default;
         decimal nIdx = 1;
-        foreach (dynamic __hb_fe_xArg in hbva)
+        foreach (dynamic __hb_fe_xArg in HbRuntime.HbEnumValues(hbva))
         {
             xArg = __hb_fe_xArg;
             HbRuntime.QOut("arg " + HbRuntime.LTrim(HbRuntime.Str(nIdx)) + ": " + xArg);

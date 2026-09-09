@@ -169,6 +169,61 @@ public static partial class HbRuntime
 
     // ---- String functions ----
 
+    /* FOR EACH whose body reads an enumerator message (`x:__enumKey()`):
+       the emitter iterates these pairs and binds the loop variable to
+       Value. A hash yields (key, value), an array (1-based index,
+       element), a string (index, character). */
+    public static IEnumerable<KeyValuePair<dynamic, dynamic>> HbEnumPairs(dynamic x, bool reverse = false)
+    {
+        var list = new List<KeyValuePair<dynamic, dynamic>>();
+        if (x is System.Collections.IDictionary d)
+        {
+            foreach (System.Collections.DictionaryEntry e in d)
+                list.Add(new KeyValuePair<dynamic, dynamic>(e.Key, e.Value));
+        }
+        else if (x is string s)
+        {
+            for (int i = 0; i < s.Length; i++)
+                list.Add(new KeyValuePair<dynamic, dynamic>((decimal)(i + 1), s[i].ToString()));
+        }
+        else if (x is System.Collections.IEnumerable en)
+        {
+            decimal i = 0;
+            foreach (var e in en)
+                list.Add(new KeyValuePair<dynamic, dynamic>(++i, e));
+        }
+        if (reverse)
+            list.Reverse();
+        return list;
+    }
+
+    /* The enumerable of a FOR EACH: Harbour hands out a hash's VALUES
+       and a string's characters as one-character strings, where C#
+       would hand out pairs and chars. Arrays are iterated directly by
+       the emitter; everything else comes through here. */
+    public static IEnumerable<dynamic> HbEnumValues(dynamic x, bool reverse = false)
+    {
+        var list = new List<dynamic>();
+        if (x is System.Collections.IDictionary d)
+        {
+            foreach (System.Collections.DictionaryEntry e in d)
+                list.Add(e.Value);
+        }
+        else if (x is string s)
+        {
+            foreach (char c in s)
+                list.Add(c.ToString());
+        }
+        else if (x is System.Collections.IEnumerable en)
+        {
+            foreach (var e in en)
+                list.Add(e);
+        }
+        if (reverse)
+            list.Reverse();
+        return list;
+    }
+
     public static decimal Len(dynamic x)
     {
         if (x is string s) return s.Length;

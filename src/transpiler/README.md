@@ -1095,6 +1095,9 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 91        | Ref-shims at method sends — `oObj:M(@x)`, `::Super:M(@x)`, member / element assignment targets, `(long)` write-back into an `AS INTEGER` member |
 | 92        | `::Super:M(oDyn)` — a dynamic-typed argument in a `base.` call is cast (`(object)` for a dynamic slot, the slot's type otherwise) so C# binds the call statically (CS1971) |
 | 93        | `Class():New(args)` call sites refine the constructor's own slots — the walker types a `Class()` receiver as the class |
+| 94        | Sends on typed receivers: `X():New(a):Run()` parenthesised as a receiver; `X():New(args)` on an Init-only class calls Init; members emitted in their declared spelling; a member declared only on a subclass read through `(dynamic)` |
+| 95        | By-ref shapes: a function-returning receiver resolves the row and an omitted trailing `ref` slot takes the discard; a literal / member access at a by-ref slot inside WHILE or ELSEIF uses the inline discard; a shim write-back into an INTEGER local takes `(long)` |
+| 96        | FOR EACH: a body reading `x:__enumKey()` / `__enumValue()` iterates `HbRuntime.HbEnumPairs`; a hash, string or unknown enumerable yields VALUES through `HbRuntime.HbEnumValues`; arrays iterate directly |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the

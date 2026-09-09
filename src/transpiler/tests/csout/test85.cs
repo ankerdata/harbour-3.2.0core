@@ -47,7 +47,7 @@ public static partial class Program
 
     public static TestOrmRec85 ConstructORMTable(dynamic[] aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
-        return new TestOrmRec85();
+        return (TestOrmRec85)new TestOrmRec85().New();
 
         // Receives both family members in BOTH slots — each param widens to
         // TestFamBase and the shared-field copy stays compile-checked, typed

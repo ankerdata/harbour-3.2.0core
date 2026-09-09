@@ -200,6 +200,12 @@ extern const char * hb_refTabClassParent( PHB_REFTAB pTab,
 extern HB_BOOL hb_refTabIsKindOf( PHB_REFTAB pTab, const char * szSub,
                                   const char * szSuper );
 
+/* True when szMember has a row on a class that DESCENDS from szClass
+   (never on szClass itself or its ancestors): the member exists at
+   runtime on some instances the static type admits — `oLine:nFixedNo`
+   read on a PrintableTranLine-typed variable holding an FcnTranLine. */
+extern HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
+                                          const char * szMember );
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );
 

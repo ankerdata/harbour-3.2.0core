@@ -47,7 +47,7 @@ public static partial class Program
 
     public static TestOrmRec ConstructORMTable(dynamic[] aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
-        return new TestOrmRec();
+        return (TestOrmRec)new TestOrmRec().New();
     }
 
     public static void Main(string[] args)
