@@ -2858,6 +2858,24 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          {
             PHB_EXPR pRecv = pExpr->value.asMessage.pObject;
             szRecvType = hb_astInferExprType( pRecv, pEnv );
+            /* `Class():Method(...)` — the receiver is the class
+               constructor call, which no return-type table knows (a
+               CLASS is not a function row). The emitter resolves the
+               shape already (hb_csSendRefKey); typing it here is what
+               lets a constructor's own slots be refined from its
+               `Dialog():New(oTransaction, oPOSStatus)` callers. */
+            if( pRecv->ExprType == HB_ET_FUNCALL && pEnv->pRefTab &&
+                pRecv->value.asFunCall.pFunName &&
+                pRecv->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+                pRecv->value.asFunCall.pFunName->value.asSymbol.name &&
+                ( ! szRecvType ||
+                  ! hb_refTabIsClass( pEnv->pRefTab, szRecvType ) ) )
+            {
+               const char * szCanon = hb_refTabClassCanonName( pEnv->pRefTab,
+                  pRecv->value.asFunCall.pFunName->value.asSymbol.name );
+               if( szCanon )
+                  szRecvType = szCanon;
+            }
             /* Member-access receivers only (Self:member / obj:member):
                a class DATA slot's type routinely comes from nothing
                but its own name. Plain variable receivers stay out of

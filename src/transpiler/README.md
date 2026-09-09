@@ -488,6 +488,17 @@ source. Review each warning and, if the slot really is polymorphic,
 the `C` flag already does the right thing by leaving it as `dynamic`
 in the output.
 
+Two different *classes* meeting in one slot are not a conflict when
+they share an ancestor: the refiner walks the reftab's INHERIT chain
+and widens the slot to the nearest common class (test79). ORM def
+classes have no source INHERIT — they are `hbClass()` runtime tables —
+so `fieldtypes.tsv` carries their parents instead: the family bases
+(`TableIndexDef → TableFieldsBase`, test85) and, for every other model
+and family base, `OrmTable`, the base the generated C# models derive
+from. `BrowseDialog:New`'s `oOrmTable`, fed a `PLUDef` here and a
+`CustomerDef` there, therefore types as `OrmTable`; a table-specific
+member on it is then a C# error, which is the point.
+
 ---
 
 ## Type system
@@ -540,6 +551,15 @@ reftab hash lookups. It deliberately does not recurse into
 60 s per file. `HB_DEFAULT(@param, ConstructORMTable(XxxDef()))` in a
 body types the parameter as `XxxDef` (only upgrading an OBJECT/USUAL
 slot, never overriding a caller's class).
+
+A receiver that is the class constructor call itself —
+`Sconce():New(oLantern, "hall")` — is a FUNCALL no return-type table
+knows (a CLASS is not a function row), and until test93 no constructor
+was ever refined from its callers: 0 of 18 Dialog `New` methods in the
+easipos corpus had a typed slot while 804 free-function slots were
+typed `Transaction`. The refinement walker now types a `Class()`
+receiver as the class, as the emitter already did for the same shape
+(test90).
 
 Anything still unknown after all passes ends up as `dynamic` in the
 C# output.
@@ -736,7 +756,9 @@ Guards on nilable (reference-typed) slots are untouched throughout.
 | `ACCESS` / `ASSIGN`              | C# property `{ get; set; }`                               |
 | `Foo(@x)` + `PROCEDURE Foo(x)`   | `Foo(ref x)` + `Foo(ref decimal x)` (type from refTab)   |
 | `Fred(x)` short call             | `Fred(x)` (relies on `= default` on declaration)         |
-| `Fred(x, , z)` middle gap        | `Fred(x, nC: z)` (named argument syntax)                 |
+| `Fred(x, , z)` middle gap        | `Fred(x, nC: z)` (named argument syntax; `Class():New(a, , c)` and `::Super:New(a, , c)` resolve the row through the INHERIT chain — a gap nothing can name passes `null`) |
+| `::Super:M(oDyn)`, `oDyn` dynamic-typed | `base.M((object)oDyn)` — cast to the parent slot's type (`object` for a dynamic slot) so the statically-bound base call compiles (CS1971) |
+| Function-final `RETURN` no path reaches | omitted — Harbour's level-1 warning forces it to exist; C# would report CS0162 |
 | `IF nB != NIL`                   | `if (nB != null)` with `nB` emitted as `decimal?`        |
 | `DEFAULT lX TO .T.` / `hb_default(@nX, 40)` on a value slot | `bool lX = true` / `decimal nX = 40` on the declaration; the guard is dropped (see [NIL semantics](#nil-semantics)) |
 | `DEFAULT nIdx TO <expr>` on a value slot (or any declared default at/before a `ref`) | `decimal? nIdx = null` at the boundary, `decimal nIdx_ = nIdx ?? <expr>;` where the guard stood, later references aliased to `nIdx_`; callers pad `default(decimal?)` into a pre-ref gap |
@@ -824,6 +846,14 @@ call; `hb_csShimWritesBack` decides whether to copy the temp back
 afterwards (true for `HB_ET_VARREF` / `HB_ET_REFERENCE`, false for
 every other arg shape). `tests/test71.prg` exercises all four arg
 shapes (`@var`, array element, hash entry, string literal).
+
+Method sends get the same treatment (test91): `oObj:M(@x)` and
+`::Super:M(@x)` resolve their row (`hb_csSendCallKey`) and are shimmed
+like a function call, the send emitter parking the shim map across the
+receiver expression; an assignment whose target is a member or element
+(`oObj:cField := Func(@oObj:nField)`) is a statement block too, and a
+write-back into an `AS INTEGER` member takes the `(long)` coercion an
+ordinary assignment gets.
 
 #### Why not C# overloads?
 
@@ -1060,6 +1090,11 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 86        | Typed receivers in the reftab's method-send scan — a by-ref param forwarded into a reassigning method keeps its `ref` |
 | 87        | Declared defaults — `DEFAULT p TO <const>` / `hb_default(@p, <const>)` lifted onto strict value slots, function / method / short-overload forms |
 | 88        | Boundary defaults — non-constant or pre-`ref` declared defaults: `T?` at the boundary, normalising local, alias, reftab `D`, null padding, named post-`ref` gaps |
+| 89        | Function-final `RETURN` no path reaches is skipped; a `case` `break;` looks past comment nodes (CS0162) |
+| 90        | Method-send gaps — `Class():New(a, , c)` / `::Super:New(a, , c)` resolve the row (INHERIT chain; the parent's for Super) and name the later arguments; a gap nothing can name passes `null` |
+| 91        | Ref-shims at method sends — `oObj:M(@x)`, `::Super:M(@x)`, member / element assignment targets, `(long)` write-back into an `AS INTEGER` member |
+| 92        | `::Super:M(oDyn)` — a dynamic-typed argument in a `base.` call is cast (`(object)` for a dynamic slot, the slot's type otherwise) so C# binds the call statically (CS1971) |
+| 93        | `Class():New(args)` call sites refine the constructor's own slots — the walker types a `Class()` receiver as the class |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
