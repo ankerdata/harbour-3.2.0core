@@ -24,6 +24,12 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
+static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
+                                     char * szBuf, HB_SIZE nBuf );
+static const char * hb_csMethodKeyInChain( const char * szClass,
+                                           const char * szMethod,
+                                           char * szBuf, HB_SIZE nBuf );
+static PHB_EXPR hb_csFunCallArgHead( PHB_EXPR pCall );
 static void hb_csEmitIndent( FILE * yyc, int iIndent );
 
 /* Emit a dim expression inside an `new dynamic[<dim>]` allocation. A
@@ -1449,28 +1455,92 @@ static const char * hb_csFuncRefKey( const char * szName,
    already matches, so it is shimmed only on a real mismatch — shimming a
    matching @var would needlessly wrap (and, inside a condition, hoist) a
    call that compiles fine. */
+/* `::Super:Method(...)` — an outer SEND whose receiver is `Self:Super`. */
+static HB_BOOL hb_csIsSuperSend( PHB_EXPR pExpr )
+{
+   PHB_EXPR pObj = pExpr->value.asMessage.pObject;
+   return pObj && pObj->ExprType == HB_ET_SEND &&
+          pObj->value.asMessage.pObject &&
+          pObj->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+          pObj->value.asMessage.pObject->value.asSymbol.name &&
+          hb_stricmp( pObj->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 &&
+          pObj->value.asMessage.szMessage &&
+          hb_stricmp( pObj->value.asMessage.szMessage, "Super" ) == 0;
+}
+
+/* The reftab key a SEND's arguments should match: the defining class's
+   row for a resolvable receiver or for Super, else "" — dynamic
+   dispatch, where C# allows no `ref` and so no shim. */
+static const char * hb_csSendCallKey( PHB_EXPR pExpr, char * szBuf, HB_SIZE nBuf )
+{
+   const char * szKey = NULL;
+
+   if( hb_csIsSuperSend( pExpr ) )
+   {
+      const char * szParent = ( s_pRefTab && s_szCurrentClass[ 0 ] )
+         ? hb_refTabClassParent( s_pRefTab, s_szCurrentClass ) : NULL;
+      if( szParent )
+         szKey = hb_csMethodKeyInChain( szParent, pExpr->value.asMessage.szMessage,
+                                        szBuf, nBuf );
+   }
+   else
+      szKey = hb_csSendRefKey( pExpr->value.asMessage.pObject,
+                               pExpr->value.asMessage.szMessage, szBuf, nBuf );
+   if( ! szKey )
+   {
+      szBuf[ 0 ] = '\0';
+      szKey = szBuf;
+   }
+   return szKey;
+}
+
+/* A call site whose by-ref slots may need shims — a FUNCALL, or a SEND
+   with a resolvable callee — as (reftab key, argument-list head). */
+static HB_BOOL hb_csCallView( PHB_EXPR pCall, const char ** pszFunc,
+                              PHB_EXPR * ppHead, char * szKeyBuf, HB_SIZE nBuf )
+{
+   if( ! pCall )
+      return HB_FALSE;
+   if( pCall->ExprType == HB_ET_FUNCALL )
+   {
+      if( ! pCall->value.asFunCall.pFunName ||
+          pCall->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+          ! pCall->value.asFunCall.pFunName->value.asSymbol.name )
+         return HB_FALSE;
+      *pszFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
+      *ppHead  = hb_csFunCallArgHead( pCall );
+      return HB_TRUE;
+   }
+   if( pCall->ExprType == HB_ET_SEND && pCall->value.asMessage.szMessage &&
+       pCall->value.asMessage.pParms )
+   {
+      PHB_EXPR pParms = pCall->value.asMessage.pParms;
+      const char * szKey = hb_csSendCallKey( pCall, szKeyBuf, nBuf );
+      if( ! szKey[ 0 ] )
+         return HB_FALSE;
+      if( pParms->ExprType == HB_ET_LIST || pParms->ExprType == HB_ET_ARGLIST ||
+          pParms->ExprType == HB_ET_MACROARGLIST )
+         pParms = pParms->value.asList.pExprList;
+      *pszFunc = szKey;
+      *ppHead  = pParms;
+      return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
 static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
 {
    const char * szFunc = NULL;
-   PHB_EXPR pHead, pItem;
+   PHB_EXPR pHead = NULL, pItem;
+   char szKey[ 256 ];
    int iPos, iCount = 0;
 
    for( iPos = 0; iPos < iMax; iPos++ )
       pfShim[ iPos ] = HB_FALSE;
 
-   if( ! pCall || pCall->ExprType != HB_ET_FUNCALL || ! s_pRefTab )
+   if( ! pCall || ! s_pRefTab ||
+       ! hb_csCallView( pCall, &szFunc, &pHead, szKey, sizeof( szKey ) ) )
       return 0;
-   if( pCall->value.asFunCall.pFunName &&
-       pCall->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
-      szFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
-   if( ! szFunc )
-      return 0;
-
-   pHead = pCall->value.asFunCall.pParms;
-   if( pHead && ( pHead->ExprType == HB_ET_LIST ||
-                  pHead->ExprType == HB_ET_ARGLIST ||
-                  pHead->ExprType == HB_ET_MACROARGLIST ) )
-      pHead = pHead->value.asList.pExprList;
 
    for( pItem = pHead, iPos = 0; pItem && iPos < iMax;
         pItem = pItem->pNext, iPos++ )
@@ -1677,10 +1747,18 @@ static void hb_csEmitShimWriteback( PHB_EXPR pHead, const HB_BOOL * aShim,
           hb_csShimWritesBack( pArg ) )
       {
          char szName[ 96 ];
+         PHB_EXPR pTarget = pArg->ExprType == HB_ET_REFERENCE
+            ? pArg->value.asReference : pArg;
          hb_csEmitIndent( yyc, iIndent );
          hb_csEmitRefTarget( pArg, yyc );
-         fprintf( yyc, " = %s;\n",
-                  hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ) );
+         /* An AS INTEGER member (C# long) fed from a decimal slot takes
+            the same coercion an ordinary assignment into it gets. */
+         if( pTarget && hb_csExprIsCsIntegral( pTarget ) )
+            fprintf( yyc, " = (long)(%s);\n",
+                     hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ) );
+         else
+            fprintf( yyc, " = %s;\n",
+                     hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ) );
       }
    }
 }
@@ -1704,14 +1782,20 @@ static PHB_EXPR hb_csFindShimCall( PHB_EXPR pExpr, int iDepth )
 {
    if( ! pExpr || iDepth > 32 )
       return NULL;
-   if( pExpr->ExprType == HB_ET_FUNCALL )
+   if( pExpr->ExprType == HB_ET_FUNCALL || pExpr->ExprType == HB_ET_SEND )
    {
       HB_BOOL aShim[ HB_CS_MAXSHIM ];
-      if( pExpr->value.asFunCall.pFunName &&
-          pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
-          hb_csCollectRefShims( pExpr, aShim, HB_CS_MAXSHIM ) > 0 )
+      if( hb_csCollectRefShims( pExpr, aShim, HB_CS_MAXSHIM ) > 0 )
          return pExpr;
-      return hb_csFindShimCall( hb_csFunCallArgHead( pExpr ), iDepth + 1 );
+      if( pExpr->ExprType == HB_ET_FUNCALL )
+         return hb_csFindShimCall( hb_csFunCallArgHead( pExpr ), iDepth + 1 );
+      {
+         PHB_EXPR pHit =
+            hb_csFindShimCall( pExpr->value.asMessage.pObject, iDepth + 1 );
+         if( pHit )
+            return pHit;
+         return hb_csFindShimCall( pExpr->value.asMessage.pParms, iDepth + 1 );
+      }
    }
    switch( pExpr->ExprType )
    {
@@ -1753,9 +1837,12 @@ static PHB_EXPR hb_csFindShimCall( PHB_EXPR pExpr, int iDepth )
 static void hb_csBeginHoist( PHB_EXPR pCall, FILE * yyc, int iIndent )
 {
    HB_BOOL aShim[ HB_CS_MAXSHIM ];
-   const char * szFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
-   PHB_EXPR pHead = hb_csFunCallArgHead( pCall );
+   const char * szFunc = NULL;
+   PHB_EXPR pHead = NULL;
+   char szKey[ 256 ];
    int iBase = s_iShimDepth++;
+
+   hb_csCallView( pCall, &szFunc, &pHead, szKey, sizeof( szKey ) );
 
    hb_csCollectRefShims( pCall, aShim, HB_CS_MAXSHIM );
    hb_csEmitShimTemps( szFunc, pHead, aShim, iBase, yyc, iIndent );
@@ -3081,6 +3168,11 @@ static const char * hb_csIsConstructor( PHB_EXPR pExpr )
 
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 {
+   /* A SEND parks the ref-shim map armed for it here while its receiver
+      expression is emitted (see case HB_ET_SEND). */
+   const HB_BOOL * aSendShim = NULL;
+   int iSendShimBase = 0;
+
    if( ! pExpr )
       return;
 
@@ -3371,8 +3463,15 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
       case HB_ET_SEND:
          {
+            /* The ref-shim map armed for THIS send must survive the
+               receiver expression, whose own calls would otherwise
+               consume it in hb_csEmitCallArgs: park it, restore it just
+               before the send's arguments. */
             /* Check for ClassName():New() → new ClassName() */
             const char * szCtor = hb_csIsConstructor( pExpr );
+            aSendShim = s_aRefShim;
+            iSendShimBase = s_iRefShimBase;
+            s_aRefShim = NULL;
             if( szCtor )
             {
                /* ClassName():New() → new ClassName()
@@ -3421,6 +3520,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                            and an unnamed gap would slide the later
                            arguments into it. */
                         char szCtorKey[ 256 ];
+                        s_aRefShim = aSendShim;
+                        s_iRefShimBase = iSendShimBase;
                         hb_csEmitCallArgs(
                            hb_csMethodKeyInChain( szCtor,
                                                   pExpr->value.asMessage.szMessage,
@@ -3525,6 +3626,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                const char * szParent = ( s_pRefTab && s_szCurrentClass[ 0 ] )
                   ? hb_refTabClassParent( s_pRefTab, s_szCurrentClass ) : NULL;
                fprintf( yyc, "(" );
+               s_aRefShim = aSendShim;
+               s_iRefShimBase = iSendShimBase;
                hb_csEmitCallArgs(
                   szParent ? hb_csMethodKeyInChain( szParent,
                                                     pExpr->value.asMessage.szMessage,
@@ -3620,6 +3723,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          {
             char szKeyBuf[ 256 ];
             fprintf( yyc, "(" );
+            s_aRefShim = aSendShim;
+            s_iRefShimBase = iSendShimBase;
             hb_csEmitCallArgs(
                hb_csSendRefKey( pExpr->value.asMessage.pObject,
                                 pExpr->value.asMessage.szMessage,
@@ -4849,13 +4954,17 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          {
             PHB_EXPR pCall     = NULL;
             PHB_EXPR pAsgnLeft = NULL;
-            if( pStmtExpr && pStmtExpr->ExprType == HB_ET_FUNCALL )
+            if( pStmtExpr && ( pStmtExpr->ExprType == HB_ET_FUNCALL ||
+                               pStmtExpr->ExprType == HB_ET_SEND ) )
                pCall = pStmtExpr;
             else if( pStmtExpr && pStmtExpr->ExprType == HB_EO_ASSIGN &&
                      pStmtExpr->value.asOperator.pLeft &&
-                     pStmtExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
+                     ( pStmtExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE ||
+                       pStmtExpr->value.asOperator.pLeft->ExprType == HB_ET_SEND ||
+                       pStmtExpr->value.asOperator.pLeft->ExprType == HB_ET_ARRAYAT ) &&
                      pStmtExpr->value.asOperator.pRight &&
-                     pStmtExpr->value.asOperator.pRight->ExprType == HB_ET_FUNCALL )
+                     ( pStmtExpr->value.asOperator.pRight->ExprType == HB_ET_FUNCALL ||
+                       pStmtExpr->value.asOperator.pRight->ExprType == HB_ET_SEND ) )
             {
                pCall     = pStmtExpr->value.asOperator.pRight;
                pAsgnLeft = pStmtExpr->value.asOperator.pLeft;
@@ -4866,10 +4975,12 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                int iShims = hb_csCollectRefShims( pCall, aShim, HB_CS_MAXSHIM );
                if( iShims > 0 )
                {
-                  const char * szFunc =
-                     pCall->value.asFunCall.pFunName->value.asSymbol.name;
-                  PHB_EXPR pHead = hb_csFunCallArgHead( pCall );
+                  const char * szFunc = NULL;
+                  PHB_EXPR pHead = NULL;
+                  char szKey[ 256 ];
                   int iBase = s_iShimDepth++;
+
+                  hb_csCallView( pCall, &szFunc, &pHead, szKey, sizeof( szKey ) );
 
                   hb_csEmitIndent( yyc, iIndent );
                   fprintf( yyc, "{\n" );
