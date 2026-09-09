@@ -1811,6 +1811,29 @@ static void hb_csEndShimBlock( void )
    hb_csCallParam's file-static resolution, which would bind a proxy's
    `:TransactionHistory(aArr)` to a same-file static
    `TransactionHistory(cWiTrxId-byref, ...)` and mis-`ref` the args. */
+/* `<Class>::<Class>__<Method>`, resolved up the INHERIT chain to the
+   class whose row the reftab holds — a subclass without its own New
+   constructs through its parent's, and `::Super:New(...)` may skip a
+   level. Falls back to the direct key when no row is found. */
+static const char * hb_csMethodKeyInChain( const char * szClass,
+                                           const char * szMethod,
+                                           char * szBuf, HB_SIZE nBuf )
+{
+   const char * szC = szClass;
+   int i;
+
+   for( i = 0; szC && s_pRefTab && i < 16; i++ )
+   {
+      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szC, szC, szMethod );
+      if( hb_refTabParamCount( s_pRefTab, szBuf ) > 0 ||
+          hb_refTabReturnType( s_pRefTab, szBuf ) )
+         return szBuf;
+      szC = hb_refTabClassParent( s_pRefTab, szC );
+   }
+   hb_snprintf( szBuf, nBuf, "%s::%s__%s", szClass, szClass, szMethod );
+   return szBuf;
+}
+
 static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
                                      char * szBuf, HB_SIZE nBuf )
 {
@@ -1839,12 +1862,20 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
       if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
          szClass = szT;
    }
+   else if( pObj->ExprType == HB_ET_FUNCALL &&
+            pObj->value.asFunCall.pFunName &&
+            pObj->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+            pObj->value.asFunCall.pFunName->value.asSymbol.name &&
+            s_pRefTab &&
+            hb_refTabIsClass( s_pRefTab,
+                              pObj->value.asFunCall.pFunName->value.asSymbol.name ) )
+   {
+      /* `Class():Method(...)` — the receiver is the class constructor. */
+      szClass = pObj->value.asFunCall.pFunName->value.asSymbol.name;
+   }
 
    if( szClass )
-   {
-      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szClass, szClass, szMethod );
-      return szBuf;
-   }
+      return hb_csMethodKeyInChain( szClass, szMethod, szBuf, nBuf );
    /* Unresolved receiver: return an empty sentinel, NOT the bare method
       name — hb_csEmitCallArgs treats "" as "no known signature" and
       emits every arg plainly. (A NULL szFunc would make hb_csCallParam
@@ -1953,8 +1984,19 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                                  ? "?" : "" );
                }
             }
-            else
+            else if( hb_csCallParam( szFunc, iPos ) )
                fNamed = HB_TRUE;   /* gap; next real slot emits named */
+            else
+            {
+               /* No signature to name the later slots from (unresolved
+                  receiver, RTL routine, or a slot past the declared
+                  count): pass the gap as null — Harbour's NIL — rather
+                  than drop it and let the later arguments slide left. */
+               if( ! fFirst )
+                  fprintf( yyc, ", " );
+               fFirst = HB_FALSE;
+               fprintf( yyc, "null" );
+            }
             if( pItem )
                pItem = pItem->pNext;
             continue;
@@ -3373,8 +3415,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                         szMsg = szMsgBuf;
                      }
                      fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor, szMsg );
-                     hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
-                                        pArgs, yyc );
+                     {
+                        /* The constructor's row lives under the class
+                           (or a parent's) — a bare "New" names nothing,
+                           and an unnamed gap would slide the later
+                           arguments into it. */
+                        char szCtorKey[ 256 ];
+                        hb_csEmitCallArgs(
+                           hb_csMethodKeyInChain( szCtor,
+                                                  pExpr->value.asMessage.szMessage,
+                                                  szCtorKey, sizeof( szCtorKey ) ),
+                           pArgs, yyc );
+                     }
                      fprintf( yyc, ")" );
                   }
                   else
@@ -3466,9 +3518,19 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             fprintf( yyc, "base.%s", pExpr->value.asMessage.szMessage );
             if( pExpr->value.asMessage.pParms )
             {
+               /* The parent's row (or its parent's) names the slots, so
+                  a gap in `::Super:New(a, , .t.)` emits as a named
+                  argument instead of sliding `.t.` one slot left. */
+               char szSuperKey[ 256 ];
+               const char * szParent = ( s_pRefTab && s_szCurrentClass[ 0 ] )
+                  ? hb_refTabClassParent( s_pRefTab, s_szCurrentClass ) : NULL;
                fprintf( yyc, "(" );
-               hb_csEmitCallArgs( pExpr->value.asMessage.szMessage,
-                                  pExpr->value.asMessage.pParms, yyc );
+               hb_csEmitCallArgs(
+                  szParent ? hb_csMethodKeyInChain( szParent,
+                                                    pExpr->value.asMessage.szMessage,
+                                                    szSuperKey, sizeof( szSuperKey ) )
+                           : "",
+                  pExpr->value.asMessage.pParms, yyc );
                fprintf( yyc, ")" );
             }
             break;

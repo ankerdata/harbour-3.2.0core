@@ -27,7 +27,7 @@ public static partial class Program
 
         HbRuntime.QOut("len_hash=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Len(hData))));
 
-        HbRuntime.ASort(aNums, ((Func<dynamic, dynamic, dynamic>)((x, y) => x < y)));
+        HbRuntime.ASort(aNums, null, null, ((Func<dynamic, dynamic, dynamic>)((x, y) => x < y)));
         cOut = "";
         for (i = 1; i <= HbRuntime.Len(aNums); i++)
         {
