@@ -2227,6 +2227,89 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
  * a no-op.
  * ================================================================ */
 
+/* W0018 — a call passing more positional arguments than the callee
+   declares. Harbour drops the extras silently; C# is CS1501. This
+   lived in the -GS emitter only, so the -GF scan — the gate — could
+   not see it: a merge brought ormsql's four-argument call to the
+   three-parameter MakeSQLiteIndexes, the scan passed clean and only
+   gen caught it. The walk visits every call site anyway, with the
+   callee key already resolved (file-static row first; a typed
+   receiver's `Class::Class__Method`), so the count compare happens
+   here in both modes. A method the receiver's class only inherits
+   has its row on the declaring ancestor — walked through the parent
+   links for the check alone; refinement keeps keying on the class
+   named. Variadic and called-with-spread rows take any trailing list.
+   A row the scan has not registered yet (first pass, a callee in a
+   later file) is silent this pass and fires on the next; the pipeline
+   treats the LAST pass as authoritative for W0018, because the
+   multi-definition arity fold can make an early-pass hit transient. */
+static void hb_astCheckArity( const char * szCallee, PHB_EXPR pParms,
+                              HB_TYPEENV * pEnv, int iLine )
+{
+   const char * szKey = szCallee;
+   char szChain[ 256 ];
+   int iDeclared, iPassed = 0, iPos = 0;
+   PHB_EXPR pArg;
+
+   if( ! szCallee || ! pParms || ! pEnv || ! pEnv->pRefTab )
+      return;
+   iDeclared = hb_refTabParamCount( pEnv->pRefTab, szKey );
+   if( iDeclared < 0 )
+   {
+      const char * szSep = strstr( szCallee, "::" );
+      const char * szM = szSep ? strstr( szSep + 2, "__" ) : NULL;
+      if( szSep && szM )
+      {
+         char szCls[ 128 ];
+         HB_SIZE nCls = ( HB_SIZE ) ( szSep - szCallee );
+         const char * szC;
+         int i;
+         if( nCls >= sizeof( szCls ) )
+            return;
+         memcpy( szCls, szCallee, nCls );
+         szCls[ nCls ] = '\0';
+         szC = hb_refTabClassParent( pEnv->pRefTab, szCls );
+         for( i = 0; szC && i < 16 && iDeclared < 0; i++ )
+         {
+            hb_snprintf( szChain, sizeof( szChain ), "%s::%s__%s",
+                         szC, szC, szM + 2 );
+            iDeclared = hb_refTabParamCount( pEnv->pRefTab, szChain );
+            if( iDeclared >= 0 )
+               szKey = szChain;
+            else
+               szC = hb_refTabClassParent( pEnv->pRefTab, szC );
+         }
+      }
+      if( iDeclared < 0 )
+         return;
+   }
+   if( hb_refTabIsVariadic( pEnv->pRefTab, szKey ) ||
+       hb_refTabIsCalledVarargs( pEnv->pRefTab, szKey ) )
+      return;
+
+   if( pParms->ExprType == HB_ET_LIST ||
+       pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pArg = pParms->value.asList.pExprList;
+   else
+      pArg = pParms;
+   for( ; pArg; pArg = pArg->pNext, iPos++ )
+      if( pArg->ExprType != HB_ET_NONE )
+         iPassed = iPos + 1;   /* trailing gaps are not arguments */
+
+   if( iPassed > iDeclared )
+   {
+      char szDedup[ 192 ];
+      hb_snprintf( szDedup, sizeof( szDedup ), "W0018 %s", szKey );
+      if( ! hb_astOrmSeen( iLine, szDedup ) )
+         fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0018  "
+                  "Call to '%s' passes %d args but declaration takes %d\n",
+                  pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                  iLine, szKey, iPassed, iDeclared );
+   }
+}
+
 static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                  HB_TYPEENV * pEnv, int iLine )
 {
@@ -2250,12 +2333,21 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
       {
          hb_snprintf( szStaticKey, sizeof( szStaticKey ), "%s::%s",
                       pSplit->szName, szCallee );
+         /* > 0, not >= 0: a class named after its file (Queue in
+            queue.prg) has member rows `Queue::Len` that collide
+            case-insensitively with this `file::func` key, and the
+            bare `len(::array)` builtin call would resolve to the
+            MESSAGE alias's parameterless row (eight false W0018s).
+            Member rows carry no parameters; requiring one keeps the
+            static-key path to functions. */
          if( hb_refTabParamCount( pEnv->pRefTab, szStaticKey ) > 0 )
             szCallee = szStaticKey;
       }
       if( pSplit )
          hb_xfree( pSplit );
    }
+
+   hb_astCheckArity( szCallee, pParms, pEnv, iLine );
 
    if( pParms->ExprType == HB_ET_LIST ||
        pParms->ExprType == HB_ET_ARGLIST ||

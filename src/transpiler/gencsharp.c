@@ -694,67 +694,6 @@ static void hb_csWarnUnsupported( const char * szDesc )
    }
 }
 
-/* Count argument slots in a call-site parameter list. Empty call
-   `Foo()` has pParms->asList.pExprList == NULL or a single sentinel
-   HB_ET_NONE — both yield 0. Middle gaps in `Foo(a, , c)` count as
-   slots (Harbour pads them to NIL); trailing gaps `Foo(a, , , )` are
-   dropped to match hb_csEmitCallArgs's truncation so the warning
-   uses the same arity the emit does. */
-static int hb_csCountCallArgs( PHB_EXPR pParms )
-{
-   PHB_EXPR pHead;
-   PHB_EXPR pItem;
-   int      iLastReal = -1;
-   int      iPos;
-
-   if( ! pParms )
-      return 0;
-   if( pParms->ExprType == HB_ET_LIST ||
-       pParms->ExprType == HB_ET_ARGLIST ||
-       pParms->ExprType == HB_ET_MACROARGLIST )
-      pHead = pParms->value.asList.pExprList;
-   else
-      pHead = pParms;
-   for( pItem = pHead, iPos = 0; pItem; pItem = pItem->pNext, iPos++ )
-   {
-      if( pItem->ExprType != HB_ET_NONE )
-         iLastReal = iPos;
-   }
-   return iLastReal + 1;
-}
-
-/* Warn when szFunc is a known user function and the call passes more
-   positional args than the declaration takes. Harbour silently drops
-   the extras at runtime; C# surfaces them as CS1501 "no overload takes
-   N arguments". Flagging at emit-time gives the user a per-call-site
-   list in source-file coordinates instead of transpiled-.cs ones.
-   Variadic and called-with-spread callees are exempt: both accept an
-   arbitrary trailing list. */
-static void hb_csWarnExtraArgs( const char * szFunc, PHB_EXPR pParms )
-{
-   int iDeclared;
-   int iPassed;
-
-   if( ! szFunc || ! s_pRefTab )
-      return;
-   iDeclared = hb_refTabParamCount( s_pRefTab, szFunc );
-   if( iDeclared < 0 )
-      return;  /* not a known user function */
-   if( hb_refTabIsVariadic( s_pRefTab, szFunc ) ||
-       hb_refTabIsCalledVarargs( s_pRefTab, szFunc ) )
-      return;
-   iPassed = hb_csCountCallArgs( pParms );
-   if( iPassed > iDeclared && s_pCompCtx )
-   {
-      fprintf( stderr,
-               "hbtranspiler: %s(%d): warning W0018  "
-               "Call to '%s' passes %d args but declaration takes %d\n",
-               s_pCompCtx->currModule
-                  ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
-               s_iCurrentStmtLine, szFunc, iPassed, iDeclared );
-   }
-}
-
 /* Warn when szFunc is a known user function with ref parameters and
    the call passes a non-@ argument at a position reftab marks as
    by-ref. Harbour's by-ref convention marker in the declaration
@@ -2099,6 +2038,35 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    {
       if( pItem->ExprType != HB_ET_NONE )
          nLastReal = iPos;
+   }
+
+   /* Arguments past the declared count: Harbour ignores them at run
+      time and the scan walk has warned (W0018), so emit what the C#
+      signature takes and the call compiles as the Harbour one runs.
+      Variadic and called-with-spread callees take any trailing list;
+      an unresolved callee (no row, or the "" sentinel) is left alone. */
+   if( szFunc && *szFunc && s_pRefTab )
+   {
+      /* The same row hb_csCallParam reads per slot: a free-function
+         call arrives here under its bare name, and a file-static
+         function shadowing a public one elsewhere has its own row
+         `file::func`. Counting against the bare name once dropped 23
+         of rmio2700's 27 RoomCharge arguments — the public RoomCharge
+         takes four. */
+      const char * szRow = szFunc;
+      char szKey[ 256 ];
+      int nDeclared;
+      if( hb_csIsFileStaticFunc( szFunc ) && s_szFileBase[ 0 ] )
+      {
+         hb_snprintf( szKey, sizeof( szKey ), "%s::%s", s_szFileBase, szFunc );
+         if( hb_refTabParamCount( s_pRefTab, szKey ) >= 0 )
+            szRow = szKey;
+      }
+      nDeclared = hb_refTabParamCount( s_pRefTab, szRow );
+      if( nDeclared >= 0 && nLastReal >= nDeclared &&
+          ! hb_refTabIsVariadic( s_pRefTab, szRow ) &&
+          ! hb_refTabIsCalledVarargs( s_pRefTab, szRow ) )
+         nLastReal = nDeclared - 1;
    }
 
    if( nLastReal < 0 )
@@ -3975,10 +3943,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   if( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) )
                      fprintf( yyc, "Program." );
                   fprintf( yyc, "%s", szMapped );
-                  /* Flag call sites that pass more args than the
-                     declaration takes — that's a source-level bug
-                     Harbour tolerates but C# rejects as CS1501. */
-                  hb_csWarnExtraArgs( szName, pExpr->value.asFunCall.pParms );
+                  /* Extra-argument calls (W0018) are the scan walk's
+                     business now — hb_astCheckArity runs in -GS too. */
                   /* Flag calls that pass a bare arg where reftab
                      says the slot is ref (inconsistent `@` usage
                      across call sites — C# rejects as CS1620). */

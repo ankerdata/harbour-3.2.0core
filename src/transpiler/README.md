@@ -453,7 +453,7 @@ can reach zero. Things that are merely *type debt* go to the
 | Code  | Phase | Fires when                                                                 |
 |-------|-------|----------------------------------------------------------------------------|
 | W0016 | emit  | Unsupported construct (workarea alias, `&macro`, comma operator) — placeholder substituted |
-| W0018 | emit  | Call passes more args than the declaration takes (extra args are dropped) — **emit-only today, so the scan gate cannot see it** |
+| W0018 | scan  | Call passes more positional args than the declaration takes (the emitter drops the extras). Free functions and method sends on typed receivers, inherited methods through the parent links; variadic callees exempt. The pipeline keeps only what the final pass reports |
 | W0019 | pp    | A `--preload-list` header failed to load                                    |
 | W0020 | emit  | Call omits `@` on a by-ref parameter. Silence deliberately with `Foo(/*@*/x)` — see the `.hb` emitter section |
 | W0021 | scan  | LOCAL / STATIC / MEMVAR / PRIVATE / parameter lacks a Hungarian prefix (exempt names via `--var-types`) |
@@ -559,7 +559,13 @@ was ever refined from its callers: 0 of 18 Dialog `New` methods in the
 easipos corpus had a typed slot while 804 free-function slots were
 typed `Transaction`. The refinement walker now types a `Class()`
 receiver as the class, as the emitter already did for the same shape
-(test90).
+(test90). Both that rule and the older one — a local initialised by
+`X():New()` / `X():Init()` is an X — apply only to a name the reftab
+knows as a class. `hbClass():New(…)` and `TOleAuto():New(…)` are RTL
+class functions whose `New` returns a runtime object; typing the
+local `hbClass` named a C# type that does not exist (CS0246), so
+those fall through to the Hungarian prefix and stay `dynamic`
+(test103).
 
 Anything still unknown after all passes ends up as `dynamic` in the
 C# output.
@@ -809,7 +815,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
 | `Self` / `::`                    | `this` / `this.` — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class |
-| `ClassName():New()`              | `new ClassName()`                                        |
+| `ClassName():New()`              | `new ClassName()` — or `(ClassName)new ClassName().New()` when the class declares a `New` / `Init` body (it used to be skipped). A name the reftab does not know as a class (`hbClass()`, `TOleAuto()`) leaves the receiving local `dynamic` (test103) |
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
 | `BEGIN SEQUENCE … RECOVER … END` | `try { … } catch (Exception e) { … }`                   |
 | `BEGIN SEQUENCE … END` (no RECOVER) | `try { … } catch {}` + W-level warning (idiom usually means "missed RECOVER") |
@@ -819,6 +825,12 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `Fred(x)` short call             | `Fred(x)` (relies on `= default` on declaration)         |
 | `Fred(x, , z)` middle gap        | `Fred(x, nC: z)` (named argument syntax; `Class():New(a, , c)` and `::Super:New(a, , c)` resolve the row through the INHERIT chain — a gap nothing can name passes `null`) |
 | `::Super:M(oDyn)`, `oDyn` dynamic-typed | `base.M((object)oDyn)` — cast to the parent slot's type (`object` for a dynamic slot) so the statically-bound base call compiles (CS1971) |
+| `Foo(a, b, extra)` against `PROCEDURE Foo(a, b)` | `Foo(a, b)` — the extras are dropped as Harbour drops them at run time; the scan's W0018 is what stops the pipeline (test104) |
+| `PCount()` / `hb_AParams()` in a function that reads them | `hbva.Length` / `hbva` — the signature widens to `params dynamic[] hbva` and the named parameters are re-bound from it, file-static functions included (test102) |
+| `d1 - d2`, `d + n`, `n + d`, `d - n`, `d += n` on DATE operands | `(decimal)(d1.DayNumber - d2.DayNumber)` (decimal, so a later `/` stays float), `d.AddDays((int)(n))`, `d = d.AddDays(...)` — `DateOnly` has no operators; TIMESTAMP is left alone (test101) |
+| `c1 < c2` (`<=`, `>`, `>=`) on string operands | `HbRuntime.StrCmp(c1, c2) < 0` — Harbour's ordering under SET EXACT OFF (the shorter length decides; a longer LEFT operand with an equal prefix is EQUAL); `=` stays `==` (test101) |
+| `METHOD ToString()`              | `public override string ToString()` — it is object.ToString (test103) |
+| `TOleAuto():New("ADODB.Recordset")` | `HbRuntime.TOleAuto().New("ADODB.Recordset")` — the class function is a static factory; `New` creates the COM object through `Type.GetTypeFromProgID` |
 | Function-final `RETURN` no path reaches | omitted — Harbour's level-1 warning forces it to exist; C# would report CS0162 |
 | `IF nB != NIL`                   | `if (nB != null)` with `nB` emitted as `decimal?`        |
 | `DEFAULT lX TO .T.` / `hb_default(@nX, 40)` on a value slot | `bool lX = true` / `decimal nX = 40` on the declaration; the guard is dropped (see [NIL semantics](#nil-semantics)) |
@@ -856,6 +868,17 @@ Standalone functions emit into a `public static partial class Program`
 so multi-file projects (e.g. test19, test20) can have their separate
 `Program` definitions merged into one class at the C# build step.
 Single-file projects are unaffected.
+
+Operands have a static type too, not only declarations. The emitter's
+`hb_csExprCsType` reads back the C# type an expression will have in
+the emitted code — a local or parameter's declared type, a DATA
+member of the class being emitted, a def-class field through the
+fieldtypes map, any other member through its reftab row up the
+INHERIT chain, a call through its reftab return type and then
+`hbfuncs.tab` — and answers NULL for anything dynamic. The operator
+rewrites C# forces (`DateOnly` arithmetic, string ordering) consult
+it; when it says NULL the operator emits as written, which for a
+dynamic operand is what the DLR wants.
 
 ### Non-`@` call sites at by-ref parameters
 
@@ -1166,6 +1189,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 101       | Date arithmetic and string ordering, which C# has no operators for (CS0019): `d1 - d2` emits the day count `(decimal)(d1.DayNumber - d2.DayNumber)`, `d ± n` / `n + d` / `d += n` emit `AddDays`; `<` `<=` `>` `>=` on strings emit `HbRuntime.StrCmp(a, b) <op> 0` with Harbour's SET EXACT OFF ordering. Operand types from the emit-side probe: declared locals and parameters, DATA members, reftab member rows and return types, hbfuncs.tab |
 | 102       | A file-static variadic function (one reading `PCount()`) re-binds its named parameters from `hbva` like a public one — the re-bind used the bare name where the row is `file::func` (CS0103 ×10, trace.prg); `PCount()` inside a widened function is `hbva.Length`, not the runtime stub that returns 0 |
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
+| 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
@@ -1290,9 +1314,6 @@ for a lambda assigned to a `dynamic` field).
   [Whole-codebase workflow](#whole-codebase-workflow)); the transpiler
   itself runs one pass per invocation and leaves the loop to the
   driver.
-- **W0018 is emit-phase only** — extra-argument calls slip through the
-  scan gate and only surface at `-GS`. Promoting it to the `-GF` walk
-  is the next CI item.
 - **`INLINE` method bodies are translated textually**
   (`hb_csTranslateInline`), so a subscript inside one gets no 1→0
   conversion — any that compiles is off by one at runtime. (A
@@ -1317,6 +1338,15 @@ for a lambda assigned to a `dynamic` field).
 - **`W0022` warnings don't print the source line** — the warning
   carries the filename and line number, but triage would be faster
   if the offending source line were printed under it.
+- **TIMESTAMP arithmetic is not rewritten** — `DateTime` has `-` (a
+  `TimeSpan`) where Harbour has fractional days; no corpus site, so
+  nothing is emitted for it yet (the DATE rewrites are in test101).
+- **An `ACCESS` whose body is a METHOD definition stays an
+  auto-property** — only INLINE bodies are emitted as real accessors
+  (test99).
+- **`hbClass()` runtime metaclasses** (ormsql's `ConstructTableInstance`)
+  compile against a `NotImplemented` stub for `HBClass`; the metaclass
+  is the C# ORM rewrite's business, not the transpiler's.
 
 ---
 
