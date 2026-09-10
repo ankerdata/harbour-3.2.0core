@@ -176,7 +176,7 @@ of the originals. Nothing under Harbour's own `include/`, `src/pp/`,
 
 | Vendored copy | Mirrors | How the build uses it |
 |---------------|---------|------------------------|
-| `src/transpiler/src/pp/ppcore.c`        | `src/pp/ppcore.c`        | compiled directly (build.sh) |
+| `src/transpiler/src/pp/ppcore.c`        | `src/pp/ppcore.c`        | compiled directly (build.sh) — carries `#pragma BEGINCSHARP` / `ENDCSHARP` and its callback setter (see [Embedding C#](#embedding-c--pragma-begincsharp)) |
 | `src/transpiler/src/common/expropt2.c`  | `src/common/expropt2.c`  | compiled directly (build.sh) |
 | `src/transpiler/src/compiler/hbusage.c` | `src/compiler/hbusage.c` | compiled directly (build.sh) |
 | `src/transpiler/include/hbcompdf.h`     | `include/hbcompdf.h`     | `#include`d — adds the `ast` member + `HB_LANG_*` |
@@ -846,6 +846,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `#define NAME val`               | `const T NAME = val;` inside `Program` class             |
 | `#include`                       | `// #include …` (preserved as comment)                   |
 | `HB_SYMBOL_UNUSED(x)` / bare-value stmt | *(no emit — CS0201 / E0020 avoided; see [test72.prg](tests/test72.prg))* |
+| `#pragma BEGINCSHARP` … `#pragma ENDCSHARP` | the block, verbatim, at namespace level — see [Embedding C#](#embedding-c--pragma-begincsharp) (test105) |
 
 ### Strong typing strategy
 
@@ -1331,6 +1332,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 102       | A file-static variadic function (one reading `PCount()`) re-binds its named parameters from `hbva` like a public one — the re-bind used the bare name where the row is `file::func` (CS0103 ×10, trace.prg); `PCount()` inside a widened function is `hbva.Length`, not the runtime stub that returns 0 |
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
+| 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
@@ -1377,6 +1379,86 @@ warning is what the negative tests assert:
 Argument lists (`Foo(a, b)`), array literals (`{ a, b }`), and hash
 literals (`{ a => b, c => d }`) are not affected — those are
 `HB_ET_ARGLIST`, not `HB_ET_LIST`.
+
+## Embedding C# — `#pragma BEGINCSHARP`
+
+Some Harbour code can never become C# by translation — the
+`__objGetValueList` / `HB_OO_DATA_*` reflection in posclass.prg, a
+runtime metaclass — and the same source must keep compiling under
+stock Harbour for 9.0. So a `.prg` can carry the C# itself:
+
+```harbour
+CLASS Torch
+   VAR nWatts INIT 60
+#ifndef __HB_TRANSPILER__
+   METHOD Glow()
+#endif
+ENDCLASS
+
+#ifdef __HB_TRANSPILER__
+#pragma BEGINCSHARP
+public partial class Torch
+{
+    public string Glow() => "torch:" + nWatts;
+}
+
+public static partial class Program
+{
+    public static string FilamentRate(decimal n) => n > 50 ? "bright" : "dim";
+}
+#pragma ENDCSHARP
+#else
+METHOD Glow() CLASS Torch
+RETURN "torch:" + LTrim( Str( ::nWatts ) )
+
+FUNCTION FilamentRate( nWatts )
+RETURN IIf( nWatts > 50, "bright", "dim" )
+#endif
+```
+
+- **The block is a raw stream.** The vendored preprocessor captures
+  it the way `#pragma BEGINDUMP` captures inline C — nothing inside
+  is lexed as Harbour — and hands it to the transpiler on its own
+  callback, so it can never be confused with the C dumps some files
+  carry. The C# emitter writes it out verbatim at namespace level,
+  before the file's classes, in source order. Leading whitespace is
+  kept as written.
+- **Guard it.** `#ifdef __HB_TRANSPILER__` is the contract: the
+  transpiler's preprocessor defines that symbol, stock Harbour's does
+  not, and a stock preprocessor does not open a dump inside a false
+  conditional — verified against harbour 3.2 — so 9.0 never sees the
+  block. The `#else` branch carries the Harbour version. Declare the
+  Harbour-only METHOD inside the same kind of guard in the CLASS
+  block, as above, or the transpiler emits an empty stub for it.
+- **File scope, wherever it stands.** A block is appended beside the
+  CLASS nodes whatever function the parser is in — placement in the
+  `.prg` is free, and no statement order can be disturbed by it. It
+  is not a way to splice C# into the middle of a method body; replace
+  the whole method.
+- **A class a block extends is emitted `partial`.** The emitter
+  looks for `partial class <Name>` in the file's blocks and marks
+  exactly those classes — no other class changes, and a C# reader
+  never wonders where the other part is. So `partial class Torch {
+  … }` adds members to a class the file declares, `public static
+  partial class Program { … }` adds free functions Harbour code calls
+  as it calls any function (`Program` is partial already), and a
+  block may declare whole classes of its own. A block extends
+  classes of its own file only. Only `using` directives cannot appear (they must head the
+  file) — qualify fully, or rely on what the file already imports
+  (`System`, `System.Collections.Generic`, `HbRuntime`, `Program`).
+- **What the type system sees.** Nothing. A member or function added
+  in a block has no reftab row: a send to it emits as a plain member
+  call that compiles because the partial class supplies it, a free
+  call emits bare and C# resolves it against `Program`, and none of
+  its parameters are refined, by-ref-marked or arity-checked (W0018
+  is silent for them). Keep such members simple at the boundary.
+- **Round trip.** `-GT` writes the block back inside the same guard
+  (the preprocessor resolved the conditional, so the emitter restores
+  it), which is what keeps the `hbout/` build under stock Harbour
+  clean.
+
+[test105.prg](tests/test105.prg) is the shape above, plus a second
+block placed inside a function to show it is hoisted.
 
 ---
 
@@ -1487,7 +1569,10 @@ for a lambda assigned to a `dynamic` field).
   (test99).
 - **`hbClass()` runtime metaclasses** (ormsql's `ConstructTableInstance`)
   compile against a `NotImplemented` stub for `HBClass`; the metaclass
-  is the C# ORM rewrite's business, not the transpiler's.
+  is the C# ORM rewrite's business, not the transpiler's — or a
+  `#pragma BEGINCSHARP` block's, now that the source can carry C#.
+- **C# blocks are file-scope only** and invisible to the reftab — see
+  [Embedding C#](#embedding-c--pragma-begincsharp).
 
 ---
 

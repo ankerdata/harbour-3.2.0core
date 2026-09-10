@@ -825,6 +825,34 @@ static HB_BOOL hb_pp_hasCommand( char * pBuffer, HB_SIZE nLen, HB_SIZE * pnAt, i
    return HB_FALSE;
 }
 
+/* Transpiler: `#pragma BEGINCSHARP` … `#pragma ENDCSHARP` is a raw
+   stream like BEGINDUMP, delivered to its own callback so the backend
+   can tell C# from the C dumps the vendor DLL wrappers carry. The PP
+   state struct is stock Harbour's (include/hbpp.h, kept pristine), so
+   the callback is file-static with a setter rather than a field. A
+   block inside a false conditional is discarded, exactly as a C dump
+   is — which is what lets `#ifdef __HB_TRANSPILER__` keep the stock
+   compiler away from it. */
+#define HB_PP_STREAM_DUMP_CS  8
+
+static PHB_PP_DUMP_FUNC s_pDumpCsFunc = NULL;
+
+void hb_pp_setDumpCsFunc( PHB_PP_DUMP_FUNC pFunc )
+{
+   s_pDumpCsFunc = pFunc;
+}
+
+static void hb_pp_dumpCsEnd( PHB_PP_STATE pState )
+{
+   pState->iStreamDump = HB_PP_STREAM_OFF;
+   if( ! pState->iCondCompile && s_pDumpCsFunc )
+      ( s_pDumpCsFunc )( pState->cargo,
+                         hb_membufPtr( pState->pDumpBuffer ),
+                         hb_membufLen( pState->pDumpBuffer ),
+                         pState->iDumpLine + 1 );
+   hb_membufFlush( pState->pDumpBuffer );
+}
+
 static void hb_pp_dumpEnd( PHB_PP_STATE pState )
 {
    pState->iStreamDump = HB_PP_STREAM_OFF;
@@ -1079,6 +1107,19 @@ static void hb_pp_getLine( PHB_PP_STATE pState )
                if( hb_pp_hasCommand( pBuffer, nLen, &n, 3, "#", "pragma", "enddump" ) )
                {
                   hb_pp_dumpEnd( pState );
+               }
+               else
+               {
+                  n = nLen;
+                  hb_membufAddData( pState->pDumpBuffer, pBuffer, n );
+                  hb_membufAddCh( pState->pDumpBuffer, '\n' );
+               }
+            }
+            else if( pState->iStreamDump == HB_PP_STREAM_DUMP_CS )
+            {
+               if( hb_pp_hasCommand( pBuffer, nLen, &n, 3, "#", "pragma", "endcsharp" ) )
+               {
+                  hb_pp_dumpCsEnd( pState );
                }
                else
                {
@@ -2636,6 +2677,17 @@ static void hb_pp_pragmaNew( PHB_PP_STATE pState, PHB_PP_TOKEN pToken )
             pState->pDumpBuffer = hb_membufNew();
       }
       else if( hb_pp_tokenValueCmp( pToken, "enddump", HB_PP_CMP_DBASE ) )
+      {
+         pState->iStreamDump = HB_PP_STREAM_OFF;
+      }
+      else if( hb_pp_tokenValueCmp( pToken, "begincsharp", HB_PP_CMP_DBASE ) )
+      {
+         pState->iStreamDump = HB_PP_STREAM_DUMP_CS;
+         pState->iDumpLine = pState->pFile->iCurrentLine;
+         if( ! pState->pDumpBuffer )
+            pState->pDumpBuffer = hb_membufNew();
+      }
+      else if( hb_pp_tokenValueCmp( pToken, "endcsharp", HB_PP_CMP_DBASE ) )
       {
          pState->iStreamDump = HB_PP_STREAM_OFF;
       }

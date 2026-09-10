@@ -5459,6 +5459,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       case HB_AST_LOOP:
       case HB_AST_BREAK:
       case HB_AST_COMMENT:
+      case HB_AST_CSHARP:
          hb_csEmitBlankLines( yyc, pNode->iLine );
          break;
       default:
@@ -6346,6 +6347,12 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                hb_csEmitBlock( pNode->value.asWithObj.pBody, yyc, iIndent );
             s_pWithObject = pSavedWith;
          }
+         break;
+
+      case HB_AST_CSHARP:
+         /* Appended at file scope by hb_pp_PragmaCSharp and flushed at
+            namespace level by hb_csEmitCSharpBlocks; never emitted in
+            a body. */
          break;
 
       case HB_AST_COMMENT:
@@ -7333,13 +7340,81 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
 }
 
 /* Emit a complete C# class definition */
+/* Every HB_AST_CSHARP node in the file-declaration function's body
+   (where hb_astAppendToStartup put them), verbatim, each block
+   followed by a blank line. */
+static void hb_csEmitCSharpBlocks( FILE * yyc )
+{
+   PHB_AST_NODE pFirst = s_pCompCtx ? s_pCompCtx->ast.pFuncList : NULL;
+   PHB_AST_NODE pStmt;
+
+   if( ! pFirst || pFirst->type != HB_AST_FUNCTION ||
+       ! pFirst->value.asFunc.pBody ||
+       pFirst->value.asFunc.pBody->type != HB_AST_BLOCK )
+      return;
+   for( pStmt = pFirst->value.asFunc.pBody->value.asBlock.pFirst; pStmt;
+        pStmt = pStmt->pNext )
+   {
+      if( pStmt->type == HB_AST_CSHARP && pStmt->value.asCSharp.szText )
+      {
+         const char * szText = pStmt->value.asCSharp.szText;
+         HB_SIZE nLen = strlen( szText );
+         fputs( szText, yyc );
+         if( nLen == 0 || szText[ nLen - 1 ] != '\n' )
+            fputc( '\n', yyc );
+         fputc( '\n', yyc );
+      }
+   }
+}
+
+/* True when a #pragma BEGINCSHARP block of this file contains
+   `partial class <szName>` (case-sensitive, whole word): that class is
+   emitted `partial` so the block's part and the emitted part merge. A
+   block extends classes of its own file only. */
+static HB_BOOL hb_csClassExtendedByBlock( const char * szName )
+{
+   PHB_AST_NODE pFirst = s_pCompCtx ? s_pCompCtx->ast.pFuncList : NULL;
+   PHB_AST_NODE pStmt;
+   HB_SIZE nName;
+
+   if( ! szName || ! pFirst || pFirst->type != HB_AST_FUNCTION ||
+       ! pFirst->value.asFunc.pBody ||
+       pFirst->value.asFunc.pBody->type != HB_AST_BLOCK )
+      return HB_FALSE;
+   nName = strlen( szName );
+   for( pStmt = pFirst->value.asFunc.pBody->value.asBlock.pFirst; pStmt;
+        pStmt = pStmt->pNext )
+   {
+      const char * p;
+      if( pStmt->type != HB_AST_CSHARP || ! pStmt->value.asCSharp.szText )
+         continue;
+      p = pStmt->value.asCSharp.szText;
+      while( ( p = strstr( p, "partial class " ) ) != NULL )
+      {
+         p += 14;
+         while( *p == ' ' || *p == '\t' )
+            p++;
+         if( strncmp( p, szName, nName ) == 0 &&
+             ! ( HB_ISALPHA( ( HB_UCHAR ) p[ nName ] ) ||
+                 HB_ISDIGIT( ( HB_UCHAR ) p[ nName ] ) || p[ nName ] == '_' ) )
+            return HB_TRUE;
+      }
+   }
+   return HB_FALSE;
+}
+
 static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 {
    PHB_AST_NODE pClassNode = pClass->pClassNode;
    PHB_AST_NODE pMember;
    HB_CS_METHOD * pMethod;
 
-   fprintf( yyc, "public class %s", pClassNode->value.asClass.szName );
+   /* `partial` only when a #pragma BEGINCSHARP block in this file
+      extends it — a C# reader should not wonder what the other part is */
+   fprintf( yyc, "public %sclass %s",
+            hb_csClassExtendedByBlock( pClassNode->value.asClass.szName )
+               ? "partial " : "",
+            pClassNode->value.asClass.szName );
    if( pClass->fDynamic && ! pClassNode->value.asClass.szParent )
       fprintf( yyc, " : HbDynamicObject" );
    else if( pClassNode->value.asClass.szParent )
@@ -8804,6 +8879,14 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       }
       s_szStaticScope = NULL;
    }
+
+   /* `#pragma BEGINCSHARP` blocks — raw C# the .prg carries for what
+      no translation can reach, under `#ifdef __HB_TRANSPILER__` so
+      Harbour never sees it. Emitted verbatim at namespace level,
+      before the classes (which are all `partial`, so a block may add
+      members to one), in source order. Leading whitespace is kept as
+      written: the block is the author's C#. */
+   hb_csEmitCSharpBlocks( yyc );
 
    /* Emit class definitions with their methods */
    {

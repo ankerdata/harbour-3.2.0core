@@ -1153,6 +1153,22 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          fprintf( yyc, "%s\n", pNode->value.asComment.szText );
          break;
 
+      case HB_AST_CSHARP:
+         /* Back inside the guard it came from: the conditional was
+            resolved by the preprocessor, and stock Harbour must not
+            open the block (it would dump C# into the C output). */
+         {
+            const char * szText = pNode->value.asCSharp.szText;
+            HB_SIZE nLen = szText ? strlen( szText ) : 0;
+            fprintf( yyc, "#ifdef __HB_TRANSPILER__\n#pragma BEGINCSHARP\n" );
+            if( nLen )
+               fputs( szText, yyc );
+            if( nLen == 0 || szText[ nLen - 1 ] != '\n' )
+               fputc( '\n', yyc );
+            fprintf( yyc, "#pragma ENDCSHARP\n#endif\n" );
+         }
+         break;
+
       case HB_AST_INCLUDE:
          hb_astEmitIndent( yyc, iIndent );
          fprintf( yyc, "#include \"%s\"\n", pNode->value.asInclude.szFile );
@@ -1470,6 +1486,7 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
                       pStmt->type == HB_AST_INCLUDE ||
                       pStmt->type == HB_AST_PPDEFINE ||
                       pStmt->type == HB_AST_COMMENT ||
+                      pStmt->type == HB_AST_CSHARP ||
                       pStmt->type == HB_AST_STATIC ||
                       pStmt->type == HB_AST_MEMVAR )
                      hb_astEmitNode( pStmt, yyc, 0 );

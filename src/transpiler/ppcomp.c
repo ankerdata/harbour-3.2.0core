@@ -317,6 +317,27 @@ static void hb_pp_PragmaDump( void * cargo, char * pBuffer, HB_SIZE nSize,
    pInline->nPCodeSize = nSize;
 }
 
+/* `#pragma BEGINCSHARP` … `#pragma ENDCSHARP`: the block's text becomes
+   an HB_AST_CSHARP node at FILE scope — appended beside the CLASS
+   nodes whatever function the parser is in — and the C# emitter
+   writes it out verbatim at namespace level. See gencsharp.c. */
+extern void hb_pp_setDumpCsFunc( PHB_PP_DUMP_FUNC pFunc );
+
+static void hb_pp_PragmaCSharp( void * cargo, char * pBuffer, HB_SIZE nSize,
+                                int iLine )
+{
+   HB_COMP_DECL = ( PHB_COMP ) cargo;
+   PHB_AST_NODE pNode = hb_astNew( HB_AST_CSHARP, iLine );
+   char * szText = ( char * ) hb_xgrab( nSize + 1 );
+
+   memcpy( szText, pBuffer, nSize );
+   szText[ nSize ] = '\0';
+   pNode->value.asCSharp.szText =
+      hb_compIdentifierNew( HB_COMP_PARAM, szText, HB_IDENT_COPY );
+   hb_xfree( szText );
+   hb_astAppendToStartup( HB_COMP_PARAM, pNode );
+}
+
 static void hb_pp_hb_inLine( void * cargo, char * szFunc,
                              char * pBuffer, HB_SIZE nSize, int iLine )
 {
@@ -663,6 +684,7 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
                   hb_pp_ErrorGen, hb_pp_Disp, hb_pp_PragmaDump,
                   HB_COMP_ISSUPPORTED( HB_COMPFLAG_HB_INLINE ) ?
                   hb_pp_hb_inLine : NULL, hb_pp_CompilerSwitch );
+      hb_pp_setDumpCsFunc( hb_pp_PragmaCSharp );
 
 #ifdef HB_TRANSPILER
       /* Transpiler mode: source #include directives are captured as

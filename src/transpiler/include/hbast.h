@@ -50,7 +50,8 @@ typedef enum
    HB_AST_CLASSMETHOD,    /* METHOD declaration inside class */
    HB_AST_INCLUDE,        /* #include passthrough */
    HB_AST_PPDEFINE,       /* #define passthrough */
-   HB_AST_COMMENT         /* comment passthrough */
+   HB_AST_COMMENT,        /* comment passthrough */
+   HB_AST_CSHARP          /* #pragma BEGINCSHARP … ENDCSHARP: raw C#, file scope */
 } HB_AST_TYPE;
 
 /* Forward declaration */
@@ -255,6 +256,12 @@ struct _HB_AST_NODE
       {
          const char *   szText;        /* comment text including delimiters */
       } asComment;
+
+      /* HB_AST_CSHARP */
+      struct
+      {
+         const char *   szText;        /* the block's lines, verbatim, LF-joined */
+      } asCSharp;
    } value;
 };
 
