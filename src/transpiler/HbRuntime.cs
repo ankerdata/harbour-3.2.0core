@@ -365,6 +365,14 @@ public static partial class HbRuntime
     public static string DToS(DateOnly d) => d.ToString("yyyyMMdd", INV);
     public static string Time() => DateTime.Now.ToString("HH:mm:ss", INV);
 
+    // ---- COM automation ----
+    // Harbour's `TOleAuto():New("ADODB.Recordset")` reaches C# as
+    // HbRuntime.TOleAuto().New(...) -- every RTL name does -- so the class
+    // function is this factory and New() on the result is the COM
+    // creation (the TOleAuto class below). global:: because the method
+    // shares the type's name.
+    public static global::TOleAuto TOleAuto() => new global::TOleAuto();
+
     // ---- Terminal ----
 
     public static void SetColor(string cColor) { }
