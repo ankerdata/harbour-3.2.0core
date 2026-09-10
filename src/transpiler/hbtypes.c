@@ -890,7 +890,14 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          /* Constructor pattern: ClassName():New() / ClassName():Init() →
             return the class name as the inferred type so subsequent
             uses of the resulting variable can be method-resolved
-            against the right class. */
+            against the right class. Only for a name the reftab knows
+            as a class: `hbClass():New(...)` and `TOleAuto():New(...)`
+            are RTL class functions whose New returns a runtime object
+            — typing the local `hbClass` named a C# type that does not
+            exist (CS0246, ormsql's ConstructTableInstance). Those fall
+            through and end on the Hungarian prefix. With no reftab
+            loaded there is nothing to check against and the old rule
+            stands. */
          if( pExpr->value.asMessage.szMessage &&
              pExpr->value.asMessage.pObject &&
              pExpr->value.asMessage.pObject->ExprType == HB_ET_FUNCALL )
@@ -901,7 +908,13 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
                 pCall->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
                 ( hb_stricmp( szMsg, "NEW" ) == 0 ||
                   hb_stricmp( szMsg, "INIT" ) == 0 ) )
-               return pCall->value.asFunCall.pFunName->value.asSymbol.name;
+            {
+               const char * szCls =
+                  pCall->value.asFunCall.pFunName->value.asSymbol.name;
+               if( ! pEnv || ! pEnv->pRefTab ||
+                   hb_refTabIsClass( pEnv->pRefTab, szCls ) )
+                  return szCls;
+            }
          }
 
          /* ORM def-class receiver — `oDepartment:nNo` where the

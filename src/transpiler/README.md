@@ -1165,6 +1165,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 100       | A user-function call whose name a local or parameter shadows is qualified `Program.name(…)` (CS0149); `dDate++` / `--dDate` on a DATE or TIMESTAMP operand emits `d = d.AddDays(±1)` (CS0023) |
 | 101       | Date arithmetic and string ordering, which C# has no operators for (CS0019): `d1 - d2` emits the day count `(decimal)(d1.DayNumber - d2.DayNumber)`, `d ± n` / `n + d` / `d += n` emit `AddDays`; `<` `<=` `>` `>=` on strings emit `HbRuntime.StrCmp(a, b) <op> 0` with Harbour's SET EXACT OFF ordering. Operand types from the emit-side probe: declared locals and parameters, DATA members, reftab member rows and return types, hbfuncs.tab |
 | 102       | A file-static variadic function (one reading `PCount()`) re-binds its named parameters from `hbva` like a public one — the re-bind used the bare name where the row is `file::func` (CS0103 ×10, trace.prg); `PCount()` inside a widened function is `hbva.Length`, not the runtime stub that returns 0 |
+| 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the

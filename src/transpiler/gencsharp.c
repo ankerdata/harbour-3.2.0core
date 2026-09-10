@@ -7192,24 +7192,38 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    /* Emit method signature */
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "public " );
-   if( fProcedure )
+   if( ! fProcedure && pCompFunc->wParamCount == 0 &&
+       pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+       pFirstStmt->value.asClassMethod.szName &&
+       hb_stricmp( pFirstStmt->value.asClassMethod.szName, "ToString" ) == 0 )
    {
-      fprintf( yyc, "void" );
-      s_fVoidFunc = HB_TRUE;
+      /* A parameterless METHOD ToString() is object.ToString() in C#
+         — every class has one — so it is an override, spelled the way
+         object spells it and returning string (CS0114, posclass.prg). */
+      fprintf( yyc, "override string ToString(" );
+      s_fVoidFunc = HB_FALSE;
    }
    else
    {
-      if( szRetType )
-         fprintf( yyc, "%s", hb_csTypeMap( szRetType ) );
+      if( fProcedure )
+      {
+         fprintf( yyc, "void" );
+         s_fVoidFunc = HB_TRUE;
+      }
       else
-         fprintf( yyc, "dynamic" );
-      s_fVoidFunc = HB_FALSE;
+      {
+         if( szRetType )
+            fprintf( yyc, "%s", hb_csTypeMap( szRetType ) );
+         else
+            fprintf( yyc, "dynamic" );
+         s_fVoidFunc = HB_FALSE;
+      }
+      fprintf( yyc, " %s(",
+               ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
+                 pFirstStmt->value.asClassMethod.szName )
+                  ? pFirstStmt->value.asClassMethod.szName
+                  : pFunc->value.asFunc.szName );
    }
-   fprintf( yyc, " %s(",
-            ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
-              pFirstStmt->value.asClassMethod.szName )
-               ? pFirstStmt->value.asClassMethod.szName
-               : pFunc->value.asFunc.szName );
 
    /* Parameters */
    pVar = pFunc->value.asFunc.pParams;
