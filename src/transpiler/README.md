@@ -880,6 +880,147 @@ rewrites C# forces (`DateOnly` arithmetic, string ordering) consult
 it; when it says NULL the operator emits as written, which for a
 dynamic operand is what the DLR wants.
 
+### Parameters — one Harbour mechanism, many C# ones
+
+Harbour has a single parameter mechanism: every parameter is untyped
+and by value, a caller writes `@` to pass by reference, any argument
+may be omitted (the slot is `NIL`) and any extra is ignored. C# has
+none of that, so the emitter reconstructs it, one piece at a time,
+from the reftab's per-slot flags — `R` by-ref, `N` nilable, `C`
+conflict, `W` reassigned, `D` declared default — and the row's `V`
+(variadic) flag. This is the inventory; the deeper sections it points
+to hold the reasoning.
+
+**On the declaration**
+
+| Harbour                                  | C# mirror                                                                 |
+|------------------------------------------|---------------------------------------------------------------------------|
+| untyped parameter                        | the type refined from call sites, else the Hungarian prefix; `dynamic` when unresolved or when call sites disagree (`C`). A caller's INTEGER never narrows a callee — widened to NUMERIC at the door |
+| trailing arguments omitted               | `= default` on every slot after the last `ref` — C# forbids defaults on `ref` slots, hence the cutoff ([Strong typing strategy](#strong-typing-strategy)) |
+| body tests the parameter against NIL     | `T?` with `= null` (`N`); refused on `n`/`l`/`d`/`t` names, whose prefix is the contract ([NIL semantics](#nil-semantics), test18, test53) |
+| `DEFAULT p TO v` / `hb_default(@p, v)`   | a constant after the last `ref` becomes the C# default and the dead guard goes; an expression, or a slot at/before a `ref`, goes nullable at the boundary with a normalising local where the guard stood (`D`; test87, test88) |
+| some caller writes `@p`                  | `ref T` for every caller (`R`). A by-ref ARRAY slot the callee never reassigns (no `W`) is elided to a plain `dynamic[]` — element writes propagate anyway |
+| `Foo(...)`, `PCount()`, `hb_AParams()`, a name defined twice with different counts | `params dynamic[] hbva` (`V`), the named parameters re-bound from the array (test102) |
+| callers that stop before the first `@` slot | the **short overload**, below |
+
+**At the call**
+
+| Harbour                                  | C# mirror                                                                 |
+|------------------------------------------|---------------------------------------------------------------------------|
+| trailing gap `Foo(a)`                    | dropped — the declaration's `= default` takes it                          |
+| middle gap after the last `ref`          | named arguments: `Foo(a, nC: c)` (test90)                                 |
+| gap at or before a `ref`                 | padded: `default(T)`, `default(T?)` where the callee declares a default (`D`), `ref HbDiscard<T>.Value` for a `ref` slot |
+| more arguments than declared             | the extras are dropped, as Harbour drops them; W0018 at scan is what stops the pipeline (test104) |
+| `@x` at a `ref` slot                     | `ref x` when `x` is a storage location of the slot's type; otherwise a typed temp, passed by `ref`, written back — the ref shim ([Non-`@` call sites](#non--call-sites-at-by-ref-parameters), test71, test91) |
+| plain `x` at a `ref` slot                | `ref HbDiscard<T>.Seed(x)` — the callee sees the value, the write goes nowhere, below |
+| a dynamic argument in `::Super:M(…)`     | cast to the parent slot's type (test92)                                   |
+| `Foo(...)` spread                        | the caller's `hbva` passed through                                        |
+| `Class():New(a, , c)`                    | the row resolved through the INHERIT chain; a gap nothing can name passes `null` (test90) |
+| a call whose name a local shadows        | qualified `Program.name(…)` (test100)                                     |
+
+#### `HbDiscard<T>`
+
+```csharp
+public static class HbDiscard<T>
+{
+    [System.ThreadStatic] public static T Value;
+    public static ref T Seed(T v) { Value = v; return ref Value; }
+}
+```
+
+Once any caller passes `@x`, the slot is `ref T` for every caller, and
+C# `ref` demands a writable storage location of exactly that type.
+Callers who never wrote `@` have no such thing — and Harbour says
+their variable must stay untouched anyway. `HbDiscard<T>` is that
+storage location:
+
+- **Why generic.** Each closed type gets its own static field, so
+  `HbDiscard<decimal>.Value` and `HbDiscard<string>.Value` are
+  distinct typed locations. `ref` is invariant, so the throwaway must
+  match the parameter exactly, nullable included
+  (`HbDiscard<decimal?>`).
+- **`Value`** serves an omitted slot or a literal:
+  `Foo(a, ref HbDiscard<decimal>.Value)`. There is no input to
+  preserve; the write-back lands in the throwaway.
+- **`Seed`** serves a bare variable passed without `@`:
+  `Foo(ref HbDiscard<decimal>.Seed(nX))`. It is a ref-returning
+  method, so the whole expression is a legal `ref` argument: the
+  callee sees `nX`'s value as input, its write goes to the throwaway,
+  and the caller's `nX` is untouched — Harbour's by-value semantics in
+  one expression, with no brace block.
+- **`[ThreadStatic]`** because the product builds `-DMULTITHREAD` and
+  the slot is shared.
+- **The trade-off.** The slot is shared per type: two `Seed` calls of
+  the same type nested inside one call expression would overwrite
+  each other before the outer callee reads its input. The emitter
+  does not produce that shape; the ref shim, with its own temps, is
+  the fallback if it ever must.
+
+In the easipos corpus: 616 `Value` sites, 15 `Seed` sites, five closed
+types.
+
+#### The short overload
+
+A Harbour function that writes to a parameter meant for `@` callers
+is still callable by everyone who omits that argument. buildno.prg's
+`GetQty` writes `lDecimalQty := slDecimalQty` for the one caller that
+wants the flag, while four callers just write `GetQty()` for the
+quantity. In C#, once the slot is `ref bool`, every call must supply a
+`ref` argument — `GetQty()` will not compile.
+
+So beside the canonical the emitter writes a second, shorter method
+of the same name: only the parameters before the first `ref` slot,
+each with a default, throwaway locals for the `ref` tail, and a
+forwarding call. C# picks it by argument count.
+
+```csharp
+public static decimal GetQty(ref bool lDecimalQty)      // canonical
+{
+    lDecimalQty = buildno_slDecimalQty;
+    return buildno_snQuantity;
+}
+
+public static dynamic GetQty()                          // short overload
+{
+    bool _arg0 = default;
+    return GetQty(ref _arg0);
+}
+```
+
+Here the first `ref` is parameter 0, so the prefix is empty and the
+short overload is parameterless. With a prefix — adtdata.prg's
+`ADTPlu(oLine, lTemporary, @cAuditStr, nSign)` — the two slots before
+the `ref` are kept, in the canonical's types (not `dynamic`, so a
+wrongly typed argument still fails where it should):
+
+```csharp
+public static void ADTData_ADTPlu(dynamic oLine, bool lTemporary, ref string cAuditStr, decimal nSign = default)
+
+public static void ADTData_ADTPlu(dynamic oLine = default, bool lTemporary = default)
+{
+    string _arg2 = default;
+    decimal _arg3 = default;
+    ADTData_ADTPlu(oLine, lTemporary, ref _arg2, _arg3);
+}
+```
+
+Three things to know:
+
+- It covers callers that stop **before** the first `ref`. A caller
+  that passes the `ref` slot without `@` is `HbDiscard<T>` / the
+  shim's business; a caller that stops **between** the first `ref`
+  and the end is not covered (that would need one overload per
+  arity) and falls to the padding rules above.
+- It is emitted only when the scan's call-arity bitmap shows some
+  caller actually stops before the first `ref`, so a function all of
+  whose callers pass the full list gets no dead overload.
+- When a tail slot carries a declared default (`D`), the short
+  overload forwards `null`, not a zero, so the callee's normalising
+  local sees "not supplied" — as in Harbour.
+
+Why not two overloads of every ref-taking function instead of the
+shim? See [Why not C# overloads?](#why-not-c-overloads) below.
+
 ### Non-`@` call sites at by-ref parameters
 
 Harbour treats a parameter as a local copy at the call site **unless
