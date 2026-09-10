@@ -1163,6 +1163,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 98        | `(long)` coercion into an integral lvalue covers a file STATIC seeded from a define, the compound `+=` family and the assignment the ref-shim block emits; `FOR i := 1 TO ( n := Len( a ) )` keeps its parentheses (CS0266, CS0131) |
 | 99        | A send on a receiver of unknown class asks the reftab whether the name is a method everywhere (bare send gets `()`) or a member everywhere (empty `()` dropped); ACCESS / ASSIGN INLINE bodies emit as real accessors; the inline translator maps a single-colon send |
 | 100       | A user-function call whose name a local or parameter shadows is qualified `Program.name(…)` (CS0149); `dDate++` / `--dDate` on a DATE or TIMESTAMP operand emits `d = d.AddDays(±1)` (CS0023) |
+| 101       | Date arithmetic and string ordering, which C# has no operators for (CS0019): `d1 - d2` emits the day count `(decimal)(d1.DayNumber - d2.DayNumber)`, `d ± n` / `n + d` / `d += n` emit `AddDays`; `<` `<=` `>` `>=` on strings emit `HbRuntime.StrCmp(a, b) <op> 0` with Harbour's SET EXACT OFF ordering. Operand types from the emit-side probe: declared locals and parameters, DATA members, reftab member rows and return types, hbfuncs.tab |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the

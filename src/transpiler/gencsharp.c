@@ -3372,6 +3372,324 @@ static HB_BOOL hb_csEmitDateStep( PHB_EXPR pLeft, int iDelta, FILE * yyc )
    return HB_TRUE;
 }
 
+/* ---- Emit-side static type of an expression ----
+
+   By emission time the walker's inference has been folded into what
+   each variable was declared as (hb_csArgVarType), the reftab's return
+   and member types, the fieldtypes map and hbfuncs.tab. This probe
+   reads those back as the C# type the operand will have in the emitted
+   code — "DateOnly", "string", "decimal", "long", "bool", a class name
+   — or NULL when the operand is dynamic or unresolvable. Two rewrites
+   need it, both forced by C# rather than Harbour: DateOnly has no
+   arithmetic operators and string has no ordering operators (CS0019).
+   When the probe says NULL the operator emits as before, which for a
+   dynamic operand is what the DLR wants. */
+static const char * hb_csKnownCsType( const char * szHbType )
+{
+   const char * szCs;
+   if( ! szHbType || strcmp( szHbType, "-" ) == 0 )
+      return NULL;
+   szCs = hb_csTypeMap( szHbType );
+   if( ! szCs || strcmp( szCs, "dynamic" ) == 0 ||
+       strcmp( szCs, "object" ) == 0 )
+      return NULL;
+   return szCs;
+}
+
+static HB_BOOL hb_csCsTypeIsNumber( const char * szCs )
+{
+   return szCs && ( strcmp( szCs, "decimal" ) == 0 ||
+                    strcmp( szCs, "long" ) == 0 );
+}
+
+static HB_BOOL hb_csCsTypeIs( const char * szCs, const char * szWant )
+{
+   return szCs && strcmp( szCs, szWant ) == 0;
+}
+
+/* The declared type of a DATA member of the class being emitted, NULL
+   when the member is untyped or not a DATA member of this class. */
+static const char * hb_csMemberHbType( const char * szMember )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! s_szCurrentClass[ 0 ] || ! szMember )
+      return NULL;
+   for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+   {
+      if( pStmt->type == HB_AST_CLASS && pStmt->value.asClass.szName &&
+          hb_stricmp( pStmt->value.asClass.szName, s_szCurrentClass ) == 0 )
+      {
+         PHB_AST_NODE pMember;
+         for( pMember = pStmt->value.asClass.pMembers; pMember;
+              pMember = pMember->pNext )
+            if( pMember->type == HB_AST_CLASSDATA &&
+                pMember->value.asClassData.szName &&
+                hb_stricmp( pMember->value.asClassData.szName,
+                            szMember ) == 0 )
+               return pMember->value.asClassData.szType;
+         return NULL;
+      }
+   }
+   return NULL;
+}
+
+static const char * hb_csExprCsType( PHB_EXPR pExpr );
+
+/* C# type of `recv:member` / `recv:method( ... )`: a DATA member of
+   the class being emitted by its declaration, a def-class field by
+   the fieldtypes map, anything else by the reftab row found up the
+   receiver class's INHERIT chain (`Class::member` first, then the
+   method form — hb_csClassMethodKey). The receiver class is whatever
+   the probe resolves the receiver expression to: a typed local or
+   parameter, a member of a typed receiver, a function returning the
+   class, or the class constructor itself. */
+static const char * hb_csSendCsType( PHB_EXPR pSend )
+{
+   PHB_EXPR pRecv;
+   const char * szMsg;
+   const char * szCls;
+   char szKey[ 256 ];
+
+   if( ! pSend || pSend->ExprType != HB_ET_SEND )
+      return NULL;
+   szMsg = pSend->value.asMessage.szMessage;
+   pRecv = pSend->value.asMessage.pObject;
+   if( ! szMsg || ! pRecv )
+      return NULL;
+   if( pRecv->ExprType == HB_ET_VARIABLE &&
+       hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+   {
+      const char * szT = hb_csMemberHbType( szMsg );
+      if( szT )
+         return hb_csKnownCsType( szT );
+      szCls = s_szCurrentClass[ 0 ] ? s_szCurrentClass : NULL;
+   }
+   else if( pRecv->ExprType == HB_ET_FUNCALL &&
+            pRecv->value.asFunCall.pFunName &&
+            pRecv->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+            pRecv->value.asFunCall.pFunName->value.asSymbol.name &&
+            s_pRefTab &&
+            hb_refTabIsClass( s_pRefTab,
+               pRecv->value.asFunCall.pFunName->value.asSymbol.name ) )
+      szCls = pRecv->value.asFunCall.pFunName->value.asSymbol.name;
+   else
+      szCls = hb_csExprCsType( pRecv );  /* a class name passes the map through */
+
+   if( ! szCls )
+      return NULL;
+   if( hb_fieldTypesClassCanon( szCls ) )
+   {
+      const char * szTok = hb_fieldTypesMember( szCls, szMsg, NULL );
+      if( szTok )
+         return hb_csKnownCsType( hb_fieldTypesHbType( szTok ) );
+   }
+   if( s_pRefTab && hb_refTabIsClass( s_pRefTab, szCls ) )
+   {
+      const char * szRow =
+         hb_csClassMethodKey( szCls, szMsg, szKey, sizeof( szKey ) );
+      if( szRow )
+         return hb_csKnownCsType( hb_refTabReturnType( s_pRefTab, szRow ) );
+   }
+   return NULL;
+}
+
+static const char * hb_csExprCsType( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return NULL;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_STRING:
+         return "string";
+      case HB_ET_NUMERIC:
+         return pExpr->value.asNum.NumType == HB_ET_LONG ? "long" : "decimal";
+      case HB_ET_DATE:
+         return "DateOnly";
+      case HB_ET_TIMESTAMP:
+         return "DateTime";
+      case HB_ET_LOGICAL:
+         return "bool";
+
+      case HB_ET_VARREF:
+      case HB_ET_VARIABLE:
+         return hb_csKnownCsType(
+            hb_csArgVarType( pExpr->value.asSymbol.name ) );
+
+      case HB_ET_SEND:
+         return hb_csSendCsType( pExpr );
+
+      case HB_ET_FUNCALL:
+         if( pExpr->value.asFunCall.pFunName &&
+             pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+             pExpr->value.asFunCall.pFunName->value.asSymbol.name )
+         {
+            /* reftab row — the file-static one first, as every other
+               resolver here — then the builtin table */
+            const char * szFn =
+               pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+            const char * szRet = NULL;
+            if( s_pRefTab )
+            {
+               if( hb_csIsFileStaticFunc( szFn ) && s_szFileBase[ 0 ] )
+               {
+                  char szKey[ 256 ];
+                  hb_snprintf( szKey, sizeof( szKey ), "%s::%s",
+                               s_szFileBase, szFn );
+                  szRet = hb_refTabReturnType( s_pRefTab, szKey );
+               }
+               if( ! szRet )
+                  szRet = hb_refTabReturnType( s_pRefTab, szFn );
+            }
+            if( ! szRet )
+               szRet = hb_funcTabReturnType( szFn );
+            return hb_csKnownCsType( szRet );
+         }
+         return NULL;
+
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+         if( pExpr->value.asList.pExprList &&
+             ! pExpr->value.asList.pExprList->pNext )
+            return hb_csExprCsType( pExpr->value.asList.pExprList );
+         return NULL;
+
+      case HB_EO_PLUS:
+      case HB_EO_MINUS:
+      {
+         const char * szL = hb_csExprCsType( pExpr->value.asOperator.pLeft );
+         const char * szR = hb_csExprCsType( pExpr->value.asOperator.pRight );
+         HB_BOOL fLDate = hb_csCsTypeIs( szL, "DateOnly" );
+         HB_BOOL fRDate = hb_csCsTypeIs( szR, "DateOnly" );
+         if( fLDate && fRDate )
+            return pExpr->ExprType == HB_EO_MINUS ? "decimal" : NULL;
+         if( fLDate || ( fRDate && pExpr->ExprType == HB_EO_PLUS ) )
+            return "DateOnly";
+         if( hb_csCsTypeIs( szL, "string" ) && hb_csCsTypeIs( szR, "string" ) )
+            return "string";
+         if( hb_csCsTypeIsNumber( szL ) && hb_csCsTypeIsNumber( szR ) )
+            return hb_csCsTypeIs( szL, "long" ) && hb_csCsTypeIs( szR, "long" )
+                   ? "long" : "decimal";
+         return NULL;
+      }
+
+      case HB_EO_MULT:
+      case HB_EO_MOD:
+      case HB_EO_DIV:
+      case HB_EO_POWER:
+      {
+         const char * szL = hb_csExprCsType( pExpr->value.asOperator.pLeft );
+         const char * szR = hb_csExprCsType( pExpr->value.asOperator.pRight );
+         if( ! hb_csCsTypeIsNumber( szL ) || ! hb_csCsTypeIsNumber( szR ) )
+            return NULL;
+         if( ( pExpr->ExprType == HB_EO_MULT || pExpr->ExprType == HB_EO_MOD ) &&
+             hb_csCsTypeIs( szL, "long" ) && hb_csCsTypeIs( szR, "long" ) )
+            return "long";
+         return "decimal";
+      }
+
+      default:
+         return NULL;
+   }
+}
+
+/* Date arithmetic. C# DateOnly has none of Harbour's operators
+   (CS0019), so: `d1 - d2` — the day count, a number — emits
+   `(decimal)(d1.DayNumber - d2.DayNumber)` (decimal, not int, so a
+   later `/` keeps Harbour's float division); `d + n`, `n + d`, `d - n`
+   emit `d.AddDays( (int)( n ) )`; `d += n` / `d -= n` become
+   `d = d.AddDays( ... )`. Fires whenever the date operand is
+   statically DateOnly — the other side may be unresolved, since
+   Harbour admits nothing but a number there and `(int)` of a dynamic
+   binds at runtime. TIMESTAMP (DateTime) is left alone: no corpus
+   site, and its Harbour arithmetic is in fractional days. Returns
+   HB_FALSE when this is not a date expression and the caller emits
+   the plain operator. */
+static HB_BOOL hb_csEmitDateArith( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
+{
+   PHB_EXPR pL = pExpr->value.asOperator.pLeft;
+   PHB_EXPR pR = pExpr->value.asOperator.pRight;
+   const char * szL = hb_csExprCsType( pL );
+   const char * szR = hb_csExprCsType( pR );
+   HB_BOOL fLDate = hb_csCsTypeIs( szL, "DateOnly" );
+   HB_BOOL fRDate = hb_csCsTypeIs( szR, "DateOnly" );
+   int iOp = pExpr->ExprType;
+
+   if( ! pL || ! pR )
+      return HB_FALSE;
+
+   if( iOp == HB_EO_MINUS && fLDate && fRDate )
+   {
+      fprintf( yyc, "(decimal)(" );
+      hb_csEmitExpr( pL, yyc, HB_TRUE );
+      fprintf( yyc, ".DayNumber - " );
+      hb_csEmitExpr( pR, yyc, HB_TRUE );
+      fprintf( yyc, ".DayNumber)" );
+      return HB_TRUE;
+   }
+   if( ( iOp == HB_EO_PLUS || iOp == HB_EO_MINUS ) && fLDate && ! fRDate )
+   {
+      hb_csEmitExpr( pL, yyc, HB_TRUE );
+      fprintf( yyc, ".AddDays(%s(int)(", iOp == HB_EO_MINUS ? "-" : "" );
+      hb_csEmitExpr( pR, yyc, HB_FALSE );
+      fprintf( yyc, "))" );
+      return HB_TRUE;
+   }
+   if( iOp == HB_EO_PLUS && fRDate && ! fLDate )
+   {
+      /* n + d: commutative in Harbour */
+      hb_csEmitExpr( pR, yyc, HB_TRUE );
+      fprintf( yyc, ".AddDays((int)(" );
+      hb_csEmitExpr( pL, yyc, HB_FALSE );
+      fprintf( yyc, "))" );
+      return HB_TRUE;
+   }
+   if( ( iOp == HB_EO_PLUSEQ || iOp == HB_EO_MINUSEQ ) && fLDate && ! fRDate )
+   {
+      if( fParen )
+         fprintf( yyc, "(" );
+      hb_csEmitExpr( pL, yyc, HB_FALSE );
+      fprintf( yyc, " = " );
+      hb_csEmitExpr( pL, yyc, HB_TRUE );
+      fprintf( yyc, ".AddDays(%s(int)(", iOp == HB_EO_MINUSEQ ? "-" : "" );
+      hb_csEmitExpr( pR, yyc, HB_FALSE );
+      fprintf( yyc, "))" );
+      if( fParen )
+         fprintf( yyc, ")" );
+      return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
+/* `c1 < c2` and kin. C# string has no ordering operators (CS0019),
+   and the DLR has none for a dynamic holding a string either, so the
+   comparison becomes `HbRuntime.StrCmp( a, b ) <op> 0` — StrCmp is
+   hb_itemStrCmp under SET EXACT OFF: the shorter length decides and a
+   longer LEFT operand carrying the right as a prefix is EQUAL. Fires
+   when one operand is statically a string and the other a string or
+   unresolved (a flag value, a dynamic member): Harbour raises on
+   anything but a string there. `=` on strings stays `==`. */
+static HB_BOOL hb_csEmitStrOrder( PHB_EXPR pExpr, FILE * yyc )
+{
+   PHB_EXPR pL = pExpr->value.asOperator.pLeft;
+   PHB_EXPR pR = pExpr->value.asOperator.pRight;
+   const char * szL = hb_csExprCsType( pL );
+   const char * szR = hb_csExprCsType( pR );
+   HB_BOOL fLStr = hb_csCsTypeIs( szL, "string" );
+   HB_BOOL fRStr = hb_csCsTypeIs( szR, "string" );
+
+   if( ! pL || ! pR )
+      return HB_FALSE;
+   if( ! ( ( fLStr && ( fRStr || ! szR ) ) || ( fRStr && ! szL ) ) )
+      return HB_FALSE;
+   fprintf( yyc, "HbRuntime.StrCmp(" );
+   hb_csEmitExpr( pL, yyc, HB_FALSE );
+   fprintf( yyc, ", " );
+   hb_csEmitExpr( pR, yyc, HB_FALSE );
+   fprintf( yyc, ")%s0", hb_csOperatorStr( pExpr->ExprType ) );
+   return HB_TRUE;
+}
+
 /* ---- Expression emitter ---- */
 
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
@@ -4852,6 +5170,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, ", " );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
                fprintf( yyc, ")" );
+            }
+            else if( ( pExpr->ExprType == HB_EO_PLUS ||
+                       pExpr->ExprType == HB_EO_MINUS ||
+                       pExpr->ExprType == HB_EO_PLUSEQ ||
+                       pExpr->ExprType == HB_EO_MINUSEQ ) &&
+                     hb_csEmitDateArith( pExpr, yyc, fParen ) )
+            {
+               /* emitted: a day count or DateOnly.AddDays */
+            }
+            else if( ( pExpr->ExprType == HB_EO_LT ||
+                       pExpr->ExprType == HB_EO_LE ||
+                       pExpr->ExprType == HB_EO_GT ||
+                       pExpr->ExprType == HB_EO_GE ) &&
+                     hb_csEmitStrOrder( pExpr, yyc ) )
+            {
+               /* emitted: HbRuntime.StrCmp( a, b ) <op> 0 */
             }
             else
             {

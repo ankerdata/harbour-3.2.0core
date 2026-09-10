@@ -326,6 +326,21 @@ public static partial class HbRuntime
     public static bool IsUpper(string s) => s.Length > 0 && char.IsUpper(s[0]);
     public static bool IsLower(string s) => s.Length > 0 && char.IsLower(s[0]);
 
+    // Harbour string ordering: hb_itemStrCmp under SET EXACT OFF. Ordinal
+    // over the shorter length; when that prefix is equal, a longer RIGHT
+    // operand is greater and a longer LEFT operand compares EQUAL
+    // ("Lisbon" > "Lis" is false, "Lis" < "Lisbon" is true). The emitter
+    // turns `<`, `<=`, `>`, `>=` on strings into `StrCmp(a, b) <op> 0`;
+    // `=` stays C# `==`.
+    public static int StrCmp(string a, string b)
+    {
+        a ??= ""; b ??= "";
+        int n = Math.Min(a.Length, b.Length);
+        int r = string.CompareOrdinal(a, 0, b, 0, n);
+        if (r != 0) return r < 0 ? -1 : 1;
+        return b.Length > a.Length ? -1 : 0;
+    }
+
     // ---- Date functions ----
     // Harbour Date → C# DateOnly (no time component). Harbour TIMESTAMP
     // maps to C# DateTime via the transpiler's type map.
