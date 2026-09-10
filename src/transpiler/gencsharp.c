@@ -3886,6 +3886,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "hbva" );
                break;
             }
+            /* PCount() in the same position is that array's length.
+               HbRuntime.PCount() is a stub returning 0 — C# has no
+               caller argument count — so outside a widened function
+               a PCount() test is dead, and inside one it used to be
+               too: PlatformDebug's ten-slot ladder never ran. */
+            if( szName && s_fCurrentSpread &&
+                hb_stricmp( szName, "PCOUNT" ) == 0 )
+            {
+               fprintf( yyc, "hbva.Length" );
+               break;
+            }
 
             /* ORM construction — ConstructORMTable(XxxDef(...), ...)
                with a mapped def class emits as
@@ -8272,29 +8283,22 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    s_iLastLine = 0;
    /* If the signature was widened to `params dynamic[] hbva` above,
       re-bind the original named params from the array so references
-      in the body keep working. */
-   if( ! fIsMain &&
-       ( hb_refTabIsCalledVarargs( s_pRefTab, pFunc->value.asFunc.szName ) ||
-         hb_refTabIsVariadic      ( s_pRefTab, pFunc->value.asFunc.szName ) ) )
+      in the body keep working. s_fCurrentSpread is that decision —
+      made under the function's reftab key, which for a file-static
+      function is `file::func`; re-deriving it here from the bare name
+      found no row for those and left their names unbound (CS0103,
+      trace.prg's PlatformDebug). */
+   if( s_fCurrentSpread )
    {
-      PHB_HVAR pSlot;
+      PHB_HVAR pSlot = pFunc->value.asFunc.pParams;
       int k = 0;
-      int iLastRef = -1;
-      int j;
-      for( j = 0; j < ( int ) pCompFunc->wParamCount; j++ )
-         if( hb_refTabIsRef( s_pRefTab, pFunc->value.asFunc.szName, j ) )
-            iLastRef = j;
-      if( iLastRef < 0 )  /* skip unpack when ref params forced typed sig */
+      while( pSlot && k < ( int ) pCompFunc->wParamCount )
       {
-         pSlot = pFunc->value.asFunc.pParams;
-         while( pSlot && k < ( int ) pCompFunc->wParamCount )
-         {
-            hb_csEmitIndent( yyc, iIndent + 1 );
-            fprintf( yyc, "dynamic %s = hbva.Length > %d ? hbva[%d] : null;\n",
-                     pSlot->szName, k, k );
-            pSlot = pSlot->pNext;
-            k++;
-         }
+         hb_csEmitIndent( yyc, iIndent + 1 );
+         fprintf( yyc, "dynamic %s = hbva.Length > %d ? hbva[%d] : null;\n",
+                  pSlot->szName, k, k );
+         pSlot = pSlot->pNext;
+         k++;
       }
    }
    if( pFunc->value.asFunc.pBody )

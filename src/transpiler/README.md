@@ -1164,6 +1164,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 99        | A send on a receiver of unknown class asks the reftab whether the name is a method everywhere (bare send gets `()`) or a member everywhere (empty `()` dropped); ACCESS / ASSIGN INLINE bodies emit as real accessors; the inline translator maps a single-colon send |
 | 100       | A user-function call whose name a local or parameter shadows is qualified `Program.name(…)` (CS0149); `dDate++` / `--dDate` on a DATE or TIMESTAMP operand emits `d = d.AddDays(±1)` (CS0023) |
 | 101       | Date arithmetic and string ordering, which C# has no operators for (CS0019): `d1 - d2` emits the day count `(decimal)(d1.DayNumber - d2.DayNumber)`, `d ± n` / `n + d` / `d += n` emit `AddDays`; `<` `<=` `>` `>=` on strings emit `HbRuntime.StrCmp(a, b) <op> 0` with Harbour's SET EXACT OFF ordering. Operand types from the emit-side probe: declared locals and parameters, DATA members, reftab member rows and return types, hbfuncs.tab |
+| 102       | A file-static variadic function (one reading `PCount()`) re-binds its named parameters from `hbva` like a public one — the re-bind used the bare name where the row is `file::func` (CS0103 ×10, trace.prg); `PCount()` inside a widened function is `hbva.Length`, not the runtime stub that returns 0 |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
