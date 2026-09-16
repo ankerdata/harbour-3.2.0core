@@ -21,7 +21,15 @@ typedef struct
 {
    char * szLower;   /* owned */
    char * szCanon;   /* owned */
+   char * szLib;     /* owned; the contrib library (its directory name,
+                        e.g. "hbwin") whose .hbx lists the name, NULL
+                        for core Harbour (include/*.hbx) */
 } HB_HBX_ENTRY;
+
+/* Library of the .hbx file being loaded right now: set by
+   hb_hbxCanonLoadDir while it walks one contrib/<lib>/ directory, NULL
+   for core and for an explicit --hbx=<path>. */
+static const char * s_szLoadLib = NULL;
 
 static HB_HBX_ENTRY * s_pEntries = NULL;
 static HB_SIZE        s_nEntries = 0;
@@ -57,6 +65,7 @@ static void hb_hbxAppend( const char * szName )
    }
    s_pEntries[ s_nEntries ].szLower = hb_hbxDupLower( szName );
    s_pEntries[ s_nEntries ].szCanon = hb_hbxDup( szName );
+   s_pEntries[ s_nEntries ].szLib   = s_szLoadLib ? hb_hbxDup( s_szLoadLib ) : NULL;
    s_nEntries++;
    s_fSorted = HB_FALSE;
 }
@@ -68,10 +77,22 @@ static int hb_hbxCmpByLower( const void * a, const void * b )
    return strcmp( ea->szLower, eb->szLower );
 }
 
+static void hb_hbxEntryFree( HB_HBX_ENTRY * pEntry )
+{
+   hb_xfree( pEntry->szLower );
+   hb_xfree( pEntry->szCanon );
+   if( pEntry->szLib )
+      hb_xfree( pEntry->szLib );
+}
+
 /* After qsort, adjacent rows with the same lowercased key are
-   duplicates from the same or different hbx files. Keep the LAST
-   occurrence (later loads win — lets a contrib file override core
-   if both are loaded). */
+   duplicates — the same .hbx reached through more than one search
+   location, or one name listed by two libraries. Keep ONE, and let a
+   core entry (szLib NULL) win over a contrib one: a core name is part
+   of the language and is routed to HbRuntime, whatever library also
+   lists it (hb_FEof is in core and in hbmisc). Between entries of the
+   same standing the one already kept stays. The old rule, "later
+   loads win", was never well defined — qsort is not stable. */
 static void hb_hbxDedup( void )
 {
    HB_SIZE rd, wr = 0;
@@ -82,10 +103,13 @@ static void hb_hbxDedup( void )
       if( wr > 0 && strcmp( s_pEntries[ wr - 1 ].szLower,
                             s_pEntries[ rd     ].szLower ) == 0 )
       {
-         /* Overwrite the prior entry with the later one. */
-         hb_xfree( s_pEntries[ wr - 1 ].szLower );
-         hb_xfree( s_pEntries[ wr - 1 ].szCanon );
-         s_pEntries[ wr - 1 ] = s_pEntries[ rd ];
+         if( s_pEntries[ wr - 1 ].szLib && ! s_pEntries[ rd ].szLib )
+         {
+            hb_hbxEntryFree( &s_pEntries[ wr - 1 ] );
+            s_pEntries[ wr - 1 ] = s_pEntries[ rd ];
+         }
+         else
+            hb_hbxEntryFree( &s_pEntries[ rd ] );
       }
       else
       {
@@ -199,7 +223,13 @@ HB_SIZE hb_hbxCanonLoadDir( const char * szDir, HB_BOOL fRecurse )
       if( ( ffind->attr & HB_FA_DIRECTORY ) != 0 )
       {
          if( fRecurse )
+         {
+            /* contrib/<lib>/: every name its .hbx lists belongs to <lib> */
+            const char * szSavedLib = s_szLoadLib;
+            s_szLoadLib = ffind->szName;
             nLoaded += hb_hbxCanonLoadDir( szPath, HB_FALSE );
+            s_szLoadLib = szSavedLib;
+         }
          continue;
       }
       nLen = strlen( ffind->szName );
@@ -279,7 +309,7 @@ void hb_hbxCanonAutoLoad( const char * szExePath )
    hb_hbxCanonLoadDir( "contrib",                      HB_TRUE  );
 }
 
-const char * hb_hbxCanonLookup( const char * szName )
+static HB_HBX_ENTRY * hb_hbxFind( const char * szName )
 {
    HB_HBX_ENTRY   key;
    HB_HBX_ENTRY * hit;
@@ -301,20 +331,30 @@ const char * hb_hbxCanonLookup( const char * szName )
    hb_hbxEnsureSorted();
    key.szLower = szLowerBuf;
    key.szCanon = NULL;
+   key.szLib   = NULL;
    hit = ( HB_HBX_ENTRY * ) bsearch( &key, s_pEntries, s_nEntries,
                                      sizeof( HB_HBX_ENTRY ),
                                      hb_hbxCmpByLower );
+   return hit;
+}
+
+const char * hb_hbxCanonLookup( const char * szName )
+{
+   HB_HBX_ENTRY * hit = hb_hbxFind( szName );
    return hit ? hit->szCanon : NULL;
+}
+
+const char * hb_hbxCanonLibrary( const char * szName )
+{
+   HB_HBX_ENTRY * hit = hb_hbxFind( szName );
+   return hit ? hit->szLib : NULL;
 }
 
 void hb_hbxCanonFree( void )
 {
    HB_SIZE i;
    for( i = 0; i < s_nEntries; i++ )
-   {
-      hb_xfree( s_pEntries[ i ].szLower );
-      hb_xfree( s_pEntries[ i ].szCanon );
-   }
+      hb_hbxEntryFree( &s_pEntries[ i ] );
    if( s_pEntries )
       hb_xfree( s_pEntries );
    s_pEntries = NULL;

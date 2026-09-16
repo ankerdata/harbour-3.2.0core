@@ -68,7 +68,7 @@ Additional CLI flags:
 | `--var-types=<path>`    | `NAME<TAB>TYPE` hints for non-Hungarian names (`i`, `j`, `k` …): accepted by the W0021 gate and fed to inference ([`hbvartypes.c`](hbvartypes.c)) |
 | `--preload-list=<path>` | Extra `.ch` headers whose rules are loaded at startup on top of `std.ch` + `common.ch` (see test47) |
 | `--filename-casing=<path>` | `<stem><TAB><CamelCase>` map overriding on-disk file-stem casing for derived identifiers — file-static prefixes, file-mangled STATIC FUNCTION names, `<Name>Const` classes ([`hbfilecase.c`](hbfilecase.c)) |
-| `--hbx=<path>`          | Merge an `.hbx` file's `DYNAMIC` entries into the canonical function-name map so `hb_bitand` / `hb_bitAnd` / `hb_BitAnd` all emit one spelling ([`hbhbxcanon.c`](hbhbxcanon.c)); repeatable. Adds to what the startup auto-load found — `/opt/harbour/{include/harbour,contrib}`, then `<bin>/../include` and `<bin>/../contrib` relative to the transpiler binary, then cwd-relative `include/` and `contrib/`. The binary-relative walk is what makes an absolute `HBTRANSPILER` path work from another repo's root; it once tested for `/` only, so on Windows the canon set loaded empty and every RTL name emitted bare and lower-cased (`hb_bitand`, invisible to the stub generator) — 2140 build errors that read as unrelated |
+| `--hbx=<path>`          | Merge an `.hbx` file's `DYNAMIC` entries into the canonical function-name map so `hb_bitand` / `hb_bitAnd` / `hb_BitAnd` all emit one spelling ([`hbhbxcanon.c`](hbhbxcanon.c)); repeatable. Adds to what the startup auto-load found — `/opt/harbour/{include/harbour,contrib}`, then `<bin>/../include` and `<bin>/../contrib` relative to the transpiler binary, then cwd-relative `include/` and `contrib/`. Every name also records its owner — core (`include/*.hbx`) or the contrib library whose directory holds its `.hbx` — and the C# emitter routes core names to `HbRuntime` and a library's names to that library's class; core wins a name both list, and an explicit `--hbx` file counts as core (see [Contrib libraries](#contrib-libraries)). The binary-relative walk is what makes an absolute `HBTRANSPILER` path work from another repo's root; it once tested for `/` only, so on Windows the canon set loaded empty and every RTL name emitted bare and lower-cased (`hb_bitand`, invisible to the stub generator) — 2140 build errors that read as unrelated |
 | `--type-audit=<path>`   | Append a TSV row for every place inference fell back (USUAL return, weak hash, OBJECT param, blocked int candidate, ORM narrowing …) — the type-debt leaderboard; never gates. The file is opened in append mode across a whole pipeline run and the 41-line header is written only when the file is empty (an explicit seek — `ftell()` on a fresh append stream is 0 under MSVC, which once re-emitted the header per invocation) |
 
 The driver pipeline in the sibling `easipos-transpiled` repo passes all
@@ -147,13 +147,14 @@ inference engine that `-GS` uses.
 | [`hbdefinemap.c`](hbdefinemap.c) | `--defines-map` loader: `#define` → `<Name>Const` class + C# type   |
 | [`hbfieldtypes.c`](hbfieldtypes.c) | `--fieldtypes` loader: ORM def-class field contracts + family bases |
 | [`hbfilecase.c`](hbfilecase.c)   | `--filename-casing` loader: file-stem CamelCase map                |
-| [`hbhbxcanon.c`](hbhbxcanon.c)   | `--hbx` loader: canonical function-name casing from `.hbx` files   |
+| [`hbhbxcanon.c`](hbhbxcanon.c)   | `--hbx` loader: canonical function-name casing, and each name's owning contrib library, from `.hbx` files |
 | **Back-ends**                     |                                                                          |
 | [`genhb.c`](genhb.c)              | `-GT` Harbour round-trip emitter                                        |
 | [`gencsharp.c`](gencsharp.c)      | `-GS` C# emitter                                                         |
 | [`genscan.c`](genscan.c)          | `-GF` scan-only entry point                                             |
 | **Runtime + tooling**             |                                                                          |
-| [`HbRuntime.cs`](HbRuntime.cs)    | C# implementations of Harbour builtins (`QOut`, `Str`, `Len`, …)        |
+| [`HbRuntime.cs`](HbRuntime.cs)    | C# implementations of core Harbour builtins (`QOut`, `Str`, `Len`, …)   |
+| [`libraries/<lib>/`](libraries/)  | One C# project per contrib library — `HbWin`, `Xhb` so far — see [Contrib libraries](#contrib-libraries) |
 | [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime.cs` + Harbour doc blocks |
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |
 | **Tests**                         |                                                                          |
@@ -830,7 +831,8 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `d1 - d2`, `d + n`, `n + d`, `d - n`, `d += n` on DATE operands | `(decimal)(d1.DayNumber - d2.DayNumber)` (decimal, so a later `/` stays float), `d.AddDays((int)(n))`, `d = d.AddDays(...)` — `DateOnly` has no operators; TIMESTAMP is left alone (test101) |
 | `c1 < c2` (`<=`, `>`, `>=`) on string operands | `HbRuntime.StrCmp(c1, c2) < 0` — Harbour's ordering under SET EXACT OFF (the shorter length decides; a longer LEFT operand with an equal prefix is EQUAL); `=` stays `==` (test101) |
 | `METHOD ToString()`              | `public override string ToString()` — it is object.ToString (test103) |
-| `TOleAuto():New("ADODB.Recordset")` | `HbRuntime.TOleAuto().New("ADODB.Recordset")` — the class function is a static factory; `New` creates the COM object through `Type.GetTypeFromProgID` |
+| `TOleAuto():New("ADODB.Recordset")` | `Xhb.TOleAuto().New("ADODB.Recordset")` — xhb's class function is a static factory; `New` creates the COM object through `Type.GetTypeFromProgID` |
+| `wapi_Sleep(n)`, `sqlite3_bind_int64(p, 1, n)` — a contrib library's function | `HbWin.wapi_Sleep(n)`, `HbSqlit3.sqlite3_bind_int64(p, 1, n)` — routed to the library's class, never HbRuntime (test106, [Contrib libraries](#contrib-libraries)) |
 | Function-final `RETURN` no path reaches | omitted — Harbour's level-1 warning forces it to exist; C# would report CS0162 |
 | `IF nB != NIL`                   | `if (nB != null)` with `nB` emitted as `decimal?`        |
 | `DEFAULT lX TO .T.` / `hb_default(@nX, 40)` on a value slot | `bool lX = true` / `decimal nX = 40` on the declaration; the guard is dropped (see [NIL semantics](#nil-semantics)) |
@@ -1333,6 +1335,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
 | 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
+| 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source into its runtime assembly |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
@@ -1379,6 +1382,49 @@ warning is what the negative tests assert:
 Argument lists (`Foo(a, b)`), array literals (`{ a, b }`), and hash
 literals (`{ a => b, c => d }`) are not affected — those are
 `HB_ET_ARGLIST`, not `HB_ET_LIST`.
+
+## Contrib libraries
+
+Harbour ships its standard library as core (`include/*.hbx`) and
+everything else as contrib libraries (`contrib/<lib>/<lib>.hbx`:
+hbwin, hbsqlit3, hbcurl, hbhpdf, …). The C# the transpiler emits keeps
+that split:
+
+| Harbour call                   | Listed by                         | C#                                     |
+|--------------------------------|-----------------------------------|----------------------------------------|
+| `Upper(c)`                     | core — `include/harbour.hbx`      | `HbRuntime.Upper(c)`                   |
+| `wapi_Sleep(n)`                | hbwin — `contrib/hbwin/hbwin.hbx` | `HbWin.wapi_Sleep(n)`                  |
+| `sqlite3_bind_int64(p, 1, n)`  | hbsqlit3                          | `HbSqlit3.sqlite3_bind_int64(p, 1, n)` |
+
+- **The class is named after the library's directory**: first letter
+  upper-cased, and the letter after a leading `hb` too — hbwin →
+  `HbWin`, hbsqlit3 → `HbSqlit3`, xhb → `Xhb` (`hb_csLibraryClass`).
+- **One project per library** under `libraries/<lib>/` —
+  `<Class>.csproj` plus its sources declaring `public static class
+  <Class>` — independent of HbRuntime. Seeded 2026-09-16 with what
+  HbRuntime.cs used to carry for contrib: `libraries/hbwin` holds the
+  four `wapi_*` functions (`wapi_Sleep` is real; the message box pair
+  and `wapi_OutputDebugString` are console stand-ins still to do) and
+  `libraries/xhb` holds `TOleAuto`.
+- **An application references a library only once it is taken on.**
+  Until then every call to it fails the build at its call site —
+  CS0103, "The name 'HbCurl' does not exist" — and a referenced library
+  fails as CS0117 for each name it does not implement yet. There are no
+  contrib stubs, by design: a stub compiles and throws, and so hides a
+  whole library. Core names do keep generated `NotImplemented` stubs in
+  the application (easipos-transpiled's `gen_stubs.py`): core is the
+  language, and HbRuntime must implement it.
+- **Core wins a name both list** (`hb_FEof` is in core and in hbmisc).
+  The loader's old duplicate rule, "later load wins", depended on an
+  unstable sort.
+- **The test suite** compiles every `libraries/<lib>/` source into its
+  runtime assembly, so any test can call any library (test106).
+- **A library cannot use HbRuntime yet.** HbRuntime.cs is compiled into
+  the application as source — the generated core stubs are a `partial`
+  of it — so there is no assembly to reference. The first library that
+  needs a runtime helper will have to settle that.
+
+---
 
 ## Embedding C# — `#pragma BEGINCSHARP`
 

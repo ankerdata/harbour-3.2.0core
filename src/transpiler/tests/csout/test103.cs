@@ -40,7 +40,7 @@ public static partial class Program
         HbRuntime.QOut(oBeacon.ToString());
         if (oBeacon.nCode > 100)
         {
-            oCom = HbRuntime.TOleAuto().New("Scripting.Dictionary");
+            oCom = Xhb.TOleAuto().New("Scripting.Dictionary");
             HbRuntime.QOut(oCom.Count);
         }
 

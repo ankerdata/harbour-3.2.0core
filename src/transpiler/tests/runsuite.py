@@ -215,6 +215,17 @@ def stage_cs(names):
     os.makedirs(lib, exist_ok=True)
     shutil.copy(os.path.join(ROOT, "src", "transpiler", "HbRuntime.cs"),
                 os.path.join(lib, "HbRuntime.cs"))
+    # The contrib libraries (src/transpiler/libraries/<lib>/*.cs) compile
+    # into the same test runtime assembly: a test calling HbWin.wapi_Sleep
+    # or Xhb.TOleAuto finds them without a reference per library.
+    libs = os.path.join(ROOT, "src", "transpiler", "libraries")
+    if os.path.isdir(libs):
+        for sub in sorted(os.listdir(libs)):
+            d = os.path.join(libs, sub)
+            if os.path.isdir(d):
+                for f in os.listdir(d):
+                    if f.endswith(".cs"):
+                        shutil.copy(os.path.join(d, f), os.path.join(lib, f))
     with open(os.path.join(lib, "HbRuntime.csproj"), "w") as fh:
         fh.write(LIBPROJ)
     subprocess.run(["dotnet", "build", "-v", "q", "--nologo"],

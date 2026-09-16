@@ -57,6 +57,13 @@ extern void hb_hbxCanonAutoLoad( const char * szExePath );
    alone. Returned pointer is owned by the map; do not free. */
 extern const char * hb_hbxCanonLookup( const char * szName );
 
+/* The contrib library whose .hbx lists szName — its directory name
+   under contrib/, e.g. "hbwin" — or NULL for a core Harbour name
+   (include/*.hbx) and for a name no .hbx lists. The C# emitter routes a
+   library's names to that library's class (HbWin, HbSqlit3, ...) and
+   core names to HbRuntime. Returned pointer is owned by the map. */
+extern const char * hb_hbxCanonLibrary( const char * szName );
+
 /* Release all loaded entries. Called at shutdown. */
 extern void hb_hbxCanonFree( void );
 

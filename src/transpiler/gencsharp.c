@@ -3163,6 +3163,26 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
    which is both syntactically broken (`int` is reserved) and semantically
    wrong (no such method). Non-remapped functions (user code, prefix="-")
    keep their source case so IDE navigation stays useful. */
+/* The C# class a contrib library's functions live in: the library's
+   directory name with its first letter upper-cased, and the letter after
+   a leading "hb" too — hbwin -> HbWin, hbsqlit3 -> HbSqlit3, xhb -> Xhb.
+   Each library is its own project under src/transpiler/libraries/<lib>/
+   declaring `public static class <that name>`. */
+static const char * hb_csLibraryClass( const char * szLib, char * szBuf, HB_SIZE nBuf )
+{
+   HB_SIZE n = strlen( szLib );
+
+   if( n >= nBuf )
+      n = nBuf - 1;
+   memcpy( szBuf, szLib, n );
+   szBuf[ n ] = '\0';
+   if( n > 0 )
+      szBuf[ 0 ] = ( char ) HB_TOUPPER( ( HB_UCHAR ) szBuf[ 0 ] );
+   if( n > 2 && hb_strnicmp( szLib, "hb", 2 ) == 0 )
+      szBuf[ 2 ] = ( char ) HB_TOUPPER( ( HB_UCHAR ) szBuf[ 2 ] );
+   return szBuf;
+}
+
 static const char * hb_csFuncMap( const char * szName )
 {
    static char s_szBuf[ 128 ];
@@ -3913,15 +3933,29 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                }
                else if( szCanon )
                {
-                  /* Canonicalised names from hbx are always routed
-                     through HbRuntime. That sidesteps two collisions
-                     that a bare emit would hit: (1) names matching
-                     .NET BCL types (`Array`, `Type`, `Version`) cause
-                     CS1955 "not invocable member"; (2) hb_-prefixed
-                     runtime fns aren't globals in any namespace, so a
-                     bare `hb_bitAnd(...)` CS0103s. HbRuntime owns the
-                     cross-cutting implementation of both groups. */
-                  fprintf( yyc, "HbRuntime.%s", szCanon );
+                  /* Canonicalised names from hbx are always qualified.
+                     That sidesteps two collisions a bare emit would
+                     hit: (1) names matching .NET BCL types (`Array`,
+                     `Type`, `Version`) cause CS1955 "not invocable
+                     member"; (2) hb_-prefixed runtime fns aren't
+                     globals in any namespace, so a bare `hb_bitAnd(...)`
+                     CS0103s. A core Harbour name (include/*.hbx) goes
+                     to HbRuntime; a contrib library's name goes to that
+                     library's class — `HbWin.wapi_Sleep(...)`,
+                     `HbSqlit3.sqlite3_bind_int64(...)` — each library
+                     its own project, referenced by an application only
+                     once it is built, so an unbuilt library fails at
+                     every call site instead of hiding behind a stub. */
+                  const char * szLib = hb_hbxCanonLibrary( szCanon );
+                  if( szLib )
+                  {
+                     char szClass[ 64 ];
+                     fprintf( yyc, "%s.%s",
+                              hb_csLibraryClass( szLib, szClass, sizeof( szClass ) ),
+                              szCanon );
+                  }
+                  else
+                     fprintf( yyc, "HbRuntime.%s", szCanon );
                }
                else
                {

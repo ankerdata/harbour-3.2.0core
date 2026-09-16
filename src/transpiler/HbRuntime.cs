@@ -365,14 +365,6 @@ public static partial class HbRuntime
     public static string DToS(DateOnly d) => d.ToString("yyyyMMdd", INV);
     public static string Time() => DateTime.Now.ToString("HH:mm:ss", INV);
 
-    // ---- COM automation ----
-    // Harbour's `TOleAuto():New("ADODB.Recordset")` reaches C# as
-    // HbRuntime.TOleAuto().New(...) -- every RTL name does -- so the class
-    // function is this factory and New() on the result is the COM
-    // creation (the TOleAuto class below). global:: because the method
-    // shares the type's name.
-    public static global::TOleAuto TOleAuto() => new global::TOleAuto();
-
     // ---- Terminal ----
 
     public static void SetColor(string cColor) { }
@@ -907,31 +899,6 @@ public static partial class HbRuntime
         catch { return false; }
     }
 
-    // ---- wapi_* stubs ----
-    // Windows-specific. On non-Windows they degrade to Console output /
-    // Thread.Sleep. Enough for transpiled code to compile and run
-    // headless tests.
-
-    public static decimal wapi_Sleep(decimal nMs)
-    {
-        System.Threading.Thread.Sleep((int)nMs);
-        return 0;
-    }
-
-    public static decimal wapi_MessageBox(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0)
-    {
-        Console.WriteLine($"[MessageBox] {cCaption}: {cText}");
-        return 1;  // IDOK
-    }
-
-    public static decimal wapi_MessageBoxTimeout(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0, decimal wLang = 0, decimal nMs = 0)
-    {
-        Console.WriteLine($"[MessageBox] {cCaption}: {cText}");
-        return 1;
-    }
-
-    public static void wapi_OutputDebugString(string cText) => Console.Error.WriteLine(cText);
-
     // ---- Win32 RGB helpers (easiutil/getrgbvalue.c) ----
 
     public static decimal COLORRGB2N(decimal r, decimal g, decimal b) =>
@@ -1142,36 +1109,6 @@ public static partial class HbRuntime
     // ---- Dynamic member access (Harbour obj:&(name) macro support) ----
 
     // ---- DynamicObject base for ORM-style classes ----
-}
-
-/// <summary>
-/// Harbour's COM automation wrapper. Source calls look like
-/// <c>TOleAuto():New("ADODB.Recordset")</c> — compile-time shape: a class
-/// with a <c>New(string progId)</c> method returning a dynamic COM proxy.
-/// On Windows this would delegate to <c>Type.GetTypeFromProgID</c> +
-/// <c>Activator.CreateInstance</c>; on other platforms there is no COM,
-/// so New throws at call time. Either way the surface is "satisfies the
-/// C# compiler" — runtime behaviour of Harbour ADO code against a modern
-/// .NET data stack is a separate port.
-/// </summary>
-public class TOleAuto
-{
-    private object? _com;
-    public TOleAuto() { }
-    public dynamic New(string progId)
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            var t = Type.GetTypeFromProgID(progId);
-            if (t == null)
-                throw new PlatformNotSupportedException(
-                    $"ProgID '{progId}' not registered");
-            _com = Activator.CreateInstance(t);
-            return _com!;
-        }
-        throw new PlatformNotSupportedException(
-            "TOleAuto (COM automation) is only supported on Windows");
-    }
 }
 
 /// <summary>
