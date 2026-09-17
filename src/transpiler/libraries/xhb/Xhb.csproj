@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- The xhb contrib library for transpiled Harbour code. The emitter
-       routes every name contrib/xhb/xhb.hbx lists to `Xhb.<name>`;
-       an application references this project only once the library is
-       taken on, so until then each call fails at its call site. -->
+       routes every name contrib/xhb/xhb.hbx lists to `Xhb.<name>`.
+       Real implementations live in Xhb.cs; Xhb.Stubs.cs holds a
+       NotImplementedException stub for every other name the application
+       calls, written by easipos-transpiled's scripts/gen_library_stubs.py. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

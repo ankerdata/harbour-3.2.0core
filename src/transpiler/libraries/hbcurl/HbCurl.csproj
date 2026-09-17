@@ -1,16 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The hbwin contrib library for transpiled Harbour code. The emitter
-       routes every name contrib/hbwin/hbwin.hbx lists to `HbWin.<name>`.
-       Real implementations live in HbWin.cs; HbWin.Stubs.cs holds a
+  <!-- The hbcurl contrib library for transpiled Harbour code. The emitter
+       routes every name contrib/hbcurl/hbcurl.hbx lists to `HbCurl.<name>`.
+       Real implementations live in HbCurl.cs; HbCurl.Stubs.cs holds a
        NotImplementedException stub for every other name the application
        calls, written by easipos-transpiled's scripts/gen_library_stubs.py. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>annotations</Nullable>
-    <RootNamespace>HbWin</RootNamespace>
-    <AssemblyName>HbWin</AssemblyName>
+    <RootNamespace>HbCurl</RootNamespace>
+    <AssemblyName>HbCurl</AssemblyName>
   </PropertyGroup>
 
 </Project>

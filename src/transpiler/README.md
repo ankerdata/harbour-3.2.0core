@@ -154,7 +154,7 @@ inference engine that `-GS` uses.
 | [`genscan.c`](genscan.c)          | `-GF` scan-only entry point                                             |
 | **Runtime + tooling**             |                                                                          |
 | [`HbRuntime.cs`](HbRuntime.cs)    | C# implementations of core Harbour builtins (`QOut`, `Str`, `Len`, …)   |
-| [`libraries/<lib>/`](libraries/)  | One C# project per contrib library — `HbWin`, `Xhb` so far — see [Contrib libraries](#contrib-libraries) |
+| [`libraries/<lib>/`](libraries/)  | One C# project per contrib library (`HbWin`, `HbSqlit3`, `Xhb`, …): implementations plus generated stubs — see [Contrib libraries](#contrib-libraries) |
 | [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime.cs` + Harbour doc blocks |
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |
 | **Tests**                         |                                                                          |
@@ -1335,7 +1335,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
 | 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
-| 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source into its runtime assembly |
+| 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
 Each must surface a specific **warning** on stderr during `-GS` — the
@@ -1399,21 +1399,26 @@ that split:
 - **The class is named after the library's directory**: first letter
   upper-cased, and the letter after a leading `hb` too — hbwin →
   `HbWin`, hbsqlit3 → `HbSqlit3`, xhb → `Xhb` (`hb_csLibraryClass`).
-- **One project per library** under `libraries/<lib>/` —
-  `<Class>.csproj` plus its sources declaring `public static class
-  <Class>` — independent of HbRuntime. Seeded 2026-09-16 with what
-  HbRuntime.cs used to carry for contrib: `libraries/hbwin` holds the
-  four `wapi_*` functions (`wapi_Sleep` is real; the message box pair
-  and `wapi_OutputDebugString` are console stand-ins still to do) and
-  `libraries/xhb` holds `TOleAuto`.
-- **An application references a library only once it is taken on.**
-  Until then every call to it fails the build at its call site —
-  CS0103, "The name 'HbCurl' does not exist" — and a referenced library
-  fails as CS0117 for each name it does not implement yet. There are no
-  contrib stubs, by design: a stub compiles and throws, and so hides a
-  whole library. Core names do keep generated `NotImplemented` stubs in
-  the application (easipos-transpiled's `gen_stubs.py`): core is the
-  language, and HbRuntime must implement it.
+- **One project per library** under `libraries/<lib>/`: `<Class>.csproj`,
+  `<Class>.cs` with the real implementations, and `<Class>.Stubs.cs` —
+  a `NotImplementedException` stub for every other function the
+  application calls — both halves `public static partial class <Class>`,
+  independent of HbRuntime. hbwin and xhb were seeded on 2026-09-16 with
+  what HbRuntime.cs used to carry for contrib (`libraries/hbwin`: the
+  four `wapi_*` functions — `wapi_Sleep` is real, the message box pair
+  and `wapi_OutputDebugString` are console stand-ins still to do;
+  `libraries/xhb`: `TOleAuto`); on 2026-09-17 every library easipos
+  calls got its project, stubbed.
+- **The stubs are written from the application's calls** by
+  easipos-transpiled's `scripts/gen_library_stubs.py`: it creates a
+  missing project, subtracts what `<Class>.cs` implements and rewrites
+  `<Class>.Stubs.cs`. They sit in the library's own source, so each
+  library's to-do list is its stubs file. A call to a function no stub
+  covers still fails the application's build (CS0117) until the script
+  is rerun, and an application that does not reference a library fails
+  at every call to it (CS0103). Core names keep their stubs in the
+  application instead (`gen_stubs.py`), because HbRuntime is compiled
+  into it as source.
 - **Core wins a name both list** (`hb_FEof` is in core and in hbmisc).
   The loader's old duplicate rule, "later load wins", depended on an
   unstable sort.

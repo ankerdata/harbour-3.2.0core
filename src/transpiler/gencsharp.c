@@ -3943,9 +3943,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      to HbRuntime; a contrib library's name goes to that
                      library's class — `HbWin.wapi_Sleep(...)`,
                      `HbSqlit3.sqlite3_bind_int64(...)` — each library
-                     its own project, referenced by an application only
-                     once it is built, so an unbuilt library fails at
-                     every call site instead of hiding behind a stub. */
+                     its own project under src/transpiler/libraries/<lib>/
+                     with its implementations and generated stubs. */
                   const char * szLib = hb_hbxCanonLibrary( szCanon );
                   if( szLib )
                   {

@@ -1,11 +1,12 @@
 // Xhb — the xhb contrib library (contrib/xhb/xhb.hbx) for transpiled
 // Harbour code. The emitter writes `Xhb.<name>(...)` for every name that
-// .hbx lists; a name not implemented here fails the application's build
-// as CS0117 at its call site. No stubs.
+// .hbx lists. Real implementations go here; Xhb.Stubs.cs holds
+// NotImplementedException stubs for the rest the application calls
+// (scripts/gen_library_stubs.py in easipos-transpiled).
 //
 // Seeded 2026-09-16 with TOleAuto, moved unchanged from HbRuntime.cs.
 
-public static class Xhb
+public static partial class Xhb
 {
     // Harbour's `TOleAuto():New("ADODB.Recordset")` reaches C# as
     // Xhb.TOleAuto().New(...): the class function is this factory and
