@@ -25,6 +25,10 @@
    difference from hbpcode.c is that we don't include the optimization
    infrastructure. */
 
+/* hbcompdf.h sets 100 for the stock compiler's hbpcode.c, which this
+   file replaces; nothing else in the transpiler uses the macro, so the
+   512-byte growth step here is deliberate and self-contained. */
+#undef  HB_PCODE_CHUNK
 #define HB_PCODE_CHUNK  512
 
 void hb_compGenPCode1( HB_BYTE byte, HB_COMP_DECL )
