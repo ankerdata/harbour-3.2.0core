@@ -12,7 +12,7 @@ public class Animal
     public decimal nLegs = 4;
     public string cSound = "";
 
-    public dynamic New(string cName = default, string cSound = default)
+    public virtual dynamic New(string cName = default, string cSound = default)
     {
         this.cName = cName;
         HbRuntime.QOut("cName=" + this.cName);
@@ -21,12 +21,12 @@ public class Animal
         return this;
     }
 
-    public string Speak()
+    public virtual string Speak()
     {
         return this.cName + " says: " + this.cSound;
     }
 
-    public string Describe()
+    public virtual string Describe()
     {
         return this.cName + " has " + HbRuntime.Str(this.nLegs) + " legs";
     }
@@ -36,7 +36,7 @@ public class Dog : Animal
 {
     public string cBreed = "";
 
-    public dynamic Init(string cName = default, string cBreed = default)
+    public virtual dynamic Init(string cName = default, string cBreed = default)
     {
         this.cName = cName;
         HbRuntime.QOut("cName=" + this.cName);
@@ -45,7 +45,7 @@ public class Dog : Animal
         return this;
     }
 
-    public dynamic DescribeFull()
+    public virtual dynamic DescribeFull()
     {
         return this.Describe() + " (" + this.cBreed + ")";
     }

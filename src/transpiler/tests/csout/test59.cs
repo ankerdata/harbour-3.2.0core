@@ -29,7 +29,7 @@ public class Base : HbDynamicObject
 {
 
     public dynamic Tag() => ((dynamic)this).cTag;
-    public dynamic MacroPoke(string cName = default, dynamic xVal = default)
+    public virtual dynamic MacroPoke(string cName = default, dynamic xVal = default)
     {
         HbRuntime.SETMEMBER(this, cName, xVal);
         return this;
@@ -38,7 +38,7 @@ public class Base : HbDynamicObject
         // from Base's point of view, so it emits as ((dynamic)this).nMark.
     }
 
-    public decimal Stamp()
+    public virtual decimal Stamp()
     {
         ((dynamic)this).nMark = ((dynamic)this).nMark + 5;
         return ((dynamic)this).nMark;

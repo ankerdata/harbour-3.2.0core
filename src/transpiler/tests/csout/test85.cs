@@ -27,7 +27,7 @@ public class TestOrmRec85
     public decimal nClerkNo;
     public decimal nRegion;
 
-    public dynamic New()
+    public virtual dynamic New()
     {
         return this;
     }

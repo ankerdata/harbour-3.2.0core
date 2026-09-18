@@ -28,7 +28,7 @@ public class Ledger
 {
     public long nCovers = 0;
 
-    public long Add(decimal nQty = default)
+    public virtual long Add(decimal nQty = default)
     {
         this.nCovers += (long)(HbRuntime.Int(nQty));
         return this.nCovers;
@@ -37,7 +37,7 @@ public class Ledger
    emitted inside the shim block. */
     }
 
-    public decimal Gauge(string cWhat, ref string cOut)
+    public virtual decimal Gauge(string cWhat, ref string cOut)
     {
         cOut = "read " + cWhat;
         return HbRuntime.Len(cWhat) * 10;

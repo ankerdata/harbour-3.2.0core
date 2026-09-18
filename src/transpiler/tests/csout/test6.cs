@@ -41,19 +41,19 @@ public class Person : Inherited
     protected dynamic oContext;
     protected string cSecret = "hidden";
 
-    public dynamic New()
+    public virtual dynamic New()
     {
         return this;
     }
 
-    public dynamic SetAge(decimal nAge = default)
+    public virtual dynamic SetAge(decimal nAge = default)
     {
         this.nAge = nAge;
         HbRuntime.QOut("nAge=" + HbRuntime.Str(this.nAge));
         return this;
     }
 
-    public decimal InternalCalc()
+    public virtual decimal InternalCalc()
     {
         return this.nAge * 2;
     }

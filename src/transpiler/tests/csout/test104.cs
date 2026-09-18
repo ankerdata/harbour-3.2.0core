@@ -28,7 +28,7 @@ public class Bursar
 {
     public decimal nTotal = 0;
 
-    public dynamic Post(decimal nAmount = default)
+    public virtual dynamic Post(decimal nAmount = default)
     {
         this.nTotal += nAmount;
         return this;

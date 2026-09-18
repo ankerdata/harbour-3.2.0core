@@ -23,13 +23,13 @@ public class Shelf
     public dynamic Len => this.StackLen();
     public dynamic Size => this.StackLen();
     public dynamic Init() { this.aItems = System.Array.Empty<dynamic>(); return this ; }
-    public dynamic Stow(dynamic xItem = default)
+    public virtual dynamic Stow(dynamic xItem = default)
     {
         HbRuntime.AAdd(ref this.aItems, xItem);
         return xItem;
     }
 
-    public decimal StackLen()
+    public virtual decimal StackLen()
     {
         return HbRuntime.Len(this.aItems);
     }

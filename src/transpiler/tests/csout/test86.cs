@@ -21,7 +21,7 @@ using static Program;
 public class Store
 {
 
-    public decimal Fill(ref dynamic[] aOut)
+    public virtual decimal Fill(ref dynamic[] aOut)
     {
         aOut = new dynamic[] { "x", "y", "z" };
 

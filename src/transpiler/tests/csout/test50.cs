@@ -33,14 +33,14 @@ public class Widget
     public string cLabel = "";
     public dynamic fHook;
 
-    public dynamic New(string cLabel = default, dynamic fHook = default)
+    public virtual dynamic New(string cLabel = default, dynamic fHook = default)
     {
         this.cLabel = cLabel;
         this.fHook = fHook;
         return this;
     }
 
-    public dynamic Fire()
+    public virtual dynamic Fire()
     {
         if (this.fHook != null)
         {

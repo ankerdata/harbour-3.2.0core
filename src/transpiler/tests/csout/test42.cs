@@ -23,18 +23,18 @@ public class Record : HbDynamicObject
     public decimal nValue = 0;
     public bool lActive = false;
 
-    public dynamic SetByName(string cField = default, dynamic xValue = default)
+    public virtual dynamic SetByName(string cField = default, dynamic xValue = default)
     {
         HbRuntime.SETMEMBER(this, cField, xValue);
         return this;
     }
 
-    public dynamic GetByName(string cField = default)
+    public virtual dynamic GetByName(string cField = default)
     {
         return HbRuntime.GETMEMBER(this, cField);
     }
 
-    public dynamic DumpFields(dynamic[] aFields = default)
+    public virtual dynamic DumpFields(dynamic[] aFields = default)
     {
         long i = default;
         dynamic xVal = default;

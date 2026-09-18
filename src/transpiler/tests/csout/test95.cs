@@ -24,7 +24,7 @@ public class Brewer
 {
     public string cName = "tea";
 
-    public decimal Measure(string cWhat, ref decimal nOut, ref dynamic[] aLog)
+    public virtual decimal Measure(string cWhat, ref decimal nOut, ref dynamic[] aLog)
     {
         nOut = HbRuntime.Len(cWhat) * 10;
         aLog = new dynamic[] { cWhat };

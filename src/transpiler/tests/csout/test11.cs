@@ -8,32 +8,32 @@ public class Calculator
 {
     public decimal nResult = 0;
 
-    public dynamic New()
+    public virtual dynamic New()
     {
         this.nResult = 0;
         return this;
     }
 
-    public dynamic Add(decimal nValue = default)
+    public virtual dynamic Add(decimal nValue = default)
     {
         this.nResult = this.nResult + nValue;
         HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
         return this;
     }
 
-    public decimal GetResult()
+    public virtual decimal GetResult()
     {
         return this.nResult;
     }
 
-    public void Reset()
+    public virtual void Reset()
     {
         this.nResult = 0;
         HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
         return;
     }
 
-    public void Display(string cLabel = default)
+    public virtual void Display(string cLabel = default)
     {
         HbRuntime.QOut(cLabel + ": " + HbRuntime.Str(this.nResult));
         return;

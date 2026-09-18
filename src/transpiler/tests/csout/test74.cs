@@ -38,7 +38,7 @@ public class Test74Holder
 {
     public string cTag = "default";
 
-    public string Identify()
+    public virtual string Identify()
     {
         return "Test74Holder:" + this.cTag;
     }

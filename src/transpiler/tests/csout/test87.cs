@@ -26,7 +26,7 @@ public class Thing
 {
     public decimal nCount = 0;
 
-    public dynamic Bump(decimal nBy = 1)
+    public virtual dynamic Bump(decimal nBy = 1)
     {
         this.nCount += nBy;
         return this;

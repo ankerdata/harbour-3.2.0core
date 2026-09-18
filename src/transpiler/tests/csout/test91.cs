@@ -24,7 +24,7 @@ public class Clicker
     public long nCount = 0;
     public string cLabel = "";
 
-    public dynamic Bump(ref dynamic xValue)
+    public virtual dynamic Bump(ref dynamic xValue)
     {
         xValue = xValue + 1;
         return null;
@@ -33,7 +33,7 @@ public class Clicker
    the send is hoisted out of the condition. */
     }
 
-    public bool Flip(ref bool lFlag)
+    public virtual bool Flip(ref bool lFlag)
     {
         lFlag = !lFlag;
         return lFlag;
@@ -45,7 +45,7 @@ public class Clicker
 public class Doubler : Clicker
 {
 
-    public decimal Bump2(decimal nValue = default)
+    public virtual decimal Bump2(decimal nValue = default)
     {
         {
             dynamic _hbref_nValue = nValue;

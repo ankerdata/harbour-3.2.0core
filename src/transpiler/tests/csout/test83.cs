@@ -32,7 +32,7 @@ public class TestOrmRec
     public decimal nRate;
     public DateOnly dSince;
 
-    public dynamic New()
+    public virtual dynamic New()
     {
         return this;
     }

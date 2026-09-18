@@ -23,14 +23,14 @@ public class Base
     public string cLabel = "";
     public bool lFlag = false;
 
-    public dynamic New(string cLabel = default, decimal nUnused = 0, bool lFlag = false)
+    public virtual dynamic New(string cLabel = default, decimal nUnused = 0, bool lFlag = false)
     {
         this.cLabel = cLabel + HbRuntime.LTrim(HbRuntime.Str(nUnused));
         this.lFlag = lFlag;
         return this;
     }
 
-    public dynamic Show()
+    public virtual dynamic Show()
     {
         HbRuntime.QOut(this.cLabel + "/" + (this.lFlag ? "T" : "F"));
         return null;
@@ -42,7 +42,7 @@ public class Base
 public class Derived : Base
 {
 
-    public dynamic New(string cLabel = default)
+    public virtual dynamic New(string cLabel = default)
     {
         base.New(cLabel, lFlag: true);
         return this;

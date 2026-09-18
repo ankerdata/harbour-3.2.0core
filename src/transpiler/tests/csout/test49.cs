@@ -19,7 +19,7 @@ public class Animal
 {
 
     public dynamic Kind() => "animal";
-    public dynamic Speak()
+    public virtual dynamic Speak()
     {
         HbRuntime.QOut("Animal::Speak");
         return this;
@@ -29,7 +29,7 @@ public class Animal
 public class Dog : Animal
 {
 
-    public dynamic Speak()
+    public override dynamic Speak()
     {
         // form 4: → base.Speak()
         base.Speak();
@@ -37,7 +37,7 @@ public class Dog : Animal
         return this;
     }
 
-    public dynamic Identify()
+    public virtual dynamic Identify()
     {
         // form 1
         HbRuntime.QOut("className=" + HbRuntime.Upper(this.className()));

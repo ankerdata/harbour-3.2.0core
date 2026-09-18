@@ -24,25 +24,25 @@ public class Bin
     public dynamic Peak { get { return this.Last(); } set { dynamic xNew = value; this.Pop(); this.Push( xNew ) ; } }
     
     public dynamic Len => this.Heft();
-    public dynamic Push(dynamic xItem = default)
+    public virtual dynamic Push(dynamic xItem = default)
     {
         HbRuntime.AAdd(ref this.aItems, xItem);
         return xItem;
     }
 
-    public dynamic Pop()
+    public virtual dynamic Pop()
     {
         dynamic xLast = this.Last();
         HbRuntime.ASize(ref this.aItems, HbRuntime.Len(this.aItems) - 1);
         return xLast;
     }
 
-    public dynamic Last()
+    public virtual dynamic Last()
     {
         return this.aItems[(long)(HbRuntime.Len(this.aItems)) - 1];
     }
 
-    public decimal Heft()
+    public virtual decimal Heft()
     {
         return HbRuntime.Len(this.aItems);
     }

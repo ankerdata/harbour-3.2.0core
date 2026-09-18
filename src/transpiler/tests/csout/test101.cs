@@ -26,14 +26,14 @@ public class Voyage
     public DateOnly dDepart;
     public string cPort;
 
-    public dynamic New(DateOnly dDepart = default, string cPort = default)
+    public virtual dynamic New(DateOnly dDepart = default, string cPort = default)
     {
         this.dDepart = dDepart;
         this.cPort = cPort;
         return this;
     }
 
-    public DateOnly Arrival(decimal nDays = default)
+    public virtual DateOnly Arrival(decimal nDays = default)
     {
         return this.dDepart.AddDays((int)(nDays));
     }
