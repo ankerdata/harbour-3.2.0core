@@ -7371,12 +7371,14 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          {
             HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szMethName, iPos );
             HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szMethName, iPos );
+            const char * szSlotType = NULL;
+
             const HB_REFPARAM * pP =
                hb_refTabParam( s_pRefTab, szMethName, iPos );
             /* By-ref array slot the callee never reassigns → plain dynamic[]. */
             if( fThisRef && hb_csParamElidesArrayRef( szMethName, iPos ) )
                fThisRef = HB_FALSE;
-            const char * szSlotType = NULL;
+
             if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
                szSlotType = pP->szType;
             if( ! szSlotType )
@@ -7823,6 +7825,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
          the original method name off the CLASSMETHOD marker for the
          ACCESS/ASSIGN collision check. */
       const char * szMethName = pMethod->pFunc->value.asFunc.szName;
+      HB_BOOL fSkipMethod = HB_FALSE;
       {
          PHB_AST_NODE pFirst =
             ( pMethod->pFunc->value.asFunc.pBody &&
@@ -7833,7 +7836,6 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
              pFirst->value.asClassMethod.szName )
             szMethName = pFirst->value.asClassMethod.szName;
       }
-      HB_BOOL fSkipMethod = HB_FALSE;
 
       /* Check if this method name matches an ACCESS or ASSIGN property */
       pMember = pClassNode->value.asClass.pMembers;
@@ -8397,10 +8399,6 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       {
          HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szFnName, iPos );
          HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szFnName, iPos );
-         /* A by-ref array slot the callee never reassigns emits as a plain
-            `dynamic[]` — element mutation propagates without `ref`. */
-         if( fThisRef && hb_csParamElidesArrayRef( szFnName, iPos ) )
-            fThisRef = HB_FALSE;
          /* Prefer the table's per-slot type (which may have been
             refined from call sites in other files); only fall back to
             Hungarian inference if the table has nothing useful. */
@@ -8411,6 +8409,11 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             szSlotType = pP->szType;
          if( ! szSlotType )
             szSlotType = hb_astInferType( pVar->szName, NULL );
+
+         /* A by-ref array slot the callee never reassigns emits as a plain
+            `dynamic[]` — element mutation propagates without `ref`. */
+         if( fThisRef && hb_csParamElidesArrayRef( szFnName, iPos ) )
+            fThisRef = HB_FALSE;
 
          /* Register the param in the local-type map (reset just above,
             before the body walk) so member-typed emission — the (long)
