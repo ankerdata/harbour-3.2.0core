@@ -8,5 +8,4 @@ using System;
 
 public static partial class HbNf
 {
-    public static dynamic ft_Elapsed(params dynamic[] args) => throw new NotImplementedException(nameof(ft_Elapsed));
 }

@@ -280,6 +280,10 @@ extern const char * hb_refTabReturnType( PHB_REFTAB pTab, const char * szFunc );
    in the table. A return of 0 means "registered with zero params". */
 extern int hb_refTabParamCount( PHB_REFTAB pTab, const char * szFunc );
 
+/* HB_TRUE when the corpus defines szName as a free function — a
+   definition row, not a class or PUBLIC marker. */
+extern HB_BOOL hb_refTabIsDefinedFunc( PHB_REFTAB pTab, const char * szName );
+
 /* Returns HB_TRUE if the function is registered as variadic. */
 extern HB_BOOL hb_refTabIsVariadic( PHB_REFTAB pTab, const char * szFunc );
 

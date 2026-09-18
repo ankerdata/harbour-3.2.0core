@@ -1058,6 +1058,19 @@ int hb_refTabParamCount( PHB_REFTAB pTab, const char * szFunc )
    return e ? e->nParams : -1;
 }
 
+/* Does the corpus define szName as a free function? A row is kept, and
+   saved, once a real definition has been seen; class and PUBLIC markers
+   share the table and are excluded. Methods and file-static functions
+   are keyed `Class::…` / `file::…`, so a bare name never reaches them. */
+HB_BOOL hb_refTabIsDefinedFunc( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fDefined && ! e->fIsClass && ! e->fIsPublic;
+}
+
 HB_BOOL hb_refTabIsVariadic( PHB_REFTAB pTab, const char * szFunc )
 {
    PHB_REFENTRY e;

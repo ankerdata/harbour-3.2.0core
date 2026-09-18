@@ -8,10 +8,4 @@ using System;
 
 public static partial class HbFimage
 {
-    public static dynamic fi_GetBits(params dynamic[] args) => throw new NotImplementedException(nameof(fi_GetBits));
-    public static dynamic fi_GetHeight(params dynamic[] args) => throw new NotImplementedException(nameof(fi_GetHeight));
-    public static dynamic fi_GetInfoHeader(params dynamic[] args) => throw new NotImplementedException(nameof(fi_GetInfoHeader));
-    public static dynamic fi_GetWidth(params dynamic[] args) => throw new NotImplementedException(nameof(fi_GetWidth));
-    public static dynamic fi_Load(params dynamic[] args) => throw new NotImplementedException(nameof(fi_Load));
-    public static dynamic fi_Unload(params dynamic[] args) => throw new NotImplementedException(nameof(fi_Unload));
 }

@@ -65,6 +65,7 @@ static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
    fprintf( yyc, ")" );
 }
 static const char * hb_csTypeMap( const char * szHbType );
+static const char * hb_csHbxCanon( const char * szName );
 static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
                                        HB_SIZE nBuf );
 static HB_BOOL hb_csIsFileMemvar( const char * szName );
@@ -3854,12 +3855,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
             /* Canonicalise casing via harbour.hbx (if loaded). Runs
                before everything else so szName reflects the canonical
-               spelling from here on. hb_hbxCanonLookup returns NULL
-               for user identifiers (locals, file STATICs, etc.) so
+               spelling from here on. hb_csHbxCanon returns NULL for user
+               identifiers (locals, file STATICs, etc.) — and for a
+               contrib library's name the program defines itself — so
                they pass through unchanged. */
             if( szName )
             {
-               szCanon = hb_hbxCanonLookup( szName );
+               szCanon = hb_csHbxCanon( szName );
                if( szCanon )
                   szName = szCanon;
             }
@@ -3998,7 +4000,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_FUNNAME:
          {
             const char * szName = pExpr->value.asSymbol.name;
-            const char * szCanon = hb_hbxCanonLookup( szName );
+            const char * szCanon = hb_csHbxCanon( szName );
             if( ! szCanon && s_pRefTab )
                szCanon = hb_refTabFuncCanon( s_pRefTab, szName );
             fprintf( yyc, "%s", szCanon ? szCanon : szName );
@@ -5336,8 +5338,6 @@ static HB_BOOL hb_csBlockNeverFallsThrough( PHB_AST_NODE pBlock, HB_BOOL fExitEn
    inside a SWITCH case body it ends the case (C# `break;`), so it
    counts; asked about the statement AFTER a SWITCH, an EXIT in a case
    is how control gets there, so it does not. */
-static HB_BOOL hb_csStmtNeverFallsThrough( PHB_AST_NODE pStmt, HB_BOOL fExitEnds )
-{
 /* Does a statement-level #pragma BEGINCSHARP block end in `return …;` or
    `throw …;`? Its last statement is the text after the previous `;`,
    `{` or `}` before the final `;` — enough for the blocks this is for:
@@ -5380,17 +5380,19 @@ static HB_BOOL hb_csCSharpEndsWithJump( const char * szText )
    return HB_FALSE;
 }
 
+static HB_BOOL hb_csStmtNeverFallsThrough( PHB_AST_NODE pStmt, HB_BOOL fExitEnds )
+{
    switch( pStmt->type )
    {
       case HB_AST_RETURN:
       case HB_AST_BREAK:
       case HB_AST_LOOP:
          return HB_TRUE;
-      case HB_AST_EXIT:
-         return fExitEnds;
       case HB_AST_CSHARP:
          return pStmt->value.asCSharp.fStatement &&
                 hb_csCSharpEndsWithJump( pStmt->value.asCSharp.szText );
+      case HB_AST_EXIT:
+         return fExitEnds;
       case HB_AST_IF:
       {
          PHB_AST_NODE pElseIf;
@@ -5463,6 +5465,23 @@ static PHB_AST_NODE hb_csUnreachableFinalReturn( PHB_AST_NODE pBody )
 static HB_BOOL hb_csBlockEndsWithBreak( PHB_AST_NODE pBlock )
 {
    return hb_csBlockNeverFallsThrough( pBlock, HB_TRUE );
+}
+
+/* The .hbx canonical spelling of szName, or NULL for a name the program
+   owns. A contrib library's function the program defines itself is the
+   program's: Harbour's linker takes a library member only for a symbol no
+   object file defines, so EasiPOS's own FT_Elapsed, FileSize and Random
+   (easiutil) win over hbnf's and hbct's — routed to the library class,
+   their calls reached a stub that throws (test108). Core names keep their
+   canon unconditionally; no program here redefines one. */
+static const char * hb_csHbxCanon( const char * szName )
+{
+   const char * szCanon = hb_hbxCanonLookup( szName );
+
+   if( szCanon && hb_hbxCanonLibrary( szCanon ) && s_pRefTab &&
+       hb_refTabIsDefinedFunc( s_pRefTab, szName ) )
+      return NULL;
+   return szCanon;
 }
 
 /* ---- Statement emitter ---- */
@@ -7535,11 +7554,13 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             method ending in a `return`/`throw` BEGINCSHARP block kept
             an unreachable `return this;`, CS0162 — test107's Reading). */
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
+         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
          while( pStmt )
          {
             hb_csEmitNode( pStmt, yyc, iIndent + 1 );
             pStmt = pStmt->pNext;
          }
+         s_pUnreachableReturn = NULL;
       }
       else
          {
@@ -7554,13 +7575,11 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    s_szCurrentClass[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
    s_fCurrentSpread = HB_FALSE;
-         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
    s_szStaticScope = NULL;
 }
 
 /* Emit a complete C# class definition */
 /* Every HB_AST_CSHARP node in the file-declaration function's body
-         s_pUnreachableReturn = NULL;
    (where hb_astAppendToStartup put them), verbatim, each block
    followed by a blank line. */
 static void hb_csEmitCSharpBlocks( FILE * yyc )
