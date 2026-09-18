@@ -7552,7 +7552,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          /* Skip CLASSMETHOD marker. The final RETURN no path reaches is
             dropped here too (it was only on the marker-less path, so a
             method ending in a `return`/`throw` BEGINCSHARP block kept
-            an unreachable `return this;`, CS0162 — test107's Reading). */
+            an unreachable `return this;`, CS0162 — test107's Tenfold). */
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
          s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
          while( pStmt )
