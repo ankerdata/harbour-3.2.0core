@@ -15,6 +15,5 @@ public static partial class HbZebra
     public static dynamic hb_zebra_create_itf(params dynamic[] args) => throw new NotImplementedException(nameof(hb_zebra_create_itf));
     public static dynamic hb_zebra_create_qrcode(params dynamic[] args) => throw new NotImplementedException(nameof(hb_zebra_create_qrcode));
     public static dynamic hb_zebra_destroy(params dynamic[] args) => throw new NotImplementedException(nameof(hb_zebra_destroy));
-    public static dynamic hb_zebra_draw(params dynamic[] args) => throw new NotImplementedException(nameof(hb_zebra_draw));
     public static dynamic hb_zebra_geterror(params dynamic[] args) => throw new NotImplementedException(nameof(hb_zebra_geterror));
 }
