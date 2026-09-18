@@ -849,7 +849,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `#define NAME val`               | `const T NAME = val;` inside `Program` class             |
 | `#include`                       | `// #include …` (preserved as comment)                   |
 | `HB_SYMBOL_UNUSED(x)` / bare-value stmt | *(no emit — CS0201 / E0020 avoided; see [test72.prg](tests/test72.prg))* |
-| `#pragma BEGINCSHARP` … `#pragma ENDCSHARP` | the block, verbatim, at namespace level — see [Embedding C#](#embedding-c--pragma-begincsharp) (test105) |
+| `#pragma BEGINCSHARP` … `#pragma ENDCSHARP` | a type declaration: the block, verbatim, at namespace level (test105); inside a routine, anything else: C# statements where the block stands, re-indented (test107) — see [Embedding C#](#embedding-c--pragma-begincsharp) |
 
 ### Strong typing strategy
 
@@ -1336,6 +1336,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
 | 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
+| 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 
 Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
@@ -1482,11 +1483,38 @@ RETURN IIf( nWatts > 50, "bright", "dim" )
   block. The `#else` branch carries the Harbour version. Declare the
   Harbour-only METHOD inside the same kind of guard in the CLASS
   block, as above, or the transpiler emits an empty stub for it.
-- **File scope, wherever it stands.** A block is appended beside the
-  CLASS nodes whatever function the parser is in — placement in the
-  `.prg` is free, and no statement order can be disturbed by it. It
-  is not a way to splice C# into the middle of a method body; replace
-  the whole method.
+- **Two kinds, told apart by what they hold.** C# allows only type
+  declarations at namespace level and none inside a method, so the
+  text decides — position cannot, because Harbour has no end of
+  routine: a block after a routine's last statement is "inside" it
+  until the next routine begins. A block that opens with a type
+  declaration (past comments, attributes and modifiers: `class`,
+  `struct`, `interface`, `enum`, `record`, `delegate`, `namespace`),
+  or holds nothing but comments, is **file scope**: appended beside
+  the CLASS nodes whatever routine the parser is in, flushed at
+  namespace level — placement in the `.prg` is free. Any other block
+  inside a routine is **statements**: it lands in the block the
+  parser is filling, where it stands — an IF's body, a method body —
+  and is written there, its common indentation replaced by the
+  body's (test107). That is how a routine carries its Harbour and
+  its C# side by side, one guarded stretch at a time:
+
+  ```harbour
+  METHOD SetValues( aFieldValues ) CLASS POSStatus
+  #ifndef __HB_TRANSPILER__
+     ...                                  // 9.0 keeps running this
+  #else
+  #pragma BEGINCSHARP
+     throw new NotImplementedException("POSStatus:SetValues");
+  #pragma ENDCSHARP
+  #endif
+  RETURN Self
+  ```
+
+  The block sees the method's emitted C# names — members bare,
+  parameters and locals as declared. One ending in `return …;` or
+  `throw …;` never falls through, so the RETURN Harbour needs after
+  the guard is left out of the C# rather than earn CS0162.
 - **A class a block extends is emitted `partial`.** The emitter
   looks for `partial class <Name>` in the file's blocks and marks
   exactly those classes — no other class changes, and a C# reader

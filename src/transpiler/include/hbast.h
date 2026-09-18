@@ -51,7 +51,7 @@ typedef enum
    HB_AST_INCLUDE,        /* #include passthrough */
    HB_AST_PPDEFINE,       /* #define passthrough */
    HB_AST_COMMENT,        /* comment passthrough */
-   HB_AST_CSHARP          /* #pragma BEGINCSHARP … ENDCSHARP: raw C#, file scope */
+   HB_AST_CSHARP          /* #pragma BEGINCSHARP … ENDCSHARP: raw C#, file scope or in a routine */
 } HB_AST_TYPE;
 
 /* Forward declaration */
@@ -261,6 +261,9 @@ struct _HB_AST_NODE
       struct
       {
          const char *   szText;        /* the block's lines, verbatim, LF-joined */
+         HB_BOOL        fStatement;    /* inside a routine and not a type
+                                          declaration: C# statements, emitted
+                                          where the block stands (ppcomp.c) */
       } asCSharp;
    } value;
 };

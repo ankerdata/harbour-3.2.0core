@@ -5338,6 +5338,48 @@ static HB_BOOL hb_csBlockNeverFallsThrough( PHB_AST_NODE pBlock, HB_BOOL fExitEn
    is how control gets there, so it does not. */
 static HB_BOOL hb_csStmtNeverFallsThrough( PHB_AST_NODE pStmt, HB_BOOL fExitEnds )
 {
+/* Does a statement-level #pragma BEGINCSHARP block end in `return …;` or
+   `throw …;`? Its last statement is the text after the previous `;`,
+   `{` or `}` before the final `;` — enough for the blocks this is for:
+   a guarded Harbour stretch replaced by C# that returns or throws, with
+   Harbour's RETURN left outside the guard (CS0162 on that RETURN). */
+static HB_BOOL hb_csCSharpEndsWithJump( const char * szText )
+{
+   const char * pEnd;
+   const char * p;
+
+   if( ! szText )
+      return HB_FALSE;
+   pEnd = szText + strlen( szText );
+   while( pEnd > szText && ( pEnd[ -1 ] == ' ' || pEnd[ -1 ] == '\t' ||
+                             pEnd[ -1 ] == '\r' || pEnd[ -1 ] == '\n' ) )
+      pEnd--;
+   if( pEnd == szText || pEnd[ -1 ] != ';' )
+      return HB_FALSE;
+   p = pEnd - 1;
+   while( p > szText && p[ -1 ] != ';' && p[ -1 ] != '{' && p[ -1 ] != '}' )
+      p--;
+   for( ;; )
+   {
+      while( p < pEnd && ( *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' ) )
+         p++;
+      if( p + 1 < pEnd && p[ 0 ] == '/' && p[ 1 ] == '/' )
+      {
+         while( p < pEnd && *p != '\n' )
+            p++;
+         continue;
+      }
+      break;
+   }
+   if( strncmp( p, "return", 6 ) == 0 && ( p[ 6 ] == ' ' || p[ 6 ] == ';' ||
+                                            p[ 6 ] == '(' || p[ 6 ] == '\t' ) )
+      return HB_TRUE;
+   if( strncmp( p, "throw", 5 ) == 0 && ( p[ 5 ] == ' ' || p[ 5 ] == ';' ||
+                                          p[ 5 ] == '\t' ) )
+      return HB_TRUE;
+   return HB_FALSE;
+}
+
    switch( pStmt->type )
    {
       case HB_AST_RETURN:
@@ -5346,6 +5388,9 @@ static HB_BOOL hb_csStmtNeverFallsThrough( PHB_AST_NODE pStmt, HB_BOOL fExitEnds
          return HB_TRUE;
       case HB_AST_EXIT:
          return fExitEnds;
+      case HB_AST_CSHARP:
+         return pStmt->value.asCSharp.fStatement &&
+                hb_csCSharpEndsWithJump( pStmt->value.asCSharp.szText );
       case HB_AST_IF:
       {
          PHB_AST_NODE pElseIf;
@@ -6383,9 +6428,48 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_CSHARP:
-         /* Appended at file scope by hb_pp_PragmaCSharp and flushed at
-            namespace level by hb_csEmitCSharpBlocks; never emitted in
-            a body. */
+         /* A block inside a routine (fStatement, hb_pp_PragmaCSharp) is
+            C# statements: written here, re-indented to the body. A
+            file-scope block is flushed at namespace level by
+            hb_csEmitCSharpBlocks and never emitted in a body. */
+         if( pNode->value.asCSharp.fStatement && pNode->value.asCSharp.szText )
+         {
+            const char * p = pNode->value.asCSharp.szText;
+            HB_SIZE nMin = ( HB_SIZE ) -1;
+
+            /* the block's own common indentation, over its non-blank lines */
+            while( *p )
+            {
+               HB_SIZE n = 0;
+               while( p[ n ] == ' ' || p[ n ] == '\t' )
+                  n++;
+               if( p[ n ] && p[ n ] != '\n' && p[ n ] != '\r' && n < nMin )
+                  nMin = n;
+               while( *p && *p != '\n' )
+                  p++;
+               if( *p )
+                  p++;
+            }
+            if( nMin == ( HB_SIZE ) -1 )
+               nMin = 0;
+            for( p = pNode->value.asCSharp.szText; *p; )
+            {
+               const char * pEol = p;
+               HB_SIZE nLen;
+               while( *pEol && *pEol != '\n' )
+                  pEol++;
+               nLen = ( HB_SIZE ) ( pEol - p );
+               if( nLen && p[ nLen - 1 ] == '\r' )
+                  nLen--;
+               if( nLen > nMin )
+               {
+                  hb_csEmitIndent( yyc, iIndent );
+                  fwrite( p + nMin, 1, nLen - nMin, yyc );
+               }
+               fputc( '\n', yyc );
+               p = *pEol ? pEol + 1 : pEol;
+            }
+         }
          break;
 
       case HB_AST_COMMENT:
@@ -7446,7 +7530,10 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
           pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
       {
-         /* Skip CLASSMETHOD marker */
+         /* Skip CLASSMETHOD marker. The final RETURN no path reaches is
+            dropped here too (it was only on the marker-less path, so a
+            method ending in a `return`/`throw` BEGINCSHARP block kept
+            an unreachable `return this;`, CS0162 — test107's Reading). */
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
          while( pStmt )
          {
@@ -7467,11 +7554,13 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    s_szCurrentClass[ 0 ] = '\0';
    s_pCurrentFuncNode = NULL;
    s_fCurrentSpread = HB_FALSE;
+         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
    s_szStaticScope = NULL;
 }
 
 /* Emit a complete C# class definition */
 /* Every HB_AST_CSHARP node in the file-declaration function's body
+         s_pUnreachableReturn = NULL;
    (where hb_astAppendToStartup put them), verbatim, each block
    followed by a blank line. */
 static void hb_csEmitCSharpBlocks( FILE * yyc )
@@ -7486,7 +7575,8 @@ static void hb_csEmitCSharpBlocks( FILE * yyc )
    for( pStmt = pFirst->value.asFunc.pBody->value.asBlock.pFirst; pStmt;
         pStmt = pStmt->pNext )
    {
-      if( pStmt->type == HB_AST_CSHARP && pStmt->value.asCSharp.szText )
+      if( pStmt->type == HB_AST_CSHARP && pStmt->value.asCSharp.szText &&
+          ! pStmt->value.asCSharp.fStatement )
       {
          const char * szText = pStmt->value.asCSharp.szText;
          HB_SIZE nLen = strlen( szText );
@@ -7517,7 +7607,8 @@ static HB_BOOL hb_csClassExtendedByBlock( const char * szName )
         pStmt = pStmt->pNext )
    {
       const char * p;
-      if( pStmt->type != HB_AST_CSHARP || ! pStmt->value.asCSharp.szText )
+      if( pStmt->type != HB_AST_CSHARP || ! pStmt->value.asCSharp.szText ||
+          pStmt->value.asCSharp.fStatement )
          continue;
       p = pStmt->value.asCSharp.szText;
       while( ( p = strstr( p, "partial class " ) ) != NULL )

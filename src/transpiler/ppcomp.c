@@ -318,10 +318,84 @@ static void hb_pp_PragmaDump( void * cargo, char * pBuffer, HB_SIZE nSize,
 }
 
 /* `#pragma BEGINCSHARP` … `#pragma ENDCSHARP`: the block's text becomes
-   an HB_AST_CSHARP node at FILE scope — appended beside the CLASS
-   nodes whatever function the parser is in — and the C# emitter
-   writes it out verbatim at namespace level. See gencsharp.c. */
+   an HB_AST_CSHARP node. Where it goes depends on what it holds.
+
+   C# allows only type declarations at namespace level, and none inside
+   a method, so the text itself says which kind of block it is — which
+   matters because position cannot: Harbour has no end-of-routine
+   marker, so a block after a routine's last statement is "inside" it
+   until the next routine begins. A block that opens with a type
+   declaration (`public partial class Program { … }`) is FILE scope:
+   appended beside the CLASS nodes, written out verbatim at namespace
+   level. So is a block with no code at all, only comments (test105
+   keeps one inside Main() on purpose). Any other block inside a routine
+   is STATEMENTS: appended to the block the parser is filling, at the
+   point it stands, and emitted there in the method body — the way to
+   replace a guarded stretch of Harbour with its C# while 9.0 keeps the
+   Harbour. See gencsharp.c. */
 extern void hb_pp_setDumpCsFunc( PHB_PP_DUMP_FUNC pFunc );
+
+/* Is the C# text a file-scope block? True when it opens with a type
+   declaration — past whitespace, comments, attributes and modifiers, at
+   `class`, `struct`, `interface`, `enum`, `record`, `delegate` or
+   `namespace` — or when it holds nothing but comments. */
+static HB_BOOL hb_pp_CSharpIsFileScope( const char * p )
+{
+   static const char * const s_szMods[] = {
+      "public", "private", "protected", "internal", "static", "partial",
+      "sealed", "abstract", "readonly", "unsafe", "file", "new", "ref", NULL };
+   static const char * const s_szKinds[] = {
+      "class", "struct", "interface", "enum", "record", "delegate",
+      "namespace", NULL };
+
+   for( ;; )
+   {
+      while( *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' )
+         p++;
+      if( ! *p )
+         return HB_TRUE;                        /* comments only */
+      if( p[ 0 ] == '/' && p[ 1 ] == '/' )
+      {
+         while( *p && *p != '\n' )
+            p++;
+      }
+      else if( p[ 0 ] == '/' && p[ 1 ] == '*' )
+      {
+         const char * pEnd = strstr( p + 2, "*/" );
+         p = pEnd ? pEnd + 2 : p + strlen( p );
+      }
+      else if( *p == '[' )                      /* [Attribute] */
+      {
+         while( *p && *p != ']' )
+            p++;
+         if( *p )
+            p++;
+      }
+      else
+      {
+         const char * pWord = p;
+         HB_SIZE nWord;
+         int i;
+         HB_BOOL fMod = HB_FALSE;
+
+         while( ( *p >= 'a' && *p <= 'z' ) || ( *p >= 'A' && *p <= 'Z' ) )
+            p++;
+         nWord = ( HB_SIZE ) ( p - pWord );
+         if( nWord == 0 )
+            return HB_FALSE;
+         for( i = 0; s_szKinds[ i ]; i++ )
+            if( strlen( s_szKinds[ i ] ) == nWord &&
+                strncmp( pWord, s_szKinds[ i ], nWord ) == 0 )
+               return HB_TRUE;
+         for( i = 0; s_szMods[ i ]; i++ )
+            if( strlen( s_szMods[ i ] ) == nWord &&
+                strncmp( pWord, s_szMods[ i ], nWord ) == 0 )
+               fMod = HB_TRUE;
+         if( ! fMod )
+            return HB_FALSE;
+      }
+   }
+}
 
 static void hb_pp_PragmaCSharp( void * cargo, char * pBuffer, HB_SIZE nSize,
                                 int iLine )
@@ -334,8 +408,14 @@ static void hb_pp_PragmaCSharp( void * cargo, char * pBuffer, HB_SIZE nSize,
    szText[ nSize ] = '\0';
    pNode->value.asCSharp.szText =
       hb_compIdentifierNew( HB_COMP_PARAM, szText, HB_IDENT_COPY );
+   if( HB_COMP_PARAM->ast.pCurrFunc != NULL && ! hb_pp_CSharpIsFileScope( szText ) )
+   {
+      pNode->value.asCSharp.fStatement = HB_TRUE;
+      hb_astAppend( HB_COMP_PARAM, pNode );
+   }
+   else
+      hb_astAppendToStartup( HB_COMP_PARAM, pNode );
    hb_xfree( szText );
-   hb_astAppendToStartup( HB_COMP_PARAM, pNode );
 }
 
 static void hb_pp_hb_inLine( void * cargo, char * szFunc,
