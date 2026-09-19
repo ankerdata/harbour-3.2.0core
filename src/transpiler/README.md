@@ -843,6 +843,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `^` / `$`                        | `HbRuntime.Pow()` (decimal) / `HbRuntime.HbIn()` (substring or hash-key) |
 | `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
 | `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
+| `AAdd(a, x)`, `ASize(a, n)`, `hb_ADel(a, n, .T.)`, `hb_AIns(a, n, x, .T.)` | `HbRuntime.AAdd(ref a, x)` … — the functions that change an array's length take it by `ref` (`ref dynamic[]`, or `ref dynamic` for an lvalue typed dynamic) when it is a variable or a member; any other argument gets the plain overload, whose returned array is resized but whose caller's array cannot follow. The scan marks an array parameter passed to one of them as reassigned, so it stays `ref` (test112) |
 | `FOR i := 1 TO n STEP k`         | `for (i = 1; i <= n; i += k)` — `>=` for a negative constant step; a step that is not a constant is `HbRuntime.ForTest(i, n, k)`, its sign tested on every pass as HB_P_FORTEST does (test111) |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
 | `{\|x\| f(x), n := 0, x > 1}`    | `((x) => { f(x); n = 0; return x > 1; })` — every expression runs, the last is the value; a middle one that is not a call, assignment or step is `_ = …;`, an IIF is if/else (test110) |
@@ -1264,8 +1265,8 @@ the `-GS` pass produces false diffs (test79 emits `Animal` vs
 (`buildhb.sh` / `runhb.sh` / `comparehb.sh`), `verifyreftab.sh` and
 `errors/run.sh` are bash-only.
 
-Current counts (2026-09-19): **113 positive tests (119 source files —
-some are a/b multi-file pairs; 238 tracked reference outputs under
+Current counts (2026-09-19): **114 positive tests (120 source files —
+some are a/b multi-file pairs; 240 tracked reference outputs under
 `hbout/` and `csout/`) + 9 negative tests (`errors/run.sh`, which
 `HBTRANSPILER` points at a binary other than `bin/hbtranspiler`)**.
 `runtests.bat` builds incrementally — a Harbour exe only when its
@@ -1377,6 +1378,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 109       | A function the program defines is the program's even where hbfuncs.tab routes the name to HbRuntime (`Pow`, `StrCmp` — helpers HbRuntime.cs declares for the emitter): the call is to the program's own function, as Harbour's linker has it; the rule test108 applies to a contrib name |
 | 110       | A codeblock with several expressions runs all of them: `{\|\| a(), n := 0, x }` is a statement lambda, each expression but the last a statement, the last returned; a `...` block runs them all before `return null`, and `-GT` writes the whole list. The emitter had written only the first, so EasiPOS's Z resets read each row and never zeroed it |
 | 111       | A FOR loop counts in the direction of its step's sign: a constant step (`hb_compExprAsNumSign`) picks `<=` or `>=`, a negative decimal literal included; any other step is `HbRuntime.ForTest(i, end, step)`, tested on every pass with the end evaluated before the step. `STEP nStep` with a negative nStep had looped forever on `<=` |
+| 112       | `hb_ADel(a, n, .T.)` / `hb_AIns(a, n, x, .T.)` pass the array by `ref`, as `AAdd` / `ASize` do, so it shrinks and grows — a local, a typed DATA, an `x`-named (dynamic) DATA and a parameter the routine resizes. Every EasiPOS call passes `.T.` (the sale buffer's line delete and insert), and without the `ref` the C# array kept its length |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 

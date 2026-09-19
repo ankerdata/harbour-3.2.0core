@@ -1699,8 +1699,10 @@ static HB_BOOL hb_refTabIsVariadicProbe( const char * szName )
 static HB_BOOL hb_refTabIsArrayMutator( const char * szName )
 {
    return szName &&
-      ( hb_stricmp( szName, "ASize" ) == 0 ||
-        hb_stricmp( szName, "AAdd"  ) == 0 );
+      ( hb_stricmp( szName, "ASize"   ) == 0 ||
+        hb_stricmp( szName, "AAdd"    ) == 0 ||
+        hb_stricmp( szName, "hb_ADel" ) == 0 ||
+        hb_stricmp( szName, "hb_AIns" ) == 0 );
 }
 
 /* Walk an HB_ET_LIST/HB_ET_ARGLIST argument list and:

@@ -1137,8 +1137,13 @@ static HB_BOOL hb_csIsArrayMutator( const char * szFunc )
 {
    if( ! szFunc )
       return HB_FALSE;
-   return hb_stricmp( szFunc, "ASize" ) == 0 ||
-          hb_stricmp( szFunc, "AAdd"  ) == 0;
+   /* hb_ADel / hb_AIns resize their array when lAutoSize is .T. —
+      every EasiPOS call passes it (the sale buffer's line delete and
+      insert); without the ref the C# array kept its length. */
+   return hb_stricmp( szFunc, "ASize"   ) == 0 ||
+          hb_stricmp( szFunc, "AAdd"    ) == 0 ||
+          hb_stricmp( szFunc, "hb_ADel" ) == 0 ||
+          hb_stricmp( szFunc, "hb_AIns" ) == 0;
 }
 
 /* True when szMember is a CLASS VAR (CLASSDATA — a static, class-level

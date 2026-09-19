@@ -2143,11 +2143,15 @@ public static partial class HbRuntime
     }
 
     // hb_ADel( <a>, <nPos>[, <lAutoSize>] ) and hb_AIns( <a>, <nPos>[,
-    // <xValue>[, <lAutoSize>]] ): ADel()/AIns() that can also shrink or
-    // grow the array (lAutoSize), and set the inserted element. A C#
-    // array cannot change length in place, so the resizing takes the
-    // array by ref, as AAdd() does; the plain overload can only leave the
-    // length alone.
+    // <xValue>[, <lAutoSize>]] ) (vm/arrayshb.c): ADel()/AIns() that can
+    // also shrink or grow the array (lAutoSize), and set the inserted
+    // element; they return the array, NIL for anything else. A C# array
+    // cannot change length in place, so the emitter passes the array by
+    // ref, as for AAdd() and ASize(): `ref dynamic[]`, or `ref dynamic` for
+    // an lvalue typed dynamic (C# ref is invariant). An argument that is
+    // not an lvalue (a literal, an element, a method's result) gets the
+    // plain overload: the array returned is resized, but the caller's
+    // array cannot follow — in Harbour it would, being the same array.
     public static dynamic[] hb_ADel(ref dynamic[] arr, decimal nPos, bool lAutoSize = false)
     {
         if (arr is not null && ArrayDel(arr, nPos) && lAutoSize)
@@ -2155,11 +2159,20 @@ public static partial class HbRuntime
         return arr;
     }
 
+    public static dynamic hb_ADel(ref dynamic arr, decimal nPos, bool lAutoSize = false)
+    {
+        if (arr is not object[] a)
+            return null;
+        dynamic[] d = a;
+        return arr = hb_ADel(ref d, nPos, lAutoSize);
+    }
+
     public static dynamic hb_ADel(dynamic arr, decimal nPos, bool lAutoSize = false)
     {
-        if (arr is object[] a)
-            ArrayDel(a, nPos);
-        return arr;
+        if (arr is not object[] a)
+            return null;
+        dynamic[] d = a;
+        return hb_ADel(ref d, nPos, lAutoSize);
     }
 
     public static dynamic[] hb_AIns(ref dynamic[] arr, decimal nPos, dynamic xValue = null, bool lAutoSize = false)
@@ -2176,11 +2189,20 @@ public static partial class HbRuntime
         return arr;
     }
 
+    public static dynamic hb_AIns(ref dynamic arr, decimal nPos, dynamic xValue = null, bool lAutoSize = false)
+    {
+        if (arr is not object[] a)
+            return null;
+        dynamic[] d = a;
+        return arr = hb_AIns(ref d, nPos, xValue, lAutoSize);
+    }
+
     public static dynamic hb_AIns(dynamic arr, decimal nPos, dynamic xValue = null, bool lAutoSize = false)
     {
-        if (arr is object[] a && ArrayIns(a, nPos) && xValue is not null)
-            a[(long)Math.Max(Math.Truncate(nPos), 1) - 1] = xValue;
-        return arr;
+        if (arr is not object[] a)
+            return null;
+        dynamic[] d = a;
+        return hb_AIns(ref d, nPos, xValue, lAutoSize);
     }
 
     // ACopy( <aSource>, <aTarget>[, <nStart>[, <nCount>[, <nTargetPos>]]] )

@@ -2,17 +2,17 @@
 # it is the subject of (their outermost call), and how many other
 # failing assertions it takes part in.
 # function	state	app calls	pass	fail	quarantine	missing	harbour	also in
-Len	implemented	2659	15	0	0	0	0	0
-RTrim	implemented	2471	15	0	0	0	0	0
+Len	implemented	2657	15	0	0	0	0	0
+RTrim	implemented	2475	15	0	0	0	0	0
 Empty	implemented	2456	40	0	0	0	0	0
-AAdd	implemented	1572	4	0	0	0	0	0
+AAdd	implemented	1572	5	0	0	0	0	0
 Chr	implemented	1331	59	0	0	0	0	3
 Str	implemented	1029	171	6	0	0	0	0
 Val	implemented	943	0	0	0	0	0	0
 Left	implemented	798	6	0	0	0	0	0
 LTrim	implemented	675	15	0	0	0	0	0
 hb_bitAnd	implemented	624	7	1	1	0	0	0
-SubStr	implemented	621	30	0	0	0	0	0
+SubStr	implemented	609	30	0	0	0	0	0
 AllTrim	implemented	542	15	0	0	0	0	0
 Space	implemented	515	6	0	1	0	0	0
 StrZero	implemented	491	69	0	0	0	0	0
@@ -32,7 +32,7 @@ At	implemented	192	20	0	0	0	0	0
 ValType	implemented	192	20	0	0	0	0	0
 Transform	implemented	182	528	1	0	0	0	0
 FWrite	implemented	178	25	0	0	0	0	0
-Trim	implemented	177	15	0	0	0	0	0
+Trim	implemented	175	15	0	0	0	0	0
 Abs	implemented	173	12	0	0	0	0	2
 hb_HHasKey	implemented	166	0	0	0	0	0	0
 Replicate	implemented	166	10	0	0	0	0	0
@@ -48,7 +48,7 @@ FSeek	implemented	95	32	7	0	0	0	0
 ASize	implemented	92	8	4	0	0	0	0
 FCreate	implemented	92	0	0	0	0	0	0
 PadC	implemented	92	10	0	0	0	0	0
-Upper	implemented	92	12	0	0	0	0	0
+Upper	implemented	90	12	0	0	0	0	0
 Right	implemented	85	7	0	0	0	0	0
 AClone	implemented	80	3	0	0	0	0	0
 RAt	implemented	71	20	0	0	0	0	0
@@ -65,9 +65,9 @@ PadL	implemented	43	9	0	0	0	0	0
 hb_socketGetError	stub	41	0	0	0	0	0	0
 Min	implemented	37	1	0	0	0	0	0
 AIns	implemented	34	10	0	0	0	0	0
-hb_AIns	implemented	34	0	0	0	0	0	0
+hb_AIns	implemented	34	3	0	0	0	0	0
 ASort	implemented	33	43	0	0	0	0	0
-hb_ADel	implemented	33	0	0	0	0	0	0
+hb_ADel	implemented	33	3	0	0	0	0	0
 hb_DateTime	stub	32	0	0	0	0	0	0
 Lower	implemented	32	12	0	0	0	0	0
 Set	implemented	32	2	13	0	0	0	0
@@ -123,11 +123,11 @@ hb_StrToUTF8	stub	8	0	0	0	0	0	0
 L2Bin	stub	8	0	0	12	0	0	0
 __Quit	stub	8	0	0	0	0	0	0
 __SetCentury	implemented	8	0	0	0	0	0	0
-ATail	implemented	7	5	0	1	0	0	0
+ATail	implemented	7	7	0	1	0	0	0
 ProcLine	stub	7	0	0	0	0	0	0
 ProcName	stub	7	0	0	0	0	0	0
 ErrorNew	implemented	6	4	2	0	0	0	6
-hb_AScan	implemented	6	0	0	0	0	0	0
+hb_AScan	implemented	6	7	0	0	0	0	0
 hb_comFlowControl	stub	6	0	0	0	0	0	0
 hb_comFlowSet	stub	6	0	0	0	0	0	0
 hb_comGetError	stub	6	0	0	0	0	0	0
@@ -227,7 +227,7 @@ hb_threadID	stub	2	0	0	0	0	0	0
 hb_threadQuitRequest	stub	2	0	0	0	0	0	0
 hb_threadSelf	stub	2	0	0	0	0	0	0
 hb_TToD	stub	2	0	0	0	0	0	0
-hb_ValToExp	implemented	2	6	0	0	0	0	0
+hb_ValToExp	implemented	2	22	0	0	0	0	0
 hb_vfErase	stub	2	0	0	0	0	0	0
 hb_vfExists	stub	2	0	0	0	0	0	0
 hb_vfSize	stub	2	0	0	0	0	0	0
