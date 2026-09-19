@@ -18,10 +18,10 @@ using static Program;
 // #include "hbclass.ch"
 public class Test75Dialog
 {
-    public Dictionary<string, dynamic> hResultData;
+    public OrderedDictionary<string, dynamic> hResultData;
 
     public dynamic ResultValue(dynamic cKey = default, dynamic xDefault = default) => ((this.hResultData != null && hb_HHasKey(this.hResultData, cKey)) ? ( this.hResultData[cKey]) : ( xDefault));
-    public dynamic GetOrEmpty(dynamic cKey = default) => hb_HGetDef(this.hResultData, cKey, new Dictionary<dynamic, dynamic>());
+    public dynamic GetOrEmpty(dynamic cKey = default) => hb_HGetDef(this.hResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
     public dynamic IsEmptyish(dynamic nVal = default) => nVal == 0 || ! (nVal != -1);
 }
 
@@ -36,7 +36,7 @@ public static partial class Program
         // subscript. Exercises iif + NIL + .AND. + lazy branches.
         HbRuntime.QOut("a=", oDlg.ResultValue("result", "fallback"));
 
-        oDlg.hResultData = new Dictionary<string, dynamic> { { "result", "done" }, { "count", 2 } };
+        oDlg.hResultData = new OrderedDictionary<string, dynamic> { { "result", "done" }, { "count", 2 } };
         HbRuntime.QOut("b=", oDlg.ResultValue("result", "fallback"));
         HbRuntime.QOut("c=", oDlg.ResultValue("missing", 42));
 

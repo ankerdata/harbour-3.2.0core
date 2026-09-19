@@ -158,6 +158,17 @@ rt_misc:720 PASS
 rt_misc:721 PASS
 rt_misc:722 PASS
 rt_misc:723 PASS
+rt_misc:729 PASS
+rt_misc:731 PASS
+rt_misc:732 PASS
+rt_misc:734 PASS
+rt_misc:735 PASS
+rt_misc:736 PASS
+rt_misc:737 PASS
+rt_misc:738 PASS
+rt_misc:739 PASS
+rt_misc:740 PASS
+rt_misc:741 PASS
 rt_misc:750 PASS
 rt_misc:752 PASS
 rt_misc:753 PASS
@@ -199,4 +210,4 @@ rt_misc:886 PASS
 rt_misc:887 PASS
 rt_misc:888 PASS
 rt_misc:892 PASS
-passed        129 failed          0 errors         71
+passed        140 failed          0 errors         71

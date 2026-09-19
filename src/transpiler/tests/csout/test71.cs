@@ -47,7 +47,7 @@ public static partial class Program
     {
         string cVar = "alpha,one";
         dynamic[] aArr = new dynamic[] { "beta,two" };
-        Dictionary<string, dynamic> oObj = new Dictionary<string, dynamic> {  };
+        OrderedDictionary<string, dynamic> oObj = new OrderedDictionary<string, dynamic> {  };
         string cTaken = default;
         oObj["cField"] = "gamma,three";
 

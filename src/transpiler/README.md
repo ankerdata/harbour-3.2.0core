@@ -639,8 +639,8 @@ Tests: [test83.prg](tests/test83.prg), [test85.prg](tests/test85.prg).
 | `DATE`            | `dPosted`              | `DateOnly`                           |
 | `TIMESTAMP`       | `tStamp`               | `DateTime`                           |
 | `ARRAY`           | `aLines`               | `dynamic[]`                          |
-| `HASH` / `HASHC`  | `hConfig`              | `Dictionary<string, dynamic>` (keys unknown or string-typed) |
-| `HASHN`           | `hByRecNo`             | `Dictionary<decimal, dynamic>` (numeric keys inferred from literals / subscripts — see test76) |
+| `HASH` / `HASHC`  | `hConfig`              | `OrderedDictionary<string, dynamic>` (keys unknown or string-typed; .NET 9's, which keeps Harbour's insertion order across deletes — test113) |
+| `HASHN`           | `hByRecNo`             | `OrderedDictionary<long, dynamic>` (numeric keys inferred from literals / subscripts — see test76; integer ids, the subscript casts the key `(long)` — test113) |
 | `OBJECT`          | `oTable`               | `dynamic`  *(messages bind via the DLR; or a class name when the refTab knows it)* |
 | `BLOCK`           | `bAction`, `pDB`, `fCallback` | `dynamic`  *(typed `Func<>` if args known)* |
 | `USUAL` / unknown | `xValue`               | `dynamic`                            |
@@ -776,7 +776,7 @@ strongest. Later rungs override earlier ones.
 
 1. **The Hungarian prefix** is the default for every local, parameter
    and member: `n` `decimal`, `c` `string`, `l` `bool`, `d` `DateOnly`,
-   `t` `DateTime`, `a` `dynamic[]`, `h` `Dictionary<string, dynamic>`,
+   `t` `DateTime`, `a` `dynamic[]`, `h` `OrderedDictionary<string, dynamic>`,
    `o` the class of that name when one exists (`oTransaction` →
    `Transaction`) and `dynamic` otherwise, `x` `dynamic` on purpose.
    A name that lies about its contents is a bug (W0021 / W0024).
@@ -852,7 +852,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
 | `BEGIN SEQUENCE … RECOVER … END` | `try { … } catch (Exception e) { … }`                   |
 | `BEGIN SEQUENCE … END` (no RECOVER) | `try { … } catch {}` + W-level warning (idiom usually means "missed RECOVER") |
-| `{ => }` empty hash              | `new Dictionary<string, dynamic>()`                      |
+| `{ => }` empty hash              | `new OrderedDictionary<string, dynamic>()`               |
 | `ACCESS` / `ASSIGN`              | C# property `{ get; set; }`                               |
 | `Foo(@x)` + `PROCEDURE Foo(x)`   | `Foo(ref x)` + `Foo(ref decimal x)` (type from refTab)   |
 | `Fred(x)` short call             | `Fred(x)` (relies on `= default` on declaration)         |
@@ -1265,8 +1265,8 @@ the `-GS` pass produces false diffs (test79 emits `Animal` vs
 (`buildhb.sh` / `runhb.sh` / `comparehb.sh`), `verifyreftab.sh` and
 `errors/run.sh` are bash-only.
 
-Current counts (2026-09-19): **114 positive tests (120 source files —
-some are a/b multi-file pairs; 240 tracked reference outputs under
+Current counts (2026-09-19): **115 positive tests (121 source files —
+some are a/b multi-file pairs; 242 tracked reference outputs under
 `hbout/` and `csout/`) + 9 negative tests (`errors/run.sh`, which
 `HBTRANSPILER` points at a binary other than `bin/hbtranspiler`)**.
 `runtests.bat` builds incrementally — a Harbour exe only when its
@@ -1379,6 +1379,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 110       | A codeblock with several expressions runs all of them: `{\|\| a(), n := 0, x }` is a statement lambda, each expression but the last a statement, the last returned; a `...` block runs them all before `return null`, and `-GT` writes the whole list. The emitter had written only the first, so EasiPOS's Z resets read each row and never zeroed it |
 | 111       | A FOR loop counts in the direction of its step's sign: a constant step (`hb_compExprAsNumSign`) picks `<=` or `>=`, a negative decimal literal included; any other step is `HbRuntime.ForTest(i, end, step)`, tested on every pass with the end evaluated before the step. `STEP nStep` with a negative nStep had looped forever on `<=` |
 | 112       | `hb_ADel(a, n, .T.)` / `hb_AIns(a, n, x, .T.)` pass the array by `ref`, as `AAdd` / `ASize` do, so it shrinks and grows — a local, a typed DATA, an `x`-named (dynamic) DATA and a parameter the routine resizes. Every EasiPOS call passes `.T.` (the sale buffer's line delete and insert), and without the `ref` the C# array kept its length |
+| 113       | A hash is .NET 9's `OrderedDictionary` — Harbour's default hash keeps insertion order across deletes, where a `Dictionary` reuses the deleted slot — `<long, dynamic>` for a numeric-keyed one, the key cast at the subscript; HbRuntime converts a key to the hash's key type (7 and 7.0 are one key); `hb_HKeyAt`, `hb_HPos`, `hb_HSet`, `hb_HGet`, `hb_HClone` (deep, as `AClone` now is), `hb_HKeepOrder`; `$` finds nothing for an empty string |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 

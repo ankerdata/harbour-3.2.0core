@@ -228,7 +228,7 @@ static const char * s_szHashKeyCs = "string";
 static const char * hb_csHashKeyCsFor( const char * szType )
 {
    return ( szType && hb_stricmp( szType, "HASHN" ) == 0 )
-          ? "decimal" : "string";
+          ? "long" : "string";
 }
 
 static const char * hb_csLocalTypeGet( const char * szName );
@@ -2347,14 +2347,18 @@ static const char * hb_csTypeMap( const char * szHbType )
       return "dynamic[]";
    if( hb_stricmp( szHbType, "HASH"  ) == 0 ||
        hb_stricmp( szHbType, "HASHC" ) == 0 )
-      /* Keys-unknown HASH defaults to string keys — the dominant
-         population. HASHN (numeric keys, inferred from key-typed
-         literals or subscript usage) gets a decimal-keyed dictionary
-         so `h[nRecNo]` compiles; an int literal key implicitly
-         converts to decimal at the indexer, so no key-identity trap. */
-      return "Dictionary<string, dynamic>";
+      /* A Harbour hash keeps its keys in the order they were added
+         (HB_HASH_KEEPORDER, the default), deletes included; a .NET
+         Dictionary reuses a deleted key's slot, so the hash is .NET 9's
+         OrderedDictionary (Alex, 2026-09-19), whose positions also
+         serve hb_HKeyAt / hb_HPos. Keys-unknown HASH defaults to string
+         keys — the dominant population. HASHN (numeric keys, inferred
+         from key-typed literals or subscript usage) is keyed by long:
+         EasiPOS's are all integer ids (Alex), and the subscript casts
+         the key (see HB_ET_ARRAYAT). */
+      return "OrderedDictionary<string, dynamic>";
    if( hb_stricmp( szHbType, "HASHN" ) == 0 )
-      return "Dictionary<decimal, dynamic>";
+      return "OrderedDictionary<long, dynamic>";
    if( hb_stricmp( szHbType, "BLOCK" ) == 0 ||
        /* `AS CODEBLOCK` — the formal declared-type spelling; same
           dynamic mapping as the reftab's BLOCK. */
@@ -2591,8 +2595,8 @@ static const char * hb_csTranslateInline( const char * szVal,
                k++;
             if( k < nLen && p[ k ] == '}' )
             {
-               memcpy( s_szBuf + nOut, "new Dictionary<dynamic, dynamic>()", 34 );
-               nOut += 34;
+               memcpy( s_szBuf + nOut, "new OrderedDictionary<dynamic, dynamic>()", 41 );
+               nOut += 41;
                nIn = k;
                continue;
             }
@@ -3014,7 +3018,7 @@ static const char * hb_csTranslateInit( const char * szVal )
             p += 2;
             while( *p == ' ' || *p == '\t' ) p++;
             if( *p == '}' && p[ 1 ] == '\0' )
-               return "new Dictionary<string, dynamic>()";
+               return "new OrderedDictionary<string, dynamic>()";
          }
       }
    }
@@ -4505,10 +4509,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                    type registry (locals, file-statics, params) or via
                    Hungarian on a `h<X>` / `sh<X>` name (variable or
                    message).
-               Dictionary<string, dynamic> accepts any string key; the
+               OrderedDictionary<string, dynamic> accepts any string key; the
                array branch wraps in `(long)(...) - 1` which is wrong
                for hashes and produces CS errors at runtime indices. */
             HB_BOOL fHash = HB_FALSE;
+            HB_BOOL fLongKey = HB_FALSE;   /* the hash is HASHN */
             PHB_EXPR pIdx = pExpr->value.asList.pIndex;
             PHB_EXPR pLhs = pExpr->value.asList.pExprList;
             if( pIdx && pIdx->ExprType == HB_ET_STRING )
@@ -4555,10 +4560,27 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   if( ! szT )
                      szT = hb_astInferType( szLhsName, NULL );
                   if( hb_astIsHashFamily( szT ) )
+                  {
                      fHash = HB_TRUE;
+                     fLongKey = hb_stricmp( szT, "HASHN" ) == 0;
+                  }
                }
             }
-            if( fHash )
+            if( fHash && fLongKey && pIdx &&
+                ! ( pIdx->ExprType == HB_ET_NUMERIC &&
+                    pIdx->value.asNum.NumType == HB_ET_LONG ) &&
+                ! ( pIdx->ExprType == HB_ET_VARIABLE &&
+                    hb_csLocalTypeGet( pIdx->value.asSymbol.name ) &&
+                    hb_stricmp( hb_csLocalTypeGet( pIdx->value.asSymbol.name ),
+                                "INTEGER" ) == 0 ) )
+            {
+               /* a numeric-keyed hash is keyed by long; C# has no
+                  implicit decimal -> long, so the key is cast */
+               fprintf( yyc, "[(long)(" );
+               hb_csEmitExpr( pIdx, yyc, HB_FALSE );
+               fprintf( yyc, ")]" );
+            }
+            else if( fHash )
             {
                fprintf( yyc, "[" );
                hb_csEmitExpr( pIdx, yyc, HB_FALSE );
@@ -4629,18 +4651,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             int    iPairs = 0;
             int    iInd = s_iExprIndent;
             /* C# key type for this literal: its own literal keys win
-               (any numeric key → decimal); an empty/unlabeled literal
+               (any numeric key → long); an empty/unlabeled literal
                inherits s_szHashKeyCs, which decl-init emission points
                at the declared variable's key type so
                `LOCAL hById := { => }` matches its
-               Dictionary<decimal, dynamic> declaration. */
+               OrderedDictionary<long, dynamic> declaration. */
             const char * szKeyCs = s_szHashKeyCs;
             {
                PHB_EXPR pKey = pExpr->value.asList.pExprList;
                while( pKey )
                {
                   if( pKey->ExprType == HB_ET_NUMERIC )
-                     { szKeyCs = "decimal"; break; }
+                     { szKeyCs = "long"; break; }
                   if( pKey->ExprType == HB_ET_STRING )
                      { szKeyCs = "string"; break; }
                   if( ! pKey->pNext )
@@ -4678,7 +4700,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
             if( fComplex || iPairs > 4 )
             {
-               fprintf( yyc, "new Dictionary<%s, dynamic>\n%*s{\n",
+               fprintf( yyc, "new OrderedDictionary<%s, dynamic>\n%*s{\n",
                         szKeyCs, iInd - 4, "" );
                /* Bump indent so a nested complex hash/array (if we add
                   one to the heuristic later) lines its own children up
@@ -4702,7 +4724,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
-               fprintf( yyc, "new Dictionary<%s, dynamic> { ", szKeyCs );
+               fprintf( yyc, "new OrderedDictionary<%s, dynamic> { ", szKeyCs );
                pItem = pExpr->value.asList.pExprList;
                while( pItem )
                {

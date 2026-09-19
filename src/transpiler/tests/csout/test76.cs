@@ -18,12 +18,12 @@ using static Program;
 // the declared variable's key type.
 public static partial class Program
 {
-    public static Dictionary<decimal, dynamic> test76_shPanels;
-    public static Dictionary<string, dynamic> test76_shNames = new Dictionary<string, dynamic> { { "alpha", 1 }, { "beta", 2 } };
+    public static OrderedDictionary<long, dynamic> test76_shPanels;
+    public static OrderedDictionary<string, dynamic> test76_shNames = new OrderedDictionary<string, dynamic> { { "alpha", 1 }, { "beta", 2 } };
     public static void Main(string[] args)
     {
-        Dictionary<decimal, dynamic> hById = new Dictionary<decimal, dynamic> {  };
-        Dictionary<decimal, dynamic> hLit = new Dictionary<decimal, dynamic> { { 10, "ten" }, { 20, "twenty" } };
+        OrderedDictionary<long, dynamic> hById = new OrderedDictionary<long, dynamic> {  };
+        OrderedDictionary<long, dynamic> hLit = new OrderedDictionary<long, dynamic> { { 10, "ten" }, { 20, "twenty" } };
 
         test76_shPanels = BuildPanels();
 
@@ -45,9 +45,9 @@ public static partial class Program
         // variable, so the literal gives no key evidence — the return-key
         // override from the `shPanels := BuildPanels()` site types it.
     }
-    public static Dictionary<decimal, dynamic> BuildPanels()
+    public static OrderedDictionary<long, dynamic> BuildPanels()
     {
-        Dictionary<decimal, dynamic> hOut = new Dictionary<decimal, dynamic> {  };
+        OrderedDictionary<long, dynamic> hOut = new OrderedDictionary<long, dynamic> {  };
         long nKey = default;
 
         for (nKey = 1; nKey <= 5; nKey++)
@@ -60,6 +60,6 @@ public static partial class Program
 
     public static dynamic GetPanel(decimal nNo = default)
     {
-        return test76_shPanels[nNo];
+        return test76_shPanels[(long)(nNo)];
     }
 }

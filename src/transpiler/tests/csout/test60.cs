@@ -15,7 +15,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Dictionary<string, dynamic> hData = new Dictionary<string, dynamic> { { "a", 1 }, { "b", 2 }, { "c", 3 } };
+        OrderedDictionary<string, dynamic> hData = new OrderedDictionary<string, dynamic> { { "a", 1 }, { "b", 2 }, { "c", 3 } };
         // note the duplicate 1
         dynamic[] aNums = new dynamic[] { 3, 1, 2, 1 };
         long i = default;

@@ -723,19 +723,19 @@ PROCEDURE Main_MISC()
 
 
 
-   // [out-of-scope] TEST_CALL( "Bin2W()", {|| Bin2W() }, 0 )
+   TEST_CALL( "rt_misc:729", "Bin2W()", {|| Bin2W() }, 0, .F., NIL )
 
-   // [out-of-scope] TEST_CALL( "Bin2W( 100 )", {|| Bin2W( 100 ) }, 0 )
-   // [out-of-scope] TEST_CALL( 'Bin2W( "" )', {|| Bin2W( "" ) }, 0 )
+   TEST_CALL( "rt_misc:731", "Bin2W( 100 )", {|| Bin2W( 100 ) }, 0, .F., NIL )
+   TEST_CALL( "rt_misc:732", 'Bin2W( "" )', {|| Bin2W( "" ) }, 0, .F., NIL )
 
-   // [out-of-scope] TEST_CALL( 'Bin2W( "AB" )', {|| Bin2W( "AB" ) }, 16961 )
-   // [out-of-scope] TEST_CALL( 'Bin2W( "BA" )', {|| Bin2W( "BA" ) }, 16706 )
-   // [out-of-scope] TEST_CALL( "Bin2W( Chr( 255 ) )", {|| Bin2W( Chr( 255 ) ) }, 255 )
-   // [out-of-scope] TEST_CALL( "Bin2W( Chr( 255 ) + Chr( 255 ) )", {|| Bin2W( Chr( 255 ) + Chr( 255 ) ) }, 65535 )
-   // [out-of-scope] TEST_CALL( "Bin2W( Chr( 0 ) )", {|| Bin2W( Chr( 0 ) ) }, 0 )
-   // [out-of-scope] TEST_CALL( "Bin2W( Chr( 0 ) + Chr( 0 ) )", {|| Bin2W( Chr( 0 ) + Chr( 0 ) ) }, 0 )
-   // [out-of-scope] TEST_CALL( 'Bin2W( "A" )', {|| Bin2W( "A" ) }, 65 )
-   // [out-of-scope] TEST_CALL( 'Bin2W( "ABC" )', {|| Bin2W( "ABC" ) }, 16961 )
+   TEST_CALL( "rt_misc:734", 'Bin2W( "AB" )', {|| Bin2W( "AB" ) }, 16961, .F., NIL )
+   TEST_CALL( "rt_misc:735", 'Bin2W( "BA" )', {|| Bin2W( "BA" ) }, 16706, .F., NIL )
+   TEST_CALL( "rt_misc:736", "Bin2W( Chr( 255 ) )", {|| Bin2W( Chr( 255 ) ) }, 255, .F., NIL )
+   TEST_CALL( "rt_misc:737", "Bin2W( Chr( 255 ) + Chr( 255 ) )", {|| Bin2W( Chr( 255 ) + Chr( 255 ) ) }, 65535, .F., NIL )
+   TEST_CALL( "rt_misc:738", "Bin2W( Chr( 0 ) )", {|| Bin2W( Chr( 0 ) ) }, 0, .F., NIL )
+   TEST_CALL( "rt_misc:739", "Bin2W( Chr( 0 ) + Chr( 0 ) )", {|| Bin2W( Chr( 0 ) + Chr( 0 ) ) }, 0, .F., NIL )
+   TEST_CALL( "rt_misc:740", 'Bin2W( "A" )', {|| Bin2W( "A" ) }, 65, .F., NIL )
+   TEST_CALL( "rt_misc:741", 'Bin2W( "ABC" )', {|| Bin2W( "ABC" ) }, 16961, .F., NIL )
 
 
 

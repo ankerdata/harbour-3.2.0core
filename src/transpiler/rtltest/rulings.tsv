@@ -365,3 +365,15 @@ rt_hvm:454	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, 
 rt_hvm:457	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
 rt_hvm:461	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
 rt_hvm:467	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+
+# Objects as arrays, and Str's literal widths (Alex, 2026-09-19): divergent by design
+rt_array:62	divergent	an object is an array of its instance variables in Harbour (ASize/ACopy resize and copy them); C# objects are not arrays, HbRuntime returns NIL (Alex, 2026-09-19)
+rt_array:63	divergent	an object is an array of its instance variables in Harbour (ASize/ACopy resize and copy them); C# objects are not arrays, HbRuntime returns NIL (Alex, 2026-09-19)
+rt_array:178	divergent	an object is an array of its instance variables in Harbour (ASize/ACopy resize and copy them); C# objects are not arrays, HbRuntime returns NIL (Alex, 2026-09-19)
+rt_array:183	divergent	an object is an array of its instance variables in Harbour (ASize/ACopy resize and copy them); C# objects are not arrays, HbRuntime returns NIL (Alex, 2026-09-19)
+rt_array:191	divergent	an object is an array of its instance variables in Harbour (ASize/ACopy resize and copy them); C# objects are not arrays, HbRuntime returns NIL (Alex, 2026-09-19)
+rt_array:192	divergent	an object is an array of its instance variables in Harbour (ASize/ACopy resize and copy them); C# objects are not arrays, HbRuntime returns NIL (Alex, 2026-09-19)
+rt_stra:70	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)
+rt_stra:71	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)
+rt_stra:75	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)
+rt_trans:576	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)

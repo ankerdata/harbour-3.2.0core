@@ -31,7 +31,7 @@ public static partial class Program
 {
     public static dynamic[] TestDeptDef(string cPath = default)
     {
-        return new dynamic[] { new dynamic[] { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new dynamic[] {  }, new dynamic[] {  }, new Dictionary<string, dynamic> {  }, 1 };
+        return new dynamic[] { new dynamic[] { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new dynamic[] {  }, new dynamic[] {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
     }
 
     public static TestOrmRec84 ConstructORMTable(dynamic[] aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
