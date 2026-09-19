@@ -180,11 +180,14 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
             This matters for functions like ErrorNew() whose Hungarian
             would type the LHS as `object` (killing `.severity`-style
             late binding) — a `-` return in hbfuncs.tab flags "dynamic
-            on purpose" and we return USUAL here to force that. */
+            on purpose" and we return USUAL here to force that. A name
+            the program defines is the program's, never HbRuntime's
+            (gencsharp.c's hb_csFuncTabPrefix routes it the same way). */
          PHB_EXPR pName = pExpr->value.asFunCall.pFunName;
          if( pName && pName->ExprType == HB_ET_FUNNAME &&
              pName->value.asSymbol.name &&
-             hb_funcTabPrefix( pName->value.asSymbol.name ) )
+             hb_funcTabPrefix( pName->value.asSymbol.name ) &&
+             ! hb_refTabIsDefinedFunc( s_pPropRefTab, pName->value.asSymbol.name ) )
          {
             const char * szRet =
                hb_funcTabReturnType( pName->value.asSymbol.name );

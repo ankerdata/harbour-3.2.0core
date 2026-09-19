@@ -66,6 +66,7 @@ static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
 }
 static const char * hb_csTypeMap( const char * szHbType );
 static const char * hb_csHbxCanon( const char * szName );
+static const char * hb_csFuncTabPrefix( const char * szName );
 static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
                                        HB_SIZE nBuf );
 static HB_BOOL hb_csIsFileMemvar( const char * szName );
@@ -2796,7 +2797,7 @@ static const char * hb_csTranslateInline( const char * szVal,
                nIn--;   /* outer loop `nIn++` advances past last id char */
                continue;
             }
-            szPrefix = hb_funcTabPrefix( szId );
+            szPrefix = hb_csFuncTabPrefix( szId );
             if( szPrefix )
             {
                const char * szCanon = hb_funcTabCanonName( szId );
@@ -3212,7 +3213,7 @@ static const char * hb_csFuncMap( const char * szName )
       return "HbRuntime.ToString";
    }
 
-   szPrefix = hb_funcTabPrefix( szName );
+   szPrefix = hb_csFuncTabPrefix( szName );
    if( szPrefix )
    {
       /* Use the canonical name recorded in hbfuncs.tab — that matches
@@ -5482,6 +5483,22 @@ static const char * hb_csHbxCanon( const char * szName )
        hb_refTabIsDefinedFunc( s_pRefTab, szName ) )
       return NULL;
    return szCanon;
+}
+
+/* The hbfuncs.tab namespace prefix for szName, or NULL for a name the
+   program defines. hbfuncs.tab gives a name the HbRuntime prefix
+   whenever HbRuntime.cs declares a method of that name, and HbRuntime.cs
+   once carried placeholders for EasiPOS's own functions: all 9,060
+   calls to shared/flags.prg's GetFlag emitted as HbRuntime.GETFLAG,
+   which returned NIL. The program's definition wins here for the reason
+   it wins over a contrib .hbx name (hb_csHbxCanon): Harbour's linker
+   takes a library function only when nothing in the program defines
+   it (test109). */
+static const char * hb_csFuncTabPrefix( const char * szName )
+{
+   if( s_pRefTab && hb_refTabIsDefinedFunc( s_pRefTab, szName ) )
+      return NULL;
+   return hb_funcTabPrefix( szName );
 }
 
 /* ---- Statement emitter ---- */

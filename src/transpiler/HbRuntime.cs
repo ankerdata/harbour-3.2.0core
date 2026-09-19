@@ -5,14 +5,17 @@ using System.IO;
 using System.Linq;
 
 /// <summary>
-/// Harbour runtime function implementations for transpiled C# code.
-/// All Harbour builtin functions are available as static methods.
+/// Harbour's core runtime library for transpiled C# code, plus the
+/// helpers the emitter itself calls (Eval, StrCmp, HbIn, FuncPtr, ...).
+/// Nothing application-specific belongs here: EasiPOS's own C functions
+/// live in the application's EasiPosNative project, and a function the
+/// program defines in .prg is always the program's (gencsharp.c,
+/// hb_csFuncTabPrefix).
 ///
-/// Method names are UPPERCASE to match the Harbour convention and the
-/// canonical form in src/transpiler/hbfuncs.tab. The C# transpiler
-/// uppercases every HbRuntime-remapped call at emit time (see
-/// hb_csFuncMap in gencsharp.c), so source-level casing variations like
-/// `Int()`, `int()`, `Int()` all resolve to the same method here.
+/// Method names are spelt as Harbour's include/*.hbx lists them
+/// (`SubStr`, `hb_HGetDef`): the emitter writes every core call in that
+/// canonical spelling whatever casing the source used, and C# is
+/// case-sensitive. A name spelt any other way is never called.
 /// </summary>
 public static partial class HbRuntime
 {
@@ -562,7 +565,7 @@ public static partial class HbRuntime
        so the common case still compiles and runs. A fuller fix
        would inline the default at the call site based on the param's
        nilable flag — leaving that for when it actually bites. */
-    public static void HB_DEFAULT<T>(ref T val, T defVal)
+    public static void hb_default<T>(ref T val, T defVal)
     {
         if (val is null) val = defVal;
     }
@@ -899,17 +902,8 @@ public static partial class HbRuntime
         catch { return false; }
     }
 
-    // ---- Win32 RGB helpers (easiutil/getrgbvalue.c) ----
-
-    public static decimal COLORRGB2N(decimal r, decimal g, decimal b) =>
-        (int)r + (int)g * 256 + (int)b * 65536;
-    public static decimal GETRVALUE(decimal rgb) => (int)rgb & 0xFF;
-    public static decimal GETGVALUE(decimal rgb) => ((int)rgb >> 8) & 0xFF;
-    public static decimal GETBVALUE(decimal rgb) => ((int)rgb >> 16) & 0xFF;
-
     // ---- Binary conversions (Harbour builtins) ----
     // bin2l: 4-byte little-endian signed → numeric.
-    // ul2bin: numeric → 4-byte little-endian unsigned string.
     // bin2i: 2-byte little-endian signed → numeric.
     // i2bin: numeric → 2-byte little-endian signed string.
 
@@ -918,14 +912,6 @@ public static partial class HbRuntime
         if (s is null || s.Length < 4) return 0;
         int v = (byte)s[0] | ((byte)s[1] << 8) | ((byte)s[2] << 16) | ((byte)s[3] << 24);
         return v;
-    }
-
-    public static string UL2BIN(decimal n)
-    {
-        uint v = (uint)(long)n;
-        char[] b = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF),
-                     (char)((v >> 16) & 0xFF), (char)((v >> 24) & 0xFF) };
-        return new string(b);
     }
 
     public static decimal Bin2I(string s)
@@ -941,30 +927,6 @@ public static partial class HbRuntime
         char[] b = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF) };
         return new string(b);
     }
-
-    // ---- Cross-lib stubs ----
-    // These have real implementations in sibling easipos libs (sharedx,
-    // each app's main .prg). Stubbed here so the EasiUtil classlib
-    // builds standalone; once a multi-project layout is wired up the
-    // real impls take over. GETAPPNAME defaults to the entry assembly
-    // name; MYERASE deletes; GETFLAG returns null (callers tolerate).
-
-    public static string GETAPPNAME() =>
-        System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "EasiUtil";
-
-    public static bool MYERASE(string cFile)
-    {
-        try { System.IO.File.Delete(cFile); return true; }
-        catch { return false; }
-    }
-
-    public static bool MYRENAME(string cOld, string cNew)
-    {
-        try { System.IO.File.Move(cOld, cNew); return true; }
-        catch { return false; }
-    }
-
-    public static dynamic GETFLAG(string cFlagName) => null;
 
     // ---- Harbour Error object (stopgap) ----
     //
@@ -1248,135 +1210,6 @@ public static partial class HbRuntime
         return method.Invoke(obj, args);
     }
 
-    // Legacy port I/O for DRAW_NCR25 cash drawer (Super I/O chip on ports
-    // 0x2E/0x2F). No equivalent on non-Windows; no-op everywhere so the
-    // rest of drawio.prg compiles. Callers check return, so we return 0.
-    public static decimal INPIOInit() => 0;
-    public static void    INPIOWrite(decimal port, decimal value) { }
-    public static decimal INPIORead(decimal port) => 0;
-
-    // Windows message-pump helper called during busy-wait loops. No-op
-    // on other platforms; a proper implementation would drain the GUI
-    // event queue, but the wait loops tolerate empty pumps.
-    public static void BusyReadMsgPump() { }
-
-    // Defined in sharedx/idxfile.prg (DBF reindex utility, blacklisted).
-    // The original procedure is already a no-op — IndexFileLan() is
-    // commented out and only TraceOut / status-display calls remain.
-    public static void ReindexLan() { }
-
-    // Windows API shims used by easipos. Callers build paths with
-    // `left(GetModuleFileName(), rat("\", ...))` so we return the full
-    // path of the running executable, not just its directory.
-    public static string GetModuleFileName() =>
-        System.Environment.ProcessPath ?? "";
-
-    // `CreateProcess(cCmd)` in easipos takes one string that may include
-    // arguments ("matrixsvr.exe /X"). Split on the first space.
-    public static bool CreateProcess(string cCommand)
-    {
-        if (string.IsNullOrWhiteSpace(cCommand)) return false;
-        try
-        {
-            var parts = cCommand.Split(new[] { ' ' }, 2);
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = parts[0],
-                Arguments = parts.Length > 1 ? parts[1] : "",
-                UseShellExecute = false,
-            };
-            return System.Diagnostics.Process.Start(psi) != null;
-        }
-        catch { return false; }
-    }
-
-    // Toggle a file's read-only bit. `cMode` is "W" (writable) or "R"
-    // (read-only) — matches the easipos filearchive / filepath idiom.
-    public static void Chmod(string cFile, string cMode)
-    {
-        if (string.IsNullOrEmpty(cFile) || !System.IO.File.Exists(cFile))
-            return;
-        var attrs = System.IO.File.GetAttributes(cFile);
-        if (cMode != null && (cMode == "R" || cMode == "r"))
-            attrs |= System.IO.FileAttributes.ReadOnly;
-        else
-            attrs &= ~System.IO.FileAttributes.ReadOnly;
-        System.IO.File.SetAttributes(cFile, attrs);
-    }
-
-    // Binary helpers ported from EasiPosX/easiutil/bin.c. Harbour stores
-    // byte strings as 1 char per byte with values 0..255 (Latin-1).
-    // Little-endian — matches the original C which used raw pointer
-    // casts on x86 hardware.
-    private static byte[] _binFromStr(string s, int need)
-    {
-        byte[] b = new byte[Math.Max(need, s?.Length ?? 0)];
-        if (s != null)
-            for (int i = 0; i < s.Length && i < b.Length; i++)
-                b[i] = (byte)(s[i] & 0xFF);
-        return b;
-    }
-    private static string _binToStr(byte[] b)
-    {
-        char[] c = new char[b.Length];
-        for (int i = 0; i < b.Length; i++) c[i] = (char)b[i];
-        return new string(c);
-    }
-    public static decimal BIN2UI(string s) =>
-        System.BitConverter.ToUInt16(_binFromStr(s, 2), 0);
-    public static decimal BIN2UL(string s) =>
-        System.BitConverter.ToUInt32(_binFromStr(s, 4), 0);
-    public static decimal BIN2LL(string s) =>
-        System.BitConverter.ToInt64(_binFromStr(s, 8), 0);
-    // UL2BIN is already defined further up.
-    public static string LL2BIN(decimal n) =>
-        _binToStr(System.BitConverter.GetBytes((ulong)(long)n));
-    public static decimal C4W_LOWORD(decimal n) => ((long)n) & 0xFFFF;
-    public static decimal C4W_HIWORD(decimal n) => (((long)n) >> 16) & 0xFFFF;
-
-    // CRC-16-CCITT (poly 0x1021). Byte-swapped result matches bin.c.
-    private static readonly ushort[] _crctab = new ushort[] {
-        0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
-        0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
-        0x1231, 0x0210, 0x3273, 0x2252, 0x52b5, 0x4294, 0x72f7, 0x62d6,
-        0x9339, 0x8318, 0xb37b, 0xa35a, 0xd3bd, 0xc39c, 0xf3ff, 0xe3de,
-        0x2462, 0x3443, 0x0420, 0x1401, 0x64e6, 0x74c7, 0x44a4, 0x5485,
-        0xa56a, 0xb54b, 0x8528, 0x9509, 0xe5ee, 0xf5cf, 0xc5ac, 0xd58d,
-        0x3653, 0x2672, 0x1611, 0x0630, 0x76d7, 0x66f6, 0x5695, 0x46b4,
-        0xb75b, 0xa77a, 0x9719, 0x8738, 0xf7df, 0xe7fe, 0xd79d, 0xc7bc,
-        0x48c4, 0x58e5, 0x6886, 0x78a7, 0x0840, 0x1861, 0x2802, 0x3823,
-        0xc9cc, 0xd9ed, 0xe98e, 0xf9af, 0x8948, 0x9969, 0xa90a, 0xb92b,
-        0x5af5, 0x4ad4, 0x7ab7, 0x6a96, 0x1a71, 0x0a50, 0x3a33, 0x2a12,
-        0xdbfd, 0xcbdc, 0xfbbf, 0xeb9e, 0x9b79, 0x8b58, 0xbb3b, 0xab1a,
-        0x6ca6, 0x7c87, 0x4ce4, 0x5cc5, 0x2c22, 0x3c03, 0x0c60, 0x1c41,
-        0xedae, 0xfd8f, 0xcdec, 0xddcd, 0xad2a, 0xbd0b, 0x8d68, 0x9d49,
-        0x7e97, 0x6eb6, 0x5ed5, 0x4ef4, 0x3e13, 0x2e32, 0x1e51, 0x0e70,
-        0xff9f, 0xefbe, 0xdfdd, 0xcffc, 0xbf1b, 0xaf3a, 0x9f59, 0x8f78,
-        0x9188, 0x81a9, 0xb1ca, 0xa1eb, 0xd10c, 0xc12d, 0xf14e, 0xe16f,
-        0x1080, 0x00a1, 0x30c2, 0x20e3, 0x5004, 0x4025, 0x7046, 0x6067,
-        0x83b9, 0x9398, 0xa3fb, 0xb3da, 0xc33d, 0xd31c, 0xe37f, 0xf35e,
-        0x02b1, 0x1290, 0x22f3, 0x32d2, 0x4235, 0x5214, 0x6277, 0x7256,
-        0xb5ea, 0xa5cb, 0x95a8, 0x8589, 0xf56e, 0xe54f, 0xd52c, 0xc50d,
-        0x34e2, 0x24c3, 0x14a0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
-        0xa7db, 0xb7fa, 0x8799, 0x97b8, 0xe75f, 0xf77e, 0xc71d, 0xd73c,
-        0x26d3, 0x36f2, 0x0691, 0x16b0, 0x6657, 0x7676, 0x4615, 0x5634,
-        0xd94c, 0xc96d, 0xf90e, 0xe92f, 0x99c8, 0x89e9, 0xb98a, 0xa9ab,
-        0x5844, 0x4865, 0x7806, 0x6827, 0x18c0, 0x08e1, 0x3882, 0x28a3,
-        0xcb7d, 0xdb5c, 0xeb3f, 0xfb1e, 0x8bf9, 0x9bd8, 0xabbb, 0xbb9a,
-        0x4a75, 0x5a54, 0x6a37, 0x7a16, 0x0af1, 0x1ad0, 0x2ab3, 0x3a92,
-        0xfd2e, 0xed0f, 0xdd6c, 0xcd4d, 0xbdaa, 0xad8b, 0x9de8, 0x8dc9,
-        0x7c26, 0x6c07, 0x5c64, 0x4c45, 0x3ca2, 0x2c83, 0x1ce0, 0x0cc1,
-        0xef1f, 0xff3e, 0xcf5d, 0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8,
-        0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0
-    };
-    public static decimal CRC16(string s)
-    {
-        ushort crc = 0;
-        if (s != null)
-            foreach (char ch in s)
-                crc = (ushort)((crc << 8) ^ _crctab[((crc >> 8) ^ (ch & 0xFF)) & 0xFF]);
-        return (ushort)((crc >> 8) | ((crc << 8) & 0xFF00));
-    }
 }
 
 // Wrapper returned by `obj:Super()` — keeps the :className() chain working.

@@ -238,6 +238,16 @@ ABS     NUMERIC      HbRuntime
   `HbRuntime` produces `HbRuntime.NAME(...)` in the output. `-` means
   "leave the name alone".
 
+A row's PREFIX comes from HbRuntime.cs: `genfunctab.py` gives `HbRuntime`
+to every public static method of `class HbRuntime` (only that class — the
+file's other classes are not reached as `HbRuntime.<name>`). So declaring a
+method routes every call of that name to it, and a function the program
+defines is exempt: as Harbour's linker has it, the program's own function
+is called, not HbRuntime's (test109). HbRuntime.cs once carried
+placeholders for EasiPOS's own functions, and all 9,060 calls to its
+`GetFlag` returned NIL. Keep HbRuntime.cs to Harbour's core library and the
+emitter's helpers.
+
 The file is **generated** by [`tools/genfunctab.py`](tools/genfunctab.py)
 which combines two sources of truth:
 
@@ -1337,6 +1347,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
 | 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
 | 108       | A contrib library's name the program defines itself (`Random`, `FileSize`, both hbct's) is the program's function, called as any user function in its declared spelling — Harbour's linker takes a library member only for a symbol no object file defines |
+| 109       | A function the program defines is the program's even where hbfuncs.tab routes the name to HbRuntime (`Pow`, `StrCmp` — helpers HbRuntime.cs declares for the emitter): the call is to the program's own function, as Harbour's linker has it; the rule test108 applies to a contrib name |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 

@@ -224,11 +224,27 @@ def harvest_hbruntime_methods() -> dict[str, tuple[str, str]]:
         print(f"warning: {HBRUNTIME_CS} not found", file=sys.stderr)
         return methods
     text = HBRUNTIME_CS.read_text(encoding="utf-8", errors="replace")
-    for m in RE_HBRUNTIME_METHOD.finditer(text):
-        rettype = m.group(1).strip()
-        name = m.group(2)
-        methods.setdefault(name.upper(), (name, rettype))
+    for body in hbruntime_class_bodies(text):
+        for m in RE_HBRUNTIME_METHOD.finditer(body):
+            rettype = m.group(1).strip()
+            name = m.group(2)
+            methods.setdefault(name.upper(), (name, rettype))
     return methods
+
+def hbruntime_class_bodies(text: str) -> list[str]:
+    """The bodies of every `partial class HbRuntime` in text. The file
+    holds other classes too (HbDynamicObject, HbDiscard<T>, ...), and a
+    method of theirs is not reached as HbRuntime.<name>: harvesting the
+    whole file once gave HbDiscard<T>.Seed an HbRuntime row. Braces are
+    matched plainly; HbRuntime.cs's string literals balance theirs."""
+    bodies = []
+    for m in re.finditer(r"\bclass\s+HbRuntime\b[^{]*\{", text):
+        depth, i = 1, m.end()
+        while i < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            i += 1
+        bodies.append(text[m.end():i - 1])
+    return bodies
 
 def harvest_doc_types() -> dict[str, str]:
     """Return {name (uppercase) -> RETTYPE} for every documented function
