@@ -1245,6 +1245,7 @@ cd src\transpiler\tests
 runtests.bat            rem gen + prg + cs + run
 runtests.bat gen        rem regenerate hbout/ and csout/ only
 runtests.bat prg|cs|run rem a single stage
+runtests.bat all --full rem rebuild every test, not only what changed
 ```
 
 [`runtests.bat`](tests/runtests.bat) sets up `vcvarsall` and the
@@ -1263,10 +1264,15 @@ the `-GS` pass produces false diffs (test79 emits `Animal` vs
 (`buildhb.sh` / `runhb.sh` / `comparehb.sh`), `verifyreftab.sh` and
 `errors/run.sh` are bash-only.
 
-Current counts: **89 positive tests (96 source files — some are a/b
-multi-file pairs; 192 tracked reference outputs under `hbout/` and
-`csout/`) + 6 negative tests, all pass via `verify.sh` and
-`runtests.bat`**. The `tests/defines/<Name>Const.cs` classes that
+Current counts (2026-09-19): **113 positive tests (119 source files —
+some are a/b multi-file pairs; 238 tracked reference outputs under
+`hbout/` and `csout/`) + 9 negative tests (`errors/run.sh`, which
+`HBTRANSPILER` points at a binary other than `bin/hbtranspiler`)**.
+`runtests.bat` builds incrementally — a Harbour exe only when its
+`.prg`/`.ch` are newer, a C# test only when its staged `.cs` or the
+runtime assembly beside it changed; `gen` always transpiles every test,
+since they share one reftab — and `runtests.bat all --full` rebuilds
+everything, the occasional sweep. The `tests/defines/<Name>Const.cs` classes that
 `gendefines.py` harvests from the tests' `.ch` and `.prg` files during
 `gen` are tracked as reference output too — the C# build compiles them
 — so a diff there after a regeneration means `gendefines.py` changed.

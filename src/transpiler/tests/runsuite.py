@@ -20,6 +20,18 @@ Stages (default "all"):
   cs    build the emitted C#             (buildcs.sh)
   run   run both and diff the output     (runprg.sh/runcs.sh/comparecs.sh)
 
+Builds are incremental: a Harbour exe is rebuilt only when it is older
+than its .prg sources or a local .ch they include, and a C# test only
+when the .cs it would be built from differ from what it was last built
+from, or when the runtime assembly (HbRuntime.cs plus the libraries)
+beside it is not the current one. gen always transpiles every test — the suite shares one
+reftab, so one test's change can change another's output — and every
+test always runs. --full rebuilds everything: the occasional sweep, and
+the answer to a changed Harbour or .NET toolchain, which the
+incremental checks cannot see.
+
+Usage: runsuite.py [all|gen|prg|cs|run] [--full]
+
 Environment:
   HBTRANSPILER  transpiler binary (default <root>/bin/hbtranspiler.exe)
 """
@@ -52,6 +64,9 @@ for _p in PAIRS:
     PAIRMEMBERS |= {"test" + _p + "a", "test" + _p + "b"}
 
 SRC_RE = re.compile(r"^(test\w+)\.prg$")
+INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]+"([^"]+)"', re.I | re.M)
+
+FULL = False                     # --full: rebuild every test
 
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -153,12 +168,79 @@ def stage_gen():
     print("csout/  regenerated")
 
 
+# ------------------------------------------------------- incremental ----
+def prg_deps(srcs):
+    """A case's .prg files and the local .ch files they include, nested
+    includes followed; Harbour's own headers are not tracked (--full)."""
+    todo = [os.path.join(TESTS, s) for s in srcs]
+    seen = []
+    while todo:
+        p = todo.pop()
+        if p in seen or not os.path.isfile(p):
+            continue
+        seen.append(p)
+        with open(p, encoding="latin-1") as fh:
+            for inc in INCLUDE_RE.findall(fh.read()):
+                todo.append(os.path.join(TESTS, inc))
+    return seen
+
+
+def newest_file(d, fname):
+    """Newest copy of fname under d (dotnet's bin/ layout varies with the
+    platform vcvarsall sets), or None."""
+    best = None
+    for dp, _, fns in os.walk(d):
+        if fname in fns:
+            p = os.path.join(dp, fname)
+            if best is None or os.path.getmtime(p) > os.path.getmtime(best):
+                best = p
+    return best
+
+
+def same_bytes(a, b):
+    if not os.path.isfile(b) or os.path.getsize(a) != os.path.getsize(b):
+        return False
+    with open(a, "rb") as fa, open(b, "rb") as fb:
+        return fa.read() == fb.read()
+
+
+def stage_files(files, d, ext):
+    """Make d's `ext` files exactly `files` ({basename: source path}),
+    touching nothing that is already identical. True if anything
+    changed."""
+    changed = False
+    for f in os.listdir(d):
+        if f.endswith(ext) and f not in files:
+            os.remove(os.path.join(d, f))
+            changed = True
+    for f, src in files.items():
+        if not same_bytes(src, os.path.join(d, f)):
+            shutil.copy(src, os.path.join(d, f))
+            changed = True
+    return changed
+
+
+def write_if_changed(path, text):
+    if os.path.isfile(path):
+        with open(path) as fh:
+            if fh.read() == text:
+                return False
+    with open(path, "w") as fh:
+        fh.write(text)
+    return True
+
+
 # --------------------------------------------------------------- prg ----
 def build_prg(name):
+    """(name, error or None, built?)"""
     srcs = sources(name, ".prg", ".")
     if not srcs:
-        return name, "no source"
+        return name, "no source", False
     exe = os.path.join(PRGEXE, name + ".exe")
+    if not FULL and os.path.isfile(exe):
+        t = os.path.getmtime(exe)
+        if all(os.path.getmtime(p) <= t for p in prg_deps(srcs)):
+            return name, None, False
     if os.path.isfile(exe):
         os.remove(exe)
     r = subprocess.run(["hbmk2"] + srcs +
@@ -166,55 +248,68 @@ def build_prg(name):
                         "-w", "-es2", "-gtcgi", "-q"],
                        cwd=TESTS, capture_output=True, text=True)
     if r.returncode == 0 and os.path.isfile(exe):
-        return name, None
+        return name, None, True
     tail = (r.stdout + r.stderr).strip().splitlines()
-    return name, (tail[-1][:120] if tail else "rc=%d" % r.returncode)
+    return name, (tail[-1][:120] if tail else "rc=%d" % r.returncode), True
 
 
 def stage_prg(names):
     os.makedirs(PRGEXE, exist_ok=True)
-    bad = [(n, e) for n, e in (build_prg(n) for n in names) if e]
-    print("hbmk2:  %d built, %d failed" % (len(names) - len(bad), len(bad)))
+    res = [build_prg(n) for n in names]
+    bad = [(n, e) for n, e, _ in res if e]
+    built = sum(1 for _, e, b in res if b and not e)
+    print("hbmk2:  %d built, %d up to date, %d failed" %
+          (built, len(names) - built - len(bad), len(bad)))
     for n, e in bad:
         print("   FAIL %-12s %s" % (n, e))
     return not bad
 
 
 # ---------------------------------------------------------------- cs ----
-def build_cs(name):
+def build_cs(name, lib_dll):
+    """(name, error or None, built?). Skipped when the staged .cs and
+    .csproj are byte-identical to the last build's and the runtime
+    assembly that build copied beside it is the current one. (Not "newer
+    than the runtime": MSBuild copies a new HbRuntime.dll but leaves the
+    test's own dll alone when the runtime's public API did not change.)"""
     srcs = sources(name, ".cs", "csout")
     if not srcs:
-        return name, "no source"
+        return name, "no source", False
     d = os.path.join(CSEXE, name)
     os.makedirs(d, exist_ok=True)
-    for old in os.listdir(d):              # stale .cs from an earlier run
-        if old.endswith(".cs"):
-            os.remove(os.path.join(d, old))
-    with open(os.path.join(d, name + ".csproj"), "w") as fh:
-        fh.write(CSPROJ % (name, name))
-    for s in srcs:
-        shutil.copy(os.path.join(TESTS, s), d)
+    files = {os.path.basename(s): os.path.join(TESTS, s) for s in srcs}
     for sub in (DEFINES, ORM):             # Const classes + ORM fixtures
         if os.path.isdir(sub):
             for f in os.listdir(sub):
                 if f.endswith(".cs"):
-                    shutil.copy(os.path.join(sub, f), d)
+                    files[f] = os.path.join(sub, f)
+    changed = stage_files(files, d, ".cs")
+    changed |= write_if_changed(os.path.join(d, name + ".csproj"),
+                                CSPROJ % (name, name))
+    dll = newest_file(os.path.join(d, "bin"), name + ".dll")
+    rt = newest_file(os.path.join(d, "bin"), "HbRuntime.dll")
+    if not FULL and not changed and dll and rt and same_bytes(lib_dll, rt):
+        return name, None, False
     r = subprocess.run(["dotnet", "build", "--no-dependencies", "-v", "q",
                         "--nologo"], cwd=d, capture_output=True, text=True)
     if r.returncode == 0 and "error CS" not in r.stdout:
-        return name, None
+        return name, None, True
+    if dll and os.path.isfile(dll):        # never skip a failed build later
+        os.remove(dll)
     errs = [l.strip() for l in r.stdout.splitlines() if "error CS" in l]
-    return name, (errs[0][:120] if errs else "rc=%d" % r.returncode)
+    return name, (errs[0][:120] if errs else "rc=%d" % r.returncode), True
 
 
 def stage_cs(names):
     """HbRuntime is built once up front: the per-test builds run in
     parallel and would otherwise race to write HbRuntime.dll, surfacing
-    as random CS2012 file-in-use failures scattered across tests."""
+    as random CS2012 file-in-use failures scattered across tests. It is
+    rebuilt only when its sources changed, and a test whose output holds
+    another HbRuntime.dll than the one built here is rebuilt against it."""
     lib = os.path.join(CSEXE, "HbRuntime")
     os.makedirs(lib, exist_ok=True)
-    shutil.copy(os.path.join(ROOT, "src", "transpiler", "HbRuntime.cs"),
-                os.path.join(lib, "HbRuntime.cs"))
+    files = {"HbRuntime.cs": os.path.join(ROOT, "src", "transpiler",
+                                          "HbRuntime.cs")}
     # The contrib libraries (src/transpiler/libraries/<lib>/*.cs) compile
     # into the same test runtime assembly: a test calling HbWin.wapi_Sleep
     # or Xhb.TOleAuto finds them without a reference per library.
@@ -225,15 +320,28 @@ def stage_cs(names):
             if os.path.isdir(d):
                 for f in os.listdir(d):
                     if f.endswith(".cs"):
-                        shutil.copy(os.path.join(d, f), os.path.join(lib, f))
-    with open(os.path.join(lib, "HbRuntime.csproj"), "w") as fh:
-        fh.write(LIBPROJ)
-    subprocess.run(["dotnet", "build", "-v", "q", "--nologo"],
-                   cwd=lib, capture_output=True)
+                        files[f] = os.path.join(d, f)
+    changed = stage_files(files, lib, ".cs")
+    changed |= write_if_changed(os.path.join(lib, "HbRuntime.csproj"), LIBPROJ)
+    lib_dll = newest_file(os.path.join(lib, "bin"), "HbRuntime.dll")
+    if FULL or changed or not lib_dll:
+        r = subprocess.run(["dotnet", "build", "-v", "q", "--nologo"],
+                           cwd=lib, capture_output=True, text=True)
+        lib_dll = newest_file(os.path.join(lib, "bin"), "HbRuntime.dll")
+        if r.returncode != 0 or not lib_dll:
+            errs = [l.strip() for l in r.stdout.splitlines() if "error CS" in l]
+            print("dotnet: HbRuntime failed: %s" %
+                  (errs[0][:120] if errs else "rc=%d" % r.returncode))
+            if lib_dll:
+                os.remove(lib_dll)
+            return False
+        print("dotnet: HbRuntime rebuilt")
     with ThreadPoolExecutor(max_workers=4) as ex:
-        res = list(ex.map(build_cs, names))
-    bad = [(n, e) for n, e in res if e]
-    print("dotnet: %d built, %d failed" % (len(names) - len(bad), len(bad)))
+        res = list(ex.map(lambda n: build_cs(n, lib_dll), names))
+    bad = [(n, e) for n, e, _ in res if e]
+    built = sum(1 for _, e, b in res if b and not e)
+    print("dotnet: %d built, %d up to date, %d failed" %
+          (built, len(names) - built - len(bad), len(bad)))
     for n, e in bad:
         print("   FAIL %-12s %s" % (n, e))
     return not bad
@@ -281,9 +389,13 @@ def stage_run(names):
 
 
 def main():
-    stage = sys.argv[1] if len(sys.argv) > 1 else "all"
-    if stage not in ("all", "gen", "prg", "cs", "run"):
-        sys.exit("usage: runsuite.py [all|gen|prg|cs|run]")
+    global FULL
+    args = sys.argv[1:]
+    FULL = "--full" in args
+    args = [a for a in args if a != "--full"]
+    stage = args[0] if args else "all"
+    if stage not in ("all", "gen", "prg", "cs", "run") or len(args) > 1:
+        sys.exit("usage: runsuite.py [all|gen|prg|cs|run] [--full]")
     ok = True
     if stage in ("all", "gen"):
         stage_gen()
