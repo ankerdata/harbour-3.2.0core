@@ -3653,12 +3653,14 @@ static HB_BOOL hb_csEmitDateArith( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
 /* `c1 < c2` and kin. C# string has no ordering operators (CS0019),
    and the DLR has none for a dynamic holding a string either, so the
-   comparison becomes `HbRuntime.StrCmp( a, b ) <op> 0` — StrCmp is
-   hb_itemStrCmp under SET EXACT OFF: the shorter length decides and a
-   longer LEFT operand carrying the right as a prefix is EQUAL. Fires
+   comparison becomes `HbRuntime.StrCmp( a, b ) <op> 0` — StrCmp is an
+   exact, ordinal comparison: Harbour's SET EXACT OFF rule, under which
+   a longer left operand carrying the right as a prefix is EQUAL, is
+   deliberately not reproduced (Alex, 2026-09-19). Fires
    when one operand is statically a string and the other a string or
    unresolved (a flag value, a dynamic member): Harbour raises on
-   anything but a string there. `=` on strings stays `==`. */
+   anything but a string there. `==` stays `==`; `=` never gets here,
+   the grammar refuses it (E0100). */
 static HB_BOOL hb_csEmitStrOrder( PHB_EXPR pExpr, FILE * yyc )
 {
    PHB_EXPR pL = pExpr->value.asOperator.pLeft;

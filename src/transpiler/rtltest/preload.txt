@@ -1,0 +1,6 @@
+# Preload list for the rtltest programs (--preload-list): headers whose
+# #defines the transpiler registers on top of std.ch + common.ch. The
+# generated modules are preprocessed by Harbour already; harness.prg is
+# not (its C# branch must survive to the transpiler), and it uses set.ch.
+
+set.ch

@@ -1,0 +1,367 @@
+# Rulings on hbtest assertions, statements and modules — every one a
+# decision, with its reason (extract.py reads this file).
+#
+#   <id>        an assertion (rt_str:68) or a statement (rt_str:61)
+#   <module>    a whole module (rt_class)
+#   <module>/<routine>   one routine of it (rt_misc/HB_TString)
+#
+# ruling: quarantine   commented out on both sides
+#         divergent    runs, but C# differs by design: does not gate
+#         exclude      (module or routine) neither generated nor run
+#
+# id	ruling	reason
+rt_class	exclude	Harbour's own object runtime (hbclass.ch, __cls*, message sends): its CLASS definitions reach the transpiler as hbclass.ch's preprocessed expansion, which it cannot read, and C# classes do not use that runtime; the transpiler suite covers classes (Alex, 2026-09-19)
+rt_misc/Main_OPOVERL	exclude	operator overloading on a class built at run time with HBClass():New() — the object runtime of the rt_class ruling
+rt_misc/HB_TString	exclude	builds Main_OPOVERL's class with HBClass():New() and AddInline blocks on `self` — the object runtime of the rt_class ruling
+
+# Str( n ) without a width, decimals from the value (Alex, 2026-09-19): divergent by design
+rt_date:65	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_date:76	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_date:87	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:98	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:100	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:109	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:110	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:111	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:256	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:257	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:258	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:303	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:304	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:305	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:306	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:309	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:310	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:311	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:313	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:314	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:315	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:316	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:317	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:318	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:319	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:320	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:321	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:322	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:323	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:324	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:325	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:326	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:327	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:328	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:329	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:331	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:332	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:111	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:112	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:113	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:114	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:115	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:116	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:118	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:120	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:123	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:124	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:125	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:128	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:129	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:130	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:131	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:133	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:134	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:136	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:137	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:138	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:139	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:140	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:141	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:142	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:144	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:145	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:148	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:157	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:158	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:159	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:160	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:161	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:162	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:163	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:164	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:165	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:166	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:167	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:168	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:171	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:172	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:173	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:174	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:175	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:176	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:177	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_hvma:100	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_hvma:102	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_hvma:118	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_hvma:119	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:341	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:342	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:346	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:347	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:348	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:349	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:350	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_math:351	divergent	Str( n ) decimals: a division that comes out even keeps its own decimals, not SET DECIMALS
+rt_trans:98	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:99	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:101	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:104	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:107	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:534	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:721	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:722	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:723	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:724	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:727	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:728	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:729	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:730	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:733	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:734	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:735	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:736	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:739	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:740	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:741	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_trans:742	divergent	Transform( n, "" ) width: a Val() result gets the default width, not its own
+rt_math:307	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:308	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_math:330	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:117	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:119	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:121	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:122	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:126	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:127	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:132	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:135	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:143	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:146	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:147	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:149	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:150	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:151	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:152	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:153	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:154	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:155	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:156	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:169	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+rt_str:170	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+
+# Quarantined: C# cannot compile these; hbtest-only, as both targets compile (Alex, 2026-09-19)
+rt_array:368	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_array:369	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:61	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:72	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:83	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:98	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:163	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:174	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_date:184	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:85	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:86	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:87	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:88	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:89	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:90	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:91	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:92	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:93	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:94	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:95	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:96	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:97	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:98	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:99	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:100	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:101	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:102	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvm:103	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvma:467	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvma:468	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvma:469	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_hvma:470	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:79	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:92	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:141	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:249	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:276	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:286	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_math:354	quarantine	int literal arithmetic overflows at C# compile time (CS0220); Harbour promotes to double. Emitter to-do
+rt_str:189	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:252	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:353	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:376	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:399	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:422	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:463	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:482	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:695	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:696	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:722	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:723	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:749	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:750	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_str:806	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_trans:126	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+rt_trans:127	quarantine	@ on a by-value built-in: the emitter writes ref, which C# rejects (CS1615); EasiPOS never does it
+
+# Quarantined: hbtest passes an argument of a type (or number) EasiPOS never does, and the strict
+# C# signature rejects it at compile time; the Pad functions stay string-only (Alex, 2026-09-19)
+rt_array:65	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:79	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:80	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:81	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:82	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:87	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:103	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:105	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:108	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:109	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:110	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:117	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_array:119	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:126	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_array:128	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:129	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:130	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:137	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_array:139	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:146	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_array:214	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_array:225	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:226	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:227	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:228	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:229	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:230	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:231	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:232	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:233	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:234	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:235	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:236	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:237	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:238	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:239	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:240	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:241	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:242	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:243	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:244	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:245	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:246	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:247	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:248	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:249	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:250	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:251	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:252	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:253	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
+rt_array:359	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:360	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_array:361	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:72	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:97	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:125	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:130	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_file:141	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:166	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:196	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_file:201	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_math:271	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_math:272	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_math:273	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_math:281	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_math:282	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_math:283	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:570	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:711	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:713	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:747	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:749	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:767	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:769	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:877	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:878	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:890	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_str:457	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:533	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:534	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:535	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:645	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:646	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:685	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:686	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:687	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:688	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:689	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:690	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:691	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:692	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:693	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:699	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:712	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:713	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:714	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:715	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:716	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:717	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:718	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:719	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:720	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:726	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:739	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:740	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:741	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:742	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:743	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:744	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:745	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:746	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:747	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:753	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_str:767	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_str:768	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_stra:489	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+
+# Len() of an object: Harbour counts its instance variables (an object is an array to the VM);
+# the object runtime of the rt_class ruling (Alex, 2026-09-19)
+rt_hvma:457	divergent	Len() of an object is its instance-variable count in Harbour; C# objects are not arrays
+rt_misc:77	divergent	Len() of an object is its instance-variable count in Harbour; C# objects are not arrays
+
+# String comparison is exact and ordinal (Alex, 2026-09-19): divergent by design
+rt_array:371	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:256	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:258	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:259	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:298	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:300	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:301	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:312	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:314	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_stra:315	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:268	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:269	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:279	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:282	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:367	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:368	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:378	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:381	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:444	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:445	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:450	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:454	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:457	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:461	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")
+rt_hvm:467	divergent	SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")

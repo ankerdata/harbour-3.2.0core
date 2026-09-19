@@ -860,7 +860,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `Foo(a, b, extra)` against `PROCEDURE Foo(a, b)` | `Foo(a, b)` — the extras are dropped as Harbour drops them at run time; the scan's W0018 is what stops the pipeline (test104) |
 | `PCount()` / `hb_AParams()` in a function that reads them | `hbva.Length` / `hbva` — the signature widens to `params dynamic[] hbva` and the named parameters are re-bound from it, file-static functions included (test102) |
 | `d1 - d2`, `d + n`, `n + d`, `d - n`, `d += n` on DATE operands | `(decimal)(d1.DayNumber - d2.DayNumber)` (decimal, so a later `/` stays float), `d.AddDays((int)(n))`, `d = d.AddDays(...)` — `DateOnly` has no operators; TIMESTAMP is left alone (test101) |
-| `c1 < c2` (`<=`, `>`, `>=`) on string operands | `HbRuntime.StrCmp(c1, c2) < 0` — Harbour's ordering under SET EXACT OFF (the shorter length decides; a longer LEFT operand with an equal prefix is EQUAL); `=` stays `==` (test101) |
+| `c1 < c2` (`<=`, `>`, `>=`) on string operands | `HbRuntime.StrCmp(c1, c2) < 0` — an exact, ordinal comparison; Harbour's SET EXACT OFF rule (a longer LEFT operand with an equal prefix is EQUAL) is deliberately not reproduced (Alex, 2026-09-19); `==` stays `==`, and `=` is refused (E0100) (test101) |
 | `METHOD ToString()`              | `public override string ToString()` — it is object.ToString (test103) |
 | `METHOD M(...)` in a class, and a subclass that redeclares it | `public virtual ... M(...)` on every class method; `public override ... M(...)` when the nearest ancestor declaring `M` has the identical signature — arity, varargs spread, per-slot ref / nilable / type and return type. Harbour dispatches on the receiver's own class, so a hide would call the base method through a base-typed reference (CS0108, the test suites' parameterless `New()`); a redeclaration with different parameters is an overload and gets neither (test49's `Speak()`) |
 | `TOleAuto():New("ADODB.Recordset")` | `Xhb.TOleAuto().New("ADODB.Recordset")` — xhb's class function is a static factory; `New` creates the COM object through `Type.GetTypeFromProgID` |
@@ -1362,7 +1362,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 98        | `(long)` coercion into an integral lvalue covers a file STATIC seeded from a define, the compound `+=` family and the assignment the ref-shim block emits; `FOR i := 1 TO ( n := Len( a ) )` keeps its parentheses (CS0266, CS0131) |
 | 99        | A send on a receiver of unknown class asks the reftab whether the name is a method everywhere (bare send gets `()`) or a member everywhere (empty `()` dropped); ACCESS / ASSIGN INLINE bodies emit as real accessors; the inline translator maps a single-colon send |
 | 100       | A user-function call whose name a local or parameter shadows is qualified `Program.name(…)` (CS0149); `dDate++` / `--dDate` on a DATE or TIMESTAMP operand emits `d = d.AddDays(±1)` (CS0023) |
-| 101       | Date arithmetic and string ordering, which C# has no operators for (CS0019): `d1 - d2` emits the day count `(decimal)(d1.DayNumber - d2.DayNumber)`, `d ± n` / `n + d` / `d += n` emit `AddDays`; `<` `<=` `>` `>=` on strings emit `HbRuntime.StrCmp(a, b) <op> 0` with Harbour's SET EXACT OFF ordering. Operand types from the emit-side probe: declared locals and parameters, DATA members, reftab member rows and return types, hbfuncs.tab |
+| 101       | Date arithmetic and string ordering, which C# has no operators for (CS0019): `d1 - d2` emits the day count `(decimal)(d1.DayNumber - d2.DayNumber)`, `d ± n` / `n + d` / `d += n` emit `AddDays`; `<` `<=` `>` `>=` on strings emit `HbRuntime.StrCmp(a, b) <op> 0`, an exact ordinal comparison (the test runs under SET EXACT ON, as EasiPOS does; Harbour's EXACT OFF prefix rule is not reproduced). Operand types from the emit-side probe: declared locals and parameters, DATA members, reftab member rows and return types, hbfuncs.tab |
 | 102       | A file-static variadic function (one reading `PCount()`) re-binds its named parameters from `hbva` like a public one — the re-bind used the bare name where the row is `file::func` (CS0103 ×10, trace.prg); `PCount()` inside a widened function is `hbva.Length`, not the runtime stub that returns 0 |
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
@@ -1394,6 +1394,79 @@ where the file fails and the test asserts the error line:
 | `equal_assign.prg`            | `E0100` | `nX = 5` — assignment is `:=` (an error: the file fails) |
 | `equal_compare.prg`           | `E0100` | `IF cMessage = "~"` — comparison is `==`                 |
 | `equal_for.prg`               | `E0100` | `FOR nI = 1` — the counter is assigned with `:=`         |
+
+### The runtime library — `rtltest/`
+
+The suite above tests the emitter. [`rtltest/`](rtltest/) tests the
+library the emitted code calls: HbRuntime.cs, Harbour's core runtime in
+C#. Its oracle is Harbour's own regression suite,
+[`utils/hbtest`](../../utils/hbtest/) — some 5,000 `HBTEST <expr> IS
+<result>` assertions over the runtime library — plus our own, in the same
+form, for what hbtest does not cover.
+
+```bat
+cd src\transpiler\rtltest
+py extract.py                 rem hbtest + own/ -> generated/, manifest.tsv
+runrtl.bat                    rem Harbour and C# builds, run, compare
+runrtl.bat all date own_bits  rem just these modules
+```
+
+- [`extract.py`](rtltest/extract.py) runs each `utils/hbtest/rt_*.prg`
+  and `own/own_*.prg` through Harbour's preprocessor, which resolves the
+  `#ifdef`s and turns every assertion into `TEST_CALL( "<expr>", {||
+  <expr> }, <result> )`, and writes the module back to
+  `generated/` whole — rt_file's assertions share a file handle, so the
+  statements between them are part of the test — with each TEST_CALL
+  given its id, the assertion's line in the original (`rt_str:68`), or
+  commented out with the reason it is not run. `manifest.tsv` gives
+  every assertion a disposition: `run-fn` (every core function it calls
+  is one the application calls — easipos-transpiled's
+  `notes/hbruntime.txt`), `run-op` (no function: operators and the VM, a
+  second tier that is reported but does not gate), `rte` (expects a
+  runtime error: a wrong-type argument is a compile error against a
+  strict C# signature), `unsupported:*` (memvars, macros, aliases, class
+  internals, hbtest's C helpers, the GET system, and a single `=`, which
+  the transpiler refuses — E0100) and `out-of-scope` (a
+  core function the application does not call). The statements between
+  the assertions follow the same rule — one that needs a macro or an
+  out-of-scope function is the setup of assertions that are not run, and
+  is commented out on both sides — and so do the module's helper
+  routines: one calling an out-of-scope function is out of scope itself,
+  with every assertion that calls it. Each assertion also has a
+  *subject*, its outermost core call (`Str( Val( "1." ) )` tests `Str`),
+  which `status.tsv` charges it to.
+- [`harness.prg`](rtltest/harness.prg) is TEST_CALL: it evaluates the
+  block and compares as hbtest's `ResultCompare` does, printing `<id>
+  PASS`, `<id> FAIL <result> | <expected>` or `<id> RTE <error>`. The
+  Harbour side catches errors with `BEGIN SEQUENCE`; the C# side with a
+  try/catch in `#pragma BEGINCSHARP`, so a stub's exception fails one
+  line, not the run.
+- [`runrtl.py`](rtltest/runrtl.py) builds each module with hbmk2 and
+  runs it — `hbref/<name>.txt` is the reference, tracked as `hbout/` is —
+  then transpiles it and builds it against HbRuntime.cs **alone**, with
+  no generated stubs: a function HbRuntime does not implement is CS0117.
+  Compile triage comments out the TEST_CALL each error falls in and
+  retries until the build is clean; those assertions are *quarantined*,
+  with their CS code. An error on any other line stops the module — it
+  needs a ruling or a fix. Then the C# program runs and each id is
+  compared: `pass`, `fail`, `quarantine`, `missing` (the program stopped
+  before it — the report names the exception, since a statement between
+  assertions has no guard, or the hang: a program still running after
+  120 s is killed with its process tree, the output so far kept) or
+  `harbour`. The reference is what the
+  Harbour 9.0 ships with (`%USERPROFILE%\dev\harbour-3.2.0dev`) *does*:
+  where it misses hbtest's own expectation, C# matching it is a pass.
+  `status.tsv` sums it per function with the application's call counts;
+  `work/failures.txt` lists every assertion that is not a pass.
+- `rulings.tsv` records decisions, each with its reason: `quarantine`
+  (commented out on both sides), `divergent` (runs; C# differs by design
+  and it does not gate), and `exclude` for a whole module (`rt_class`,
+  Harbour's own object runtime) or one routine of it
+  (`rt_misc/HB_TString`).
+
+Our own tests, `own/own_<family>.prg`, are written exactly as hbtest's
+(`#include "rt_main.ch"`, `HBTEST <expr> IS <result>`), and Harbour runs
+them first: an expectation Harbour does not meet is a wrong test.
 
 ---
 

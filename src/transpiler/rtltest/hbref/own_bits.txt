@@ -1,0 +1,24 @@
+
+own_bits:14 PASS
+own_bits:15 PASS
+own_bits:16 PASS
+own_bits:17 PASS
+own_bits:18 PASS
+own_bits:19 PASS
+own_bits:20 PASS
+own_bits:21 PASS
+own_bits:24 PASS
+own_bits:25 PASS
+own_bits:26 PASS
+own_bits:27 PASS
+own_bits:28 PASS
+own_bits:31 PASS
+own_bits:32 PASS
+own_bits:33 PASS
+own_bits:34 PASS
+own_bits:37 PASS
+own_bits:38 PASS
+own_bits:39 PASS
+own_bits:40 PASS
+own_bits:41 PASS
+passed         22 failed          0 errors          0

@@ -10,12 +10,13 @@ using static Program;
 // keeps float division (xzjobs' `Date() - oTicket:dIssueDate`, 14
 // sites). `d + n`, `n + d`, `d - n` emit `d.AddDays( (int)( n ) )`,
 // and `d += n` / `d -= n` become `d = d.AddDays( ... )` (fbrands'
-// `dBusiness -= 1`). Strings order by hb_itemStrCmp under SET EXACT
-// OFF — the shorter length decides, and a longer LEFT operand that
-// carries the right one as a prefix is EQUAL, so "Lisbon" > "Lis" is
-// false while "Lis" < "Lisbon" is true — which C# has no operator
-// for; `<`, `<=`, `>`, `>=` on strings emit `HbRuntime.StrCmp( a, b )
-// <op> 0` and `=` stays `==` (postdr's `cTime <= "24:00"`, 12 sites).
+// `dBusiness -= 1`). C# has no ordering operators for strings, so
+// `<`, `<=`, `>`, `>=` on strings emit `HbRuntime.StrCmp( a, b ) <op>
+// 0` and `=` stays `==` (postdr's `cTime <= "24:00"`, 12 sites).
+// StrCmp is exact and ordinal: Harbour's SET EXACT OFF rule, under
+// which "Lisbon" > "Lis" is false, is deliberately not reproduced
+// (Alex, 2026-09-19), so the test runs under SET EXACT ON, as
+// EasiPOS's startup.prg does.
 // Operand types come from the emit-side probe: a local or parameter's
 // declared type, a DATA member of the current class, a member of a
 // typed receiver via its reftab row, a function's reftab return type
@@ -54,6 +55,7 @@ public static partial class Program
         Voyage oVoyage = (Voyage)new Voyage().New(dStart, "Lisbon");
         string cPort = "Lis";
         DateOnly dNext = default;
+        HbRuntime.Set(_SET_EXACT, "ON");
         HbRuntime.QOut("span=" + HbRuntime.LTrim(HbRuntime.Str(nSpan)));
         HbRuntime.QOut("half=" + (((decimal)(dEnd.DayNumber - dStart.DayNumber)) / 2 > 4 ? "y" : "n"));
         HbRuntime.QOut("plus=" + HbRuntime.DToS(dStart.AddDays((int)(7))));
