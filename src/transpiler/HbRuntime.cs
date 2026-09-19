@@ -344,6 +344,13 @@ public static partial class HbRuntime
         return b.Length > a.Length ? -1 : 0;
     }
 
+    // FOR ... STEP <n> whose step is not a constant: the emitter's loop
+    // condition, which counts down when the step is below zero and up
+    // otherwise — vm/hvm.c hb_vmForTest, evaluated on every pass as the
+    // step can change. The end comes before the step, Harbour's order.
+    public static bool ForTest(decimal nCounter, decimal nEnd, decimal nStep) =>
+        nStep < 0 ? nCounter >= nEnd : nCounter <= nEnd;
+
     // ---- Date functions ----
     // Harbour Date → C# DateOnly (no time component). Harbour TIMESTAMP
     // maps to C# DateTime via the transpiler's type map.

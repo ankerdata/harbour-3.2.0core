@@ -335,6 +335,12 @@ extern void         hb_astBeginFor( HB_COMP_DECL, const char * szVar,
                                     PHB_EXPR pStep, int iLine );
 extern void         hb_astEndFor( HB_COMP_DECL );
 
+/* `=`: E0100 wherever the grammar takes it (harbour.yyc) */
+#define HB_AST_EQUAL_ASSIGN   0     /* `x = 5`, a statement */
+#define HB_AST_EQUAL_COMPARE  1     /* `a = b`, in an expression */
+#define HB_AST_EQUAL_FOR      2     /* `FOR i = 1` */
+extern void         hb_astEqualSign( HB_COMP_DECL, int iUse );
+
 /* EXIT / LOOP / BREAK */
 extern void         hb_astAddExit( HB_COMP_DECL, int iLine );
 extern void         hb_astAddLoop( HB_COMP_DECL, int iLine );

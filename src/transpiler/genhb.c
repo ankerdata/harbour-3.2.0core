@@ -495,8 +495,16 @@ static void hb_astEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "..." );
             }
             fprintf( yyc, "| " );
-            if( pExpr->value.asCodeblock.pExprList )
-               hb_astEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
+            {
+               /* the body is a chain on pNext: `{|| a, b, c }` */
+               PHB_EXPR pBody = pExpr->value.asCodeblock.pExprList;
+               for( ; pBody; pBody = pBody->pNext )
+               {
+                  hb_astEmitExpr( pBody, yyc, HB_FALSE );
+                  if( pBody->pNext )
+                     fprintf( yyc, ", " );
+               }
+            }
             fprintf( yyc, "}" );
          }
          break;

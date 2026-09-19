@@ -515,6 +515,48 @@ void hb_astEndFor( HB_COMP_DECL )
    }
 }
 
+/* === `=` — assignment is `:=`, comparison is `==` ===
+
+   Harbour reads a single `=` three ways: `x = 5` standing as a
+   statement assigns, `FOR i = 1` assigns the counter, and anywhere in
+   an expression it compares — on strings a comparison that follows SET
+   EXACT (trailing spaces ignored under ON, a prefix match under OFF),
+   which the C# `==` it has to become cannot reproduce. The source says
+   `:=` and `==` instead (Alex, 2026-09-19), so every `=` is error E0100
+   at its line and the file fails as on a syntax error. The check sits
+   in the grammar actions (harbour.yyc) because the AST cannot see it:
+   `x = 5` and `x := 5` are the same HB_EO_ASSIGN. E0100 is past the end
+   of Harbour's own table (hbgenerr.c, shared with the stock compiler),
+   so the message goes out through the same hook with its own number. */
+void hb_astEqualSign( HB_COMP_DECL, int iUse )
+{
+   static const char * const s_szUse[] =
+   {
+      "'=' as an assignment: write ':='",
+      "'=' as a comparison: write '==' ('=' on strings follows SET EXACT)",
+      "'=' in FOR: write ':='"
+   };
+
+   if( ! HB_COMP_PARAM->fExit && ! HB_COMP_PARAM->fError &&
+       iUse >= 0 && iUse < ( int ) HB_SIZEOFARRAY( s_szUse ) )
+   {
+      PHB_HFUNC pFunc = HB_COMP_PARAM->functions.pLast;
+
+      HB_COMP_PARAM->outMsgFunc( HB_COMP_PARAM, HB_COMP_PARAM->iErrorFmt,
+                                 HB_COMP_PARAM->currLine,
+                                 HB_COMP_PARAM->currModule,
+                                 'E', 100, s_szUse[ iUse ], NULL, NULL );
+      /* the bookkeeping of hb_compGenError */
+      HB_COMP_PARAM->iErrorCount++;
+      HB_COMP_PARAM->fError = HB_TRUE;
+      while( pFunc )
+      {
+         pFunc->bError = HB_TRUE;
+         pFunc = pFunc->pOwner;
+      }
+   }
+}
+
 /* === SWITCH / CASE / DEFAULT / ENDSWITCH === */
 
 void hb_astBeginSwitch( HB_COMP_DECL, PHB_EXPR pSwitch, int iLine )

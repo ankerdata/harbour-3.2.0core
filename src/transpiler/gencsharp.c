@@ -3680,6 +3680,76 @@ static HB_BOOL hb_csEmitStrOrder( PHB_EXPR pExpr, FILE * yyc )
    return HB_TRUE;
 }
 
+/* One expression of a codeblock `{|| a, b, c }` that is not its last,
+   as a statement of the lambda's body. Harbour evaluates it and drops
+   its value; C# takes only an assignment, a call, ++/-- or `new` as a
+   statement (CS0201). So a value with no effect is dropped as an
+   expression statement is (a parameterless send too, with the same
+   W0016), a call, an assignment or a step is a statement as it
+   stands, an IIF becomes if/else over the same rule, and any other
+   value is evaluated into a discard, `_ = a > b;`. */
+static void hb_csEmitBlockStmt( PHB_EXPR pExpr, FILE * yyc )
+{
+   while( pExpr && pExpr->ExprType == HB_ET_LIST &&
+          pExpr->value.asList.pExprList &&
+          ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( ! pExpr )
+      return;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_NONE:
+      case HB_ET_VARIABLE: case HB_ET_VARREF:
+      case HB_ET_NUMERIC:  case HB_ET_STRING:
+      case HB_ET_LOGICAL:  case HB_ET_NIL:
+      case HB_ET_DATE:     case HB_ET_TIMESTAMP:
+      case HB_ET_ARRAYAT:  case HB_ET_SELF:
+         return;
+      case HB_ET_SEND:
+         if( ! pExpr->value.asMessage.pParms )
+         {
+            char szDesc[ 160 ];
+            hb_snprintf( szDesc, sizeof( szDesc ),
+                         "parameterless send in a codeblock (:%s) — dispatch dropped",
+                         pExpr->value.asMessage.szMessage ?
+                            pExpr->value.asMessage.szMessage : "?" );
+            hb_csWarnUnsupported( szDesc );
+            return;
+         }
+         break;
+      case HB_ET_IIF:
+         if( pExpr->value.asList.pExprList )
+         {
+            PHB_EXPR pCond  = pExpr->value.asList.pExprList;
+            PHB_EXPR pTrue  = pCond->pNext;
+            PHB_EXPR pFalse = pTrue ? pTrue->pNext : NULL;
+            fprintf( yyc, "if (" );
+            hb_csEmitExpr( pCond, yyc, HB_FALSE );
+            if( hb_csConditionNeedsBoolUnwrap( pCond ) )
+               fprintf( yyc, " == true" );
+            fprintf( yyc, ") { " );
+            hb_csEmitBlockStmt( pTrue, yyc );
+            fprintf( yyc, "} else { " );
+            hb_csEmitBlockStmt( pFalse, yyc );
+            fprintf( yyc, "} " );
+            return;
+         }
+         break;
+      case HB_ET_FUNCALL:
+      case HB_EO_ASSIGN: case HB_EO_PLUSEQ: case HB_EO_MINUSEQ:
+      case HB_EO_MULTEQ: case HB_EO_DIVEQ:  case HB_EO_MODEQ:
+      case HB_EO_EXPEQ:
+      case HB_EO_PREINC: case HB_EO_PREDEC:
+      case HB_EO_POSTINC: case HB_EO_POSTDEC:
+         break;
+      default:
+         fprintf( yyc, "_ = " );
+         break;
+   }
+   hb_csEmitExpr( pExpr, yyc, HB_FALSE );
+   fprintf( yyc, "; " );
+}
+
 /* ---- Expression emitter ---- */
 
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
@@ -4950,10 +5020,17 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      iLocal++;
                   }
                }
-               if( pExpr->value.asCodeblock.pExprList )
                {
-                  hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
-                  fprintf( yyc, "; " );
+                  /* every expression of `{|...| a, b }` in order; the
+                     last one keeps the single-expression form */
+                  PHB_EXPR pBody = pExpr->value.asCodeblock.pExprList;
+                  for( ; pBody && pBody->pNext; pBody = pBody->pNext )
+                     hb_csEmitBlockStmt( pBody, yyc );
+                  if( pBody )
+                  {
+                     hb_csEmitExpr( pBody, yyc, HB_FALSE );
+                     fprintf( yyc, "; " );
+                  }
                }
                fprintf( yyc, "return null; }))" );
             }
@@ -4990,7 +5067,24 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                else
                   fprintf( yyc, "()" );
                fprintf( yyc, " => " );
-               if( pExpr->value.asCodeblock.pExprList )
+               if( pExpr->value.asCodeblock.pExprList &&
+                   pExpr->value.asCodeblock.pExprList->pNext )
+               {
+                  /* `{|| a, b, c }` evaluates a, b and c in order and
+                     yields c: a statement lambda, every expression but
+                     the last a statement (hb_csEmitBlockStmt), the last
+                     returned. The body is a chain on pNext, and emitting
+                     only its head once dropped everything after the
+                     first expression without a word. */
+                  PHB_EXPR pBody = pExpr->value.asCodeblock.pExprList;
+                  fprintf( yyc, "{ " );
+                  for( ; pBody->pNext; pBody = pBody->pNext )
+                     hb_csEmitBlockStmt( pBody, yyc );
+                  fprintf( yyc, "return " );
+                  hb_csEmitExpr( pBody, yyc, HB_FALSE );
+                  fprintf( yyc, "; }" );
+               }
+               else if( pExpr->value.asCodeblock.pExprList )
                   hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
                fprintf( yyc, "))" );
             }
@@ -6147,15 +6241,16 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
       case HB_AST_FOR:
          {
-            HB_BOOL fDescend = HB_FALSE;
+            /* The loop's direction is its step's sign, decided as
+               Harbour's code generator decides it: a constant step
+               (hb_compExprAsNumSign 1 / -1, none at all is +1) counts
+               up with `<=` or down with `>=`; any other step (0: a
+               variable, an expression, a literal 0) is tested at run
+               time on every pass, as HB_P_FORTEST does — `STEP nDir`
+               with a negative nDir once looped forever on `<=`. */
+            int iSign = pNode->value.asFor.pStep ?
+                        hb_compExprAsNumSign( pNode->value.asFor.pStep ) : 1;
             hb_csEmitIndent( yyc, iIndent );
-
-            /* Detect descending: negative step literal */
-            if( pNode->value.asFor.pStep &&
-                pNode->value.asFor.pStep->ExprType == HB_ET_NUMERIC &&
-                pNode->value.asFor.pStep->value.asNum.NumType == HB_ET_LONG &&
-                pNode->value.asFor.pStep->value.asNum.val.l < 0 )
-               fDescend = HB_TRUE;
 
             fprintf( yyc, "for (%s = ", pNode->value.asFor.szVar );
             if( hb_csVarIsInteger( pNode->value.asFor.szVar ) &&
@@ -6167,11 +6262,23 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             else
                hb_csEmitExpr( pNode->value.asFor.pStart, yyc, HB_FALSE );
-            fprintf( yyc, "; %s %s ", pNode->value.asFor.szVar,
-                     fDescend ? ">=" : "<=" );
-            /* fParen: `TO ( nLen := Len( a ) )` keeps its parentheses —
-               C# `=` binds looser than `<=` (CS0131) */
-            hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_TRUE );
+            if( iSign != 0 )
+            {
+               fprintf( yyc, "; %s %s ", pNode->value.asFor.szVar,
+                        iSign < 0 ? ">=" : "<=" );
+               /* fParen: `TO ( nLen := Len( a ) )` keeps its parentheses —
+                  C# `=` binds looser than `<=` (CS0131) */
+               hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_TRUE );
+            }
+            else
+            {
+               /* the end, then the step: Harbour's order of evaluation */
+               fprintf( yyc, "; HbRuntime.ForTest(%s, ", pNode->value.asFor.szVar );
+               hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_FALSE );
+               fprintf( yyc, ", " );
+               hb_csEmitExpr( pNode->value.asFor.pStep, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+            }
             fprintf( yyc, "; %s", pNode->value.asFor.szVar );
             if( pNode->value.asFor.pStep )
             {

@@ -9,13 +9,15 @@
 # every downstream caller). Others flag a source smell that codegen
 # still handles, e.g. W0023 (`@` on a never-reassigned array param).
 # Tests verify the warning is surfaced, not that codegen hard-fails.
+# E0100 (a single `=`) is the one error: the file fails, as on a syntax
+# error, and the test checks the error line instead.
 #
-# Usage: bash tests/errors/run.sh
+# Usage: bash tests/errors/run.sh     (HBTRANSPILER overrides the binary)
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-TRANS="$REPO_ROOT/bin/hbtranspiler"
+TRANS="${HBTRANSPILER:-$REPO_ROOT/bin/hbtranspiler}"
 INC="$REPO_ROOT/include"
 
 pass=0
@@ -28,11 +30,11 @@ run_one() {
    out=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$prg" -GS 2>&1)
    local rc=$?
 
-   if echo "$out" | grep -qE "warning $code.*$expect_pattern"; then
-      echo "PASS: $name (warning surfaced)"
+   if echo "$out" | grep -qE "(warning|Error) $code.*$expect_pattern"; then
+      echo "PASS: $name ($code surfaced)"
       pass=$((pass+1))
    else
-      echo "FAIL: $name (expected warning $code /$expect_pattern/, got rc=$rc)"
+      echo "FAIL: $name (expected $code /$expect_pattern/, got rc=$rc)"
       echo "$out" | sed 's|^|  |'
       fail=$((fail+1))
    fi
@@ -48,6 +50,9 @@ run_one "$SCRIPT_DIR/macro_expr.prg" "W0016" "macro &"
 run_one "$SCRIPT_DIR/comma_op.prg"   "W0016" "comma-operator"
 run_one "$SCRIPT_DIR/array_ref_noreassign.prg" "W0023" "redundant"
 run_one "$SCRIPT_DIR/hungarian_mismatch.prg"    "W0024" "contradicts its Hungarian-prefix"
+run_one "$SCRIPT_DIR/equal_assign.prg"  "E0100" "as an assignment"
+run_one "$SCRIPT_DIR/equal_compare.prg" "E0100" "as a comparison"
+run_one "$SCRIPT_DIR/equal_for.prg"     "E0100" "in FOR"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

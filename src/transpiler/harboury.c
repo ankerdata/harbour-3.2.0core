@@ -5140,7 +5140,7 @@ yyreduce:
 
   case 325:
 #line 935 "harbour.y" /* yacc.c:1646  */
-    { (yyval.asExpr) = hb_compExprAssign( (yyvsp[-2].asExpr), (yyvsp[0].asExpr), HB_COMP_PARAM ); }
+    { hb_astEqualSign( HB_COMP_PARAM, HB_AST_EQUAL_ASSIGN ); (yyval.asExpr) = hb_compExprAssign( (yyvsp[-2].asExpr), (yyvsp[0].asExpr), HB_COMP_PARAM ); }
 #line 5116 "harboury.c" /* yacc.c:1646  */
     break;
 
@@ -5284,7 +5284,7 @@ yyreduce:
 
   case 355:
 #line 987 "harbour.y" /* yacc.c:1646  */
-    { (yyval.asExpr) = hb_compExprSetOperand( hb_compExprNewEqual( (yyvsp[-2].asExpr), HB_COMP_PARAM ), (yyvsp[0].asExpr), HB_COMP_PARAM ); }
+    { hb_astEqualSign( HB_COMP_PARAM, HB_AST_EQUAL_COMPARE ); (yyval.asExpr) = hb_compExprSetOperand( hb_compExprNewEqual( (yyvsp[-2].asExpr), HB_COMP_PARAM ), (yyvsp[0].asExpr), HB_COMP_PARAM ); }
 #line 5260 "harboury.c" /* yacc.c:1646  */
     break;
 
@@ -6421,6 +6421,12 @@ yyreduce:
                   HB_COMP_PARAM->functions.pLast->funFlags &= ~ ( HB_FUNF_WITH_RETURN | HB_FUNF_BREAK_CODE );
                }
 #line 6299 "harboury.c" /* yacc.c:1646  */
+    break;
+
+  case 551:
+#line 1652 "harbour.y" /* yacc.c:1646  */
+    { hb_astEqualSign( HB_COMP_PARAM, HB_AST_EQUAL_FOR ); }
+#line 6305 "harboury.c" /* yacc.c:1646  */
     break;
 
   case 553:

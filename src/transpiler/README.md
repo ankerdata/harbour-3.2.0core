@@ -479,6 +479,25 @@ can reach zero. Things that are merely *type debt* go to the
 | W0031 | scan  | Cross-kind write into an ORM field (`NUMERIC` into a STRING field, CS0029) |
 | W0032 | scan  | Message sent to a scalar-named variable (`aLine:nQty`) — rename to `o<…>`   |
 
+**One error of the transpiler's own, E0100: a single `=`.** Harbour
+reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
+1` assigns the counter, and inside an expression `a = b` compares — on
+strings following SET EXACT (trailing spaces ignored under ON, a prefix
+match under OFF), which C#'s exact `==` does not reproduce. The source
+writes `:=` and `==` (Alex, 2026-09-19), so every `=` fails the file at
+its line, in every mode, as a syntax error would:
+
+```
+file.prg(6) Error E0100  '=' as a comparison: write '==' ('=' on strings follows SET EXACT)
+```
+
+The check sits in the grammar actions of `harbour.yyc`
+(`hb_astEqualSign`, hbast.c): the AST cannot tell `x = 5` from `x := 5`,
+both are HB_EO_ASSIGN. `!=` / `<>` / `#` stay allowed — the C# emits
+them exact, `!( a == b )`. E0100 lies past the end of Harbour's own
+error table (hbgenerr.c, which the stock compiler shares), so the
+message goes out through the same hook with its own number.
+
 **W0022 in detail.** When two call sites refine the same parameter
 slot to incompatible specific types, `-GF` emits one warning per
 conflict:
@@ -824,7 +843,9 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `^` / `$`                        | `HbRuntime.Pow()` (decimal) / `HbRuntime.HbIn()` (substring or hash-key) |
 | `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
 | `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
+| `FOR i := 1 TO n STEP k`         | `for (i = 1; i <= n; i += k)` — `>=` for a negative constant step; a step that is not a constant is `HbRuntime.ForTest(i, n, k)`, its sign tested on every pass as HB_P_FORTEST does (test111) |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
+| `{\|x\| f(x), n := 0, x > 1}`    | `((x) => { f(x); n = 0; return x > 1; })` — every expression runs, the last is the value; a middle one that is not a call, assignment or step is `_ = …;`, an IIF is if/else (test110) |
 | `Self` / `::`                    | `this` / `this.` — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class |
 | `ClassName():New()`              | `new ClassName()` — or `(ClassName)new ClassName().New()` when the class declares a `New` / `Init` body (it used to be skipped). A name the reftab does not know as a class (`hbClass()`, `TOleAuto()`) leaves the receiving local `dynamic` (test103) |
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
@@ -1348,6 +1369,8 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
 | 108       | A contrib library's name the program defines itself (`Random`, `FileSize`, both hbct's) is the program's function, called as any user function in its declared spelling — Harbour's linker takes a library member only for a symbol no object file defines |
 | 109       | A function the program defines is the program's even where hbfuncs.tab routes the name to HbRuntime (`Pow`, `StrCmp` — helpers HbRuntime.cs declares for the emitter): the call is to the program's own function, as Harbour's linker has it; the rule test108 applies to a contrib name |
+| 110       | A codeblock with several expressions runs all of them: `{\|\| a(), n := 0, x }` is a statement lambda, each expression but the last a statement, the last returned; a `...` block runs them all before `return null`, and `-GT` writes the whole list. The emitter had written only the first, so EasiPOS's Z resets read each row and never zeroed it |
+| 111       | A FOR loop counts in the direction of its step's sign: a constant step (`hb_compExprAsNumSign`) picks `<=` or `>=`, a negative decimal literal included; any other step is `HbRuntime.ForTest(i, end, step)`, tested on every pass with the end evaluated before the step. `STEP nStep` with a negative nStep had looped forever on `<=` |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 
@@ -1357,7 +1380,8 @@ test asserts the warning is emitted, *not* that codegen hard-fails. Most
 are `W0016` unsupported-construct cases (the emitter substitutes a
 placeholder and keeps the rest of the file — see
 [Unsupported constructs](#unsupported-constructs)); the rest flag a
-source smell that codegen still handles:
+source smell that codegen still handles — except `E0100`, the one error,
+where the file fails and the test asserts the error line:
 
 | Test                          | Warning | Flagged                                                  |
 |-------------------------------|---------|----------------------------------------------------------|
@@ -1367,6 +1391,9 @@ source smell that codegen still handles:
 | `comma_op.prg`                | `W0016` | `(a, b)` comma operator in expression position          |
 | `array_ref_noreassign.prg`    | `W0023` | Redundant `@` on an array param the callee only mutates element-wise |
 | `hungarian_mismatch.prg`      | `W0024` | Assignment whose RHS type contradicts the lvalue's Hungarian prefix |
+| `equal_assign.prg`            | `E0100` | `nX = 5` — assignment is `:=` (an error: the file fails) |
+| `equal_compare.prg`           | `E0100` | `IF cMessage = "~"` — comparison is `==`                 |
+| `equal_for.prg`               | `E0100` | `FOR nI = 1` — the counter is assigned with `:=`         |
 
 ---
 
