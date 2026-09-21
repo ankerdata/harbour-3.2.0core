@@ -95,7 +95,7 @@ PROCEDURE Main_FILE()
 
    // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)] TEST_CALL( "TESTFIER( FRead( fhnd, cBuff4 ) )", {|| TESTFIER( FRead( fhnd, cBuff4 ) ) }, "E: 0      R: 0" )
 
-   TEST_CALL( "rt_file:99", "TESTFIER( FRead( fhnd, cBuff4, 2 ) )", {|| TESTFIER( FRead( fhnd, cBuff4, 2 ) ) }, "E: 0      R: 0", .F., NIL )
+   // [quarantine:strict signature: FRead()'s buffer is by reference, and Harbour reads nothing when it is not (CS1620)] TEST_CALL( "TESTFIER( FRead( fhnd, cBuff4, 2 ) )", {|| TESTFIER( FRead( fhnd, cBuff4, 2 ) ) }, "E: 0      R: 0" )
 
 
 
@@ -164,7 +164,7 @@ PROCEDURE Main_FILE()
 
    // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)] TEST_CALL( "TESTFIER( FRead( fhnd, cBuff4 ) )", {|| TESTFIER( FRead( fhnd, cBuff4 ) ) }, "E: 0      R: 0" )
 
-   TEST_CALL( "rt_file:168", "TESTFIER( FRead( fhnd, cBuff4, 2 ) )", {|| TESTFIER( FRead( fhnd, cBuff4, 2 ) ) }, "E: 0      R: 0", .F., NIL )
+   // [quarantine:strict signature: FRead()'s buffer is by reference, and Harbour reads nothing when it is not (CS1620)] TEST_CALL( "TESTFIER( FRead( fhnd, cBuff4, 2 ) )", {|| TESTFIER( FRead( fhnd, cBuff4, 2 ) ) }, "E: 0      R: 0" )
 
 
 

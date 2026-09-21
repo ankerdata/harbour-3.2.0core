@@ -20,7 +20,6 @@ rt_file:88 PASS
 rt_file:89 PASS
 rt_file:90 PASS
 rt_file:91 PASS
-rt_file:99 PASS
 rt_file:103 PASS
 rt_file:104 PASS
 rt_file:105 PASS
@@ -62,7 +61,6 @@ rt_file:157 PASS
 rt_file:158 PASS
 rt_file:159 PASS
 rt_file:160 PASS
-rt_file:168 PASS
 rt_file:172 PASS
 rt_file:173 PASS
 rt_file:174 PASS
@@ -86,4 +84,4 @@ rt_file:202 PASS
 rt_file:203 PASS
 rt_file:205 PASS
 rt_file:206 PASS
-passed         85 failed          2 errors          0
+passed         83 failed          2 errors          0

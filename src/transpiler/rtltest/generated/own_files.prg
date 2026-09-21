@@ -5,21 +5,211 @@
 PROCEDURE Main_FILES()
 
    LOCAL cFile := "_rtl_ferase.tmp"
+   LOCAL cBuf := Space( 10 )
+   LOCAL cName := "", cPath := "", cExt := ""
+   LOCAL nHandle, nShared
 
 
    FClose( FCreate( cFile ) )
-   TEST_CALL( "own_files:18", "File( cFile )", {|| File( cFile ) }, .T., .F., NIL )
-   TEST_CALL( "own_files:19", "FErase( cFile )", {|| FErase( cFile ) }, 0, .F., NIL )
-   TEST_CALL( "own_files:20", "FError()", {|| FError() }, 0, .F., NIL )
-   TEST_CALL( "own_files:21", "File( cFile )", {|| File( cFile ) }, .F., .F., NIL )
-   TEST_CALL( "own_files:22", "FErase( cFile )", {|| FErase( cFile ) }, -1, .F., NIL )
-   TEST_CALL( "own_files:23", "FError()", {|| FError() }, 2, .F., NIL )
-   TEST_CALL( "own_files:24", 'FErase( "_rtl_nodir\x.tmp" )', {|| FErase( "_rtl_nodir\x.tmp" ) }, -1, .F., NIL )
-   TEST_CALL( "own_files:25", "FError()", {|| FError() }, 3, .F., NIL )
-   TEST_CALL( "own_files:26", 'FErase( "." )', {|| FErase( "." ) }, -1, .F., NIL )
-   TEST_CALL( "own_files:27", "FError()", {|| FError() }, 5, .F., NIL )
-   TEST_CALL( "own_files:28", 'FErase( "" )', {|| FErase( "" ) }, -1, .F., NIL )
-   TEST_CALL( "own_files:29", "FError()", {|| FError() }, 3, .F., NIL )
+   TEST_CALL( "own_files:33", "File( cFile )", {|| File( cFile ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:34", "FErase( cFile )", {|| FErase( cFile ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:35", "FError()", {|| FError() }, 0, .F., NIL )
+   TEST_CALL( "own_files:36", "File( cFile )", {|| File( cFile ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:37", "FErase( cFile )", {|| FErase( cFile ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:38", "FError()", {|| FError() }, 2, .F., NIL )
+   TEST_CALL( "own_files:39", 'FErase( "_rtl_nodir\x.tmp" )', {|| FErase( "_rtl_nodir\x.tmp" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:40", "FError()", {|| FError() }, 3, .F., NIL )
+   TEST_CALL( "own_files:41", 'FErase( "." )', {|| FErase( "." ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:42", "FError()", {|| FError() }, 5, .F., NIL )
+   TEST_CALL( "own_files:43", 'FErase( "" )', {|| FErase( "" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:44", "FError()", {|| FError() }, 3, .F., NIL )
+
+
+
+   nHandle := FCreate( "_excl.tmp" )
+   TEST_CALL( "own_files:49", 'FOpen( "_excl.tmp", 0 )', {|| FOpen( "_excl.tmp", 0 ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:50", "FError()", {|| FError() }, 32, .F., NIL )
+   TEST_CALL( "own_files:51", "FClose( nHandle )", {|| FClose( nHandle ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:52", 'hb_FCreate( "_share.tmp", 0, 2 + 64 ) > 0', {|| hb_FCreate( "_share.tmp", 0, 2 + 64 ) > 0 }, .T., .F., NIL )
+   TEST_CALL( "own_files:53", "FError()", {|| FError() }, 0, .F., NIL )
+   nShared := FOpen( "_share.tmp", 0 )
+   TEST_CALL( "own_files:55", "FError()", {|| FError() }, 0, .F., NIL )
+   TEST_CALL( "own_files:56", "FClose( nShared )", {|| FClose( nShared ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:57", 'FOpen( "_nothere.tmp" )', {|| FOpen( "_nothere.tmp" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:58", "FError()", {|| FError() }, 2, .F., NIL )
+   TEST_CALL( "own_files:59", 'FCreate( "_nodir\x.tmp" )', {|| FCreate( "_nodir\x.tmp" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:60", "FError()", {|| FError() }, 3, .F., NIL )
+
+
+
+   nHandle := FCreate( "_bytes.bin" )
+   TEST_CALL( "own_files:65", 'FWrite( nHandle, Chr( 200 ) + Chr( 0 ) + "Z" )', {|| FWrite( nHandle, Chr( 200 ) + Chr( 0 ) + "Z" ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:66", "FSeek( nHandle, 0 )", {|| FSeek( nHandle, 0 ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:67", "FRead( nHandle, @cBuf, 3 )", {|| FRead( nHandle, @cBuf, 3 ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:68", "Left( cBuf, 3 )", {|| Left( cBuf, 3 ) }, Chr( 200 ) + Chr( 0 ) + "Z", .F., NIL )
+   TEST_CALL( "own_files:69", "Len( cBuf )", {|| Len( cBuf ) }, 10, .F., NIL )
+   TEST_CALL( "own_files:70", "FSeek( nHandle, 0, 2 )", {|| FSeek( nHandle, 0, 2 ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:71", "FClose( nHandle )", {|| FClose( nHandle ) }, .T., .F., NIL )
+
+
+   FErase( "_ren_b.txt" )
+   FClose( FCreate( "_ren_a.txt" ) )
+   TEST_CALL( "own_files:76", 'FRename( "_ren_a.txt", "_ren_b.txt" )', {|| FRename( "_ren_a.txt", "_ren_b.txt" ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:77", "FError()", {|| FError() }, 0, .F., NIL )
+   TEST_CALL( "own_files:78", 'File( "_ren_b.txt" )', {|| File( "_ren_b.txt" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:79", 'FRename( "_ren_a.txt", "_ren_c.txt" )', {|| FRename( "_ren_a.txt", "_ren_c.txt" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:80", "FError()", {|| FError() }, 2, .F., NIL )
+   TEST_CALL( "own_files:81", 'FRename( "_ren_b.txt", "_nodir\x.txt" )', {|| FRename( "_ren_b.txt", "_nodir\x.txt" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:82", "FError()", {|| FError() }, 3, .F., NIL )
+
+
+
+
+   FClose( FCreate( "_dir_a.001" ) )
+   FClose( FCreate( "_dir_b.002" ) )
+   FErase( "_dir_h.003" )
+   FClose( FCreate( "_dir_h.003", 2 ) )
+   hb_DirBuild( "_dir_sub" )
+   FErase( "_dir_sub\_inpath.txt" )
+   TEST_CALL( "own_files:93", 'Directory( "_dir_a.001" )[ 1 ][ 1 ]', {|| Directory( "_dir_a.001" )[ 1 ][ 1 ] }, "_dir_a.001", .F., NIL )
+   TEST_CALL( "own_files:94", 'Directory( "_dir_a.001" )[ 1 ][ 2 ]', {|| Directory( "_dir_a.001" )[ 1 ][ 2 ] }, 0, .F., NIL )
+   TEST_CALL( "own_files:95", 'Directory( "_dir_a.001" )[ 1 ][ 5 ]', {|| Directory( "_dir_a.001" )[ 1 ][ 5 ] }, "A", .F., NIL )
+   TEST_CALL( "own_files:96", 'Directory( "_dir_a.001" )[ 1 ][ 3 ]', {|| Directory( "_dir_a.001" )[ 1 ][ 3 ] }, Date(), .F., NIL )
+   TEST_CALL( "own_files:97", 'Len( Directory( "_dir_a.001" )[ 1 ][ 4 ] )', {|| Len( Directory( "_dir_a.001" )[ 1 ][ 4 ] ) }, 8, .F., NIL )
+   TEST_CALL( "own_files:98", 'Len( Directory( "_dir_*.*" ) )', {|| Len( Directory( "_dir_*.*" ) ) }, 2, .F., NIL )
+   TEST_CALL( "own_files:99", 'Len( Directory( "_dir_*.*", "H" ) )', {|| Len( Directory( "_dir_*.*", "H" ) ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:100", 'Directory( "_dir_h.003", "H" )[ 1 ][ 5 ]', {|| Directory( "_dir_h.003", "H" )[ 1 ][ 5 ] }, "HA", .F., NIL )
+   TEST_CALL( "own_files:101", 'Len( Directory( "_dir_*.*", "D" ) )', {|| Len( Directory( "_dir_*.*", "D" ) ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:102", 'Directory( "_dir_sub", "D" )[ 1 ][ 5 ]', {|| Directory( "_dir_sub", "D" )[ 1 ][ 5 ] }, "D", .F., NIL )
+   TEST_CALL( "own_files:103", 'Len( Directory( "_dir_sub\", "D" ) )', {|| Len( Directory( "_dir_sub\", "D" ) ) }, 2, .F., NIL )
+   TEST_CALL( "own_files:104", 'Len( Directory( "_dir_sub\" ) )', {|| Len( Directory( "_dir_sub\" ) ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:105", 'Len( Directory( "_nodir\*.*" ) )', {|| Len( Directory( "_nodir\*.*" ) ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:106", 'Directory( "_dir_b.002" )[ 1 ][ 1 ]', {|| Directory( "_dir_b.002" )[ 1 ][ 1 ] }, "_dir_b.002", .F., NIL )
+
+
+
+
+
+   TEST_CALL( "own_files:112", 'File( "_dir_*.001" )', {|| File( "_dir_*.001" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:113", 'File( "_dir_*.999" )', {|| File( "_dir_*.999" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:114", 'File( "_dir_sub" )', {|| File( "_dir_sub" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:115", 'File( "_dir_h.003" )', {|| File( "_dir_h.003" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:116", 'File( "_dir_sub\" )', {|| File( "_dir_sub\" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:117", 'File( "" )', {|| File( "" ) }, .F., .F., NIL )
+   FClose( FCreate( "_dir_sub\_inpath.txt" ) )
+   TEST_CALL( "own_files:119", 'File( "_inpath.txt" )', {|| File( "_inpath.txt" ) }, .F., .F., NIL )
+   Set( 6, "_dir_sub" )
+   TEST_CALL( "own_files:121", 'File( "_inpath.txt" )', {|| File( "_inpath.txt" ) }, .T., .F., NIL )
+   Set( 6, "" )
+   TEST_CALL( "own_files:123", 'File( "_inpath.txt" )', {|| File( "_inpath.txt" ) }, .F., .F., NIL )
+
+
+   TEST_CALL( "own_files:126", 'hb_FileExists( "_dir_a.001" )', {|| hb_FileExists( "_dir_a.001" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:127", 'hb_FileExists( "_dir_sub" )', {|| hb_FileExists( "_dir_sub" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:128", 'hb_DirExists( "_dir_sub" )', {|| hb_DirExists( "_dir_sub" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:129", 'hb_DirExists( "_dir_a.001" )', {|| hb_DirExists( "_dir_a.001" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:130", 'hb_vfExists( "_dir_a.001" )', {|| hb_vfExists( "_dir_a.001" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:131", 'hb_vfExists( "_nothere.tmp" )', {|| hb_vfExists( "_nothere.tmp" ) }, .F., .F., NIL )
+
+
+   TEST_CALL( "own_files:134", "FError()", {|| FError() }, 0, .F., NIL )
+   TEST_CALL( "own_files:135", 'hb_vfSize( "_bytes.bin" )', {|| hb_vfSize( "_bytes.bin" ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:136", 'hb_vfSize( "_nothere.tmp" )', {|| hb_vfSize( "_nothere.tmp" ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:137", "FError()", {|| FError() }, 2, .F., NIL )
+   TEST_CALL( "own_files:138", 'hb_vfErase( "_nothere.tmp" )', {|| hb_vfErase( "_nothere.tmp" ) }, -1, .F., NIL )
+   TEST_CALL( "own_files:139", "FError()", {|| FError() }, 2, .F., NIL )
+
+
+
+   TEST_CALL( "own_files:143", 'MemoWrit( "_memo.txt", "line1" )', {|| MemoWrit( "_memo.txt", "line1" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:144", 'hb_vfSize( "_memo.txt" )', {|| hb_vfSize( "_memo.txt" ) }, 6, .F., NIL )
+   TEST_CALL( "own_files:145", 'MemoRead( "_memo.txt" )', {|| MemoRead( "_memo.txt" ) }, "line1", .F., NIL )
+   TEST_CALL( "own_files:146", 'hb_MemoRead( "_memo.txt" )', {|| hb_MemoRead( "_memo.txt" ) }, "line1" + Chr( 26 ), .F., NIL )
+   TEST_CALL( "own_files:147", 'hb_MemoWrit( "_memo.txt", Chr( 0 ) + Chr( 128 ) + Chr( 255 ) )', {|| hb_MemoWrit( "_memo.txt", Chr( 0 ) + Chr( 128 ) + Chr( 255 ) ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:148", 'hb_MemoRead( "_memo.txt" )', {|| hb_MemoRead( "_memo.txt" ) }, Chr( 0 ) + Chr( 128 ) + Chr( 255 ), .F., NIL )
+   TEST_CALL( "own_files:149", 'Len( hb_MemoRead( "_memo.txt" ) )', {|| Len( hb_MemoRead( "_memo.txt" ) ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:150", 'MemoRead( "_nothere.tmp" )', {|| MemoRead( "_nothere.tmp" ) }, "", .F., NIL )
+   TEST_CALL( "own_files:151", 'hb_MemoWrit( "_dir_sub", "x" )', {|| hb_MemoWrit( "_dir_sub", "x" ) }, .F., .F., NIL )
+
+
+
+   TEST_CALL( "own_files:155", 'hb_DirBuild( "_b1\_b2\_b3" )', {|| hb_DirBuild( "_b1\_b2\_b3" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:156", 'hb_DirExists( "_b1\_b2\_b3" )', {|| hb_DirExists( "_b1\_b2\_b3" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:157", 'hb_DirBuild( "_b1\_b2\_b3" )', {|| hb_DirBuild( "_b1\_b2\_b3" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:158", 'hb_DirBuild( "_dir_a.001\x" )', {|| hb_DirBuild( "_dir_a.001\x" ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:159", 'MakeDir( "_b1" )', {|| MakeDir( "_b1" ) }, 5, .F., NIL )
+   TEST_CALL( "own_files:160", 'MakeDir( "_nodir\_x" )', {|| MakeDir( "_nodir\_x" ) }, 3, .F., NIL )
+   TEST_CALL( "own_files:161", 'DirChange( "_b1\_b2" )', {|| DirChange( "_b1\_b2" ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:162", "Right( CurDir(), 3 )", {|| Right( CurDir(), 3 ) }, "_b2", .F., NIL )
+   TEST_CALL( "own_files:163", "Right( hb_cwd(), 4 )", {|| Right( hb_cwd(), 4 ) }, "_b2\", .F., NIL )
+   TEST_CALL( "own_files:164", "CurDir() $ hb_cwd()", {|| CurDir() $ hb_cwd() }, .T., .F., NIL )
+   TEST_CALL( "own_files:165", "hb_cwd() == hb_DirSepAdd( hb_cwd() )", {|| hb_cwd() == hb_DirSepAdd( hb_cwd() ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:166", 'hb_CurDrive() + ":" $ hb_cwd()', {|| hb_CurDrive() + ":" $ hb_cwd() }, .T., .F., NIL )
+   TEST_CALL( "own_files:167", 'DirChange( "..\.." )', {|| DirChange( "..\.." ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:168", 'DirChange( "_nothere" )', {|| DirChange( "_nothere" ) }, 2, .F., NIL )
+   TEST_CALL( "own_files:169", "Len( hb_CurDrive() )", {|| Len( hb_CurDrive() ) }, 1, .F., NIL )
+
+
+
+   TEST_CALL( "own_files:173", 'Len( hb_DirScan( "_b1", "*.*" ) )', {|| Len( hb_DirScan( "_b1", "*.*" ) ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:174", 'hb_DirScan( "_b1", "_b3", "D" )[ 1 ][ 1 ]', {|| hb_DirScan( "_b1", "_b3", "D" )[ 1 ][ 1 ] }, "_b2\_b3", .F., NIL )
+   TEST_CALL( "own_files:175", 'Len( hb_DirScan( "_b1", "_b3", "D" ) )', {|| Len( hb_DirScan( "_b1", "_b3", "D" ) ) }, 1, .F., NIL )
+
+
+
+
+   TEST_CALL( "own_files:180", 'hb_FNameDir( "C:\dir\sub\file.ext" )', {|| hb_FNameDir( "C:\dir\sub\file.ext" ) }, "C:\dir\sub\", .F., NIL )
+   TEST_CALL( "own_files:181", 'hb_FNameDir( "file.ext" )', {|| hb_FNameDir( "file.ext" ) }, "", .F., NIL )
+   TEST_CALL( "own_files:182", 'hb_FNameExt( "C:\dir\sub\file.ext" )', {|| hb_FNameExt( "C:\dir\sub\file.ext" ) }, ".ext", .F., NIL )
+   TEST_CALL( "own_files:183", 'hb_FNameExt( "file" )', {|| hb_FNameExt( "file" ) }, "", .F., NIL )
+   TEST_CALL( "own_files:184", 'hb_FNameExt( ".bashrc" )', {|| hb_FNameExt( ".bashrc" ) }, "", .F., NIL )
+   TEST_CALL( "own_files:185", 'hb_FNameExt( "C:\dir.v2\file" )', {|| hb_FNameExt( "C:\dir.v2\file" ) }, "", .F., NIL )
+   TEST_CALL( "own_files:186", 'hb_FNameNameExt( "C:\dir\file.ext" )', {|| hb_FNameNameExt( "C:\dir\file.ext" ) }, "file.ext", .F., NIL )
+   TEST_CALL( "own_files:187", 'hb_FNameNameExt( "file.ext" )', {|| hb_FNameNameExt( "file.ext" ) }, "file.ext", .F., NIL )
+   TEST_CALL( "own_files:188", 'hb_FNameExtSet( "C:\dir\file.ext", "json" )', {|| hb_FNameExtSet( "C:\dir\file.ext", "json" ) }, "C:\dir\file.json", .F., NIL )
+   TEST_CALL( "own_files:189", 'hb_FNameExtSet( "C:\dir\file.ext", ".json" )', {|| hb_FNameExtSet( "C:\dir\file.ext", ".json" ) }, "C:\dir\file.json", .F., NIL )
+   TEST_CALL( "own_files:190", 'hb_FNameExtSet( "C:\dir\file.ext" )', {|| hb_FNameExtSet( "C:\dir\file.ext" ) }, "C:\dir\file", .F., NIL )
+   hb_FNameSplit( "C:\dir\sub\file.ext", @cPath, @cName, @cExt )
+   TEST_CALL( "own_files:192", "AllTrim( cPath )", {|| AllTrim( cPath ) }, "C:\dir\sub\", .F., NIL )
+   TEST_CALL( "own_files:193", "AllTrim( cName )", {|| AllTrim( cName ) }, "file", .F., NIL )
+   TEST_CALL( "own_files:194", "AllTrim( cExt )", {|| AllTrim( cExt ) }, ".ext", .F., NIL )
+   hb_FNameSplit( "file", @cPath, @cName, @cExt )
+   TEST_CALL( "own_files:196", "AllTrim( cPath )", {|| AllTrim( cPath ) }, "", .F., NIL )
+   TEST_CALL( "own_files:197", "AllTrim( cExt )", {|| AllTrim( cExt ) }, "", .F., NIL )
+
+
+   TEST_CALL( "own_files:200", "hb_ps()", {|| hb_ps() }, "\", .F., NIL )
+   TEST_CALL( "own_files:201", 'hb_DirSepAdd( "C:\dir" )', {|| hb_DirSepAdd( "C:\dir" ) }, "C:\dir\", .F., NIL )
+   TEST_CALL( "own_files:202", 'hb_DirSepAdd( "C:\dir\" )', {|| hb_DirSepAdd( "C:\dir\" ) }, "C:\dir\", .F., NIL )
+   TEST_CALL( "own_files:203", 'hb_DirSepAdd( "C:" )', {|| hb_DirSepAdd( "C:" ) }, "C:", .F., NIL )
+   TEST_CALL( "own_files:204", 'hb_DirSepAdd( "" )', {|| hb_DirSepAdd( "" ) }, "", .F., NIL )
+   TEST_CALL( "own_files:205", 'hb_PathNormalize( "C:\a\b\..\c" )', {|| hb_PathNormalize( "C:\a\b\..\c" ) }, "C:\a\c", .F., NIL )
+   TEST_CALL( "own_files:206", 'hb_PathNormalize( "C:\a\.\b" )', {|| hb_PathNormalize( "C:\a\.\b" ) }, "C:\a\b", .F., NIL )
+   TEST_CALL( "own_files:207", 'hb_PathNormalize( "a\b\..\..\c" )', {|| hb_PathNormalize( "a\b\..\..\c" ) }, "c", .F., NIL )
+   TEST_CALL( "own_files:208", 'hb_PathNormalize( "C:\a\b\.." )', {|| hb_PathNormalize( "C:\a\b\.." ) }, "C:\a", .F., NIL )
+   TEST_CALL( "own_files:209", 'hb_PathNormalize( "" )', {|| hb_PathNormalize( "" ) }, "", .F., NIL )
+
+
+   TEST_CALL( "own_files:212", "Right( hb_DirBase(), 1 )", {|| Right( hb_DirBase(), 1 ) }, "\", .F., NIL )
+   TEST_CALL( "own_files:213", "hb_DirBase() == hb_DirSepAdd( hb_DirBase() )", {|| hb_DirBase() == hb_DirSepAdd( hb_DirBase() ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:214", "hb_DirTemp() == hb_DirSepAdd( hb_DirTemp() )", {|| hb_DirTemp() == hb_DirSepAdd( hb_DirTemp() ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:215", "hb_DirExists( hb_DirTemp() )", {|| hb_DirExists( hb_DirTemp() ) }, .T., .F., NIL )
+
+   nHandle := hb_FTempCreateEx( @cName, , "_rtl_", ".tmp" )
+   TEST_CALL( "own_files:218", "hb_FileExists( cName )", {|| hb_FileExists( cName ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:219", "FSeek( nHandle, 0, 2 )", {|| FSeek( nHandle, 0, 2 ) }, 0, .F., NIL )
+   TEST_CALL( "own_files:220", "Len( hb_FNameNameExt( cName ) )", {|| Len( hb_FNameNameExt( cName ) ) }, 15, .F., NIL )
+   TEST_CALL( "own_files:221", "hb_FNameExt( cName )", {|| hb_FNameExt( cName ) }, ".tmp", .F., NIL )
+   TEST_CALL( "own_files:222", "FClose( nHandle )", {|| FClose( nHandle ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:223", "FErase( cName )", {|| FErase( cName ) }, 0, .F., NIL )
+
+
+   TEST_CALL( "own_files:226", "DiskSpace( 0 ) > 0", {|| DiskSpace( 0 ) > 0 }, .T., .F., NIL )
+   DosError( 0 )
+   TEST_CALL( "own_files:228", "DosError()", {|| DosError() }, 0, .F., NIL )
+   DosError( 7 )
+   TEST_CALL( "own_files:230", "DosError()", {|| DosError() }, 7, .F., NIL )
+   DosError( 0 )
 
    RETURN
 
