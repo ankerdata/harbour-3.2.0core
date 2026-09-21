@@ -723,9 +723,9 @@ PROCEDURE Main_MISC()
 
 
 
-   TEST_CALL( "rt_misc:729", "Bin2W()", {|| Bin2W() }, 0, .F., NIL )
+   // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)] TEST_CALL( "Bin2W()", {|| Bin2W() }, 0 )
 
-   TEST_CALL( "rt_misc:731", "Bin2W( 100 )", {|| Bin2W( 100 ) }, 0, .F., NIL )
+   // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)] TEST_CALL( "Bin2W( 100 )", {|| Bin2W( 100 ) }, 0 )
    TEST_CALL( "rt_misc:732", 'Bin2W( "" )', {|| Bin2W( "" ) }, 0, .F., NIL )
 
    TEST_CALL( "rt_misc:734", 'Bin2W( "AB" )', {|| Bin2W( "AB" ) }, 16961, .F., NIL )
@@ -777,9 +777,9 @@ PROCEDURE Main_MISC()
 
 
 
-   TEST_CALL( "rt_misc:783", "L2Bin()", {|| L2Bin() }, Chr( 0 ) + Chr( 0 ) + Chr( 0 ) + Chr( 0 ), .F., NIL )
+   // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)] TEST_CALL( "L2Bin()", {|| L2Bin() }, Chr( 0 ) + Chr( 0 ) + Chr( 0 ) + Chr( 0 ) )
 
-   TEST_CALL( "rt_misc:785", 'L2Bin( ""         )', {|| L2Bin( ""         ) }, Chr( 0 ) + Chr( 0 ) + Chr( 0 ) + Chr( 0 ), .F., NIL )
+   // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)] TEST_CALL( 'L2Bin( ""         )', {|| L2Bin( ""         ) }, Chr( 0 ) + Chr( 0 ) + Chr( 0 ) + Chr( 0 ) )
    TEST_CALL( "rt_misc:786", "L2Bin( 0          )", {|| L2Bin( 0          ) }, Chr( 0 ) + Chr( 0 ) + Chr( 0 ) + Chr( 0 ), .F., NIL )
    TEST_CALL( "rt_misc:787", "L2Bin( 1145258561 )", {|| L2Bin( 1145258561 ) }, "ABCD", .F., NIL )
    TEST_CALL( "rt_misc:788", "L2Bin( 1094861636 )", {|| L2Bin( 1094861636 ) }, "DCBA", .F., NIL )

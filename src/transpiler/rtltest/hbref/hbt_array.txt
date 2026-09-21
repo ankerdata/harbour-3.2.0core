@@ -1,5 +1,4 @@
 
-rt_array:57 PASS
 rt_array:59 PASS
 rt_array:60 PASS
 rt_array:61 PASS
@@ -37,7 +36,6 @@ rt_array:142 PASS
 rt_array:143 PASS
 rt_array:144 PASS
 rt_array:145 PASS
-rt_array:148 PASS
 rt_array:150 PASS
 rt_array:151 PASS
 rt_array:152 PASS
@@ -169,4 +167,4 @@ rt_array:393 PASS
 rt_array:396 PASS
 rt_array:397 PASS
 rt_array:398 PASS
-passed        170 failed          0 errors          0
+passed        168 failed          0 errors          0

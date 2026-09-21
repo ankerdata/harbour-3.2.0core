@@ -14,7 +14,7 @@ LTrim	implemented	675	15	0	0	0	0	0
 hb_bitAnd	implemented	624	9	0	0	0	0	0
 SubStr	implemented	609	30	0	0	0	0	0
 AllTrim	implemented	542	20	0	0	0	0	0
-Space	implemented	515	6	0	1	0	0	0
+Space	implemented	515	6	0	0	0	0	0
 StrZero	implemented	491	69	0	0	0	0	0
 StrTran	implemented	417	7	0	0	0	0	0
 Round	implemented	402	94	0	0	0	0	0
@@ -120,8 +120,8 @@ hb_cdpSelect	stub	8	0	0	0	0	0	0
 hb_socketRecv	stub	8	0	0	0	0	0	0
 hb_StrToUTF8	stub	8	0	0	0	0	0	0
 __SetCentury	implemented	8	0	0	0	0	0	0
-ATail	implemented	7	7	0	1	0	0	0
-L2Bin	implemented	7	10	0	2	0	0	0
+ATail	implemented	7	7	0	0	0	0	0
+L2Bin	implemented	7	10	0	0	0	0	0
 ProcLine	implemented	7	2	0	0	0	0	0
 ProcName	implemented	7	2	0	0	0	0	0
 __Quit	implemented	7	0	0	0	0	0	0
@@ -142,9 +142,9 @@ FRename	implemented	5	5	0	0	0	0	0
 hb_bitShift	implemented	5	5	0	0	0	0	0
 hb_defaultValue	stub	5	0	0	0	0	0	0
 hb_socketShutdown	stub	5	0	0	0	0	0	0
-ACopy	implemented	4	36	0	1	0	0	0
+ACopy	implemented	4	36	0	0	0	0	0
 Bin2I	implemented	4	9	0	0	0	0	0
-Bin2W	implemented	4	9	0	2	0	0	0
+Bin2W	implemented	4	9	0	0	0	0	0
 DirChange	implemented	4	3	0	0	0	0	0
 DiskSpace	implemented	4	1	0	0	0	0	0
 DosError	implemented	4	2	0	0	0	0	0
@@ -205,7 +205,7 @@ hb_PathNormalize	implemented	2	5	0	0	0	0	0
 hb_processRun	implemented	2	2	0	0	0	0	0
 hb_socketBind	stub	2	0	0	0	0	0	0
 hb_socketListen	stub	2	0	0	0	0	0	0
-hb_SToD	implemented	2	43	0	2	0	0	0
+hb_SToD	implemented	2	43	0	0	0	0	0
 hb_SToT	implemented	2	0	0	0	0	0	0
 hb_StrFormat	implemented	2	17	0	0	0	0	0
 hb_StrShrink	implemented	2	29	0	0	0	0	0

@@ -366,5 +366,4 @@ rt_stra:517 PASS
 rt_stra:518 PASS
 rt_stra:526 PASS
 rt_stra:527 PASS
-rt_stra:528 PASS
-passed        368 failed          0 errors          0
+passed        367 failed          0 errors          0

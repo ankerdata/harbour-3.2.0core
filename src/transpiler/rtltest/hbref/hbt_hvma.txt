@@ -116,14 +116,12 @@ rt_hvma:253 PASS
 rt_hvma:265 PASS
 rt_hvma:266 PASS
 rt_hvma:267 PASS
-rt_hvma:268 PASS
 rt_hvma:269 PASS
 rt_hvma:270 PASS
 rt_hvma:271 PASS
 rt_hvma:272 PASS
 rt_hvma:273 PASS
 rt_hvma:274 PASS
-rt_hvma:275 PASS
 rt_hvma:276 PASS
 rt_hvma:277 PASS
 rt_hvma:278 PASS
@@ -294,4 +292,4 @@ rt_hvma:629 PASS
 rt_hvma:630 PASS
 rt_hvma:631 PASS
 rt_hvma:632 PASS
-passed        293 failed          2 errors          0
+passed        291 failed          2 errors          0

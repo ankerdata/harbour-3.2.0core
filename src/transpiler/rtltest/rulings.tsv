@@ -217,6 +217,7 @@ rt_trans:127	quarantine	@ on a by-value built-in: the emitter writes ref, which 
 
 # Quarantined: hbtest passes an argument of a type (or number) EasiPOS never does, and the strict
 # C# signature rejects it at compile time; the Pad functions stay string-only (Alex, 2026-09-19)
+rt_array:57	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_array:65	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_array:79	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_array:80	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
@@ -237,6 +238,7 @@ rt_array:130	quarantine	strict signature: a wrong-type or wrong-count argument i
 rt_array:137	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
 rt_array:139	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_array:146	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_array:148	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_array:214	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
 rt_array:225	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
 rt_array:226	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1501)
@@ -289,10 +291,14 @@ rt_math:283	quarantine	strict signature: a wrong-type or wrong-count argument is
 rt_misc:570	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
 rt_misc:711	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_misc:713	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:729	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:731	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
 rt_misc:747	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_misc:749	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
 rt_misc:767	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_misc:769	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
+rt_misc:783	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
+rt_misc:785	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)
 rt_misc:877	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_misc:878	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
 rt_misc:890	quarantine	strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)
@@ -406,3 +412,12 @@ rt_hvm:244	divergent	classH: C# has no class table, so no value has a class hand
 rt_hvm:245	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
 rt_hvm:247	divergent	classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)
 rt_hvm:248	divergent	classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)
+
+# .AND. / .OR. on a non-logical operand: Harbour never checks the operand it returns, C#'s
+# && and || need bool on both sides (Alex, 2026-09-21)
+rt_hvma:268	quarantine	a logical operator on a non-logical operand: C#'s && needs bool on both sides (CS0019); EasiPOS builds 0/0 with none
+rt_hvma:275	quarantine	a logical operator on a non-logical operand: C#'s && needs bool on both sides (CS0019); EasiPOS builds 0/0 with none
+
+# String minus - joining two strings with the left one's trailing blanks moved to the end -
+# is not ported: C# has no - for strings and EasiPOS never subtracts one (Alex, 2026-09-21)
+rt_stra:528	quarantine	string minus: C# has no - for strings (CS0019); EasiPOS never subtracts a string, and RTrim( a ) + b + Space( Len( a ) - Len( RTrim( a ) ) ) spells it out where needed

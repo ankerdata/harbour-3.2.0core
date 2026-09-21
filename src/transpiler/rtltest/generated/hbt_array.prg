@@ -58,7 +58,7 @@ PROCEDURE Main_ARRAY()
 
 
 
-   TEST_CALL( "rt_array:57", "ACopy()", {|| ACopy() }, NIL, .F., NIL )
+   // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)] TEST_CALL( "ACopy()", {|| ACopy() }, NIL )
 
    TEST_CALL( "rt_array:59", 'ACopy( {}, "C" )', {|| ACopy( {}, "C" ) }, NIL, .F., NIL )
    TEST_CALL( "rt_array:60", 'ACopy( "C", {} )', {|| ACopy( "C", {} ) }, NIL, .F., NIL )
@@ -149,7 +149,7 @@ PROCEDURE Main_ARRAY()
    TEST_CALL( "rt_array:145", "AIns( ErrorNew(), 0 )", {|| AIns( ErrorNew(), 0 ) }, "ERROR Object", .F., NIL )
    // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)] TEST_CALL( "AIns( ErrorNew(), NIL )", {|| AIns( ErrorNew(), NIL ) }, "ERROR Object" )
 
-   TEST_CALL( "rt_array:148", "ATail()", {|| ATail() }, NIL, .F., NIL )
+   // [quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)] TEST_CALL( "ATail()", {|| ATail() }, NIL )
 
    TEST_CALL( "rt_array:150", "ATail( NIL )", {|| ATail( NIL ) }, NIL, .F., NIL )
    TEST_CALL( "rt_array:151", 'ATail( "" )', {|| ATail( "" ) }, NIL, .F., NIL )

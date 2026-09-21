@@ -427,7 +427,7 @@ own_times:83	run-fn	HB_DATE	DATE,HB_DATE	hb_Date() == Date()
 own_times:86	run-fn	VALTYPE	HB_DATETIME,VALTYPE	ValType( hb_DateTime() )
 own_times:87	run-fn	HB_MILLISECONDS	HB_MILLISECONDS	hb_MilliSeconds() > 212544000000000
 own_times:88	run-fn	SECONDS	SECONDS	Seconds() >= 0 .AND. Seconds() < 86400
-rt_array:57	run-fn	ACOPY	ACOPY	ACopy()
+rt_array:57	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)	ACOPY	ACOPY	ACopy()
 rt_array:59	run-fn	ACOPY	ACOPY	ACopy( {}, "C" )
 rt_array:60	run-fn	ACOPY	ACOPY	ACopy( "C", {} )
 rt_array:61	run-fn	ACOPY	ACOPY	ACopy( {}, {} )
@@ -491,7 +491,7 @@ rt_array:143	run-fn	AINS	AINS,ERRORNEW	AIns( ErrorNew(), 1 )
 rt_array:144	run-fn	AINS	AINS,ERRORNEW	AIns( ErrorNew(), -1 )
 rt_array:145	run-fn	AINS	AINS,ERRORNEW	AIns( ErrorNew(), 0 )
 rt_array:146	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)	AINS	AINS,ERRORNEW	AIns( ErrorNew(), NIL )
-rt_array:148	run-fn	ATAIL	ATAIL	ATail()
+rt_array:148	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)	ATAIL	ATAIL	ATail()
 rt_array:150	run-fn	ATAIL	ATAIL	ATail( NIL )
 rt_array:151	run-fn	ATAIL	ATAIL	ATail( "" )
 rt_array:152	run-fn	ATAIL	ATAIL	ATail( {} )
@@ -2346,14 +2346,14 @@ rt_hvma:264	rte			scString .AND. scString
 rt_hvma:265	run-op			.T. .AND. 1
 rt_hvma:266	run-op			.T. .AND. 1.567
 rt_hvma:267	run-op			.T. .AND. scString
-rt_hvma:268	run-fn	HB_STOD	HB_STOD	.T. .AND. hb_SToD( "" )
+rt_hvma:268	quarantine:a logical operator on a non-logical operand: C#'s && needs bool on both sides (CS0019); EasiPOS builds 0/0 with none	HB_STOD	HB_STOD	.T. .AND. hb_SToD( "" )
 rt_hvma:269	run-op			.T. .AND. NIL
 rt_hvma:270	run-op			.T. .AND. {}
 rt_hvma:271	run-op			.T. .AND. {|| NIL }
 rt_hvma:272	run-op			.F. .AND. 1
 rt_hvma:273	run-op			.F. .AND. 1.567
 rt_hvma:274	run-op			.F. .AND. scString
-rt_hvma:275	run-fn	HB_STOD	HB_STOD	.F. .AND. hb_SToD( "" )
+rt_hvma:275	quarantine:a logical operator on a non-logical operand: C#'s && needs bool on both sides (CS0019); EasiPOS builds 0/0 with none	HB_STOD	HB_STOD	.F. .AND. hb_SToD( "" )
 rt_hvma:276	run-op			.F. .AND. NIL
 rt_hvma:277	run-op			.F. .AND. {}
 rt_hvma:278	run-op			.F. .AND. {|| NIL }
@@ -3565,8 +3565,8 @@ rt_misc:720	run-fn	BIN2I	BIN2I,CHR	Bin2I( Chr( 0 ) )
 rt_misc:721	run-fn	BIN2I	BIN2I,CHR	Bin2I( Chr( 0 ) + Chr( 0 ) )
 rt_misc:722	run-fn	BIN2I	BIN2I	Bin2I( "A" )
 rt_misc:723	run-fn	BIN2I	BIN2I	Bin2I( "ABC" )
-rt_misc:729	run-fn	BIN2W	BIN2W	Bin2W()
-rt_misc:731	run-fn	BIN2W	BIN2W	Bin2W( 100 )
+rt_misc:729	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)	BIN2W	BIN2W	Bin2W()
+rt_misc:731	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)	BIN2W	BIN2W	Bin2W( 100 )
 rt_misc:732	run-fn	BIN2W	BIN2W	Bin2W( "" )
 rt_misc:734	run-fn	BIN2W	BIN2W	Bin2W( "AB" )
 rt_misc:735	run-fn	BIN2W	BIN2W	Bin2W( "BA" )
@@ -3599,8 +3599,8 @@ rt_misc:775	run-fn	I2BIN	I2BIN	I2Bin( 0     )
 rt_misc:776	run-fn	I2BIN	I2BIN	I2Bin( 1     )
 rt_misc:777	run-fn	I2BIN	I2BIN	I2Bin( 65    )
 rt_misc:778	run-fn	I2BIN	I2BIN	I2Bin( 16961 )
-rt_misc:783	run-fn	L2BIN	L2BIN	L2Bin()
-rt_misc:785	run-fn	L2BIN	L2BIN	L2Bin( ""         )
+rt_misc:783	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS7036)	L2BIN	L2BIN	L2Bin()
+rt_misc:785	quarantine:strict signature: a wrong-type or wrong-count argument is a compile error (CS1503)	L2BIN	L2BIN	L2Bin( ""         )
 rt_misc:786	run-fn	L2BIN	L2BIN	L2Bin( 0          )
 rt_misc:787	run-fn	L2BIN	L2BIN	L2Bin( 1145258561 )
 rt_misc:788	run-fn	L2BIN	L2BIN	L2Bin( 1094861636 )
@@ -4800,7 +4800,7 @@ rt_stra:517	run-fn	HB_STRSHRINK	HB_STRSHRINK	hb_StrShrink( "hello", 6 )
 rt_stra:518	run-fn	HB_STRSHRINK	HB_STRSHRINK	hb_StrShrink( "hello", 7 )
 rt_stra:526	run-fn	RIGHT	RIGHT,SPACE	Right( Space( 64 * 1024 - 5 ) + "12345 7890", 10                      )
 rt_stra:527	run-fn	LEN	LEN,SPACE	Len( Space( 81910 ) + "1234567890"                                    )
-rt_stra:528	run-fn	SPACE	SPACE	( "1234567890" + Space( 810910 ) ) - ( "1234567890" + Space( 810910 ) )
+rt_stra:528	quarantine:string minus: C# has no - for strings (CS0019); EasiPOS never subtracts a string, and RTrim( a ) + b + Space( Len( a ) - Len( RTrim( a ) ) ) spells it out where needed	SPACE	SPACE	( "1234567890" + Space( 810910 ) ) - ( "1234567890" + Space( 810910 ) )
 rt_trans:61	rte	TRANSFORM	TRANSFORM	Transform( NIL       , NIL        )
 rt_trans:62	rte	TRANSFORM	TRANSFORM	Transform( NIL       , ""         )
 rt_trans:63	rte	TRANSFORM	TRANSFORM	Transform( NIL       , "@"        )
