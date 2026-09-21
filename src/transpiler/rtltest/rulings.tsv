@@ -377,3 +377,10 @@ rt_stra:70	divergent	Str( n ) width: an integer literal's width comes from its d
 rt_stra:71	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)
 rt_stra:75	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)
 rt_trans:576	divergent	Str( n ) width: an integer literal's width comes from its digits in the source in Harbour, and a literal of more than 16 significant digits is taken for an uneven quotient; a C# decimal carries neither (Alex, 2026-09-19)
+
+# Year() of the empty date, now 0, shows its width (5) in Harbour: the width ruling
+rt_math:96	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets the default width, not its own
+
+# The empty date is default(DateOnly) (Alex, 2026-09-19): divergent by design
+own_dates:24	divergent	the empty date is default(DateOnly), 0001-01-01, so that real day reads as empty; EasiPOS never uses year 1 (Alex, 2026-09-19)
+rt_math:352	divergent	date - empty date counts days from 0001-01-01 (the empty date in C#) where Harbour counts from Julian day 0, a fixed 1,721,426 apart; EasiPOS never subtracts an empty date (Alex, 2026-09-19)
