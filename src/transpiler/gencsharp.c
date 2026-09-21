@@ -1269,17 +1269,16 @@ static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName 
    return HB_FALSE;
 }
 
-/* Built-in OO helpers (className / ClassName / Super) are emitted as
-   extension methods on `object` (HbObjectExtensions). The DLR does not
-   resolve extension methods, so a `Self:` call to one must stay `this.`
-   (compile-time bound); routing it through `((dynamic)this)` would
-   throw RuntimeBinderException at runtime. They are never declared
-   members, so the undeclared-member check would otherwise divert them. */
+/* The built-in OO helper Super is emitted as an extension method on
+   `object` (HbObjectExtensions). The DLR does not resolve extension
+   methods, so a `Self:` call to it must stay `this.` (compile-time
+   bound); routing it through `((dynamic)this)` would throw
+   RuntimeBinderException at runtime. It is never a declared member, so
+   the undeclared-member check would otherwise divert it. (className,
+   the other built-in, goes to HbRuntime.CLASSNAME before any of this.) */
 static HB_BOOL hb_csIsBuiltinObjMsg( const char * szMsg )
 {
-   return ( HB_BOOL ) ( szMsg &&
-          ( hb_stricmp( szMsg, "className" ) == 0 ||
-            hb_stricmp( szMsg, "Super"     ) == 0 ) );
+   return ( HB_BOOL ) ( szMsg && hb_stricmp( szMsg, "Super" ) == 0 );
 }
 
 /* ---- ref-shim for USUAL-ref parameters ----
@@ -4257,14 +4256,38 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             fprintf( yyc, ")" );
             break;
          }
+         /* `x:className` — Harbour answers it for every value
+            (hb_objGetClsName: an object with its class, anything else
+            with its type, "CHARACTER", "DATE" ...), so it goes to
+            HbRuntime.CLASSNAME as `f:exec` goes to Eval below. The
+            extension method on `object` it used to reach answered a
+            scalar with its .NET type name, and never reached a dynamic
+            receiver: the DLR cannot see extension methods, so
+            trace.prg's `x:classname()` threw. `::Super:className`
+            passes the HbSuperRef that `this.Super()` makes, so it still
+            answers with the parent class (C#'s GetType() gives the
+            runtime type even through a base-class cast). */
+         if( pExpr->value.asMessage.szMessage &&
+             hb_stricmp( pExpr->value.asMessage.szMessage, "className" ) == 0 )
+         {
+            fprintf( yyc, "HbRuntime.CLASSNAME(" );
+            if( pExpr->value.asMessage.pObject )
+            {
+               if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+                   hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 )
+                  fprintf( yyc, "this" );
+               else
+                  hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_FALSE );
+            }
+            else if( s_pWithObject )
+               hb_csEmitExpr( s_pWithObject, yyc, HB_FALSE );
+            fprintf( yyc, ")" );
+            break;
+         }
          /* `::Super:Method(args)` — calling a parent-class method via
             Harbour's inheritance Super keyword. Emit as C# `base.Method(args)`.
             Detected by an inner SEND chain: outer pObject is SEND with
-            pObject=Self and szMessage=Super.
-            Exception: `::Super:className()` / `::Super:ClassName()` —
-            keep the HbSuperRef path so it returns BaseType.Name rather
-            than the runtime type name (C#'s GetType() always returns
-            the runtime type even via a base-class cast). */
+            pObject=Self and szMessage=Super. */
          if( pExpr->value.asMessage.pObject &&
              pExpr->value.asMessage.pObject->ExprType == HB_ET_SEND &&
              pExpr->value.asMessage.pObject->value.asMessage.pObject &&
@@ -4272,9 +4295,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
              hb_stricmp( pExpr->value.asMessage.pObject->value.asMessage.pObject->value.asSymbol.name, "Self" ) == 0 &&
              pExpr->value.asMessage.pObject->value.asMessage.szMessage &&
              hb_stricmp( pExpr->value.asMessage.pObject->value.asMessage.szMessage, "Super" ) == 0 &&
-             pExpr->value.asMessage.szMessage &&
-             hb_stricmp( pExpr->value.asMessage.szMessage, "className" ) != 0 &&
-             hb_stricmp( pExpr->value.asMessage.szMessage, "ClassName" ) != 0 )
+             pExpr->value.asMessage.szMessage )
          {
             fprintf( yyc, "base.%s", pExpr->value.asMessage.szMessage );
             if( pExpr->value.asMessage.pParms )
@@ -4476,15 +4497,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                hb_csEmitCallArgs( szKey, pExpr->value.asMessage.pParms, yyc );
                fprintf( yyc, ")" );
             }
-            else if( szMsgIn &&
-                     ( hb_stricmp( szMsgIn, "Super" ) == 0 ||
-                       hb_stricmp( szMsgIn, "className" ) == 0 ) )
+            else if( szMsgIn && hb_stricmp( szMsgIn, "Super" ) == 0 )
             {
-               /* Harbour: `obj:Super`, `obj:className` — bare (no parens)
-                  forms of built-in OO helpers. In C# these resolve to
-                  extension methods on `object` (HbObjectExtensions),
-                  which need parens to invoke. Without this the emit
-                  would be a property access that doesn't exist. */
+               /* Harbour: `obj:Super` — the bare (no parens) form of a
+                  built-in OO helper. In C# it resolves to an extension
+                  method on `object` (HbObjectExtensions), which needs
+                  parens to invoke. Without this the emit would be a
+                  property access that doesn't exist. */
                fprintf( yyc, "()" );
             }
             else if( fMethodRow )

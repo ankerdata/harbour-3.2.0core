@@ -33,7 +33,7 @@ public static partial class Program
         HbRuntime.QOut("description: " + oError.description);
         HbRuntime.QOut("canRetry:    " + (oError.canRetry ? "yes" : "no"));
         HbRuntime.QOut("canDefault:  " + (oError.canDefault ? "yes" : "no"));
-        HbRuntime.QOut("classname:   " + oError.classname());
+        HbRuntime.QOut("classname:   " + HbRuntime.CLASSNAME(oError));
         return;
     }
 }

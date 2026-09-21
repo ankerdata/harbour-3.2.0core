@@ -386,3 +386,23 @@ rt_math:96	divergent	Str( n ) width: a Val()/Year()/Month()/Day() result gets th
 # The empty date is default(DateOnly) (Alex, 2026-09-19): divergent by design
 own_dates:24	divergent	the empty date is default(DateOnly), 0001-01-01, so that real day reads as empty; EasiPOS never uses year 1 (Alex, 2026-09-19)
 rt_math:352	divergent	date - empty date counts days from 0001-01-01 (the empty date in C#) where Harbour counts from Julian day 0, a fixed 1,721,426 apart; EasiPOS never subtracts an empty date (Alex, 2026-09-19)
+
+# classH, the handle into Harbour's class table, which C# does not have; EasiPOS never
+# sends it (Alex, 2026-09-21): divergent on an object, quarantined on a scalar, where it
+# has no member to call at all
+rt_hvm:207	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:208	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:209	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:210	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:211	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:212	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:214	divergent	classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:215	divergent	classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:240	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:241	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:242	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:243	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:244	divergent	classH: C# has no class table, so no value has a class handle; EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:245	quarantine	classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:247	divergent	classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)
+rt_hvm:248	divergent	classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)

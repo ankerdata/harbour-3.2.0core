@@ -44,8 +44,4 @@ public static partial class HbRuntime
     }
 
     public static dynamic ErrorNew() => new HbError();
-    /* Object `.classname()` fallback for arbitrary objects — Harbour allows
-       it on anything. Real port would use `GetType().Name`. */
-    public static string CLASSNAME(dynamic o) =>
-        o is HbError he ? he.classname() : (o?.GetType().Name ?? "NIL");
 }

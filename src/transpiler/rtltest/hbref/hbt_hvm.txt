@@ -27,12 +27,6 @@ rt_hvm:195 PASS
 rt_hvm:196 PASS
 rt_hvm:198 PASS
 rt_hvm:199 PASS
-rt_hvm:207 PASS
-rt_hvm:208 PASS
-rt_hvm:209 PASS
-rt_hvm:210 PASS
-rt_hvm:211 PASS
-rt_hvm:212 PASS
 rt_hvm:214 PASS
 rt_hvm:215 PASS
 rt_hvm:224 PASS
@@ -43,12 +37,7 @@ rt_hvm:228 PASS
 rt_hvm:229 PASS
 rt_hvm:231 PASS
 rt_hvm:232 PASS
-rt_hvm:240 PASS
-rt_hvm:241 PASS
-rt_hvm:242 PASS
-rt_hvm:243 PASS
 rt_hvm:244 PASS
-rt_hvm:245 PASS
 rt_hvm:247 PASS
 rt_hvm:248 PASS
 rt_hvm:254 PASS
@@ -243,4 +232,4 @@ rt_hvm:495 PASS
 rt_hvm:496 PASS
 rt_hvm:516 PASS
 rt_hvm:517 PASS
-passed        244 failed          0 errors          0
+passed        233 failed          0 errors          0

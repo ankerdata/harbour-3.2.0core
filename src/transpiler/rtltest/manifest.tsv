@@ -1891,14 +1891,14 @@ rt_hvm:195	run-op			{|| NIL }:className()
 rt_hvm:196	run-op			{}:className()
 rt_hvm:198	run-fn	ERRORNEW	ERRORNEW	ErrorNew():className()
 rt_hvm:199	run-fn	ERRORNEW	ERRORNEW	ErrorNew():className
-rt_hvm:207	run-op			"":classH()
-rt_hvm:208	run-op			0:classH()
-rt_hvm:209	run-fn	HB_STOD	HB_STOD	hb_SToD( "" ):classH()
-rt_hvm:210	run-op			.F.:classH()
-rt_hvm:211	run-op			{|| NIL }:classH()
-rt_hvm:212	run-op			{}:classH()
-rt_hvm:214	run-fn	ERRORNEW	ERRORNEW	ErrorNew():classH() > 0
-rt_hvm:215	run-fn	ERRORNEW	ERRORNEW	ErrorNew():classH > 0
+rt_hvm:207	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			"":classH()
+rt_hvm:208	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			0:classH()
+rt_hvm:209	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)	HB_STOD	HB_STOD	hb_SToD( "" ):classH()
+rt_hvm:210	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			.F.:classH()
+rt_hvm:211	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			{|| NIL }:classH()
+rt_hvm:212	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			{}:classH()
+rt_hvm:214	divergent:classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)	ERRORNEW	ERRORNEW	ErrorNew():classH() > 0
+rt_hvm:215	divergent:classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)	ERRORNEW	ERRORNEW	ErrorNew():classH > 0
 rt_hvm:224	run-op			scString:className()
 rt_hvm:225	run-op			snIntP:className()
 rt_hvm:226	run-op			sdDateE:className()
@@ -1907,14 +1907,14 @@ rt_hvm:228	run-op			sbBlock:className()
 rt_hvm:229	run-op			saArray:className()
 rt_hvm:231	run-op			soObject:className()
 rt_hvm:232	run-op			soObject:className
-rt_hvm:240	run-op			scString:classH()
-rt_hvm:241	run-op			snIntP:classH()
-rt_hvm:242	run-op			sdDateE:classH()
-rt_hvm:243	run-op			slFalse:classH()
-rt_hvm:244	run-op			sbBlock:classH()
-rt_hvm:245	run-op			saArray:classH()
-rt_hvm:247	run-op			soObject:classH() > 0
-rt_hvm:248	run-op			soObject:classH > 0
+rt_hvm:240	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			scString:classH()
+rt_hvm:241	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			snIntP:classH()
+rt_hvm:242	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			sdDateE:classH()
+rt_hvm:243	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			slFalse:classH()
+rt_hvm:244	divergent:classH: C# has no class table, so no value has a class handle; EasiPOS never sends classH (Alex, 2026-09-21)			sbBlock:classH()
+rt_hvm:245	quarantine:classH: C# has no class table, and a scalar no classH member (CS1061); EasiPOS never sends classH (Alex, 2026-09-21)			saArray:classH()
+rt_hvm:247	divergent:classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)			soObject:classH() > 0
+rt_hvm:248	divergent:classH: C# has no class table, so an object has no class handle; EasiPOS never sends classH (Alex, 2026-09-21)			soObject:classH > 0
 rt_hvm:254	run-op			2                     <= 1
 rt_hvm:255	run-op			1                     <= 2
 rt_hvm:256	run-op			2.0                   <= 2

@@ -1,9 +1,9 @@
 // Test 49: Super / className handling.
 //
 // Covers all four forms the transpiler maps:
-//   1. obj:className()        → obj.className()            (extension on object)
-//   2. obj:Super():className() → obj.Super().className()    (HbSuperRef.className)
-//   3. ::Super:className()    → this.Super().className()   (same as 2, colon form)
+//   1. obj:className()        → HbRuntime.CLASSNAME(obj)
+//   2. obj:Super():className() → HbRuntime.CLASSNAME(obj.Super())  (the HbSuperRef: parent class)
+//   3. ::Super:className()    → HbRuntime.CLASSNAME(this.Super()) (same as 2, colon form)
 //   4. ::Super:Method(args)   → base.Method(args)          (inheritance call)
 //
 // The last form is the important one — Harbour's idiomatic "call the

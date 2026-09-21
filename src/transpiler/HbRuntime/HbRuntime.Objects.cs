@@ -6,7 +6,7 @@ using System.Linq;
 
 // Objects: runtime member access for the ORM-style classes
 // (HbDynamicObject), the reflection helpers the emitter calls, and
-// :className() / :Super() on every object.
+// :className (on every value) / :Super() on every object.
 // One part of HbRuntime; HbRuntime.cs says what the whole is.
 
 /// <summary>
@@ -146,6 +146,30 @@ public static partial class HbRuntime
         return method.Invoke(obj, args);
     }
 
+    // x:className, which the emitter sends here for every receiver.
+    // Harbour answers it for any value (hb_objGetClsName, vm/classes.c):
+    // an object with its class, anything else with its type's name, the
+    // types as ValType() reads them. `::Super:className` answers with
+    // the parent class.
+    public static string CLASSNAME(object? x) => x switch
+    {
+        HbSuperRef s => s.t?.Name ?? "",
+        HbError e => e.classname(),
+        _ => ValType(x) switch
+        {
+            "U" => "NIL",
+            "C" => "CHARACTER",
+            "N" => "NUMERIC",
+            "L" => "LOGICAL",
+            "D" => "DATE",
+            "T" => "TIMESTAMP",
+            "A" => "ARRAY",
+            "B" => "BLOCK",
+            "H" => "HASH",
+            _ => x!.GetType().Name,
+        },
+    };
+
 }
 
 // Wrapper returned by `obj:Super()` — keeps the :className() chain working.
@@ -159,8 +183,8 @@ public class HbSuperRef
 // Extension methods so every object supports :className / :Super.
 public static class HbObjectExtensions
 {
-    public static string className(this object obj) => obj?.GetType().Name ?? "";
-    public static string ClassName(this object obj) => obj?.GetType().Name ?? "";
+    public static string className(this object obj) => HbRuntime.CLASSNAME(obj);
+    public static string ClassName(this object obj) => HbRuntime.CLASSNAME(obj);
     public static HbSuperRef Super(this object obj) =>
         new HbSuperRef { t = obj?.GetType().BaseType };
 }

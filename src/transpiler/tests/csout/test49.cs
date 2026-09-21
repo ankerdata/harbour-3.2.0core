@@ -6,9 +6,9 @@ using static Program;
 // Test 49: Super / className handling.
 //
 // Covers all four forms the transpiler maps:
-//   1. obj:className()        → obj.className()            (extension on object)
-//   2. obj:Super():className() → obj.Super().className()    (HbSuperRef.className)
-//   3. ::Super:className()    → this.Super().className()   (same as 2, colon form)
+//   1. obj:className()        → HbRuntime.CLASSNAME(obj)
+//   2. obj:Super():className() → HbRuntime.CLASSNAME(obj.Super())  (the HbSuperRef: parent class)
+//   3. ::Super:className()    → HbRuntime.CLASSNAME(this.Super()) (same as 2, colon form)
 //   4. ::Super:Method(args)   → base.Method(args)          (inheritance call)
 //
 // The last form is the important one — Harbour's idiomatic "call the
@@ -40,9 +40,9 @@ public class Dog : Animal
     public virtual dynamic Identify()
     {
         // form 1
-        HbRuntime.QOut("className=" + HbRuntime.Upper(this.className()));
+        HbRuntime.QOut("className=" + HbRuntime.Upper(HbRuntime.CLASSNAME(this)));
         // form 3
-        HbRuntime.QOut("Super-className=" + HbRuntime.Upper(this.Super().className()));
+        HbRuntime.QOut("Super-className=" + HbRuntime.Upper(HbRuntime.CLASSNAME(this.Super())));
         // form 4 (inline parent method)
         HbRuntime.QOut("Kind=" + base.Kind());
         return this;
@@ -57,11 +57,11 @@ public static partial class Program
         Animal oAnimal = new Animal();
 
         // form 1
-        HbRuntime.QOut("oAnimal:className()=" + HbRuntime.Upper(oAnimal.className()));
+        HbRuntime.QOut("oAnimal:className()=" + HbRuntime.Upper(HbRuntime.CLASSNAME(oAnimal)));
         // form 1
-        HbRuntime.QOut("oDog:className()=" + HbRuntime.Upper(oDog.className()));
+        HbRuntime.QOut("oDog:className()=" + HbRuntime.Upper(HbRuntime.CLASSNAME(oDog)));
         // form 2
-        HbRuntime.QOut("oDog:Super():className()=" + HbRuntime.Upper(oDog.Super().className()));
+        HbRuntime.QOut("oDog:Super():className()=" + HbRuntime.Upper(HbRuntime.CLASSNAME(oDog.Super())));
 
         oDog.Speak();
         oDog.Identify();
