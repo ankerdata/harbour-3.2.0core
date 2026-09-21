@@ -90,9 +90,14 @@ def run_limited(args, cwd):
     kept, closed by TIMEOUT_MARK: the assertions before the hang still
     count, the rest are missing with the reason named. An emitter bug
     can turn a hbtest loop infinite, and without this one hang stalls
-    the whole run."""
-    p = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT, text=True, errors="replace")
+    the whole run.
+
+    Each program gets a console of its own, hidden, and no stdin, so
+    nothing typed where the harness runs reaches a test, and a program
+    that reads input gets end-of-file instead of waiting for it."""
+    p = subprocess.Popen(args, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True, errors="replace",
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     try:
         out, _ = p.communicate(timeout=RUN_TIMEOUT)
     except subprocess.TimeoutExpired:
