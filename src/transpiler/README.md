@@ -264,8 +264,11 @@ Re-run after editing HbRuntime or after pulling new doc blocks:
 python3 src/transpiler/tools/genfunctab.py
 ```
 
-The path the loader reads is hardcoded in [`include/hbfunctab.h`](../../include/hbfunctab.h)
-as `HB_FUNCTAB_PATH`. Change it if the source tree moves.
+The transpiler loads it at startup from the checkout it was built in —
+`<bin>/../src/transpiler/hbfuncs.tab`, the binary's directory taken from
+`argv[0]` — and failing that from `src/transpiler/hbfuncs.tab` under the
+current directory. If neither opens it names both paths and exits 1: an
+empty table would route no core call to HbRuntime.
 
 ### `hbreftab.tab` — user-defined functions
 
@@ -367,8 +370,10 @@ POSStatus::oClerk                -  Clerk    0
   the stem is a registered class (unconditional seeding once exploded
   the build via `oPLU` → nonexistent `PLU`).
 
-The path is hardcoded as `HB_REFTAB_PATH` in
-[`include/hbreftab.h`](../../include/hbreftab.h).
+By default it is `src/transpiler/hbreftab.tab` of the checkout whose
+`bin/` holds the binary (from `argv[0]`; under the current directory
+when `argv[0]` names none), which is where the test suite keeps it;
+`--reftab=<path>` puts it anywhere else, as the EasiPOS pipeline does.
 
 #### Whole-codebase workflow
 

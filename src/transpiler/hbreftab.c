@@ -80,11 +80,32 @@ static void hb_refTabDefer( PHB_REFTAB pTab, char * sz )
    pTab->pDeferred = p;
 }
 
-/* ---- runtime path override ----
-   Set by --reftab=<path> on the command line so transpiler runs over
-   foreign codebases can keep their signature table out of the
-   harbour-core test tree. */
+/* ---- table path ----
+   The override is set by --reftab=<path> on the command line so
+   transpiler runs over foreign codebases can keep their signature
+   table out of the harbour-core test tree. The default, which the
+   test suite uses, is src/transpiler/hbreftab.tab of the checkout
+   whose bin/ holds the binary; for a binary started through PATH,
+   whose argv[0] names no directory, it is under the current
+   directory. It used to be an absolute macOS path compiled in, which
+   Windows read against the root of the current drive. */
+#define HB_REFTAB_FILE  "src/transpiler/hbreftab.tab"
+
 static char s_szRefTabPathOverride[ HB_PATH_MAX ] = { 0 };
+static char s_szRefTabPathDefault[ HB_PATH_MAX ]  = HB_REFTAB_FILE;
+
+void hb_refTabSetExePath( const char * szExePath )
+{
+   PHB_FNAME pExe;
+
+   if( ! szExePath )
+      return;
+   pExe = hb_fsFNameSplit( szExePath );
+   if( pExe->szPath )
+      hb_snprintf( s_szRefTabPathDefault, sizeof( s_szRefTabPathDefault ),
+                   "%s../%s", pExe->szPath, HB_REFTAB_FILE );
+   hb_xfree( pExe );
+}
 
 void hb_refTabSetPath( const char * szPath )
 {
@@ -100,7 +121,7 @@ void hb_refTabSetPath( const char * szPath )
 const char * hb_refTabGetPath( void )
 {
    return s_szRefTabPathOverride[ 0 ] ? s_szRefTabPathOverride
-                                      : HB_REFTAB_PATH;
+                                      : s_szRefTabPathDefault;
 }
 
 /* ---- string helpers (case-folded) ---- */

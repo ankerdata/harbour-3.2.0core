@@ -36,6 +36,8 @@
 #include "hbset.h"
 #ifdef HB_TRANSPILER
 #include "hbhbxcanon.h"
+#include "hbfunctab.h"
+#include "hbreftab.h"
 #endif
 
 static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuffer, int iStartLine );
@@ -126,6 +128,18 @@ int hb_compMainExt( int argc, const char * const argv[],
          from the command line still works as an additional source
          for non-standard layouts. */
       hb_hbxCanonAutoLoad( argc > 0 ? argv[ 0 ] : NULL );
+
+      /* The reftab's default path, when --reftab= gave none */
+      hb_refTabSetExePath( argc > 0 ? argv[ 0 ] : NULL );
+
+      /* hbfuncs.tab routes the core calls to HbRuntime and types their
+         results, for the scan as much as the emitter: without it the
+         run would succeed and be wrong, so it stops here instead. */
+      if( ! hb_funcTabInit( argc > 0 ? argv[ 0 ] : NULL ) )
+      {
+         HB_COMP_PARAM->fExit = HB_TRUE;
+         iStatus = EXIT_FAILURE;
+      }
 #endif
    }
 

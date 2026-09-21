@@ -13,7 +13,7 @@
  *     form, e.g. Fred(x, , z)  ->  Fred(x, c: z)
  *
  * The table is loaded once at the start of every transpile run from a
- * single hardcoded file (HB_REFTAB_PATH). It is *not* saved during a
+ * single file (hb_refTabGetPath()). It is *not* saved during a
  * normal transpile — saving only happens in the dedicated scan mode
  * (HB_LANG_SCAN). This keeps regular transpile runs deterministic and
  * parallelisable.
@@ -38,10 +38,12 @@
 
 HB_EXTERN_BEGIN
 
-/* Default path the loader reads from when no override has been set.
-   Change this if the source tree moves. */
-#define HB_REFTAB_PATH \
-   "/Users/alexstrickland/dev/harbour-core/src/transpiler/hbreftab.tab"
+/* Sets the default table path from the binary's (szExePath is
+   argv[0]): src/transpiler/hbreftab.tab of the checkout whose bin/
+   holds it. Until called, or when argv[0] names no directory, the
+   default is src/transpiler/hbreftab.tab under the current
+   directory. */
+extern void         hb_refTabSetExePath( const char * szExePath );
 
 /* Override the table path at runtime (set by `--reftab=<path>` on the
    command line). Pass NULL to clear. The override is applied to every
@@ -49,8 +51,7 @@ HB_EXTERN_BEGIN
 extern void         hb_refTabSetPath( const char * szPath );
 
 /* Returns the active table path: the override if one was set, or
-   HB_REFTAB_PATH otherwise. The C# / .hb / scan back-ends use this
-   instead of the macro directly. */
+   the default otherwise. The C# / .hb / scan back-ends all ask this. */
 extern const char * hb_refTabGetPath( void );
 
 typedef struct HB_REFTAB_   HB_REFTAB,   * PHB_REFTAB;

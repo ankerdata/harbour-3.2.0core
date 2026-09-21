@@ -8,9 +8,8 @@
  *   - Namespace prefix, used by the C# emitter to remap calls
  *     (e.g., STR → HbRuntime.STR).
  *
- * The path is hardcoded (HB_FUNCTAB_PATH below) — change it if the
- * source tree moves. Lookup is case-insensitive; the table is loaded
- * lazily on first access.
+ * hb_funcTabInit() loads it once at startup, from the checkout the
+ * binary was built in. Lookup is case-insensitive.
  *
  * Copyright 2026 harbour.github.io
  */
@@ -22,8 +21,12 @@
 
 HB_EXTERN_BEGIN
 
-#define HB_FUNCTAB_PATH \
-   "/Users/alexstrickland/dev/harbour-core/src/transpiler/hbfuncs.tab"
+/* Loads hbfuncs.tab from src/transpiler/ of the checkout whose bin/
+   holds the binary (szExePath is argv[0]), else from src/transpiler/
+   under the current directory. Returns HB_FALSE, having named each
+   path tried on stderr, when neither opens: the transpiler must then
+   stop, since an empty table would emit every core call unrouted. */
+extern HB_BOOL      hb_funcTabInit( const char * szExePath );
 
 /* Returns the namespace prefix for szName (e.g., "HbRuntime"), or
    NULL if the function is not in the table or has no remap. */

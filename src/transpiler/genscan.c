@@ -5,7 +5,7 @@
  * passes -GF on the command line. Instead of generating code, it
  * walks the parsed AST and accumulates information about every
  * function/procedure defined in this source file plus every by-ref
- * call site, into HB_REFTAB_PATH.
+ * call site, into the reftab (hb_refTabGetPath()).
  *
  * The table is loaded before scanning and saved afterwards so multiple
  * invocations of -GF over different files accumulate into one table.

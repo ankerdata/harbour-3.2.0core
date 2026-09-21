@@ -1,8 +1,8 @@
 /*
  * Harbour Transpiler - Function knowledge table loader
  *
- * Reads HB_FUNCTAB_PATH (defined in hbfunctab.h) into a small chained
- * hash table on first access.
+ * Reads src/transpiler/hbfuncs.tab into a small chained hash table,
+ * once, when hbmain calls hb_funcTabInit().
  *
  * Copyright 2026 harbour.github.io
  */
@@ -11,6 +11,7 @@
 #include "hbfunctab.h"
 
 #define HB_FUNCTAB_BUCKETS  512  /* power of two */
+#define HB_FUNCTAB_FILE     "src/transpiler/hbfuncs.tab"
 
 typedef struct HB_FUNCENTRY_
 {
@@ -158,22 +159,9 @@ static const char * hb_funcTabField( const char * sz, HB_SIZE * pnLen,
    return sz;
 }
 
-static void hb_funcTabLoad( void )
+static void hb_funcTabRead( FILE * fp )
 {
-   FILE * fp;
-   char   line[ 512 ];
-
-   if( s_fLoaded )
-      return;
-   s_fLoaded = HB_TRUE;  /* mark loaded even on failure to avoid retry */
-
-   fp = hb_fopen( HB_FUNCTAB_PATH, "r" );
-   if( ! fp )
-   {
-      fprintf( stderr, "hbtranspiler: warning: cannot open %s\n",
-               HB_FUNCTAB_PATH );
-      return;
-   }
+   char line[ 512 ];
 
    while( fgets( line, sizeof( line ), fp ) )
    {
@@ -213,25 +201,66 @@ static void hb_funcTabLoad( void )
          ( nRet > 0 && strcmp( szRetBuf, "-" ) != 0 ) ? szRetBuf : NULL,
          ( nPfx > 0 && strcmp( szPfxBuf, "-" ) != 0 ) ? szPfxBuf : NULL );
    }
-
-   fclose( fp );
 }
 
 /* ---- public API ---- */
 
+/* The table lives in the checkout, not beside the binary, so it is
+   found through the bin/ the binary was built into: the pipeline runs
+   the transpiler by absolute path from easipos-transpiled, and any
+   working directory or drive must do. This used to be one absolute
+   path compiled in - a macOS one, which Windows read against the root
+   of the current drive and so found only while the checkout sat at the
+   same place on C:. The current directory is the fallback, for a
+   binary started through PATH from the checkout root. */
+HB_BOOL hb_funcTabInit( const char * szExePath )
+{
+   char   szPath[ HB_PATH_MAX ];
+   FILE * fp = NULL;
+
+   if( s_fLoaded )
+      return HB_TRUE;
+
+   szPath[ 0 ] = '\0';
+   if( szExePath )
+   {
+      /* szPath keeps its separator, whichever of \ and / it was */
+      PHB_FNAME pExe = hb_fsFNameSplit( szExePath );
+
+      if( pExe->szPath )
+      {
+         hb_snprintf( szPath, sizeof( szPath ), "%s../%s",
+                      pExe->szPath, HB_FUNCTAB_FILE );
+         fp = hb_fopen( szPath, "r" );
+      }
+      hb_xfree( pExe );
+   }
+   if( ! fp )
+      fp = hb_fopen( HB_FUNCTAB_FILE, "r" );
+   if( ! fp )
+   {
+      fprintf( stderr, "hbtranspiler: cannot open hbfuncs.tab, tried\n" );
+      if( szPath[ 0 ] )
+         fprintf( stderr, "  %s\n", szPath );
+      fprintf( stderr, "  %s (current directory)\n", HB_FUNCTAB_FILE );
+      return HB_FALSE;
+   }
+
+   hb_funcTabRead( fp );
+   fclose( fp );
+   s_fLoaded = HB_TRUE;
+   return HB_TRUE;
+}
+
 const char * hb_funcTabPrefix( const char * szName )
 {
-   PHB_FUNCENTRY e;
-   hb_funcTabLoad();
-   e = hb_funcTabFindEntry( szName );
+   PHB_FUNCENTRY e = hb_funcTabFindEntry( szName );
    return e ? e->szPrefix : NULL;
 }
 
 const char * hb_funcTabReturnType( const char * szName )
 {
-   PHB_FUNCENTRY e;
-   hb_funcTabLoad();
-   e = hb_funcTabFindEntry( szName );
+   PHB_FUNCENTRY e = hb_funcTabFindEntry( szName );
    return e ? e->szRetType : NULL;
 }
 
@@ -242,9 +271,7 @@ const char * hb_funcTabReturnType( const char * szName )
    Space / space all lex the same in Harbour). */
 const char * hb_funcTabCanonName( const char * szName )
 {
-   PHB_FUNCENTRY e;
-   hb_funcTabLoad();
-   e = hb_funcTabFindEntry( szName );
+   PHB_FUNCENTRY e = hb_funcTabFindEntry( szName );
    return e ? e->szCanon : NULL;
 }
 
