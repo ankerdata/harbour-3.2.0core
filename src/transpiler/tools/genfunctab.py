@@ -4,8 +4,9 @@ Generate src/transpiler/hbfuncs.tab from the Harbour source tree.
 
 Three sources of truth:
 
-  1. HbRuntime.cs — the C# runtime that the transpiler emits calls into.
-     Any public static method here is a function the C# emitter must
+  1. HbRuntime/*.cs — the C# runtime that the transpiler emits calls
+     into, one partial class split by category. Any public static method
+     in it is a function the C# emitter must
      remap (e.g., QOut -> HbRuntime.QOut). This is the *prefix* source.
 
   2. doc/ + contrib/.../doc/ — Harbour's structured doc blocks.
@@ -18,7 +19,7 @@ Three sources of truth:
      functions. Not directly written to the table.
 
 A row is written whenever a function has *either* a known prefix
-(it's implemented in HbRuntime.cs) *or* a known return type (we got
+(it's implemented in HbRuntime) *or* a known return type (we got
 it from a doc block). Functions with neither contribute nothing and
 are omitted.
 
@@ -37,7 +38,7 @@ from pathlib import Path
 
 REPO_ROOT     = Path(__file__).resolve().parents[3]
 OUTPUT_PATH   = REPO_ROOT / "src" / "transpiler" / "hbfuncs.tab"
-HBRUNTIME_CS  = REPO_ROOT / "src" / "transpiler" / "HbRuntime.cs"
+HBRUNTIME_DIR = REPO_ROOT / "src" / "transpiler" / "HbRuntime"
 
 # Where to look for HB_FUNC declarations and PRG functions.
 SOURCE_ROOTS = [
@@ -101,7 +102,7 @@ RE_NAME_CLEANUP = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)")
 # Accepts both `->` and `-->`. Allows trailing punctuation, comments, etc.
 RE_ARROW = re.compile(r"-+>\s*([A-Za-z_][A-Za-z0-9_]*)")
 
-# `public static [<modifiers>] <ReturnType> Name(` in HbRuntime.cs.
+# `public static [<modifiers>] <ReturnType> Name(` in HbRuntime.
 # Group 1 = return type (used to fill a RETTYPE the docs don't supply),
 # group 2 = method name. The return type is captured non-greedily so the
 # trailing `\s+Name(` anchors it even for generic types like
@@ -150,9 +151,9 @@ def infer_return_type(token: str) -> str | None:
         return PREFIX_TO_TYPE.get(first)
     return None
 
-# C# return type (from an HbRuntime.cs signature) → Harbour RETTYPE. Used
+# C# return type (from an HbRuntime signature) → Harbour RETTYPE. Used
 # only to fill a RETTYPE the docs don't supply for a function implemented
-# in HbRuntime.cs — the C# signature is authoritative for what such a call
+# in HbRuntime — the C# signature is authoritative for what such a call
 # actually returns. `dynamic`, `void`, delegates and class types map to
 # None (left "-"): `dynamic`/`void` are deliberately untyped, and the rest
 # carry no Harbour-type equivalent worth propagating.
@@ -213,22 +214,25 @@ def harvest_names() -> dict[str, str]:
     return names
 
 def harvest_hbruntime_methods() -> dict[str, tuple[str, str]]:
-    """Return the public static methods defined in HbRuntime.cs, keyed by
+    """Return the public static methods defined in HbRuntime, keyed by
     uppercase name → (canonical casing, C# return type). These are the
     functions the C# emitter must remap with the `HbRuntime.` prefix;
     preserving canonical casing matters because C# is case-sensitive and
     Harbour is not. The C# return type lets write_table fill a RETTYPE the
     docs don't supply."""
     methods: dict[str, tuple[str, str]] = {}
-    if not HBRUNTIME_CS.exists():
-        print(f"warning: {HBRUNTIME_CS} not found", file=sys.stderr)
-        return methods
-    text = HBRUNTIME_CS.read_text(encoding="utf-8", errors="replace")
-    for body in hbruntime_class_bodies(text):
-        for m in RE_HBRUNTIME_METHOD.finditer(body):
-            rettype = m.group(1).strip()
-            name = m.group(2)
-            methods.setdefault(name.upper(), (name, rettype))
+    # Without HbRuntime the table would lose every prefix row and the
+    # emitter would stop routing core calls to it: fail, never warn.
+    files = sorted(HBRUNTIME_DIR.glob("*.cs"))
+    if not files:
+        sys.exit(f"error: no HbRuntime sources in {HBRUNTIME_DIR}")
+    for path in files:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for body in hbruntime_class_bodies(text):
+            for m in RE_HBRUNTIME_METHOD.finditer(body):
+                rettype = m.group(1).strip()
+                name = m.group(2)
+                methods.setdefault(name.upper(), (name, rettype))
     return methods
 
 def hbruntime_class_bodies(text: str) -> list[str]:

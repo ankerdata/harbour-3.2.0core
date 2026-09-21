@@ -29,7 +29,7 @@ Every assertion gets a disposition in manifest.tsv:
   unsupported:memvar|macro|alias|class|c-helper|get|equal
                 not run: needs something the C# side does not have
   out-of-scope  not run: calls a core function the application does not
-                use (whether or not HbRuntime.cs has it)
+                use (whether or not HbRuntime has it)
 
 The statements between the assertions get the same treatment: one that
 needs a macro, an alias, a memvar, the GET system, a single `=` or an

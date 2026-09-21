@@ -7,7 +7,7 @@ For every generated/<name>.prg (extract.py writes them):
   prg   hbmk2 builds it with harness.prg and runs it; the output is the
         reference, hbref/<name>.txt (tracked, like the suite's hbout/)
   cs    the transpiler turns both files into C# (-GF, then -GS, into a
-        reftab of the test's own); dotnet builds them against HbRuntime.cs
+        reftab of the test's own); dotnet builds them against HbRuntime
         ALONE — no generated stubs — so a function HbRuntime does not
         implement fails to compile (CS0117). Compile triage: every error
         on a TEST_CALL line quarantines that assertion (its statement is
@@ -252,12 +252,12 @@ def build_cs(name):
 def stage_cs(names):
     lib = os.path.join(CSEXE, "HbRuntime")
     os.makedirs(lib, exist_ok=True)
-    shutil.copy(os.path.join(ROOT, "src", "transpiler", "HbRuntime.cs"), os.path.join(lib, "HbRuntime.cs"))
+    runsuite.stage_files(runsuite.hbruntime_sources(), lib, ".cs")
     with open(os.path.join(lib, "HbRuntime.csproj"), "w") as fh:
         fh.write(runsuite.LIBPROJ)
     r = subprocess.run(["dotnet", "build", "-v", "q", "--nologo"], cwd=lib, capture_output=True, text=True)
     if r.returncode:
-        sys.exit("HbRuntime.cs does not build:\n" + r.stdout[-2000:])
+        sys.exit("HbRuntime does not build:\n" + r.stdout[-2000:])
     with ThreadPoolExecutor(max_workers=4) as ex:
         res = list(ex.map(build_cs, names))
     ok = True

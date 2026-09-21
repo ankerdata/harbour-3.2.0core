@@ -23,7 +23,7 @@ Stages (default "all"):
 Builds are incremental: a Harbour exe is rebuilt only when it is older
 than its .prg sources or a local .ch they include, and a C# test only
 when the .cs it would be built from differ from what it was last built
-from, or when the runtime assembly (HbRuntime.cs plus the libraries)
+from, or when the runtime assembly (the HbRuntime/ sources plus the libraries)
 beside it is not the current one. gen always transpiles every test — the suite shares one
 reftab, so one test's change can change another's output — and every
 test always runs. --full rebuilds everything: the occasional sweep, and
@@ -300,6 +300,19 @@ def build_cs(name, lib_dll):
     return name, (errs[0][:120] if errs else "rc=%d" % r.returncode), True
 
 
+def hbruntime_sources():
+    """{basename: path} of the HbRuntime sources — one partial class,
+    split by category across src/transpiler/HbRuntime/. Empty is fatal: a
+    runtime built from none of them would fail every test for the wrong
+    reason."""
+    d = os.path.join(ROOT, "src", "transpiler", "HbRuntime")
+    files = {f: os.path.join(d, f) for f in sorted(os.listdir(d)) if f.endswith(".cs")} \
+        if os.path.isdir(d) else {}
+    if not files:
+        sys.exit("no HbRuntime sources in %s" % d)
+    return files
+
+
 def stage_cs(names):
     """HbRuntime is built once up front: the per-test builds run in
     parallel and would otherwise race to write HbRuntime.dll, surfacing
@@ -308,8 +321,7 @@ def stage_cs(names):
     another HbRuntime.dll than the one built here is rebuilt against it."""
     lib = os.path.join(CSEXE, "HbRuntime")
     os.makedirs(lib, exist_ok=True)
-    files = {"HbRuntime.cs": os.path.join(ROOT, "src", "transpiler",
-                                          "HbRuntime.cs")}
+    files = hbruntime_sources()
     # The contrib libraries (src/transpiler/libraries/<lib>/*.cs) compile
     # into the same test runtime assembly: a test calling HbWin.wapi_Sleep
     # or Xhb.TOleAuto finds them without a reference per library.

@@ -153,9 +153,9 @@ inference engine that `-GS` uses.
 | [`gencsharp.c`](gencsharp.c)      | `-GS` C# emitter                                                         |
 | [`genscan.c`](genscan.c)          | `-GF` scan-only entry point                                             |
 | **Runtime + tooling**             |                                                                          |
-| [`HbRuntime.cs`](HbRuntime.cs)    | C# implementations of core Harbour builtins (`QOut`, `Str`, `Len`, …)   |
+| [`HbRuntime/`](HbRuntime/)        | C# implementations of core Harbour builtins (`QOut`, `Str`, `Len`, …): one `partial class HbRuntime`, split by category — `HbRuntime.cs` the core the emitter leans on, `HbRuntime.<Category>.cs` the rest (Numbers, Strings, Transform, Dates, Arrays, Hashes, Files, FileSystem, Process, Console, Set, Constants, Threads, Errors, Objects) |
 | [`libraries/<lib>/`](libraries/)  | One C# project per contrib library (`HbWin`, `HbSqlit3`, `Xhb`, …): implementations plus generated stubs — see [Contrib libraries](#contrib-libraries) |
-| [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime.cs` + Harbour doc blocks |
+| [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime/` + Harbour doc blocks |
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |
 | **Tests**                         |                                                                          |
 | [`tests/`](tests/)                | Numbered `.prg` test cases + drivers: `verify.sh` over the bash stages (`runtests.sh`, `buildprg.sh`, `buildhb.sh`, `buildcs.sh`, …) on macOS/Linux, `runtests.bat` → `runsuite.py` on Windows |
@@ -238,27 +238,27 @@ ABS     NUMERIC      HbRuntime
   `HbRuntime` produces `HbRuntime.NAME(...)` in the output. `-` means
   "leave the name alone".
 
-A row's PREFIX comes from HbRuntime.cs: `genfunctab.py` gives `HbRuntime`
+A row's PREFIX comes from HbRuntime: `genfunctab.py` gives `HbRuntime`
 to every public static method of `class HbRuntime` (only that class — the
 file's other classes are not reached as `HbRuntime.<name>`). So declaring a
 method routes every call of that name to it, and a function the program
 defines is exempt: as Harbour's linker has it, the program's own function
 is called, not HbRuntime's (test109). HbRuntime.cs once carried
 placeholders for EasiPOS's own functions, and all 9,060 calls to its
-`GetFlag` returned NIL. Keep HbRuntime.cs to Harbour's core library and the
+`GetFlag` returned NIL. Keep HbRuntime to Harbour's core library and the
 emitter's helpers.
 
 The file is **generated** by [`tools/genfunctab.py`](tools/genfunctab.py)
 which combines two sources of truth:
 
-1. Every `public static` method in [`HbRuntime.cs`](HbRuntime.cs) — these
+1. Every `public static` method in [`HbRuntime/`](HbRuntime/) — these
    become rows with `PREFIX=HbRuntime`.
 2. Every `$SYNTAX$` block under [`doc/en/`](../../doc/en/) and
    [`contrib/.../doc/`](../../contrib/) — the token after the `-->`
    arrow is mapped through Hungarian-prefix conventions to a return
    type (`cFoo` → STRING, `nFoo` → NUMERIC, …).
 
-Re-run after editing `HbRuntime.cs` or after pulling new doc blocks:
+Re-run after editing HbRuntime or after pulling new doc blocks:
 
 ```bash
 python3 src/transpiler/tools/genfunctab.py
@@ -1407,7 +1407,7 @@ where the file fails and the test asserts the error line:
 ### The runtime library — `rtltest/`
 
 The suite above tests the emitter. [`rtltest/`](rtltest/) tests the
-library the emitted code calls: HbRuntime.cs, Harbour's core runtime in
+library the emitted code calls: HbRuntime, Harbour's core runtime in
 C#. Its oracle is Harbour's own regression suite,
 [`utils/hbtest`](../../utils/hbtest/) — some 5,000 `HBTEST <expr> IS
 <result>` assertions over the runtime library — plus our own, in the same
@@ -1452,7 +1452,7 @@ runrtl.bat all date own_bits  rem just these modules
   line, not the run.
 - [`runrtl.py`](rtltest/runrtl.py) builds each module with hbmk2 and
   runs it — `hbref/<name>.txt` is the reference, tracked as `hbout/` is —
-  then transpiles it and builds it against HbRuntime.cs **alone**, with
+  then transpiles it and builds it against HbRuntime **alone**, with
   no generated stubs: a function HbRuntime does not implement is CS0117.
   Compile triage comments out the TEST_CALL each error falls in and
   retries until the build is clean; those assertions are *quarantined*,
@@ -1547,7 +1547,7 @@ that split:
   unstable sort.
 - **The test suite** compiles every `libraries/<lib>/` source into its
   runtime assembly, so any test can call any library (test106).
-- **A library cannot use HbRuntime yet.** HbRuntime.cs is compiled into
+- **A library cannot use HbRuntime yet.** HbRuntime is compiled into
   the application as source — the generated core stubs are a `partial`
   of it — so there is no assembly to reference. The first library that
   needs a runtime helper will have to settle that.
