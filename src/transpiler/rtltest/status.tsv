@@ -34,7 +34,7 @@ Transform	implemented	182	528	0	0	0	0	0
 FWrite	implemented	178	26	0	0	0	0	0
 Trim	implemented	175	15	0	0	0	0	0
 Abs	implemented	173	12	0	0	0	0	0
-hb_HHasKey	implemented	166	6	0	0	0	0	0
+hb_HHasKey	implemented	168	6	0	0	0	0	0
 Replicate	implemented	166	10	0	0	0	0	0
 DToC	implemented	145	2	0	0	0	0	0
 Seconds	implemented	144	1	0	0	0	0	0
@@ -54,8 +54,8 @@ AClone	implemented	80	4	0	0	0	0	0
 RAt	implemented	71	20	0	0	0	0	0
 FErase	implemented	61	10	0	0	0	0	0
 hb_mutexUnlock	implemented	59	0	0	0	0	0	0
+hb_HGetDef	implemented	58	4	0	0	0	0	0
 hb_jsonEncode	stub	56	0	0	0	0	0	0
-hb_HGetDef	implemented	54	4	0	0	0	0	0
 hb_HKeys	implemented	49	2	0	0	0	0	0
 hb_mutexLock	implemented	49	0	0	0	0	0	0
 FRead	implemented	45	7	0	0	0	0	0
@@ -102,11 +102,11 @@ Stuff	implemented	14	38	0	0	0	0	0
 hb_comMCR	stub	12	0	0	0	0	0	0
 hb_MemoWrit	implemented	12	2	0	0	0	0	0
 hb_run	implemented	12	2	0	0	0	0	0
+hb_socketClose	implemented	12	0	0	0	0	0	0
 Bin2L	implemented	11	10	0	0	0	0	0
 hb_CToD	implemented	11	0	0	0	0	0	0
 hb_HDel	implemented	11	0	0	0	0	0	0
 hb_NumToHex	implemented	11	4	0	0	0	0	0
-hb_socketClose	implemented	11	0	0	0	0	0	0
 hb_DirBase	implemented	10	1	0	0	0	0	0
 hb_regex	stub	10	0	0	0	0	0	0
 hb_socketSend	implemented	10	0	0	0	0	0	0

@@ -56,8 +56,8 @@ STATIC saAllTypes
 PROCEDURE Main_TRANS()
 
    LOCAL cOldDate  := Set( 4 )
-   LOCAL cOldFixed := Set( 2 )
-   LOCAL cOldDecim := Set( 3 )
+   LOCAL lOldFixed := Set( 2 )
+   LOCAL nOldDecim := Set( 3 )
    LOCAL dt, df
 
 
@@ -782,8 +782,8 @@ PROCEDURE Main_TRANS()
    TEST_CALL( "rt_trans:778", 'Transform(   123456789.12, "@,39 999,999,999.99" )', {|| Transform(   123456789.12, "@,39 999,999,999.99" ) }, "123,456,789.12", .F., NIL )
    TEST_CALL( "rt_trans:779", 'Transform(        123.456, "@R 9 9 9.9"          )', {|| Transform(        123.456, "@R 9 9 9.9"          ) }, "1 2 3.5", .F., NIL )
 
-   Set( 2, cOldFixed )
-   Set( 3, cOldDecim )
+   Set( 2, lOldFixed )
+   Set( 3, nOldDecim )
    Set( 4, cOldDate )
 
    RETURN

@@ -106,10 +106,13 @@ RE_ARROW = re.compile(r"-+>\s*([A-Za-z_][A-Za-z0-9_]*)")
 # Group 1 = return type (used to fill a RETTYPE the docs don't supply),
 # group 2 = method name. The return type is captured non-greedily so the
 # trailing `\s+Name(` anchors it even for generic types like
-# `Dictionary<string, dynamic>` or `dynamic[]`.
+# `Dictionary<string, dynamic>` or `dynamic[]`. A name may start in lower
+# case or with an underscore (hb_socketRecv, __Quit), and a generic method
+# has its type parameters before the `(` (hb_default<T>). Requiring an
+# upper-case first letter once left every hb_* function without its row.
 RE_HBRUNTIME_METHOD = re.compile(
     r"^\s*public\s+static\s+(?:readonly\s+)?([A-Za-z_][\w<>,\[\]?. ]*?)\s+"
-    r"([A-Z][A-Za-z0-9_]*)\s*\(",
+    r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[\w, ]*>)?\s*\(",
     re.MULTILINE,
 )
 

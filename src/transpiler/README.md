@@ -233,14 +233,22 @@ ABS     NUMERIC      HbRuntime
 - **RETTYPE** — declared return type, used by the type-propagation
   pass in [`hbtypes.c`](hbtypes.c) so callers of e.g. `Str()` know
   the result is a `STRING`. One of `STRING`, `NUMERIC`, `LOGICAL`,
-  `DATE`, `ARRAY`, `HASH`, `OBJECT`, `BLOCK`, or `-` if unknown.
+  `DATE`, `TIMESTAMP`, `ARRAY`, `HASH`, `OBJECT`, `BLOCK`, or `-` if
+  unknown. A `-` says nothing, so a local such a call initialises takes
+  its type from its Hungarian prefix: `hCopy := hb_HClone( h )` is a
+  hash, `nSev := hb_HGetDef( h, "sev", 0 )` a number (test116). It used
+  to mean "dynamic on purpose" and beat the prefix, which turned those
+  locals `dynamic`.
 - **PREFIX** — namespace to remap to when emitting C#. A row with
   `HbRuntime` produces `HbRuntime.NAME(...)` in the output. `-` means
   "leave the name alone".
 
 A row's PREFIX comes from HbRuntime: `genfunctab.py` gives `HbRuntime`
 to every public static method of `class HbRuntime` (only that class — the
-file's other classes are not reached as `HbRuntime.<name>`). So declaring a
+file's other classes are not reached as `HbRuntime.<name>`), whatever the
+case of its first letter and generic or not: `hb_socketRecv`, `__Quit`,
+`hb_default<T>`. Until 2026-09-22 it took only names starting in upper
+case, so no `hb_*` function had a row or a return type. So declaring a
 method routes every call of that name to it, and a function the program
 defines is exempt: as Harbour's linker has it, the program's own function
 is called, not HbRuntime's (test109). HbRuntime.cs once carried
@@ -1427,6 +1435,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 113       | A hash is .NET 9's `OrderedDictionary` — Harbour's default hash keeps insertion order across deletes, where a `Dictionary` reuses the deleted slot — `<long, dynamic>` for a numeric-keyed one, the key cast at the subscript; HbRuntime converts a key to the hash's key type (7 and 7.0 are one key); `hb_HKeyAt`, `hb_HPos`, `hb_HSet`, `hb_HGet`, `hb_HClone` (deep, as `AClone` now is), `hb_HKeepOrder`; `$` finds nothing for an empty string |
 | 114       | `BREAK` throws `HbBreak` carrying its value, a plain `BEGIN SEQUENCE` catches only that, `WITH { \|e\| break(e) }` catches every exception and RECOVER USING gets `HbError.From`'s Error object (zero divisor: 5 BASE 1340); ALWAYS without RECOVER lets the BREAK go on; a BREAK in RECOVER goes to the next sequence out; `Break()` in a block reaches its sequence through `Eval()`; `ErrorBlock()`. BREAK had been `throw new Exception(x)`, RECOVER USING got the .NET exception, and WITH was dropped |
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
+| 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 

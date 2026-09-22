@@ -175,24 +175,22 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
 
       case HB_ET_FUNCALL:
       {
-         /* If the call target is a known HbRuntime function, prefer its
-            declared return type over the caller's Hungarian prefix.
-            This matters for functions like ErrorNew() whose Hungarian
-            would type the LHS as `object` (killing `.severity`-style
-            late binding) — a `-` return in hbfuncs.tab flags "dynamic
-            on purpose" and we return USUAL here to force that. A name
-            the program defines is the program's, never HbRuntime's
+         /* If the call target is a known HbRuntime function, its declared
+            return type in hbfuncs.tab types the call. A `-` there (the C#
+            method returns dynamic, void or a class) says nothing, so the
+            caller's Hungarian prefix decides: `hHash := hb_HClone( h )`
+            stays a hash, `nSeverity := hb_HGetDef( ... )` a number. It
+            used to return USUAL, so that `oErr := ErrorNew()` would not
+            become C# `object`; OBJECT is emitted as dynamic now, and the
+            USUAL turned every such n/a/h local dynamic. A name the
+            program defines is the program's, never HbRuntime's
             (gencsharp.c's hb_csFuncTabPrefix routes it the same way). */
          PHB_EXPR pName = pExpr->value.asFunCall.pFunName;
          if( pName && pName->ExprType == HB_ET_FUNNAME &&
              pName->value.asSymbol.name &&
              hb_funcTabPrefix( pName->value.asSymbol.name ) &&
              ! hb_refTabIsDefinedFunc( s_pPropRefTab, pName->value.asSymbol.name ) )
-         {
-            const char * szRet =
-               hb_funcTabReturnType( pName->value.asSymbol.name );
-            return szRet ? szRet : "USUAL";
-         }
+            return hb_funcTabReturnType( pName->value.asSymbol.name );
          break;
       }
 

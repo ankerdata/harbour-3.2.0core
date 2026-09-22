@@ -52,8 +52,8 @@
 PROCEDURE Main_TRANS()
 
    LOCAL cOldDate  := Set( _SET_DATEFORMAT )
-   LOCAL cOldFixed := Set( _SET_FIXED )
-   LOCAL cOldDecim := Set( _SET_DECIMALS )
+   LOCAL lOldFixed := Set( _SET_FIXED )     /* was cOldFixed: a logical */
+   LOCAL nOldDecim := Set( _SET_DECIMALS )  /* was cOldDecim: a number */
    LOCAL dt, df
 
    /* Transform() */
@@ -778,8 +778,8 @@ PROCEDURE Main_TRANS()
    HBTEST Transform(   123456789.12, "@,39 999,999,999.99" ) IS "123,456,789.12"
    HBTEST Transform(        123.456, "@R 9 9 9.9"          ) IS "1 2 3.5"
 
-   Set( _SET_FIXED, cOldFixed )
-   Set( _SET_DECIMALS, cOldDecim )
+   Set( _SET_FIXED, lOldFixed )
+   Set( _SET_DECIMALS, nOldDecim )
    Set( _SET_DATEFORMAT, cOldDate )
 
    RETURN

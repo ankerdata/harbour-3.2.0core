@@ -111,9 +111,9 @@ STATIC PROCEDURE Brk114Throw( xValue AS USUAL )
 
    BREAK xValue
 
-STATIC FUNCTION Brk114Udm() AS USUAL
+STATIC FUNCTION Brk114Udm() AS OBJECT
 
-   LOCAL oError := ErrorNew() AS USUAL
+   LOCAL oError := ErrorNew() AS OBJECT
 
    oError:severity := 2
    oError:subSystem := "UDMPRINT"

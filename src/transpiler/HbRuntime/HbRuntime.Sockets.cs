@@ -357,7 +357,8 @@ public static partial class HbRuntime
     // hb_socketOpen( [<nDomain>], [<nType>], [<nProtocol>] ): a socket, an
     // AF_INET stream by default; NIL when it cannot be made, where Harbour
     // gives an empty pointer (ValType "P", not NIL) — EasiPOS asks Empty(),
-    // which both answer .T., as hb_socketAccept()'s callers do. The numbers go
+    // which both answer .T., as hb_socketAccept()'s callers do (ruled
+    // divergent, Alex, 2026-09-22). The numbers go
     // to Winsock as they are, as Harbour's Windows build passes them, and
     // .NET's AddressFamily, SocketType and ProtocolType are Winsock's. No
     // protocol is the type's own.

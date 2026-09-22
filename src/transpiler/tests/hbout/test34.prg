@@ -12,7 +12,7 @@
 // error story is designed.
 
 PROCEDURE Main()
-   LOCAL oError := ErrorNew() AS USUAL
+   LOCAL oError := ErrorNew() AS OBJECT
 
    oError:severity := 3
    oError:genCode := 42
