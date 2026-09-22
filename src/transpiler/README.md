@@ -523,6 +523,21 @@ block inside a plain sequence the body enters, so an error there BREAKs
 to that inner sequence, where C# sends it to the WITH one. No WITH body
 in EasiPOS enters a sequence.
 
+**Tracebacks: which frames count.** A runtime error that reaches the top
+of a thread goes to the error block from `RunEntry`'s exception filter,
+which runs before C# unwinds the stack, so the handler sees the stack
+where the error happened. `ProcName()` / `ProcLine()` / `ProcFile()`
+(`CallerFrame`, HbRuntime.Process.cs) count as routines the program's
+functions and methods, codeblocks (`(b)Routine`) and HbRuntime's public
+functions, and skip the rest: frames with no declaring type (the call
+sites behind `dynamic`), `System.*` / `Microsoft.*` (reflection, the DLR,
+.NET's exception dispatch) and methods marked `[StackTraceHidden]`. So
+DefError's `Stack2Str(4)` in EASIERR.ATL starts at the routine that
+failed, as it does under Harbour. **A new HbRuntime helper that calls
+program code — a codeblock, a callback, a launcher — must be marked
+`[StackTraceHidden]`**, as `RunEntry`, `LaunchError` and `InvokeBlock`
+are, or it appears in every traceback taken through it.
+
 **W0022 in detail.** When two call sites refine the same parameter
 slot to incompatible specific types, `-GF` emits one warning per
 conflict:
