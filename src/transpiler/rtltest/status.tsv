@@ -90,7 +90,7 @@ Max	implemented	19	1	0	0	0	0	0
 DoW	implemented	18	14	0	0	0	0	0
 ErrorBlock	implemented	18	0	0	0	0	0	0
 Month	implemented	16	3	0	0	0	0	0
-Type	stub	16	0	0	0	0	0	0
+Type	implemented	16	8	0	0	0	0	0
 hb_threadStart	implemented	15	0	0	0	0	0	0
 SToD	implemented	15	2	0	0	0	0	0
 ADel	implemented	14	10	0	0	0	0	0
@@ -157,7 +157,7 @@ hb_FNameSplit	implemented	4	0	0	0	0	0	0
 hb_gcAll	implemented	4	0	0	0	0	0	0
 hb_HGet	implemented	4	2	0	0	0	0	0
 hb_HKeepOrder	implemented	4	1	0	0	0	0	0
-hb_IsFunction	stub	4	0	0	0	0	0	0
+hb_IsFunction	implemented	4	4	0	0	0	0	0
 hb_mutexNotify	implemented	4	0	0	0	0	0	0
 hb_regexComp	stub	4	0	0	0	0	0	0
 hb_socketConnect	stub	4	0	0	0	0	0	0
@@ -194,7 +194,7 @@ hb_comSend	stub	2	0	0	0	0	0	0
 hb_CurDrive	implemented	2	1	0	0	0	0	0
 hb_DirBuild	implemented	2	3	0	0	0	0	0
 hb_DirScan	implemented	2	1	0	0	0	0	0
-hb_ExecFromArray	stub	2	0	0	0	0	0	0
+hb_ExecFromArray	implemented	2	5	0	0	0	0	0
 hb_FNameExt	implemented	2	5	0	0	0	0	0
 hb_FNameExtSet	implemented	2	3	0	0	0	0	0
 hb_HPos	implemented	2	2	0	0	0	0	0

@@ -157,6 +157,112 @@ public static partial class HbRuntime
                              null, args, null);
     }
 
+    // Type( <cExpr> ): the type of an expression given as text, as
+    // Harbour's macro compiler finds it (vm/macro.c hb_macroGetType). What
+    // EasiPOS asks is whether a PUBLIC exists yet — Type( "aHWFlag" ) —
+    // and whether a function is linked — Type( "GetJnlOn()" ). A name is a
+    // PUBLIC, a static field of Program: its ValType(), "U" when there is
+    // none or it is NIL. name() with no arguments is a function of the
+    // program: "UI" when it is there, as Harbour cannot know a user
+    // function's type without calling it, and "U" when it is not linked.
+    // Any other expression would need the macro compiler: an argument
+    // error, rather than a guess.
+    static readonly System.Text.RegularExpressions.Regex s_typeName =
+        new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(\(\s*\))?\s*$");
+
+    public static string Type(string cExpr)
+    {
+        var m = s_typeName.Match(cExpr ?? "");
+        if (!m.Success)
+            throw new ArgumentException("Argument error (TYPE)");
+        string cName = m.Groups[1].Value;
+        System.Type? program = ProgramType;
+        if (program == null)
+            return "U";
+        const System.Reflection.BindingFlags Statics =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Static;
+        if (m.Groups[2].Success)
+            return program.GetMethods(Statics)
+                          .Any(f => string.Equals(f.Name, cName, StringComparison.OrdinalIgnoreCase))
+                   ? "UI" : "U";
+        var field = program.GetField(cName, Statics | System.Reflection.BindingFlags.IgnoreCase);
+        if (field != null)
+            return ValType(field.GetValue(null));
+        var prop = program.GetProperty(cName, Statics | System.Reflection.BindingFlags.IgnoreCase);
+        return prop != null ? ValType(prop.GetValue(null)) : "U";
+    }
+
+    // hb_IsFunction( <cName> ): is a function of that name linked — one of
+    // the program's, or Harbour's own (HbRuntime's), as the symbol table
+    // has both. EasiPOS asks it of optional hooks: messagebox.prg's
+    // SilentBox() calls BESILENT() when a program defines one.
+    public static bool hb_IsFunction(string cName)
+    {
+        if (string.IsNullOrEmpty(cName))
+            return false;
+        const System.Reflection.BindingFlags Statics =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Static;
+        bool Has(System.Type? t) => t != null && t.GetMethods(Statics)
+            .Any(f => string.Equals(f.Name, cName, StringComparison.OrdinalIgnoreCase));
+        return Has(ProgramType) || Has(typeof(HbRuntime));
+    }
+
+    // hb_ExecFromArray(): call a function, a block or a method with the
+    // parameters given, and return its result — vm/eval.c reads it as
+    //   ( { <func>, <params,...> } ) or ( { <oObject>, <cMessage>, <params,...> } )
+    //   ( <func> )  ( <func>, <aParams> )  ( <oObject>, <cMessage>, [<aParams>] )
+    // where <func> is a name, @Func() or a block. messagebox.prg calls
+    // hb_ExecFromArray( { "BESILENT" } ). One overload per count, not
+    // `params`: an array passed alone would be spread into the arguments.
+    public static dynamic hb_ExecFromArray(object? x1) => ExecFromArray(new[] { x1 });
+    public static dynamic hb_ExecFromArray(object? x1, object? x2) => ExecFromArray(new[] { x1, x2 });
+    public static dynamic hb_ExecFromArray(object? x1, object? x2, object? x3) => ExecFromArray(new[] { x1, x2, x3 });
+
+    static dynamic ExecFromArray(object?[] args)
+    {
+        object? xSelf = null, xFunc = null;
+        object?[] aParams = System.Array.Empty<object?>();
+        if (args.Length == 1)
+        {
+            if (args[0] is object[] aExec)
+            {
+                int nFunc = aExec.Length > 0 && ValType(aExec[0]) == "O" ? 1 : 0;
+                if (nFunc == 1)
+                    xSelf = aExec[0];
+                xFunc = aExec.Length > nFunc ? aExec[nFunc] : null;
+                aParams = aExec.Length > nFunc + 1 ? aExec[(nFunc + 1)..] : aParams;
+            }
+            else
+                xFunc = args[0];
+        }
+        else if (args.Length is 2 or 3 && ValType(args[0]) == "O")
+        {
+            xSelf = args[0];
+            xFunc = args[1];
+            if (args.Length == 3)
+                aParams = args[2] as object[] ?? throw new ArgumentException("Argument error (HB_EXECFROMARRAY)");
+        }
+        else if (args.Length == 2)
+        {
+            xFunc = args[0];
+            if (args[1] != null)
+                aParams = args[1] as object[] ?? throw new ArgumentException("Argument error (HB_EXECFROMARRAY)");
+        }
+
+        if (xSelf != null)
+            return xFunc is string cMessage
+                ? SENDMSG(xSelf, cMessage, aParams!)
+                : throw new ArgumentException("Argument error (HB_EXECFROMARRAY)");
+        return xFunc switch
+        {
+            Delegate d => InvokeBlock(d, aParams!),
+            string cFunc => InvokeBlock(FuncPtr(cFunc), aParams!),
+            _ => throw new ArgumentException("Argument error (HB_EXECFROMARRAY)"),
+        };
+    }
+
     // x:className, which the emitter sends here for every receiver.
     // Harbour answers it for any value (hb_objGetClsName, vm/classes.c):
     // an object with its class, anything else with its type's name, the

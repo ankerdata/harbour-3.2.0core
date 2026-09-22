@@ -197,21 +197,25 @@ public static partial class HbRuntime
     /// Missing methods return a sentinel that throws when invoked —
     /// matches Harbour's runtime-failure semantics for a bad @ref.
     /// </summary>
+    // The program's class. We assume the transpiled code lives in a single
+    // `public static partial class Program` merged across every .prg
+    // file's partial contribution; a multi-program executable would miss
+    // here (FuncPtr gives its throwing sentinel, Type() says "U").
+    static readonly Lazy<System.Type?> s_programType = new(() =>
+        System.Type.GetType("Program")
+        ?? System.Reflection.Assembly.GetExecutingAssembly().GetType("Program")
+        ?? System.AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetType("Program"))
+            .FirstOrDefault(t => t != null));
+
+    internal static System.Type? ProgramType => s_programType.Value;
+
     public static Func<dynamic[], dynamic> FuncPtr(string methodName)
     {
         if (methodName == null) return _ => null;
         if (s_funcPtrCache.TryGetValue(methodName, out var cached)) return cached;
 
-        // Look up on Program. We assume the transpiled code lives in a
-        // single `public static partial class Program` merged across
-        // every .prg file's partial contribution. If someone builds a
-        // multi-program executable, the lookup here will miss and
-        // callers get the throwing sentinel.
-        var programType = System.Type.GetType("Program")
-            ?? System.Reflection.Assembly.GetExecutingAssembly().GetType("Program")
-            ?? System.AppDomain.CurrentDomain.GetAssemblies()
-                .Select(a => a.GetType("Program"))
-                .FirstOrDefault(t => t != null);
+        var programType = ProgramType;
 
         System.Reflection.MethodInfo method = null;
         if (programType != null)

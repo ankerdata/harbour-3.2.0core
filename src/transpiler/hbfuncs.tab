@@ -620,7 +620,7 @@ TOKENUPPER	STRING	-
 ToString	STRING	HbRuntime
 Transform	STRING	HbRuntime
 Trim	STRING	HbRuntime
-TYPE	STRING	-
+Type	STRING	HbRuntime
 U2BIN	STRING	-
 UNTEXTWIN	STRING	-
 Upper	STRING	HbRuntime
