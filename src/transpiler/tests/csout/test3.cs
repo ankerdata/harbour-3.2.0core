@@ -45,9 +45,9 @@ public static partial class Program
             cResult = DoSomething();
             HbRuntime.QOut("cResult=" + cResult);
         }
-        catch (Exception __hb_rec_oErr)
+        catch (HbBreak __hb_brk1)
         {
-            oErr = __hb_rec_oErr;
+            oErr = __hb_brk1.Value;
             cResult = "error caught";
             HbRuntime.QOut("cResult=" + cResult);
         }
@@ -61,7 +61,7 @@ public static partial class Program
 
     public static dynamic DoSomething()
     {
-        throw new Exception();
+        throw new HbBreak();
     }
 
     public static dynamic CleanUp()

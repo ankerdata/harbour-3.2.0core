@@ -515,6 +515,30 @@ void hb_astEndFor( HB_COMP_DECL )
    }
 }
 
+/* A transpiler error of its own — E0100 onwards, past the end of
+   Harbour's table (hbgenerr.c, shared with the stock compiler): out
+   through the same hook with the bookkeeping of hb_compGenError, so
+   the file fails at the line as on a syntax error. */
+static void hb_astError( HB_COMP_DECL, int iCode, const char * szText )
+{
+   if( ! HB_COMP_PARAM->fExit && ! HB_COMP_PARAM->fError )
+   {
+      PHB_HFUNC pFunc = HB_COMP_PARAM->functions.pLast;
+
+      HB_COMP_PARAM->outMsgFunc( HB_COMP_PARAM, HB_COMP_PARAM->iErrorFmt,
+                                 HB_COMP_PARAM->currLine,
+                                 HB_COMP_PARAM->currModule,
+                                 'E', iCode, szText, NULL, NULL );
+      HB_COMP_PARAM->iErrorCount++;
+      HB_COMP_PARAM->fError = HB_TRUE;
+      while( pFunc )
+      {
+         pFunc->bError = HB_TRUE;
+         pFunc = pFunc->pOwner;
+      }
+   }
+}
+
 /* === `=` — assignment is `:=`, comparison is `==` ===
 
    Harbour reads a single `=` three ways: `x = 5` standing as a
@@ -525,9 +549,7 @@ void hb_astEndFor( HB_COMP_DECL )
    `:=` and `==` instead (Alex, 2026-09-19), so every `=` is error E0100
    at its line and the file fails as on a syntax error. The check sits
    in the grammar actions (harbour.yyc) because the AST cannot see it:
-   `x = 5` and `x := 5` are the same HB_EO_ASSIGN. E0100 is past the end
-   of Harbour's own table (hbgenerr.c, shared with the stock compiler),
-   so the message goes out through the same hook with its own number. */
+   `x = 5` and `x := 5` are the same HB_EO_ASSIGN. */
 void hb_astEqualSign( HB_COMP_DECL, int iUse )
 {
    static const char * const s_szUse[] =
@@ -537,24 +559,8 @@ void hb_astEqualSign( HB_COMP_DECL, int iUse )
       "'=' in FOR: write ':='"
    };
 
-   if( ! HB_COMP_PARAM->fExit && ! HB_COMP_PARAM->fError &&
-       iUse >= 0 && iUse < ( int ) HB_SIZEOFARRAY( s_szUse ) )
-   {
-      PHB_HFUNC pFunc = HB_COMP_PARAM->functions.pLast;
-
-      HB_COMP_PARAM->outMsgFunc( HB_COMP_PARAM, HB_COMP_PARAM->iErrorFmt,
-                                 HB_COMP_PARAM->currLine,
-                                 HB_COMP_PARAM->currModule,
-                                 'E', 100, s_szUse[ iUse ], NULL, NULL );
-      /* the bookkeeping of hb_compGenError */
-      HB_COMP_PARAM->iErrorCount++;
-      HB_COMP_PARAM->fError = HB_TRUE;
-      while( pFunc )
-      {
-         pFunc->bError = HB_TRUE;
-         pFunc = pFunc->pOwner;
-      }
-   }
+   if( iUse >= 0 && iUse < ( int ) HB_SIZEOFARRAY( s_szUse ) )
+      hb_astError( HB_COMP_PARAM, 100, s_szUse[ iUse ] );
 }
 
 /* === SWITCH / CASE / DEFAULT / ENDSWITCH === */
@@ -833,10 +839,82 @@ void hb_astBeginSeq( HB_COMP_DECL, int iLine )
       pNode->value.asSeq.pRecover    = NULL;
       pNode->value.asSeq.szRecoverVar = NULL;
       pNode->value.asSeq.pAlways     = NULL;
+      pNode->value.asSeq.fWith       = HB_FALSE;
+      pNode->value.asSeq.szWithParam = NULL;
 
       hb_astPushBlock( HB_COMP_PARAM );
       hb_astAppend( HB_COMP_PARAM, pNode );
       hb_astPushBlock( HB_COMP_PARAM );
+   }
+}
+
+/* Is pBlock the break idiom — { |e| break(e) } or { || break() }? On
+   success *pszParam is the block's parameter (NULL for the second). */
+static HB_BOOL hb_astIsBreakBlock( PHB_EXPR pBlock, const char ** pszParam )
+{
+   PHB_CBVAR pParam;
+   PHB_EXPR  pCall, pName, pArgs, pArg;
+
+   if( ! pBlock || pBlock->ExprType != HB_ET_CODEBLOCK )
+      return HB_FALSE;
+   pParam = pBlock->value.asCodeblock.pLocals;
+   pCall  = pBlock->value.asCodeblock.pExprList;
+   if( ( pParam && pParam->pNext ) || ! pCall || pCall->pNext ||
+       pCall->ExprType != HB_ET_FUNCALL )
+      return HB_FALSE;
+   pName = pCall->value.asFunCall.pFunName;
+   if( ! pName || pName->ExprType != HB_ET_FUNNAME ||
+       hb_stricmp( pName->value.asSymbol.name, "BREAK" ) != 0 )
+      return HB_FALSE;
+
+   /* the arguments: none, or the block's own parameter */
+   pArgs = pCall->value.asFunCall.pParms;
+   pArg  = ( pArgs && ( pArgs->ExprType == HB_ET_ARGLIST ||
+                        pArgs->ExprType == HB_ET_LIST ) )
+           ? pArgs->value.asList.pExprList : pArgs;
+   if( pArg && pArg->ExprType == HB_ET_NONE && ! pArg->pNext )
+      pArg = NULL;
+   if( ! pArg )
+   {
+      *pszParam = NULL;
+      return pParam == NULL;
+   }
+   if( ! pParam || pArg->pNext || pArg->ExprType != HB_ET_VARIABLE ||
+       hb_stricmp( pArg->value.asSymbol.name, pParam->szName ) != 0 )
+      return HB_FALSE;
+   *pszParam = pParam->szName;
+   return HB_TRUE;
+}
+
+/* BEGIN SEQUENCE WITH <block> — the error block the body runs under.
+   C# has no error block to install for a stretch of code, and needs
+   none for the one form the corpus writes: the break idiom
+   { |e| break(e) } (or { || break() }) sends any runtime error in the
+   body to RECOVER, which is an ordinary catch of every exception. Any
+   other block is error E0101 at its line, as a single `=` is E0100
+   (Alex, 2026-09-22). */
+void hb_astSeqWith( HB_COMP_DECL, PHB_EXPR pBlock )
+{
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) && HB_COMP_PARAM->ast.iBlockTop >= 0 )
+   {
+      /* hb_astBeginSeq pushed the sequence's block (the node its only
+         statement), then the body's, which is the current one */
+      PHB_AST_NODE pSeqBlock = ( PHB_AST_NODE )
+         HB_COMP_PARAM->ast.aBlockStack[ HB_COMP_PARAM->ast.iBlockTop ];
+      PHB_AST_NODE pSeqNode = pSeqBlock ? pSeqBlock->value.asBlock.pFirst : NULL;
+      const char * szParam = NULL;
+
+      if( pSeqNode && pSeqNode->type == HB_AST_BEGINSEQ &&
+          hb_astIsBreakBlock( pBlock, &szParam ) )
+      {
+         pSeqNode->value.asSeq.fWith       = HB_TRUE;
+         /* the grammar frees the block right after this */
+         pSeqNode->value.asSeq.szWithParam = szParam ?
+            hb_compIdentifierNew( HB_COMP_PARAM, szParam, HB_IDENT_COPY ) : NULL;
+      }
+      else
+         hb_astError( HB_COMP_PARAM, 101,
+                      "BEGIN SEQUENCE WITH takes only { |e| break(e) } or { || break() }" );
    }
 }
 

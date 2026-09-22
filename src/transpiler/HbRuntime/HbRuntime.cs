@@ -31,23 +31,39 @@ public static partial class HbRuntime
     // Harbour codeblocks emit as Func<dynamic[], dynamic>, so Eval just
     // packs the trailing args into the array and invokes. Delegate
     // fallback covers blocks that survived as a plain delegate (e.g.
-    // typed fixed-arity lambdas) via DynamicInvoke.
-    public static dynamic Eval(dynamic block, params dynamic[] args)
+    // typed fixed-arity lambdas) through reflection (InvokeBlock).
+    public static dynamic Eval(dynamic block, params dynamic[] args) =>
+        block is Delegate d ? InvokeBlock(d, args ?? System.Array.Empty<dynamic>()) : null;
+
+    // Eval()'s work, also the error launcher's: hidden from ProcName(),
+    // like the reflection frames under it.
+    [System.Diagnostics.StackTraceHidden]
+    internal static dynamic InvokeBlock(Delegate d, dynamic[] args)
     {
-        if (block is not Delegate d) return null;
-        args ??= System.Array.Empty<dynamic>();
         var ps = d.Method.GetParameters();
+        object[] fitted;
         // A varargs codeblock (`{|...|}`) is a single dynamic[] param —
         // hand it the whole args array as that one parameter.
         if (ps.Length == 1 && ps[0].ParameterType == typeof(object[]))
-            return d.DynamicInvoke(new object[] { args });
-        // Fixed-arity codeblock. A Harbour block tolerates being called
-        // with more args than it declares (extras ignored) or fewer
-        // (missing become NIL); DynamicInvoke throws on any mismatch,
-        // so fit the count to the delegate's real parameter list.
-        var fitted = new object[ps.Length];
-        System.Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
-        return d.DynamicInvoke(fitted);
+            fitted = new object[] { args };
+        else
+        {
+            // Fixed-arity codeblock. A Harbour block tolerates being
+            // called with more args than it declares (extras ignored) or
+            // fewer (missing become NIL); reflection throws on any
+            // mismatch, so fit the count to the real parameter list.
+            fitted = new object[ps.Length];
+            System.Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
+        }
+        // Invoked without reflection's TargetInvocationException wrapper:
+        // a BREAK in the block must reach its BEGIN SEQUENCE as HbBreak,
+        // and a runtime error reach the error launcher with the block's
+        // frames still on the stack. A static method closed over its
+        // first argument cannot be invoked that way; DynamicInvoke it.
+        if (d.Method.IsStatic && d.Target != null)
+            return d.DynamicInvoke(fitted);
+        return d.Method.Invoke(d.Target, System.Reflection.BindingFlags.DoNotWrapExceptions,
+                               null, fitted, null);
     }
 
     // ---- Logical functions ----
@@ -240,7 +256,8 @@ public static partial class HbRuntime
                             ? Activator.CreateInstance(parms[i].ParameterType)
                             : null;
                 }
-                return method.Invoke(null, invokeArgs);
+                return method.Invoke(null, System.Reflection.BindingFlags.DoNotWrapExceptions,
+                                     null, invokeArgs, null);
             };
         }
 

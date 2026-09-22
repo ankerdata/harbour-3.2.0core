@@ -78,7 +78,8 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
         var method = GetType().GetMethod(binder.Name, HbRuntime.MemberFlags);
         if (method != null)
         {
-            result = method.Invoke(this, args);
+            result = method.Invoke(this, System.Reflection.BindingFlags.DoNotWrapExceptions,
+                                   null, args, null);
             return true;
         }
         result = null;
@@ -143,7 +144,8 @@ public static partial class HbRuntime
         if (obj == null || string.IsNullOrEmpty(name)) return null;
         var method = obj.GetType().GetMethod(name, MemberFlags);
         if (method == null) return null;
-        return method.Invoke(obj, args);
+        return method.Invoke(obj, System.Reflection.BindingFlags.DoNotWrapExceptions,
+                             null, args, null);
     }
 
     // x:className, which the emitter sends here for every receiver.

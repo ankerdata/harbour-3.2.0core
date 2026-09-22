@@ -503,6 +503,24 @@ them exact, `!( a == b )`. E0100 lies past the end of Harbour's own
 error table (hbgenerr.c, which the stock compiler shares), so the
 message goes out through the same hook with its own number.
 
+**E0101: an error block in `BEGIN SEQUENCE WITH` other than the break
+idiom.** `WITH <block>` makes the block the error block for everything
+the body runs. C# has no error block to install for a stretch of code
+and needs none for `{ |e| break(e) }` (or `{ || break() }`), which sends
+any runtime error to RECOVER — an ordinary catch of every exception —
+and that is the only form the corpus writes. Any other block fails the
+file at its line (Alex, 2026-09-22), checked as the grammar hands the
+block to the AST (`hb_astSeqWith`, hbast.c):
+
+```
+file.prg(8) Error E0101  BEGIN SEQUENCE WITH takes only { |e| break(e) } or { || break() }
+```
+
+One consequence is ruled divergent: Harbour's WITH block stays the error
+block inside a plain sequence the body enters, so an error there BREAKs
+to that inner sequence, where C# sends it to the WITH one. No WITH body
+in EasiPOS enters a sequence.
+
 **W0022 in detail.** When two call sites refine the same parameter
 slot to incompatible specific types, `-GF` emits one warning per
 conflict:
@@ -855,8 +873,10 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `Self` / `::`                    | `this` / `this.` — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class |
 | `ClassName():New()`              | `new ClassName()` — or `(ClassName)new ClassName().New()` when the class declares a `New` / `Init` body (it used to be skipped). A name the reftab does not know as a class (`hbClass()`, `TOleAuto()`) leaves the receiving local `dynamic` (test103) |
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
-| `BEGIN SEQUENCE … RECOVER … END` | `try { … } catch (Exception e) { … }`                   |
-| `BEGIN SEQUENCE … END` (no RECOVER) | `try { … } catch {}` + W-level warning (idiom usually means "missed RECOVER") |
+| `BREAK [x]` / `Break( x )`       | `throw new HbBreak(x)` — the value goes to RECOVER USING, NIL for a bare BREAK (test114) |
+| `BEGIN SEQUENCE … RECOVER USING v … END` | `try { … } catch (HbBreak b) { v = b.Value; … }` — only a BREAK: a runtime error goes on to the error block at the entry point (`HbRuntime.RunEntry`), as in Harbour. An `x`-named or unprefixed `v` is `dynamic` whatever its initializer (test114) |
+| `BEGIN SEQUENCE WITH {\|e\| break(e)} … RECOVER USING v` | `catch (Exception ex) { v = HbError.From(ex); … }` — every exception, `v` the Error object Harbour would raise (or an explicit BREAK's value); `{\|\| break()}` gives NIL. Any other error block is E0101 |
+| `BEGIN SEQUENCE … END` (no RECOVER) | `catch (HbBreak) { }` — the BREAK ends at END; with ALWAYS and no RECOVER a `finally` alone, the BREAK going on outward (HB_P_ALWAYSEND). `WITH` and no RECOVER swallows every error, a W-level warning |
 | `{ => }` empty hash              | `new OrderedDictionary<string, dynamic>()`               |
 | `ACCESS` / `ASSIGN`              | C# property `{ get; set; }`                               |
 | `Foo(@x)` + `PROCEDURE Foo(x)`   | `Foo(ref x)` + `Foo(ref decimal x)` (type from refTab)   |
@@ -1385,6 +1405,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 111       | A FOR loop counts in the direction of its step's sign: a constant step (`hb_compExprAsNumSign`) picks `<=` or `>=`, a negative decimal literal included; any other step is `HbRuntime.ForTest(i, end, step)`, tested on every pass with the end evaluated before the step. `STEP nStep` with a negative nStep had looped forever on `<=` |
 | 112       | `hb_ADel(a, n, .T.)` / `hb_AIns(a, n, x, .T.)` pass the array by `ref`, as `AAdd` / `ASize` do, so it shrinks and grows — a local, a typed DATA, an `x`-named (dynamic) DATA and a parameter the routine resizes. Every EasiPOS call passes `.T.` (the sale buffer's line delete and insert), and without the `ref` the C# array kept its length |
 | 113       | A hash is .NET 9's `OrderedDictionary` — Harbour's default hash keeps insertion order across deletes, where a `Dictionary` reuses the deleted slot — `<long, dynamic>` for a numeric-keyed one, the key cast at the subscript; HbRuntime converts a key to the hash's key type (7 and 7.0 are one key); `hb_HKeyAt`, `hb_HPos`, `hb_HSet`, `hb_HGet`, `hb_HClone` (deep, as `AClone` now is), `hb_HKeepOrder`; `$` finds nothing for an empty string |
+| 114       | `BREAK` throws `HbBreak` carrying its value, a plain `BEGIN SEQUENCE` catches only that, `WITH { \|e\| break(e) }` catches every exception and RECOVER USING gets `HbError.From`'s Error object (zero divisor: 5 BASE 1340); ALWAYS without RECOVER lets the BREAK go on; a BREAK in RECOVER goes to the next sequence out; `Break()` in a block reaches its sequence through `Eval()`; `ErrorBlock()`. BREAK had been `throw new Exception(x)`, RECOVER USING got the .NET exception, and WITH was dropped |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 
@@ -1394,8 +1415,8 @@ test asserts the warning is emitted, *not* that codegen hard-fails. Most
 are `W0016` unsupported-construct cases (the emitter substitutes a
 placeholder and keeps the rest of the file — see
 [Unsupported constructs](#unsupported-constructs)); the rest flag a
-source smell that codegen still handles — except `E0100`, the one error,
-where the file fails and the test asserts the error line:
+source smell that codegen still handles — except `E0100` and `E0101`,
+the errors, where the file fails and the test asserts the error line:
 
 | Test                          | Warning | Flagged                                                  |
 |-------------------------------|---------|----------------------------------------------------------|
@@ -1408,6 +1429,7 @@ where the file fails and the test asserts the error line:
 | `equal_assign.prg`            | `E0100` | `nX = 5` — assignment is `:=` (an error: the file fails) |
 | `equal_compare.prg`           | `E0100` | `IF cMessage = "~"` — comparison is `==`                 |
 | `equal_for.prg`               | `E0100` | `FOR nI = 1` — the counter is assigned with `:=`         |
+| `seq_with_block.prg`          | `E0101` | `BEGIN SEQUENCE WITH` a block that is not the break idiom |
 
 ### The runtime library — `rtltest/`
 

@@ -6761,6 +6761,7 @@ yyreduce:
   case 621:
 #line 1889 "harbour.y" /* yacc.c:1646  */
     {
+                  hb_astSeqWith( HB_COMP_PARAM, (yyvsp[0].asExpr) );
                   HB_COMP_EXPR_FREE( hb_compExprGenPush( (yyvsp[0].asExpr), HB_COMP_PARAM ) );
                   hb_compGenPCode1( HB_P_SEQBLOCK, HB_COMP_PARAM );
                   (yyval.sNumber) = HB_COMP_PARAM->functions.pLast->nPCodePos;

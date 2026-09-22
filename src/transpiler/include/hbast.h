@@ -182,6 +182,8 @@ struct _HB_AST_NODE
          PHB_AST_NODE   pRecover;      /* RECOVER block */
          const char *   szRecoverVar;  /* USING variable name */
          PHB_AST_NODE   pAlways;       /* ALWAYS block */
+         HB_BOOL        fWith;         /* WITH { |e| break(e) } / { || break() } */
+         const char *   szWithParam;   /* that block's parameter, NULL for { || break() } */
       } asSeq;
 
       /* HB_AST_WITHOBJECT */
@@ -360,6 +362,8 @@ extern void         hb_astEndSwitch( HB_COMP_DECL );
 
 /* BEGIN SEQUENCE / RECOVER / ALWAYS / END */
 extern void         hb_astBeginSeq( HB_COMP_DECL, int iLine );
+/* BEGIN SEQUENCE WITH <block>: the break idiom, anything else E0101 */
+extern void         hb_astSeqWith( HB_COMP_DECL, PHB_EXPR pBlock );
 extern void         hb_astBeginRecover( HB_COMP_DECL, const char * szVar );
 extern void         hb_astBeginAlways( HB_COMP_DECL );
 extern void         hb_astEndSeq( HB_COMP_DECL, HB_BOOL fRecover, HB_BOOL fAlways );

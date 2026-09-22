@@ -9,7 +9,8 @@
 # every downstream caller). Others flag a source smell that codegen
 # still handles, e.g. W0023 (`@` on a never-reassigned array param).
 # Tests verify the warning is surfaced, not that codegen hard-fails.
-# E0100 (a single `=`) is the one error: the file fails, as on a syntax
+# E0100 (a single `=`) and E0101 (an error block in BEGIN SEQUENCE WITH
+# other than the break idiom) are errors: the file fails, as on a syntax
 # error, and the test checks the error line instead.
 #
 # Usage: bash tests/errors/run.sh     (HBTRANSPILER overrides the binary)
@@ -53,6 +54,7 @@ run_one "$SCRIPT_DIR/hungarian_mismatch.prg"    "W0024" "contradicts its Hungari
 run_one "$SCRIPT_DIR/equal_assign.prg"  "E0100" "as an assignment"
 run_one "$SCRIPT_DIR/equal_compare.prg" "E0100" "as a comparison"
 run_one "$SCRIPT_DIR/equal_for.prg"     "E0100" "in FOR"
+run_one "$SCRIPT_DIR/seq_with_block.prg" "E0101" "takes only"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

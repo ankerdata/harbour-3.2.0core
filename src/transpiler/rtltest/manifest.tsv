@@ -75,6 +75,59 @@ own_dates:29	run-fn	EMPTY	EMPTY,STOD	Empty( SToD( "20241301" ) )
 own_dates:30	run-fn	EMPTY	EMPTY,STOD	Empty( SToD( "20240100" ) )
 own_dates:31	run-fn	YEAR	STOD,YEAR	Year( SToD( "20040101" ) )
 own_dates:32	run-fn	STOD	STOD	SToD( "20040102" ) - SToD( "20040101" )
+own_errors:22	run-fn	VALTYPE	ERRORNEW,VALTYPE	ValType( ErrorNew() )
+own_errors:23	run-fn	ERRORNEW	ERRORNEW	ErrorNew():className()
+own_errors:24	run-fn	ERRORNEW	ERRORNEW	ErrorNew():severity
+own_errors:25	run-fn	ERRORNEW	ERRORNEW	ErrorNew():genCode
+own_errors:26	run-fn	ERRORNEW	ERRORNEW	ErrorNew():subSystem
+own_errors:27	run-fn	ERRORNEW	ERRORNEW	ErrorNew():subCode
+own_errors:28	run-fn	ERRORNEW	ERRORNEW	ErrorNew():description
+own_errors:29	run-fn	ERRORNEW	ERRORNEW	ErrorNew():operation
+own_errors:30	run-fn	ERRORNEW	ERRORNEW	ErrorNew():fileName
+own_errors:31	run-fn	ERRORNEW	ERRORNEW	ErrorNew():osCode
+own_errors:32	run-fn	ERRORNEW	ERRORNEW	ErrorNew():tries
+own_errors:33	run-fn	ERRORNEW	ERRORNEW	ErrorNew():canRetry
+own_errors:34	run-fn	ERRORNEW	ERRORNEW	ErrorNew():canDefault
+own_errors:35	run-fn	ERRORNEW	ERRORNEW	ErrorNew():canSubstitute
+own_errors:36	run-fn	ERRORNEW	ERRORNEW	ErrorNew():args
+own_errors:37	run-fn	ERRORNEW	ERRORNEW	ErrorNew():cargo
+own_errors:40	run-op			UdmError():severity
+own_errors:41	run-op			UdmError():subSystem
+own_errors:42	run-op			UdmError():subCode
+own_errors:43	run-op			UdmError():description
+own_errors:44	run-op			UdmError():canRetry
+own_errors:45	run-op			UdmError():canDefault
+own_errors:46	run-op			UdmError():SubSystem
+own_errors:49	run-op			Recovered( 5 )
+own_errors:50	run-op			Recovered( "x" )
+own_errors:51	run-op			Recovered( NIL )
+own_errors:52	run-op			Recovered( UdmError() ):subCode
+own_errors:53	run-op			BareBreak()
+own_errors:54	out-of-scope			BlockBreak()
+own_errors:58	run-op			Trail()
+own_errors:59	run-op			NoRecover()
+own_errors:60	run-op			WithAlways( .F. )
+own_errors:61	run-op			WithAlways( .T. )
+own_errors:62	run-op			AlwaysOnly()
+own_errors:63	run-op			Nested()
+own_errors:66	run-fn	VALTYPE	VALTYPE	ValType( ZeroDiv() )
+own_errors:67	run-op			ZeroDiv():className()
+own_errors:68	run-op			ZeroDiv():severity
+own_errors:69	run-op			ZeroDiv():genCode
+own_errors:70	run-op			ZeroDiv():subSystem
+own_errors:71	run-op			ZeroDiv():subCode
+own_errors:72	run-op			ZeroDiv():description
+own_errors:73	run-op			ZeroDiv():operation
+own_errors:74	run-op			Bound():genCode
+own_errors:75	run-op			Bound():subSystem
+own_errors:76	run-op			Bound():subCode
+own_errors:77	run-op			Bound():description
+own_errors:78	run-op			Bound():operation
+own_errors:79	run-op			WithValue()
+own_errors:80	run-op			WithNil()
+own_errors:87	divergent:a runtime error in a plain sequence inside a WITH one reaches the WITH sequence in C#, the inner one in Harbour; no WITH body in EasiPOS enters a sequence (Alex, 2026-09-22)			PlainInsideWith()
+own_errors:90	run-op			BlockRoundTrip()
+own_errors:91	run-op			BlockKeep()
 own_files:33	run-fn	FILE	FILE	File( cFile )
 own_files:34	run-fn	FERASE	FERASE	FErase( cFile )
 own_files:35	run-fn	FERROR	FERROR	FError()

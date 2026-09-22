@@ -92,6 +92,7 @@ BOF	LOGICAL	-
 BOM	DATE	-
 BOQ	DATE	-
 BOY	DATE	-
+Break	-	HbRuntime
 BROWSE	LOGICAL	-
 CD	LOGICAL	-
 CDoW	STRING	HbRuntime
@@ -174,6 +175,7 @@ EOF	LOGICAL	-
 EOM	DATE	-
 EOQ	DATE	-
 EOY	DATE	-
+ErrorBlock	-	HbRuntime
 ErrorLevel	NUMERIC	HbRuntime
 ErrorNew	-	HbRuntime
 Eval	-	HbRuntime
@@ -566,6 +568,7 @@ Round	NUMERIC	HbRuntime
 ROW	NUMERIC	-
 RTOD	NUMERIC	-
 RTrim	STRING	HbRuntime
+RunEntry	-	HbRuntime
 SAVETOKEN	STRING	-
 Seconds	NUMERIC	HbRuntime
 SECS	NUMERIC	-

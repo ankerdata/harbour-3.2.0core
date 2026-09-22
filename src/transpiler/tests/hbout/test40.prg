@@ -2,14 +2,11 @@
 // Test 40: BEGIN SEQUENCE / END SEQUENCE with no RECOVER/ALWAYS.
 //
 // Before the fix, this emitted `try { ... }` with nothing following,
-// which C# rejects (CS1524). Harbour semantics are "swallow any
-// runtime error in the body", so we now emit an empty catch. The
-// transpiler also issues a W-level warning because the idiom is
-// usually a missed RECOVER in the source.
-//
-// Real-code analogue: easiposx/spoolprt.prg around the paper-status
-// serial-port probing (bare BEGIN SEQUENCE around oPrtPort:PurgeRX,
-// oPrtPort:TimeOuts, etc. to shrug off port-not-ready errors).
+// which C# rejects (CS1524). Without RECOVER, Harbour ends a BREAK in
+// the body at END SEQUENCE; a runtime error still goes to the error
+// block. So the emitted catch is `catch (HbBreak) { }` (test114 has
+// the rest of BREAK and BEGIN SEQUENCE); only BEGIN SEQUENCE WITH and
+// no RECOVER, which swallows every error, draws a W-level warning.
 
 PROCEDURE Main()
    LOCAL lBodyRan := .F. AS LOGICAL

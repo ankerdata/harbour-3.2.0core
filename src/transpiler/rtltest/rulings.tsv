@@ -421,3 +421,9 @@ rt_hvma:275	quarantine	a logical operator on a non-logical operand: C#'s && need
 # String minus - joining two strings with the left one's trailing blanks moved to the end -
 # is not ported: C# has no - for strings and EasiPOS never subtracts one (Alex, 2026-09-21)
 rt_stra:528	quarantine	string minus: C# has no - for strings (CS0019); EasiPOS never subtracts a string, and RTrim( a ) + b + Space( Len( a ) - Len( RTrim( a ) ) ) spells it out where needed
+
+# A runtime error in a plain sequence inside a BEGIN SEQUENCE WITH one: Harbour's WITH block is
+# the error block for all the body runs, so the error BREAKs to the nearer, inner sequence; in C#
+# a plain sequence catches only HbBreak and the WITH one takes it. No WITH body in EasiPOS enters
+# a sequence — each wraps one ADO or OLE call (Alex, 2026-09-22): divergent by design
+own_errors:87	divergent	a runtime error in a plain sequence inside a WITH one reaches the WITH sequence in C#, the inner one in Harbour; no WITH body in EasiPOS enters a sequence (Alex, 2026-09-22)

@@ -792,6 +792,21 @@ static HB_BOOL hb_typeEnvFreeze( HB_TYPEENV * pEnv, const char * szName,
    return HB_FALSE;
 }
 
+/* True when szName's slot was frozen at USUAL: proved to hold values of
+   no one type (RECOVER USING, unrelated classes). */
+static HB_BOOL hb_typeEnvFrozenUsual( HB_TYPEENV * pEnv, const char * szName )
+{
+   int i;
+
+   for( i = 0; i < pEnv->count; i++ )
+   {
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
+         return pEnv->entries[ i ].fFrozen && pEnv->entries[ i ].szType &&
+                strcmp( pEnv->entries[ i ].szType, "USUAL" ) == 0;
+   }
+   return HB_FALSE;
+}
+
 static const char * hb_typeEnvGet( HB_TYPEENV * pEnv, const char * szName )
 {
    int i;
@@ -1407,6 +1422,20 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
             break;
 
          case HB_AST_BEGINSEQ:
+            /* RECOVER USING v is an assignment the expressions never
+               show: v takes whatever the BREAK carried. A name that
+               commits to no type (x, or no prefix) is USUAL whatever it
+               was initialised with — `LOCAL xGot := ""` was a string in
+               C# and threw on a BREAK of 5. A Hungarian name keeps its
+               type: a BREAK of another type is the lie W0024 is for. */
+            if( pStmt->value.asSeq.szRecoverVar && pStmt->value.asSeq.pRecover )
+            {
+               const char * szRecVar = pStmt->value.asSeq.szRecoverVar;
+               const char * szPrefix = hb_astInferFromPrefix( szRecVar );
+               if( ( ! szPrefix || strcmp( szPrefix, "USUAL" ) == 0 ) &&
+                   hb_typeEnvFreeze( pEnv, szRecVar, "USUAL" ) )
+                  *pfChanged = HB_TRUE;
+            }
             hb_astPropagateBlock( pStmt->value.asSeq.pBody, pEnv, pfChanged );
             hb_astPropagateBlock( pStmt->value.asSeq.pRecover, pEnv, pfChanged );
             hb_astPropagateBlock( pStmt->value.asSeq.pAlways, pEnv, pfChanged );
@@ -3615,6 +3644,17 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
 
          if( strcmp( szCurType, "USUAL" ) == 0 &&
              szPropType && strcmp( szPropType, "USUAL" ) != 0 )
+            fOverride = HB_TRUE;
+         /* The other way: a name that commits to no type (x, or no
+            prefix) typed by its initializer, then proved to hold
+            anything — frozen USUAL by RECOVER USING (Pass 2) — is USUAL,
+            not the initializer's type. */
+         else if( szPropType && strcmp( szPropType, "USUAL" ) == 0 &&
+                  strcmp( szCurType, "USUAL" ) != 0 &&
+                  hb_typeEnvFrozenUsual( &env, pStmt->value.asVar.szName ) &&
+                  ( ! hb_astInferFromPrefix( pStmt->value.asVar.szName ) ||
+                    strcmp( hb_astInferFromPrefix( pStmt->value.asVar.szName ),
+                            "USUAL" ) == 0 ) )
             fOverride = HB_TRUE;
          else if( strcmp( szCurType, "OBJECT" ) == 0 &&
                   szPropType && strcmp( szPropType, "OBJECT" ) != 0 &&

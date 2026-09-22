@@ -177,6 +177,10 @@ public static partial class HbRuntime
             string ns = m?.DeclaringType?.Namespace ?? "";
             if (m?.DeclaringType == null || ns == "System" || ns.StartsWith("System.") || ns.StartsWith("Microsoft."))
                 continue;
+            // HbRuntime's own machinery — the error launcher, a block's
+            // invocation — is no routine of the program's
+            if (m.IsDefined(typeof(System.Diagnostics.StackTraceHiddenAttribute), false))
+                continue;
             if (n-- == 0)
                 return f;
         }

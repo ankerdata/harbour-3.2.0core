@@ -29,7 +29,7 @@ Int	implemented	265	15	0	0	0	0	0
 Time	implemented	265	0	0	0	0	0	0
 hb_bitNot	implemented	220	3	0	0	0	0	0
 At	implemented	192	20	0	0	0	0	0
-ValType	implemented	192	24	0	0	0	0	0
+ValType	implemented	192	26	0	0	0	0	0
 Transform	implemented	182	528	0	0	0	0	0
 FWrite	implemented	178	26	0	0	0	0	0
 Trim	implemented	175	15	0	0	0	0	0
@@ -125,7 +125,7 @@ L2Bin	implemented	7	10	0	0	0	0	0
 ProcLine	implemented	7	2	0	0	0	0	0
 ProcName	implemented	7	2	0	0	0	0	0
 __Quit	implemented	7	0	0	0	0	0	0
-ErrorNew	implemented	6	4	0	0	0	0	0
+ErrorNew	implemented	6	19	0	0	0	0	0
 hb_AScan	implemented	6	7	0	0	0	0	0
 hb_comFlowControl	stub	6	0	0	0	0	0	0
 hb_comFlowSet	stub	6	0	0	0	0	0	0

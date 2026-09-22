@@ -94,6 +94,10 @@ C_HELPERS = {"R_PASSENL", "R_PASSENLC"}
 # comparison (E0100; Alex, 2026-09-19), so an assertion or statement
 # using it cannot be carried to C#. Run on code with strings blanked.
 EQUAL_RE = re.compile(r"(?<![:=<>!+\-*/%^$#])=(?![=>])")
+# BEGIN SEQUENCE WITH { |e| break(e) } (or { || break() }), the one error
+# block the transpiler accepts (E0101), becomes a catch in C#: the Break()
+# in it is no call to the library, so a helper is not out of scope for it.
+SEQ_WITH_RE = re.compile(r"(?i)^BEGIN\s+SEQUENCE\s+WITH\s*\{.*\}$")
 
 
 def hbx_core():
@@ -290,7 +294,7 @@ def out_of_scope_helpers(lines, core, needed):
             cur = None if entry or kind == "INIT" else rm.group(3).upper()
             if cur:
                 bodies[cur] = set()
-        elif cur and not stripped.startswith("#"):
+        elif cur and not stripped.startswith("#") and not SEQ_WITH_RE.match(stripped):
             bodies[cur] |= {c.upper() for c in CALL_RE.findall(code_only(stripped))}
     out = {h for h, calls in bodies.items() if (calls & core) - needed}
     grew = True

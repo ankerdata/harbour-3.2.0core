@@ -1311,6 +1311,11 @@ static HB_BOOL         s_fBaseCallArgs = HB_FALSE;  /* emitting the args of a `b
    safety. */
 static int             s_iShimDepth   = 0;
 
+/* BEGIN SEQUENCE nesting depth: the suffix of the catch variable
+   (`__hb_brk<n>` / `__hb_ex<n>`), so a sequence inside a RECOVER does
+   not redeclare its enclosing catch's variable (CS0136). */
+static int             s_iSeqDepth    = 0;
+
 /* Hoisting: a funcall lifted out of a condition / return expression into
    a preceding statement. While s_pHoistCall is non-NULL, hb_csEmitExpr
    emits s_szHoistVar in place of that exact funcall node, so the original
@@ -6434,8 +6439,10 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_BREAK:
+         /* BREAK [<value>]: to the nearest BEGIN SEQUENCE, whose
+            RECOVER USING gets the value (NIL without one) */
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "throw new Exception(" );
+         fprintf( yyc, "throw new HbBreak(" );
          if( pNode->value.asBreak.pExpr )
             hb_csEmitExpr( pNode->value.asBreak.pExpr, yyc, HB_FALSE );
          fprintf( yyc, ");\n" );
@@ -6537,7 +6544,28 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_BEGINSEQ:
-         /* BEGIN SEQUENCE → try/catch/finally */
+      {
+         /* BEGIN SEQUENCE → try / catch / finally (Alex, 2026-09-22).
+            BREAK throws HbBreak carrying its value. A plain sequence
+            catches only that: a runtime error in its body goes on to the
+            error block at the entry point, as it does in Harbour, where
+            POS X's DefError logs and quits. WITH { |e| break(e) }, the
+            one error block accepted (E0101), sends every runtime error
+            to RECOVER, so that sequence catches every exception and
+            RECOVER USING gets the Error object HbError.From makes of it
+            (NIL with { || break() }; an explicit BREAK's own value either
+            way). Without RECOVER, Harbour ends a BREAK at END — or, with
+            ALWAYS, runs ALWAYS and lets it go on outward (HB_P_ALWAYSEND
+            restores the request), which a finally with no catch does. */
+         const char * szRecVar = pNode->value.asSeq.szRecoverVar;
+         HB_BOOL fWith   = pNode->value.asSeq.fWith;
+         HB_BOOL fAlways = pNode->value.asSeq.pAlways != NULL;
+         HB_BOOL fCatch  = pNode->value.asSeq.pRecover != NULL || ! fAlways;
+         char szCatchVar[ 24 ];
+
+         s_iSeqDepth++;
+         hb_snprintf( szCatchVar, sizeof( szCatchVar ), "__hb_%s%d",
+                      fWith ? "ex" : "brk", s_iSeqDepth );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "try\n" );
          hb_csEmitIndent( yyc, iIndent );
@@ -6547,49 +6575,54 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             hb_csEmitBlock( pNode->value.asSeq.pBody, yyc, iIndent + 1 );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "}\n" );
-         if( pNode->value.asSeq.pRecover )
+         if( fCatch )
          {
-            const char * szRecVar = pNode->value.asSeq.szRecoverVar;
-            HB_BOOL fShadow = szRecVar && hb_csIsMethodLocal( szRecVar );
+            HB_BOOL fValue = szRecVar && pNode->value.asSeq.pRecover;
+
+            if( fWith && ! pNode->value.asSeq.pRecover && s_pCompCtx )
+               hb_compGenWarning( s_pCompCtx, hb_comp_szWarnings, 'W',
+                                  HB_COMP_WARN_MEANINGLESS,
+                                  "BEGIN SEQUENCE WITH and no RECOVER/ALWAYS — errors silently swallowed",
+                                  NULL );
             hb_csEmitIndent( yyc, iIndent );
-            if( szRecVar )
-               fprintf( yyc, "catch (Exception %s%s)\n",
-                        fShadow ? "__hb_rec_" : "", szRecVar );
+            if( fValue )
+               fprintf( yyc, "catch (%s %s)\n",
+                        fWith ? "Exception" : "HbBreak", szCatchVar );
             else
-               fprintf( yyc, "catch\n" );
+               fprintf( yyc, "catch (%s)\n", fWith ? "Exception" : "HbBreak" );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "{\n" );
             s_iLastLine = 0;
-            /* Shadow-case: assign the caught exception to the outer
-               method-level local so its references resolve. */
-            if( fShadow )
+            if( fValue )
             {
                hb_csEmitIndent( yyc, iIndent + 1 );
-               fprintf( yyc, "%s = __hb_rec_%s;\n", szRecVar, szRecVar );
+               if( ! fWith )
+                  fprintf( yyc, "%s = %s.Value;\n", szRecVar, szCatchVar );
+               else if( pNode->value.asSeq.szWithParam )
+                  fprintf( yyc, "%s = HbError.From(%s);\n", szRecVar, szCatchVar );
+               else
+                  fprintf( yyc, "%s = HbBreak.ValueOf(%s);\n", szRecVar, szCatchVar );
             }
-            hb_csEmitBlock( pNode->value.asSeq.pRecover, yyc, iIndent + 1 );
+            if( pNode->value.asSeq.pRecover )
+               hb_csEmitBlock( pNode->value.asSeq.pRecover, yyc, iIndent + 1 );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "}\n" );
          }
-         else if( ! pNode->value.asSeq.pAlways )
+         else if( fWith )
          {
-            /* BEGIN SEQUENCE / END SEQUENCE with neither RECOVER nor
-               ALWAYS is a Harbour idiom that silently swallows any
-               runtime error inside the body. C# requires every try to
-               have a catch or finally, so emit an empty catch to keep
-               semantics (errors absorbed) and satisfy the compiler.
-               Warn so the source gets audited — most real uses turn
-               out to be a RECOVER clause that the author forgot to
-               write. */
-            if( s_pCompCtx )
-               hb_compGenWarning( s_pCompCtx, hb_comp_szWarnings, 'W',
-                                  HB_COMP_WARN_MEANINGLESS,
-                                  "BEGIN SEQUENCE with no RECOVER/ALWAYS — errors silently swallowed",
-                                  NULL );
+            /* WITH and ALWAYS, no RECOVER: the runtime error, made a
+               BREAK by the block, runs ALWAYS and goes on outward as a
+               BREAK — which is what an outer plain sequence catches */
             hb_csEmitIndent( yyc, iIndent );
-            fprintf( yyc, "catch\n" );
+            fprintf( yyc, "catch (Exception %s) when (%s is not HbBreak)\n",
+                     szCatchVar, szCatchVar );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "{\n" );
+            hb_csEmitIndent( yyc, iIndent + 1 );
+            if( pNode->value.asSeq.szWithParam )
+               fprintf( yyc, "throw new HbBreak(HbError.From(%s));\n", szCatchVar );
+            else
+               fprintf( yyc, "throw new HbBreak();\n" );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "}\n" );
          }
@@ -6604,7 +6637,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "}\n" );
          }
+         s_iSeqDepth--;
          break;
+      }
 
       case HB_AST_WITHOBJECT:
          {

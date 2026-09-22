@@ -984,7 +984,15 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
       case HB_AST_BEGINSEQ:
          hb_astEmitIndent( yyc, iIndent );
-         fprintf( yyc, "BEGIN SEQUENCE\n" );
+         /* WITH is always the break idiom (E0101 refuses any other) */
+         if( ! pNode->value.asSeq.fWith )
+            fprintf( yyc, "BEGIN SEQUENCE\n" );
+         else if( pNode->value.asSeq.szWithParam )
+            fprintf( yyc, "BEGIN SEQUENCE WITH {|%s| Break( %s ) }\n",
+                     pNode->value.asSeq.szWithParam,
+                     pNode->value.asSeq.szWithParam );
+         else
+            fprintf( yyc, "BEGIN SEQUENCE WITH {|| Break() }\n" );
          s_iLastLine = 0;
          if( pNode->value.asSeq.pBody )
             hb_astEmitBlock( pNode->value.asSeq.pBody, yyc, iIndent + 1 );

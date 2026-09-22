@@ -56,7 +56,8 @@ public static partial class HbRuntime
     // GetLastError() gives it to hb_fsSetIOError(); the rest are mapped by
     // kind. NotSupportedException is what .NET raises where Windows would
     // fail a read on a write-only handle with ERROR_ACCESS_DENIED.
-    static int OsError(Exception e) => WinToDosError(
+    // HbError.From gives an Error object the same osCode.
+    internal static int OsError(Exception e) => WinToDosError(
         (e.HResult & unchecked((int) 0xFFFF0000)) == unchecked((int) 0x80070000) ? e.HResult & 0xFFFF
         : e is FileNotFoundException ? 2
         : e is DirectoryNotFoundException ? 3
