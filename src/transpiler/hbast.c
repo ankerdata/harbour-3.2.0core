@@ -579,6 +579,29 @@ void hb_astBeginSwitch( HB_COMP_DECL, PHB_EXPR pSwitch, int iLine )
    }
 }
 
+/* W0033: a bare BREAK ending a SWITCH CASE is C's `break` written in
+   Harbour, where it is the sequence BREAK: it leaves for the nearest
+   BEGIN SEQUENCE, or ends the program, instead of leaving the CASE,
+   which is what EXIT does. easipos/sockerror.prg ended 71 CASEs that
+   way, so SockError() never returned (Alex, 2026-09-22). A BREAK meant
+   for a sequence is conditional or carries a value, and passes. */
+static void hb_astCheckCaseBreak( HB_COMP_DECL, PHB_AST_NODE pBody )
+{
+   PHB_AST_NODE pNode, pLast = NULL;
+
+   if( ! pBody || pBody->type != HB_AST_BLOCK )
+      return;
+   for( pNode = pBody->value.asBlock.pFirst; pNode; pNode = pNode->pNext )
+      if( pNode->type != HB_AST_COMMENT )
+         pLast = pNode;
+   if( pLast && pLast->type == HB_AST_BREAK && ! pLast->value.asBreak.pExpr )
+      fprintf( stderr,
+               "hbtranspiler: %s(%d): warning W0033  "
+               "BREAK ends a SWITCH CASE: Harbour runs the sequence BREAK, "
+               "not C's break - leave the CASE with EXIT\n",
+               hb_strCollapsePath( HB_COMP_PARAM->currModule ), pLast->iLine );
+}
+
 void hb_astAddSwitchCase( HB_COMP_DECL, PHB_EXPR pValue, int iLine )
 {
    if( HB_COMP_ISAST( HB_COMP_PARAM ) )
@@ -594,6 +617,7 @@ void hb_astAddSwitchCase( HB_COMP_DECL, PHB_EXPR pValue, int iLine )
              pParent->value.asBlock.pFirst->type == HB_AST_SWITCH )
          {
             PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
+            hb_astCheckCaseBreak( HB_COMP_PARAM, pBody );
             pSwitchBlock = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pCurrBlock;
             pSwitchNode = pSwitchBlock->value.asBlock.pFirst;
             pLast = pSwitchNode->value.asSwitch.pCases;
@@ -641,6 +665,7 @@ void hb_astEndSwitch( HB_COMP_DECL )
       PHB_AST_NODE pSwitchBlock, pSwitchNode, pLast;
       PHB_AST_NODE pBody = hb_astPopBlock( HB_COMP_PARAM );
 
+      hb_astCheckCaseBreak( HB_COMP_PARAM, pBody );
       pSwitchBlock = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pCurrBlock;
       pSwitchNode = pSwitchBlock->value.asBlock.pFirst;
 

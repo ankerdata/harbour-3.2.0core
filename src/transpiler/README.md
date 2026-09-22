@@ -483,6 +483,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0030 | scan  | NIL assigned into a value-typed ORM field (CS0037)                          |
 | W0031 | scan  | Cross-kind write into an ORM field (`NUMERIC` into a STRING field, CS0029) |
 | W0032 | scan  | Message sent to a scalar-named variable (`aLine:nQty`) — rename to `o<…>`   |
+| W0033 | scan  | A bare BREAK ends a SWITCH CASE: C's `break`, which Harbour runs as the sequence BREAK — leave the CASE with EXIT |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -1430,6 +1431,7 @@ the errors, where the file fails and the test asserts the error line:
 | `equal_compare.prg`           | `E0100` | `IF cMessage = "~"` — comparison is `==`                 |
 | `equal_for.prg`               | `E0100` | `FOR nI = 1` — the counter is assigned with `:=`         |
 | `seq_with_block.prg`          | `E0101` | `BEGIN SEQUENCE WITH` a block that is not the break idiom |
+| `switch_break.prg`            | `W0033` | A bare `BREAK` ending a `SWITCH` `CASE` (C's `break`)     |
 
 ### The runtime library — `rtltest/`
 

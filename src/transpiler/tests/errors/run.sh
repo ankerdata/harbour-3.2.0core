@@ -55,6 +55,7 @@ run_one "$SCRIPT_DIR/equal_assign.prg"  "E0100" "as an assignment"
 run_one "$SCRIPT_DIR/equal_compare.prg" "E0100" "as a comparison"
 run_one "$SCRIPT_DIR/equal_for.prg"     "E0100" "in FOR"
 run_one "$SCRIPT_DIR/seq_with_block.prg" "E0101" "takes only"
+run_one "$SCRIPT_DIR/switch_break.prg"  "W0033" "ends a SWITCH CASE"
 
 echo ""
 echo "Results: $pass passed, $fail failed"
