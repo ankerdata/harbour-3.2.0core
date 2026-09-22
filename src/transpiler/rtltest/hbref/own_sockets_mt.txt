@@ -1,0 +1,23 @@
+
+own_sockets_mt:31 PASS
+own_sockets_mt:34 PASS
+own_sockets_mt:35 PASS
+own_sockets_mt:36 PASS
+own_sockets_mt:37 PASS
+own_sockets_mt:38 PASS
+own_sockets_mt:41 PASS
+own_sockets_mt:42 PASS
+own_sockets_mt:45 PASS
+own_sockets_mt:46 PASS
+own_sockets_mt:50 PASS
+own_sockets_mt:51 PASS
+own_sockets_mt:55 PASS
+own_sockets_mt:58 PASS
+own_sockets_mt:62 PASS
+own_sockets_mt:65 PASS
+own_sockets_mt:69 PASS
+own_sockets_mt:73 PASS
+own_sockets_mt:74 PASS
+own_sockets_mt:75 PASS
+own_sockets_mt:77 PASS
+passed         21 failed          0 errors          0

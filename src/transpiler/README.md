@@ -153,7 +153,7 @@ inference engine that `-GS` uses.
 | [`gencsharp.c`](gencsharp.c)      | `-GS` C# emitter                                                         |
 | [`genscan.c`](genscan.c)          | `-GF` scan-only entry point                                             |
 | **Runtime + tooling**             |                                                                          |
-| [`HbRuntime/`](HbRuntime/)        | C# implementations of core Harbour builtins (`QOut`, `Str`, `Len`, …): one `partial class HbRuntime`, split by category — `HbRuntime.cs` the core the emitter leans on, `HbRuntime.<Category>.cs` the rest (Numbers, Strings, Transform, Dates, Arrays, Hashes, Files, FileSystem, Process, Console, Set, Constants, Threads, Errors, Objects) |
+| [`HbRuntime/`](HbRuntime/)        | C# implementations of core Harbour builtins (`QOut`, `Str`, `Len`, …): one `partial class HbRuntime`, split by category — `HbRuntime.cs` the core the emitter leans on, `HbRuntime.<Category>.cs` the rest (Numbers, Strings, Transform, Dates, Arrays, Hashes, Files, FileSystem, Process, Console, Set, Constants, Threads, Sockets, Errors, Objects) |
 | [`libraries/<lib>/`](libraries/)  | One C# project per contrib library (`HbWin`, `HbSqlit3`, `Xhb`, …): implementations plus generated stubs — see [Contrib libraries](#contrib-libraries) |
 | [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime/` + Harbour doc blocks |
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |

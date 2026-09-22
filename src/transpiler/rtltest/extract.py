@@ -43,6 +43,10 @@ out of scope itself, commented out with every assertion that calls it.
 Our own tests, own/own_<family>.prg, are written the same way (HBTEST
 lines, #include "rt_main.ch") for the functions hbtest does not cover,
 and go through the same steps; their ids are `own_<family>:<line>`.
+Two differences: none of their assertions is out of scope, and one that
+calls a helper routine of its file is charged the core functions the
+helper reaches (Echo( "hello" ) is the sockets' test, run-fn and gating,
+where hbtest's own helpers leave an assertion run-op).
 
 rulings.tsv (hand-written: id or file:line, ruling, reason) overrides
 the disposition. `quarantine` comments the assertion or statement out on
@@ -277,13 +281,11 @@ def statement_exclusion(text, core, needed, helpers=frozenset()):
     return None
 
 
-def out_of_scope_helpers(lines, core, needed):
+def helper_reach(lines, core):
     """The module's helper routines (every routine but its entry
-    procedures and INIT procedures) that call a core function the
-    application does not use, directly or through another such helper,
-    upper-cased. rt_misc's TESTFNAME() is hb_FNameMerge's test in all
-    but name: an assertion calling it is out of scope like one calling
-    hb_FNameMerge, and the helper goes with it."""
+    procedures and INIT procedures), upper-cased, each with the core
+    functions it calls, directly or through another helper, in the order
+    first met."""
     bodies, cur = {}, None
     for text in lines:
         stripped = text.strip()
@@ -293,27 +295,40 @@ def out_of_scope_helpers(lines, core, needed):
             entry = rm.group(2).upper() == "PROCEDURE" and not kind
             cur = None if entry or kind == "INIT" else rm.group(3).upper()
             if cur:
-                bodies[cur] = set()
+                bodies[cur] = []
         elif cur and not stripped.startswith("#") and not SEQ_WITH_RE.match(stripped):
-            bodies[cur] |= {c.upper() for c in CALL_RE.findall(code_only(stripped))}
-    out = {h for h, calls in bodies.items() if (calls & core) - needed}
-    grew = True
-    while grew:
-        grew = False
-        for h, calls in bodies.items():
-            if h not in out and calls & out:
-                out.add(h)
-                grew = True
-    return out
+            bodies[cur] += [c.upper() for c in CALL_RE.findall(code_only(stripped))]
+
+    def walk(h, seen):
+        found = []
+        for c in bodies[h]:
+            reached = [c] if c in core else \
+                walk(c, seen | {c}) if c in bodies and c not in seen else []
+            found += [f for f in reached if f not in found]
+        return found
+
+    return {h: walk(h, {h}) for h in bodies}
 
 
-def classify(expr, expected, core, needed, helpers=frozenset()):
+def out_of_scope_helpers(reach, needed):
+    """The helpers that reach a core function the application does not
+    use. rt_misc's TESTFNAME() is hb_FNameMerge's test in all but name:
+    an assertion calling it is out of scope like one calling
+    hb_FNameMerge, and the helper goes with it."""
+    return {h for h, found in reach.items() if set(found) - needed}
+
+
+def classify(expr, expected, core, needed, helpers=frozenset(), via=None):
     """(disposition, subject, core functions called). The subject is the
     outermost core call, the leftmost in the text: hbtest writes the
     function under test outermost (Str( Val( "1." ) ) tests Str).
-    `helpers`: the module's out-of-scope helpers."""
+    `helpers`: the module's out-of-scope helpers. `via` (our own tests):
+    each helper's core functions, which a call to it counts as calling,
+    so its first is the subject when the expression names none."""
     code = code_only(expr)
     order = [c.upper() for c in CALL_RE.findall(code)]
+    if via:
+        order = [f for c in order for f in [c] + via.get(c, [])]
     calls = set(order)
     subject = next((c for c in order if c in core), "")
     if re.match(r'''^["'\[][EW] \d''', expected):
@@ -339,7 +354,10 @@ def generate(name, core, needed, rulings):
     out, rows = [], []
     cur_file, cur_line = None, 0
     entries, inits = [], []
-    helpers = out_of_scope_helpers(lines, core, needed)
+    reach = helper_reach(lines, core)
+    helpers = out_of_scope_helpers(reach, needed)
+    # our own helpers are the test, hbtest's are its scaffolding
+    via = reach if name.startswith("own_") else None
     excluded_routine = None     # the label a routine being skipped carries
     for text in lines:
         m = LINE_RE.match(text)
@@ -397,7 +415,7 @@ def generate(name, core, needed, rulings):
         bm = re.match(r"^\{\|\s*\|\s*(.*)\}$", block, re.S)
         expr = bm.group(1).strip() if bm else block
         tid = "%s:%d" % (os.path.splitext(cur_file)[0], cur_line)
-        disp, subject, calls = classify(expr, expected, core, needed, helpers)
+        disp, subject, calls = classify(expr, expected, core, needed, helpers, via)
         ruling = rulings.get(tid)
         if ruling:
             disp = "%s:%s" % (ruling[0], ruling[1]) if ruling[1] else ruling[0]

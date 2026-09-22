@@ -64,9 +64,10 @@ public class HbError : HbDynamicObject
     const int ES_ERROR = 2;                         // error.ch
     const int EG_ARG = 1, EG_BOUND = 2, EG_NUMOVERFLOW = 4, EG_ZERODIV = 5;
 
-    // HbRuntime's own errors say which Harbour error they are
+    // HbRuntime's own errors say which Harbour error they are, and where
+    // Harbour gives one its subCode: "Argument error (HB_SOCKETCLOSE, 3012)"
     static readonly Regex s_ownError =
-        new(@"^(Argument error|Bound error) \((\w+)\)$", RegexOptions.CultureInvariant);
+        new(@"^(Argument error|Bound error) \((\w+)(?:, (\d+))?\)$", RegexOptions.CultureInvariant);
 
     // What RECOVER USING gets under WITH { |e| break(e) }: a BREAK's own
     // value, or the Error object Harbour would have raised. The runtime
@@ -87,6 +88,8 @@ public class HbError : HbDynamicObject
             e.genCode = own.Groups[1].Value == "Argument error" ? EG_ARG : EG_BOUND;
             e.description = own.Groups[1].Value;
             e.operation = own.Groups[2].Value;
+            if (own.Groups[3].Success)
+                e.subCode = int.Parse(own.Groups[3].Value);
         }
         else switch (ex)
         {

@@ -117,10 +117,13 @@ public static partial class HbRuntime
         if (x is System.Array) return "A";
         if (x is Delegate) return "B";
         if (x is System.Collections.IDictionary) return "H";
-        // Harbour's pointer items: a thread, a mutex, a Windows handle
-        if (x is HbThread or HbMutex or System.Threading.WaitHandle) return "P";
+        if (IsPointer(x)) return "P";
         return "O";
     }
+
+    // Harbour's pointer items: a thread, a mutex, a socket, a Windows handle
+    static bool IsPointer(object? x) =>
+        x is HbThread or HbMutex or HbSocket or System.Threading.WaitHandle;
 
     public static decimal PCount() => 0;  // varargs path uses hbva.Length directly
 
