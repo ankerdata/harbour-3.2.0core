@@ -328,6 +328,11 @@ def classify(expr, expected, core, needed, helpers=frozenset()):
 
 
 def generate(name, core, needed, rulings):
+    # Our own tests are written for what EasiPOS needs, so none is out of
+    # scope: a function EasiPOS stops calling keeps its tests (own_threads_mt
+    # tests the thread numbers, once DefError no longer called hb_threadID()).
+    if name.startswith("own_"):
+        needed = core
     ppo = preprocess(name)
     src_name = name + ".prg"
     lines = ppo.split("\n")

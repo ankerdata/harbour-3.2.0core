@@ -91,7 +91,7 @@ DoW	implemented	18	14	0	0	0	0	0
 ErrorBlock	implemented	18	0	0	0	0	0	0
 Month	implemented	16	3	0	0	0	0	0
 Type	stub	16	0	0	0	0	0	0
-hb_threadStart	stub	15	0	0	0	0	0	0
+hb_threadStart	implemented	15	0	0	0	0	0	0
 SToD	implemented	15	2	0	0	0	0	0
 ADel	implemented	14	10	0	0	0	0	0
 DToS	implemented	14	17	0	0	0	0	0
@@ -115,7 +115,7 @@ hb_argv	implemented	9	4	0	0	0	0	0
 hb_base64Encode	stub	9	0	0	0	0	0	0
 hb_BLeft	implemented	9	1	0	0	0	0	0
 hb_FCreate	implemented	9	1	0	0	0	0	0
-hb_threadWait	stub	9	0	0	0	0	0	0
+hb_threadWait	implemented	9	0	0	0	0	0	0
 hb_cdpSelect	stub	8	0	0	0	0	0	0
 hb_socketRecv	stub	8	0	0	0	0	0	0
 hb_StrToUTF8	stub	8	0	0	0	0	0	0
@@ -125,7 +125,7 @@ __SetCentury	implemented	8	0	0	0	0	0	0
 ATail	implemented	7	7	0	0	0	0	0
 ProcLine	implemented	7	2	0	0	0	0	0
 ProcName	implemented	7	2	0	0	0	0	0
-ErrorNew	implemented	6	19	0	0	0	0	0
+ErrorNew	implemented	6	20	0	0	0	0	0
 hb_AScan	implemented	6	7	0	0	0	0	0
 hb_comFlowControl	stub	6	0	0	0	0	0	0
 hb_comFlowSet	stub	6	0	0	0	0	0	0
@@ -135,8 +135,7 @@ hb_Date	implemented	6	1	0	0	0	0	0
 hb_DirSepAdd	implemented	6	4	0	0	0	0	0
 hb_HexToStr	implemented	6	2	0	0	0	0	0
 HB_ISARRAY	stub	6	0	0	0	0	0	0
-hb_IsFunction	stub	6	0	0	0	0	0	0
-hb_mutexSubscribe	stub	6	1	0	0	0	0	0
+hb_mutexSubscribe	implemented	6	1	0	0	0	0	0
 hb_socketOpen	stub	6	0	0	0	0	0	0
 FRename	implemented	5	5	0	0	0	0	0
 hb_bitShift	implemented	5	5	0	0	0	0	0
@@ -158,7 +157,8 @@ hb_FNameSplit	implemented	4	0	0	0	0	0	0
 hb_gcAll	implemented	4	0	0	0	0	0	0
 hb_HGet	implemented	4	2	0	0	0	0	0
 hb_HKeepOrder	implemented	4	1	0	0	0	0	0
-hb_mutexNotify	stub	4	0	0	0	0	0	0
+hb_IsFunction	stub	4	0	0	0	0	0	0
+hb_mutexNotify	implemented	4	0	0	0	0	0	0
 hb_regexComp	stub	4	0	0	0	0	0	0
 hb_socketConnect	stub	4	0	0	0	0	0	0
 hb_TSToUTC	implemented	4	0	0	0	0	0	0
@@ -210,9 +210,8 @@ hb_SToT	implemented	2	0	0	0	0	0	0
 hb_StrFormat	implemented	2	17	0	0	0	0	0
 hb_StrShrink	implemented	2	29	0	0	0	0	0
 hb_StrToHex	implemented	2	2	0	0	0	0	0
-hb_threadID	stub	2	2	0	0	0	0	0
-hb_threadQuitRequest	stub	2	0	0	0	0	0	0
-hb_threadSelf	stub	2	0	0	0	0	0	0
+hb_threadQuitRequest	implemented	2	0	0	0	0	0	0
+hb_threadSelf	implemented	2	0	0	0	0	0	0
 hb_TToD	implemented	2	0	0	0	0	0	0
 hb_ValToExp	implemented	2	23	0	0	0	0	0
 hb_vfErase	implemented	2	1	0	0	0	0	0

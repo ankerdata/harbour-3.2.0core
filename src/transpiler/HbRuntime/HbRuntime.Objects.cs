@@ -28,23 +28,27 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
         _bag.TryGetValue(name, out value);
     public void BagSet(string name, dynamic value) => _bag[name] = value;
 
-    public override bool TryGetMember(System.Dynamic.GetMemberBinder binder, out object result)
+    public override bool TryGetMember(System.Dynamic.GetMemberBinder binder, out object result) =>
+        TryReadMember(binder.Name, out result);
+
+    // A member's value by name: a property, a field — class DATA members
+    // emit as plain fields, and a declared member reached through
+    // ((dynamic)this) lands here — or a column in the bag.
+    bool TryReadMember(string cName, out object result)
     {
-        var prop = GetType().GetProperty(binder.Name, HbRuntime.MemberFlags);
+        var prop = GetType().GetProperty(cName, HbRuntime.MemberFlags);
         if (prop != null)
         {
             result = prop.GetValue(this);
             return true;
         }
-        // Class DATA members emit as plain fields, not properties — a
-        // declared member reached via ((dynamic)this) lands here.
-        var field = GetType().GetField(binder.Name, HbRuntime.MemberFlags);
+        var field = GetType().GetField(cName, HbRuntime.MemberFlags);
         if (field != null)
         {
             result = field.GetValue(this);
             return true;
         }
-        return _bag.TryGetValue(binder.Name, out result);
+        return _bag.TryGetValue(cName, out result);
     }
 
     public override bool TrySetMember(System.Dynamic.SetMemberBinder binder, object value)
@@ -82,6 +86,11 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
                                    null, args, null);
             return true;
         }
+        // Harbour answers an instance variable sent as a message with
+        // parentheses, `oError:subsystem()`, with its value — errorsys.prg's
+        // ErrorMessage() does it. With arguments it stays an error.
+        if (args.Length == 0)
+            return TryReadMember(binder.Name, out result);
         result = null;
         return false;
     }

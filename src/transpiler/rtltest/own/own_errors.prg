@@ -90,6 +90,12 @@ PROCEDURE Main_ERRORS()
    HBTEST BlockRoundTrip()                            IS "mine"
    HBTEST BlockKeep()                                 IS "kept"
 
+   /* An instance variable sent as a message with parentheses answers its
+      value, as errorsys.prg's ErrorMessage() reads oError:subsystem() */
+   HBTEST UdmError():subSystem()                      IS "UDMPRINT"
+   HBTEST UdmError():subCode()                        IS 7
+   HBTEST ErrorNew():description()                    IS ""
+
    RETURN
 
 STATIC FUNCTION UdmError()

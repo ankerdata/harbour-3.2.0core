@@ -38,7 +38,7 @@ PROCEDURE Main_ERRORS()
    TEST_CALL( "own_errors:51", "Recovered( NIL )", {|| Recovered( NIL ) }, NIL, .F., NIL )
    TEST_CALL( "own_errors:52", "Recovered( UdmError() ):subCode", {|| Recovered( UdmError() ):subCode }, 7, .F., NIL )
    TEST_CALL( "own_errors:53", "BareBreak()", {|| BareBreak() }, NIL, .F., NIL )
-   // [out-of-scope] TEST_CALL( "BlockBreak()", {|| BlockBreak() }, 7 )
+   TEST_CALL( "own_errors:54", "BlockBreak()", {|| BlockBreak() }, 7, .F., NIL )
 
 
 
@@ -76,6 +76,12 @@ PROCEDURE Main_ERRORS()
 
    TEST_CALL( "own_errors:90", "BlockRoundTrip()", {|| BlockRoundTrip() }, "mine", .F., NIL )
    TEST_CALL( "own_errors:91", "BlockKeep()", {|| BlockKeep() }, "kept", .F., NIL )
+
+
+
+   TEST_CALL( "own_errors:95", "UdmError():subSystem()", {|| UdmError():subSystem() }, "UDMPRINT", .F., NIL )
+   TEST_CALL( "own_errors:96", "UdmError():subCode()", {|| UdmError():subCode() }, 7, .F., NIL )
+   TEST_CALL( "own_errors:97", "ErrorNew():description()", {|| ErrorNew():description() }, "", .F., NIL )
 
    RETURN
 
@@ -122,16 +128,16 @@ STATIC FUNCTION BareBreak()
 
    RETURN xGot
 
-// [out-of-scope] STATIC FUNCTION BlockBreak()
+STATIC FUNCTION BlockBreak()
 
-// [out-of-scope] LOCAL xGot := "unset"
+   LOCAL xGot := "unset"
 
-// [out-of-scope] BEGIN SEQUENCE
-// [out-of-scope] Eval( {|| Break( 7 ) } )
-// [out-of-scope] RECOVER USING xGot
-// [out-of-scope] end
+   BEGIN SEQUENCE
+      Eval( {|| Break( 7 ) } )
+   RECOVER USING xGot
+   end
 
-// [out-of-scope] RETURN xGot
+   RETURN xGot
 
 STATIC FUNCTION Trail()
 

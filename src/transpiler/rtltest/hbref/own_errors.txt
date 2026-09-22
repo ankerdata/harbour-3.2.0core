@@ -27,6 +27,7 @@ own_errors:50 PASS
 own_errors:51 PASS
 own_errors:52 PASS
 own_errors:53 PASS
+own_errors:54 PASS
 own_errors:58 PASS
 own_errors:59 PASS
 own_errors:60 PASS
@@ -51,4 +52,7 @@ own_errors:80 PASS
 own_errors:87 PASS
 own_errors:90 PASS
 own_errors:91 PASS
-passed         52 failed          0 errors          0
+own_errors:95 PASS
+own_errors:96 PASS
+own_errors:97 PASS
+passed         56 failed          0 errors          0
