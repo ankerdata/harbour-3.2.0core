@@ -484,6 +484,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0031 | scan  | Cross-kind write into an ORM field (`NUMERIC` into a STRING field, CS0029) |
 | W0032 | scan  | Message sent to a scalar-named variable (`aLine:nQty`) — rename to `o<…>`   |
 | W0033 | scan  | A bare BREAK ends a SWITCH CASE: C's `break`, which Harbour runs as the sequence BREAK — leave the CASE with EXIT |
+| W0034 | emit  | THREAD STATIC with an initializer other than NIL, 0 or .F.: a `[ThreadStatic]` field's initializer runs on the first thread only, so another would start with the C# default |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -875,6 +876,9 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `ClassName():New()`              | `new ClassName()` — or `(ClassName)new ClassName().New()` when the class declares a `New` / `Init` body (it used to be skipped). A name the reftab does not know as a class (`hbClass()`, `TOleAuto()`) leaves the receiving local `dynamic` (test103) |
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
 | `BREAK [x]` / `Break( x )`       | `throw new HbBreak(x)` — the value goes to RECOVER USING, NIL for a bare BREAK (test114) |
+| `QUIT`                           | `HbRuntime.__Quit()` — `throw new HbQuit()` under `RunEntry`: it unwinds the thread (ALWAYS runs, no sequence takes it, a `WITH` catch included) and ends it, the program when it is the main thread (test115) |
+| `THREAD STATIC x`                | `[ThreadStatic] public static … x` — one per thread; an initializer other than NIL, 0 or .F. is W0034 (test115) |
+| `@Func()`                        | `HbRuntime.FuncPtr("Func")` — `"<FileBase>_Func"` for a STATIC function of the file, its C# name (test115) |
 | `BEGIN SEQUENCE … RECOVER USING v … END` | `try { … } catch (HbBreak b) { v = b.Value; … }` — only a BREAK: a runtime error goes on to the error block at the entry point (`HbRuntime.RunEntry`), as in Harbour. An `x`-named or unprefixed `v` is `dynamic` whatever its initializer (test114) |
 | `BEGIN SEQUENCE WITH {\|e\| break(e)} … RECOVER USING v` | `catch (Exception ex) { v = HbError.From(ex); … }` — every exception, `v` the Error object Harbour would raise (or an explicit BREAK's value); `{\|\| break()}` gives NIL. Any other error block is E0101 |
 | `BEGIN SEQUENCE … END` (no RECOVER) | `catch (HbBreak) { }` — the BREAK ends at END; with ALWAYS and no RECOVER a `finally` alone, the BREAK going on outward (HB_P_ALWAYSEND). `WITH` and no RECOVER swallows every error, a W-level warning |
@@ -1407,6 +1411,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 112       | `hb_ADel(a, n, .T.)` / `hb_AIns(a, n, x, .T.)` pass the array by `ref`, as `AAdd` / `ASize` do, so it shrinks and grows — a local, a typed DATA, an `x`-named (dynamic) DATA and a parameter the routine resizes. Every EasiPOS call passes `.T.` (the sale buffer's line delete and insert), and without the `ref` the C# array kept its length |
 | 113       | A hash is .NET 9's `OrderedDictionary` — Harbour's default hash keeps insertion order across deletes, where a `Dictionary` reuses the deleted slot — `<long, dynamic>` for a numeric-keyed one, the key cast at the subscript; HbRuntime converts a key to the hash's key type (7 and 7.0 are one key); `hb_HKeyAt`, `hb_HPos`, `hb_HSet`, `hb_HGet`, `hb_HClone` (deep, as `AClone` now is), `hb_HKeepOrder`; `$` finds nothing for an empty string |
 | 114       | `BREAK` throws `HbBreak` carrying its value, a plain `BEGIN SEQUENCE` catches only that, `WITH { \|e\| break(e) }` catches every exception and RECOVER USING gets `HbError.From`'s Error object (zero divisor: 5 BASE 1340); ALWAYS without RECOVER lets the BREAK go on; a BREAK in RECOVER goes to the next sequence out; `Break()` in a block reaches its sequence through `Eval()`; `ErrorBlock()`. BREAK had been `throw new Exception(x)`, RECOVER USING got the .NET exception, and WITH was dropped |
+| 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 
@@ -1432,6 +1437,7 @@ the errors, where the file fails and the test asserts the error line:
 | `equal_for.prg`               | `E0100` | `FOR nI = 1` — the counter is assigned with `:=`         |
 | `seq_with_block.prg`          | `E0101` | `BEGIN SEQUENCE WITH` a block that is not the break idiom |
 | `switch_break.prg`            | `W0033` | A bare `BREAK` ending a `SWITCH` `CASE` (C's `break`)     |
+| `thread_static_init.prg`      | `W0034` | A `THREAD STATIC` initialised to something a second thread would not see |
 
 ### The runtime library — `rtltest/`
 

@@ -140,15 +140,22 @@ public static partial class HbRuntime
 
     // The body of an entry point — a program's Main, and each thread's
     // start — handled as Harbour's VM handles the top: a BREAK no BEGIN
-    // SEQUENCE took ends the program quietly, and a runtime error goes
+    // SEQUENCE took, or a QUIT, ends it quietly, and a runtime error goes
     // to the error block, where EasiPOS's DefError logs it and QUITs.
     // A block that returns cannot resume anything, so the program ends
     // with ErrorLevel() 1 unless it set one. With no error block
     // installed the exception goes on to .NET, which prints it and ends
-    // the process.
+    // the process; on a thread hb_threadStart() started it is reported
+    // and ends that thread, as Harbour's default handler would.
     [System.Diagnostics.StackTraceHidden]
-    public static void RunEntry(Action entry)
+    public static void RunEntry(Action entry) => RunEntry(entry, false);
+
+    [System.Diagnostics.StackTraceHidden]
+    internal static void RunEntry(Action entry, bool lThread)
     {
+        _ = Self;                       // the main thread is numbered 1 before anything runs
+        bool lWasInEntry = t_inEntry;
+        t_inEntry = true;
         try
         {
             entry();
@@ -156,32 +163,53 @@ public static partial class HbRuntime
         catch (HbBreak)
         {
         }
-        catch (Exception ex) when (LaunchError(ex))
+        catch (HbQuit)
         {
-            if (ErrorLevel() == 0)
+        }
+        catch (Exception ex) when (LaunchError(ex, lThread, out bool lQuit))
+        {
+            if (!lQuit && ErrorLevel() == 0)
                 ErrorLevel(1);
         }
+        finally
+        {
+            t_inEntry = lWasInEntry;
+        }
     }
+
+    // The thread runs under RunEntry, which a QUIT unwinds to
+    [ThreadStatic] static bool t_inEntry;
 
     // hb_errLaunch() for an error that reached the top: the error block
     // evaluated with the Error object. It runs as RunEntry's exception
     // filter, before C# unwinds the stack, so the block sees the stack
     // where the error happened, as Harbour's does: DefError's traceback
     // (Stack2Str, ProcName) names the routine that failed. False — the
-    // exception going on to .NET — when no block is installed or the
-    // block itself fails; a BREAK out of the block ends the program.
+    // exception going on to .NET — when no block is installed (on the
+    // main thread) or the block itself fails; a BREAK or QUIT out of the
+    // block ends the thread, lQuit saying which.
     [System.Diagnostics.StackTraceHidden]
-    static bool LaunchError(Exception ex)
+    static bool LaunchError(Exception ex, bool lThread, out bool lQuit)
     {
+        lQuit = false;
         Delegate? bBlock = t_errorBlock;
         if (bBlock == null)
-            return false;
+        {
+            if (!lThread)
+                return false;
+            Console.Error.WriteLine("Error in thread " + Self.nId + ": " + ex);
+            return true;
+        }
         try
         {
             InvokeBlock(bBlock, new dynamic[] { HbError.From(ex) });
         }
         catch (HbBreak)
         {
+        }
+        catch (HbQuit)
+        {
+            lQuit = true;
         }
         catch (Exception exBlock)
         {

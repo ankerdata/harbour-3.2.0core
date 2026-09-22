@@ -20,10 +20,18 @@ public static partial class HbRuntime
     // a logical SET takes .T. / .F. or "ON" / "OFF", a numeric one a
     // number, a string one a string, and anything else leaves the setting
     // as it was (set_logical(), set_number(), set_string()). Harbour keeps
-    // them per thread, copied from the parent's when a thread starts; here
-    // they are one set for the process until threads come (family 10).
+    // them per thread: a thread hb_threadStart() starts gets a copy of its
+    // parent's (hb_setClone), any other starts from the defaults.
 
-    static readonly Dictionary<int, dynamic> s_sets = new()
+    [ThreadStatic] static Dictionary<int, dynamic>? t_sets;
+
+    // The calling thread's SETs
+    static Dictionary<int, dynamic> s_sets => t_sets ??= new(s_setDefaults);
+
+    // A copy of the calling thread's SETs, for a thread it starts
+    internal static Dictionary<int, dynamic> CloneSets() => new(s_sets);
+
+    static readonly Dictionary<int, dynamic> s_setDefaults = new()
     {
         [1]   = false,              // _SET_EXACT
         [2]   = false,              // _SET_FIXED

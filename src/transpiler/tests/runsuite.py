@@ -243,9 +243,13 @@ def build_prg(name):
             return name, None, False
     if os.path.isfile(exe):
         os.remove(exe)
+    # a test that starts threads needs Harbour's MT VM (in the ST one
+    # hb_threadStart() returns NIL), as the RTL harness's _mt tests do
+    mt = ["-mt"] if any("hb_threadstart" in open(os.path.join(TESTS, p), encoding="latin-1").read().lower()
+                         for p in srcs) else []
     r = subprocess.run(["hbmk2"] + srcs +
                        [os.path.join("-oprgexe", name),
-                        "-w", "-es2", "-gtcgi", "-q"],
+                        "-w", "-es2", "-gtcgi", "-q"] + mt,
                        cwd=TESTS, capture_output=True, text=True)
     if r.returncode == 0 and os.path.isfile(exe):
         return name, None, True

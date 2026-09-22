@@ -3921,9 +3921,19 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             The delegate handles arity mismatch and default values at
             call time — caller invokes via dynamic dispatch or
             HbRuntime.EVAL and the args-splat lambda takes care of
-            the rest. */
-         fprintf( yyc, "HbRuntime.FuncPtr(\"%s\")",
-                  pExpr->value.asSymbol.name ? pExpr->value.asSymbol.name : "" );
+            the rest. A STATIC function of this file goes by its mangled
+            name, `<FileBase>_<Name>`, as a call to it does — the plain
+            name found nothing (family 10: hb_threadStart( @Worker() )
+            on a file-static Worker). */
+         if( pExpr->value.asSymbol.name )
+         {
+            char szMangled[ 256 ];
+            fprintf( yyc, "HbRuntime.FuncPtr(\"%s\")",
+                     hb_csMangleStaticFunc( pExpr->value.asSymbol.name,
+                                            szMangled, sizeof( szMangled ) ) );
+         }
+         else
+            fprintf( yyc, "HbRuntime.FuncPtr(\"\")" );
          break;
 
       case HB_ET_REFERENCE:
@@ -6551,8 +6561,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             error block at the entry point, as it does in Harbour, where
             POS X's DefError logs and quits. WITH { |e| break(e) }, the
             one error block accepted (E0101), sends every runtime error
-            to RECOVER, so that sequence catches every exception and
-            RECOVER USING gets the Error object HbError.From makes of it
+            to RECOVER, so that sequence catches every exception but a
+            QUIT (HbQuit, which no sequence takes) and RECOVER USING gets
+            the Error object HbError.From makes of it
             (NIL with { || break() }; an explicit BREAK's own value either
             way). Without RECOVER, Harbour ends a BREAK at END — or, with
             ALWAYS, runs ALWAYS and lets it go on outward (HB_P_ALWAYSEND
@@ -6585,11 +6596,15 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                                   "BEGIN SEQUENCE WITH and no RECOVER/ALWAYS — errors silently swallowed",
                                   NULL );
             hb_csEmitIndent( yyc, iIndent );
-            if( fValue )
-               fprintf( yyc, "catch (%s %s)\n",
-                        fWith ? "Exception" : "HbBreak", szCatchVar );
+            if( fWith )
+               /* every exception but a QUIT (family 10), which no
+                  sequence takes */
+               fprintf( yyc, "catch (Exception %s) when (%s is not HbQuit)\n",
+                        szCatchVar, szCatchVar );
+            else if( fValue )
+               fprintf( yyc, "catch (HbBreak %s)\n", szCatchVar );
             else
-               fprintf( yyc, "catch (%s)\n", fWith ? "Exception" : "HbBreak" );
+               fprintf( yyc, "catch (HbBreak)\n" );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "{\n" );
             s_iLastLine = 0;
@@ -6614,7 +6629,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                BREAK by the block, runs ALWAYS and goes on outward as a
                BREAK — which is what an outer plain sequence catches */
             hb_csEmitIndent( yyc, iIndent );
-            fprintf( yyc, "catch (Exception %s) when (%s is not HbBreak)\n",
+            fprintf( yyc, "catch (Exception %s) when (%s is not (HbBreak or HbQuit))\n",
                      szCatchVar, szCatchVar );
             hb_csEmitIndent( yyc, iIndent );
             fprintf( yyc, "{\n" );
@@ -9422,6 +9437,31 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         hb_csFileStaticIdx( pStmt->value.asVar.szName ),
                         szFld, sizeof( szFld ) );
                      hb_csEmitIndent( yyc, 1 );
+                     if( pStmt->value.asVar.fThread )
+                     {
+                        /* THREAD STATIC: one per thread. C# runs a
+                           [ThreadStatic] field's initializer on the first
+                           thread only — any other starts with the type's
+                           default — so an initializer that is not NIL, 0
+                           or .F. would differ from Harbour: W0034. */
+                        PHB_EXPR pInit = pStmt->value.asVar.pInit;
+                        HB_BOOL fDefault = ! pInit ||
+                           pInit->ExprType == HB_ET_NIL ||
+                           ( pInit->ExprType == HB_ET_LOGICAL && ! pInit->value.asLogical ) ||
+                           ( pInit->ExprType == HB_ET_NUMERIC &&
+                             ( pInit->value.asNum.NumType == HB_ET_LONG
+                                  ? pInit->value.asNum.val.l == 0
+                                  : pInit->value.asNum.val.d == 0.0 ) );
+                        fprintf( yyc, "[ThreadStatic] " );
+                        if( ( ! fDefault || fArrayDim ) && s_pCompCtx )
+                           fprintf( stderr,
+                                    "hbtranspiler: %s(%d): warning W0034  "
+                                    "THREAD STATIC '%s' is initialised: a thread other than "
+                                    "the first would start with the C# default\n",
+                                    s_pCompCtx->currModule
+                                       ? hb_strCollapsePath( s_pCompCtx->currModule ) : "?",
+                                    pStmt->iLine, pStmt->value.asVar.szName );
+                     }
                      if( fArrayDim )
                      {
                         /* `STATIC name[dim1][dim2]...` — allocate a

@@ -168,6 +168,7 @@ public static partial class HbRuntime
             "A" => "ARRAY",
             "B" => "BLOCK",
             "H" => "HASH",
+            "P" => "POINTER",
             _ => x!.GetType().Name,
         },
     };

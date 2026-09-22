@@ -74,7 +74,7 @@ public static partial class Program
         {
             HbRuntime.QOut(1 / nZero);
         }
-        catch (Exception __hb_ex1)
+        catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             oError = HbError.From(__hb_ex1);
             HbRuntime.QOut("zero:", oError.genCode, oError.subSystem, oError.subCode, oError.description, oError.operation);
@@ -85,7 +85,7 @@ public static partial class Program
         {
             HbRuntime.QOut(1 / nZero);
         }
-        catch (Exception __hb_ex1)
+        catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             xGot = HbBreak.ValueOf(__hb_ex1);
             HbRuntime.QOut("nil block:", HbRuntime.ValType(xGot));
@@ -95,7 +95,7 @@ public static partial class Program
         {
             test114_Brk114Throw("own");
         }
-        catch (Exception __hb_ex1)
+        catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             xGot = HbBreak.ValueOf(__hb_ex1);
             HbRuntime.QOut("own value:", xGot);

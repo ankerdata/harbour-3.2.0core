@@ -84,6 +84,7 @@ struct _HB_AST_NODE
          PHB_EXPR       pInit;         /* initializer expression (NULL if none) */
          const char *   szAlias;       /* FIELD alias or AS CLASS name */
          HB_BOOL        fArrayDim;     /* pInit is an HB_ET_ARGLIST of array dimensions — for `PUBLIC a[N]` and similar sized declarations. Emitter treats it as `new dynamic[N]` rather than a scalar init. */
+         HB_BOOL        fThread;       /* THREAD STATIC: one per thread, [ThreadStatic] in C# */
          PHB_AST_NODE   pNext;         /* next variable in same declaration */
       } asVar;
 

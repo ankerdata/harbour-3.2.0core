@@ -10,10 +10,8 @@ public static partial class HbWin
 {
     public static dynamic __axRegisterHandler(params dynamic[] args) => throw new NotImplementedException(nameof(__axRegisterHandler));
     public static dynamic __oleVariantNew(params dynamic[] args) => throw new NotImplementedException(nameof(__oleVariantNew));
-    public static dynamic wapi_CreateMutex(params dynamic[] args) => throw new NotImplementedException(nameof(wapi_CreateMutex));
     public static dynamic wapi_FormatMessage<T4>(dynamic p0, dynamic p1, dynamic p2, dynamic p3, ref T4 p4) => throw new NotImplementedException(nameof(wapi_FormatMessage));
     public static dynamic wapi_GetCurrentProcessId(params dynamic[] args) => throw new NotImplementedException(nameof(wapi_GetCurrentProcessId));
-    public static dynamic wapi_GetLastError(params dynamic[] args) => throw new NotImplementedException(nameof(wapi_GetLastError));
     public static dynamic win_ANSIToOEM(params dynamic[] args) => throw new NotImplementedException(nameof(win_ANSIToOEM));
     public static dynamic win_oleCreateObject(params dynamic[] args) => throw new NotImplementedException(nameof(win_oleCreateObject));
     public static dynamic win_oleErrorText(params dynamic[] args) => throw new NotImplementedException(nameof(win_oleErrorText));

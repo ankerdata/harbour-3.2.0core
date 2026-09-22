@@ -244,6 +244,9 @@ void hb_astAddStatic( HB_COMP_DECL, const char * szName,
       pNode->value.asVar.szName = szName;
       pNode->value.asVar.pInit  = pInit;
       pNode->value.asVar.szAlias = NULL;
+      /* THREAD STATIC: the grammar's scope says which */
+      pNode->value.asVar.fThread =
+         ( HB_COMP_PARAM->iVarScope & HB_VSCOMP_THREAD ) != 0;
       hb_astAppend( HB_COMP_PARAM, pNode );
    }
 }

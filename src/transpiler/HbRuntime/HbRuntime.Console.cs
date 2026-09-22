@@ -15,7 +15,11 @@ public static partial class HbRuntime
     // Harbour's `?` / `??` commands separate comma-delimited args
     // with a single space in the output. "hi", n prints as "hi 3"
     // (space between label and value), not "hi3".
-    public static void QOut(params dynamic[] args)
+    //
+    // A Harbour function always has a value, NIL at least, so these and
+    // the other procedures of HbRuntime return null rather than void: a
+    // codeblock around one, {|| QOut( x ) }, is an expression lambda.
+    public static object? QOut(params dynamic[] args)
     {
         Console.WriteLine();
         for (int i = 0; i < args.Length; i++)
@@ -23,15 +27,17 @@ public static partial class HbRuntime
             if (i > 0) Console.Write(' ');
             Console.Write(Fmt(args[i]));
         }
+        return null;
     }
 
-    public static void QQOut(params dynamic[] args)
+    public static object? QQOut(params dynamic[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
             if (i > 0) Console.Write(' ');
             Console.Write(Fmt(args[i]));
         }
+        return null;
     }
 
     static string Fmt(dynamic a) =>
@@ -55,7 +61,7 @@ public static partial class HbRuntime
 
     // ---- Terminal ----
 
-    public static void SetColor(string cColor) { }
+    public static object? SetColor(string cColor) => null;
 
     // ---- The console ----
     // rtl/console.c, inkey.c, gx.c, accept.c. The test program is the only
@@ -63,9 +69,9 @@ public static partial class HbRuntime
 
     // OutStd( ... ) / OutErr( ... ): each value as ? would write it,
     // separated by single spaces, with no newline, to stdout / stderr.
-    public static void OutStd(params dynamic[] aValues) => WriteValues(Console.Out, aValues);
+    public static object? OutStd(params dynamic[] aValues) { WriteValues(Console.Out, aValues); return null; }
 
-    public static void OutErr(params dynamic[] aValues) => WriteValues(Console.Error, aValues);
+    public static object? OutErr(params dynamic[] aValues) { WriteValues(Console.Error, aValues); return null; }
 
     static void WriteValues(TextWriter w, dynamic[] aValues)
     {

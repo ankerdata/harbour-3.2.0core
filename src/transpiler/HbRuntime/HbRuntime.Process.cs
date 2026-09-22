@@ -125,17 +125,39 @@ public static partial class HbRuntime
         return nPrev;
     }
 
-    // __Quit() — QUIT: ends the program with ErrorLevel() as its exit code.
-    // Harbour runs its EXIT procedures on the way out; the corpus has none.
-    public static void __Quit() => Environment.Exit(s_errorLevel);
+    // __Quit() — QUIT: ends the calling thread, and the program when that is
+    // the main thread, with ErrorLevel() as its exit code (hb_vmRequestQuit).
+    // Under RunEntry it unwinds the thread as Harbour does — ALWAYS blocks
+    // run, no BEGIN SEQUENCE takes it; outside one it ends the process at
+    // once. Harbour runs its EXIT procedures on the way out; the corpus has
+    // none.
+    public static void __Quit()
+    {
+        if (t_inEntry)
+            throw new HbQuit();
+        Environment.Exit(s_errorLevel);
+    }
 
     // hb_idleSleep( <nSeconds> ): sleep. Harbour runs its idle tasks (the
-    // GC) while it waits; .NET does that on threads of its own.
-    public static void hb_idleSleep(decimal nSeconds = 0) =>
-        System.Threading.Thread.Sleep(nSeconds <= 0 ? 0 : (int) Math.Min(nSeconds * 1000m, int.MaxValue));
+    // GC) while it waits; .NET does that on threads of its own. It sleeps in
+    // slices, so a quit request (hb_threadQuitRequest) ends the thread here.
+    public static object? hb_idleSleep(decimal nSeconds = 0)
+    {
+        QuitCheck();
+        long nEnd = Environment.TickCount64 +
+                    (nSeconds <= 0 ? 0 : (long) Math.Min(nSeconds * 1000m, int.MaxValue));
+        do
+        {
+            long nLeft = nEnd - Environment.TickCount64;
+            System.Threading.Thread.Sleep((int) Math.Clamp(nLeft, 0, QuitSliceMs));
+            QuitCheck();
+        }
+        while (Environment.TickCount64 < nEnd);
+        return null;
+    }
 
     // hb_gcAll( [<lForce>] ): a full collection.
-    public static void hb_gcAll(bool lForce = true) => GC.Collect();
+    public static object? hb_gcAll(bool lForce = true) { GC.Collect(); return null; }
 
     // Version(): what the program runs on. Once the port is the product the
     // Harbour code is gone (Alex, 2026-09-21), so this is .NET's own
