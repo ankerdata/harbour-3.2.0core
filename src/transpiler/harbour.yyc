@@ -6706,8 +6706,8 @@ yyreduce:
   case 609:
 #line 1841 "harbour.y" /* yacc.c:1646  */
     {              /* 10 */
+                  HB_LONG lLoopCount = hb_compLoopCount( HB_COMP_PARAM );
                   hb_astEndSeq( HB_COMP_PARAM, (yyvsp[-2].sNumber) != 0, (yyvsp[0].sNumber) != 0 );
-                  long lLoopCount = hb_compLoopCount( HB_COMP_PARAM );
                   HB_COMP_PARAM->functions.pLast->funFlags &= ~ ( HB_FUNF_WITH_RETURN | HB_FUNF_BREAK_CODE );
                   if( (yyvsp[0].sNumber) )
                   {

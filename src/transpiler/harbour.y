@@ -1858,7 +1858,7 @@ BeginSeq    : BEGINSEQ        /* 1 */
                }
                AlwaysSeq      /* 9 */
                {              /* 10 */
-                  long lLoopCount = hb_compLoopCount( HB_COMP_PARAM );
+                  HB_LONG lLoopCount = hb_compLoopCount( HB_COMP_PARAM );
                   HB_COMP_PARAM->functions.pLast->funFlags &= ~ ( HB_FUNF_WITH_RETURN | HB_FUNF_BREAK_CODE );
                   if( $9 )
                   {

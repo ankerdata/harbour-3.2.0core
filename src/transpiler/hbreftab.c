@@ -342,6 +342,7 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
       HB_BOOL        fOldConflict[ HB_REFTAB_MAXPARAM ];
       HB_BOOL        fOldReassigned[ HB_REFTAB_MAXPARAM ];
       HB_BOOL        fOldDeclDefault[ HB_REFTAB_MAXPARAM ];
+      int            iSuppliedParams = nParams;
 
       /* Remember the conflict / reassigned bits before we free pOld. */
       for( i = 0; i < HB_REFTAB_MAXPARAM; i++ )
@@ -369,7 +370,6 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
          wider arity and marking the entry variadic; the emitter
          widens the C# sig to `params dynamic[]` and both caller
          shapes resolve. */
-      int iSuppliedParams = nParams;
       if( e->fDefined && nOld != nParams )
       {
          if( nOld > nParams )
@@ -1287,6 +1287,32 @@ static int hb_refTabParseParam( char * sz, char ** ppName,
    return 1;
 }
 
+static HB_MAXUINT hb_refHexToNum( char * szHex )
+{
+   HB_MAXUINT nNum = 0;
+
+   while( *szHex == ' ' )
+      szHex++;
+   while( *szHex )
+   {
+      int iDigit;
+      char c = *szHex++;
+      if( c >= '0' && c <= '9' )
+         iDigit = c - '0';
+      else if( c >= 'A' && c <= 'F' )
+         iDigit = c - ( 'A' - 10 );
+      else if( c >= 'a' && c <= 'f' )
+         iDigit = c - ( 'a' - 10 );
+      else
+      {
+         nNum = 0;
+         break;
+      }
+      nNum = ( nNum << 4 ) + iDigit;
+   }
+   return nNum;
+}
+
 HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
 {
    FILE * fp;
@@ -1459,9 +1485,12 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          if( fields[ i ][ 0 ] == 'A' && fields[ i ][ 1 ] == '=' )
          {
             PHB_REFENTRY pe = hb_refTabFindEntry( pTab, fields[ 0 ], NULL );
+/*               pe->bitCallArities = ( HB_U64 ) strtoull(
+                  fields[ i ] + 2, NULL, 16 ); */
             if( pe )
-               pe->bitCallArities = ( HB_U64 ) strtoull(
-                  fields[ i ] + 2, NULL, 16 );
+               pe->bitCallArities = ( HB_U64 ) hb_refHexToNum(
+                  fields[ i ] + 2 );
+
          }
          else if( fields[ i ][ 0 ] == 'I' && fields[ i ][ 1 ] == '=' &&
                   fields[ i ][ 2 ] )
@@ -2532,6 +2561,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                scan) refines the same reftab entry. */
             char szStaticKey[ 256 ];
             const char * szKey;
+            char szKeyBuf[ 256 ];
             if( ! szClass && ( pCompFunc->cScope & HB_FS_STATIC ) &&
                 HB_COMP_PARAM->pFileName &&
                 HB_COMP_PARAM->pFileName->szName )
@@ -2547,7 +2577,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             /* hb_refTabMethodKey returns a static buffer when szClass
                is set; copy it before any other call to the helper
                could overwrite it. */
-            char szKeyBuf[ 256 ];
+
             hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
 
             while( pVar && nParams < nCount && nParams < HB_REFTAB_MAXPARAM )
@@ -2660,6 +2690,8 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                entry. */
             char szStaticKey[ 256 ];
             const char * szKey;
+            char szKeyBuf[ 256 ];
+
             if( ! szClass && ( pCompFunc->cScope & HB_FS_STATIC ) &&
                 HB_COMP_PARAM->pFileName &&
                 HB_COMP_PARAM->pFileName->szName )
@@ -2672,7 +2704,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             else
                szKey = hb_refTabMethodKey(
                   szClass, pFunc->value.asFunc.szName );
-            char szKeyBuf[ 256 ];
+
             hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
             {
                const char * szRetType =
