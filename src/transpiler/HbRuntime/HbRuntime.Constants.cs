@@ -45,6 +45,7 @@ public static partial class HbRuntime
     public const decimal _SET_PATH = 6;
     public const decimal _SET_DEFAULT = 7;
     public const decimal _SET_CENTURY = 48;
+    public const decimal _SET_EOL = 110;
     public const decimal _SET_TIMEFORMAT = 116;
     // common.ch
     public const string CRLF = "\r\n";

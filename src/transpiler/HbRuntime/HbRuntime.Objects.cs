@@ -209,6 +209,25 @@ public static partial class HbRuntime
         return Has(ProgramType) || Has(typeof(HbRuntime));
     }
 
+    // HB_ISARRAY( <x> ): an array, and not an object — Harbour's objects
+    // are arrays there (hb_extIsArray, vm/extend.c), where ours are real
+    // classes, so the question is only whether it is an array.
+    public static bool HB_ISARRAY(object? x) => x is object[];
+
+    // hb_defaultValue( <xValue>, <xDefault> ): the value, or the default
+    // when the two are not of the same type (rtl/hbdef.c compares the
+    // basic types, so NIL takes the default, and so does a value of
+    // another type). A second parameter that is itself NIL defaults
+    // nothing: the value comes back as it is.
+    public static dynamic? hb_defaultValue(object? xValue, object? xDefault = null) =>
+        xDefault != null && ValType(xValue) != ValType(xDefault) ? xDefault : xValue;
+
+    // The same, for a call that passes its value by reference
+    // (internalerror.prg's hb_DefaultValue( @lSilent, .F. )); nothing is
+    // written back, as Harbour writes nothing.
+    public static dynamic? hb_defaultValue<T>(ref T xValue, object? xDefault = null) =>
+        hb_defaultValue((object?) xValue, xDefault);
+
     // hb_ExecFromArray(): call a function, a block or a method with the
     // parameters given, and return its result — vm/eval.c reads it as
     //   ( { <func>, <params,...> } ) or ( { <oObject>, <cMessage>, <params,...> } )

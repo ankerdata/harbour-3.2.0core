@@ -17,4 +17,18 @@ own_reflect:37 PASS
 own_reflect:38 PASS
 own_reflect:39 PASS
 own_reflect:40 PASS
-passed         18 failed          0 errors          0
+own_reflect:45 PASS
+own_reflect:46 PASS
+own_reflect:47 PASS
+own_reflect:48 PASS
+own_reflect:49 PASS
+own_reflect:50 PASS
+own_reflect:55 PASS
+own_reflect:56 PASS
+own_reflect:57 PASS
+own_reflect:58 PASS
+own_reflect:59 PASS
+own_reflect:60 PASS
+own_reflect:61 PASS
+own_reflect:62 PASS
+passed         32 failed          0 errors          0

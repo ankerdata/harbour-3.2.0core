@@ -31,6 +31,28 @@ PROCEDURE Main_REFLECT()
    TEST_CALL( "own_reflect:39", 'hb_ExecFromArray( "ReflectAdd", { 6, 7 } )', {|| hb_ExecFromArray( "ReflectAdd", { 6, 7 } ) }, 13, .F., NIL )
    TEST_CALL( "own_reflect:40", "hb_ExecFromArray( {| nA, nB | nA * nB }, { 3, 4 } )", {|| hb_ExecFromArray( {| nA, nB | nA * nB }, { 3, 4 } ) }, 12, .F., NIL )
 
+
+
+
+   TEST_CALL( "own_reflect:45", "HB_ISARRAY( { 1, 2 } )", {|| HB_ISARRAY( { 1, 2 } ) }, .T., .F., NIL )
+   TEST_CALL( "own_reflect:46", "HB_ISARRAY( {} )", {|| HB_ISARRAY( {} ) }, .T., .F., NIL )
+   TEST_CALL( "own_reflect:47", 'HB_ISARRAY( "abc" )', {|| HB_ISARRAY( "abc" ) }, .F., .F., NIL )
+   TEST_CALL( "own_reflect:48", "HB_ISARRAY( NIL )", {|| HB_ISARRAY( NIL ) }, .F., .F., NIL )
+   TEST_CALL( "own_reflect:49", 'HB_ISARRAY( { "a" => 1 } )', {|| HB_ISARRAY( { "a" => 1 } ) }, .F., .F., NIL )
+   TEST_CALL( "own_reflect:50", "HB_ISARRAY( ErrorNew() )", {|| HB_ISARRAY( ErrorNew() ) }, .F., .F., NIL )
+
+
+
+
+   TEST_CALL( "own_reflect:55", 'hb_defaultValue( "url", "" )', {|| hb_defaultValue( "url", "" ) }, "url", .F., NIL )
+   TEST_CALL( "own_reflect:56", 'hb_defaultValue( NIL, "" )', {|| hb_defaultValue( NIL, "" ) }, "", .F., NIL )
+   TEST_CALL( "own_reflect:57", "hb_defaultValue( NIL, 30000 )", {|| hb_defaultValue( NIL, 30000 ) }, 30000, .F., NIL )
+   TEST_CALL( "own_reflect:58", "hb_defaultValue( 5, 30000 )", {|| hb_defaultValue( 5, 30000 ) }, 5, .F., NIL )
+   TEST_CALL( "own_reflect:59", 'hb_defaultValue( "5", 30000 )', {|| hb_defaultValue( "5", 30000 ) }, 30000, .F., NIL )
+   TEST_CALL( "own_reflect:60", "hb_defaultValue( .T., .F. )", {|| hb_defaultValue( .T., .F. ) }, .T., .F., NIL )
+   TEST_CALL( "own_reflect:61", 'hb_defaultValue( "kept" )', {|| hb_defaultValue( "kept" ) }, "kept", .F., NIL )
+   TEST_CALL( "own_reflect:62", "hb_defaultValue( NIL )", {|| hb_defaultValue( NIL ) }, NIL, .F., NIL )
+
    RETURN
 
 STATIC FUNCTION DeclarePublics()

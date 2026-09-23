@@ -39,6 +39,28 @@ PROCEDURE Main_REFLECT()
    HBTEST hb_ExecFromArray( "ReflectAdd", { 6, 7 } )  IS 13
    HBTEST hb_ExecFromArray( {| nA, nB | nA * nB }, { 3, 4 } ) IS 12
 
+   /* HB_ISARRAY(): an array, and never anything else. Harbour's objects
+      are arrays underneath, but they answer .F. here, which is what
+      ormtestsuite asks of Scatter()'s result. */
+   HBTEST HB_ISARRAY( { 1, 2 } )                      IS .T.
+   HBTEST HB_ISARRAY( {} )                            IS .T.
+   HBTEST HB_ISARRAY( "abc" )                         IS .F.
+   HBTEST HB_ISARRAY( NIL )                           IS .F.
+   HBTEST HB_ISARRAY( { "a" => 1 } )                  IS .F.
+   HBTEST HB_ISARRAY( ErrorNew() )                    IS .F.
+
+   /* hb_defaultValue(): the value, or the default when the two are not
+      of one type — so NIL takes the default, and so does a value of
+      another type (apiwebsocket.prg's constructor leans on it) */
+   HBTEST hb_defaultValue( "url", "" )                IS "url"
+   HBTEST hb_defaultValue( NIL, "" )                  IS ""
+   HBTEST hb_defaultValue( NIL, 30000 )               IS 30000
+   HBTEST hb_defaultValue( 5, 30000 )                 IS 5
+   HBTEST hb_defaultValue( "5", 30000 )               IS 30000
+   HBTEST hb_defaultValue( .T., .F. )                 IS .T.
+   HBTEST hb_defaultValue( "kept" )                   IS "kept"
+   HBTEST hb_defaultValue( NIL )                      IS NIL
+
    RETURN
 
 STATIC FUNCTION DeclarePublics()
