@@ -2678,6 +2678,17 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                const char * szRetType =
                   hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab,
                                    szKeyBuf, HB_COMP_PARAM->szFile );
+               /* A method that returns Self, or Self and NIL, returns
+                  its own class — the emitter types the C# method that
+                  way, so the row has to agree or a call site would read
+                  OBJECT (dynamic) for a value C# has typed. */
+               if( szClass &&
+                   hb_astReturnsSelfOrNil( pFunc->value.asFunc.pBody ) )
+               {
+                  const char * szCanon =
+                     hb_refTabClassCanonName( pTab, szClass );
+                  szRetType = szCanon ? szCanon : szClass;
+               }
                if( szRetType )
                   hb_refTabSetReturnType( pTab, szKeyBuf, szRetType );
             }

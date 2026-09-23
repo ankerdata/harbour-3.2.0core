@@ -10,19 +10,19 @@ public class Names
 {
     public string cAll = "";
 
-    public virtual dynamic New()
+    public virtual Names New()
     {
         this.cAll = "";
         return this;
     }
 
-    public virtual dynamic Add(string cValue = default)
+    public virtual Names Add(string cValue = default)
     {
         this.cAll = this.cAll + cValue + " ";
         return this;
     }
 
-    public virtual dynamic Show()
+    public virtual Names Show()
     {
         HbRuntime.QOut("all=" + this.cAll);
         return this;

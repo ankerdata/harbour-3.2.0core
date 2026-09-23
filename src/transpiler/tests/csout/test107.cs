@@ -38,7 +38,7 @@ public class Meter
 {
     public decimal nCount = 0;
 
-    public virtual dynamic Raise(decimal nBy = default)
+    public virtual Meter Raise(decimal nBy = default)
     {
         nCount += nBy;
 

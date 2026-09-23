@@ -8,13 +8,13 @@ public class Calculator
 {
     public decimal nResult = 0;
 
-    public virtual dynamic New()
+    public virtual Calculator New()
     {
         this.nResult = 0;
         return this;
     }
 
-    public virtual dynamic Add(decimal nValue = default)
+    public virtual Calculator Add(decimal nValue = default)
     {
         this.nResult = this.nResult + nValue;
         HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));

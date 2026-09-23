@@ -12,7 +12,7 @@ public class Animal
     public decimal nLegs = 4;
     public string cSound = "";
 
-    public virtual dynamic New(string cName = default, string cSound = default)
+    public virtual Animal New(string cName = default, string cSound = default)
     {
         this.cName = cName;
         HbRuntime.QOut("cName=" + this.cName);
@@ -36,7 +36,7 @@ public class Dog : Animal
 {
     public string cBreed = "";
 
-    public virtual dynamic Init(string cName = default, string cBreed = default)
+    public virtual Dog Init(string cName = default, string cBreed = default)
     {
         this.cName = cName;
         HbRuntime.QOut("cName=" + this.cName);

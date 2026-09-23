@@ -31,7 +31,7 @@ public class Counter
 
     public dynamic Total() => Counter.nTotal;
     public dynamic Doubled() => Counter.nTotal * 2;
-    public virtual dynamic Bump()
+    public virtual Counter Bump()
     {
         // CLASS VAR: becomes Counter.nTotal
         Counter.nTotal = Counter.nTotal + 1;

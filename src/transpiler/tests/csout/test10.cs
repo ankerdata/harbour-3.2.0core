@@ -8,13 +8,13 @@ public class MyObj
 {
     public decimal nValue = 0;
 
-    public virtual dynamic New()
+    public virtual MyObj New()
     {
         this.nValue = 0;
         return this;
     }
 
-    public virtual dynamic SetValue(decimal nVal = default)
+    public virtual MyObj SetValue(decimal nVal = default)
     {
         this.nValue = nVal;
         HbRuntime.QOut("nValue=" + HbRuntime.Str(this.nValue));

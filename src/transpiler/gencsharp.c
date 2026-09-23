@@ -7511,6 +7511,27 @@ static HB_BOOL hb_csRowSigMatches( const char * szChild, const char * szAnc )
    return HB_TRUE;
 }
 
+/* Does szChild name a class descended from szAnc? Both are C# type
+   names as hb_csTypeMap prints them, so only a class walks anywhere. */
+static HB_BOOL hb_csClassDerivesFrom( const char * szChild, const char * szAnc )
+{
+   const char * szUp;
+   int iDepth;
+
+   if( ! s_pRefTab || ! szChild || ! szAnc ||
+       ! hb_refTabIsClass( s_pRefTab, szChild ) ||
+       ! hb_refTabIsClass( s_pRefTab, szAnc ) )
+      return HB_FALSE;
+   szUp = hb_refTabClassParent( s_pRefTab, szChild );
+   for( iDepth = 0; szUp && *szUp && iDepth < 16; iDepth++ )
+   {
+      if( hb_stricmp( szUp, szAnc ) == 0 )
+         return HB_TRUE;
+      szUp = hb_refTabClassParent( s_pRefTab, szUp );
+   }
+   return HB_FALSE;
+}
+
 /* "override " when an ancestor class declares the identical signature,
    else "virtual ". s_szCurrentClass / s_szCurrentFunc are the method's
    own class and reftab key, set by the caller. */
@@ -7547,8 +7568,13 @@ static const char * hb_csMethodInherit( const char * szMethod,
          if( hb_csRowSigMatches( s_szCurrentFunc, szKey ) )
          {
             const char * szAncRet = hb_refTabReturnType( s_pRefTab, szKey );
-            if( strcmp( szChildRet,
-                        szAncRet ? hb_csTypeMap( szAncRet ) : "dynamic" ) == 0 )
+            const char * szAncCs =
+               szAncRet ? hb_csTypeMap( szAncRet ) : "dynamic";
+            /* C# lets an override narrow its return type, which is how
+               a Self-returning method works out: the ancestor's is its
+               class and the child's the child's. */
+            if( strcmp( szChildRet, szAncCs ) == 0 ||
+                hb_csClassDerivesFrom( szChildRet, szAncCs ) )
                return "override ";
          }
          return "virtual ";
@@ -7607,6 +7633,22 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       hb_strncpy( s_szCurrentFunc, szKey, sizeof( s_szCurrentFunc ) - 1 );
       hb_strncpy( s_szCurrentClass, szClass ? szClass : "",
                   sizeof( s_szCurrentClass ) - 1 );
+      /* A method that returns Self, or Self and NIL, returns its own
+         class: the body already emits `return this` (and `return null`,
+         which a class-typed return takes), where the inference alone
+         says OBJECT, emitted as dynamic. Harbour's constructors, its
+         chaining methods and the device classes' Init() are the
+         population. The scan records the same type on the row, so a call
+         site reads it too (hb_csSendCsType, hbtypes' SEND inference).
+         `X():New()` is unaffected: the emitter already casts it to X,
+         which is what makes an inherited New() safe here. */
+      if( ! fProcedure && szClass &&
+          hb_astReturnsSelfOrNil( pFunc->value.asFunc.pBody ) )
+      {
+         const char * szCanon = s_pRefTab
+            ? hb_refTabClassCanonName( s_pRefTab, szClass ) : NULL;
+         szRetType = szCanon ? szCanon : szClass;
+      }
    }
    s_pCurrentFuncNode = pFunc;
    /* Method-body STATICs are scoped to the method's function. */

@@ -24,7 +24,7 @@ public class Person : Inherited
     public dynamic xUnknown;
     public static decimal nCount = 0;
 
-    public virtual dynamic New()
+    public virtual Person New()
     {
         HbRuntime.QOut("New called");
         return this;

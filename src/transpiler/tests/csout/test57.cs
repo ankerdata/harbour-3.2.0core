@@ -31,7 +31,7 @@ public class Holder
 {
     public decimal nField = 0;
 
-    public virtual dynamic New()
+    public virtual Holder New()
     {
         return this;
     }

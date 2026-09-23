@@ -41,12 +41,12 @@ public class Person : Inherited
     protected dynamic oContext;
     protected string cSecret = "hidden";
 
-    public virtual dynamic New()
+    public virtual Person New()
     {
         return this;
     }
 
-    public virtual dynamic SetAge(decimal nAge = default)
+    public virtual Person SetAge(decimal nAge = default)
     {
         this.nAge = nAge;
         HbRuntime.QOut("nAge=" + HbRuntime.Str(this.nAge));

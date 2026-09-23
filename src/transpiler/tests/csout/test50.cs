@@ -33,7 +33,7 @@ public class Widget
     public string cLabel = "";
     public dynamic fHook;
 
-    public virtual dynamic New(string cLabel = default, dynamic fHook = default)
+    public virtual Widget New(string cLabel = default, dynamic fHook = default)
     {
         this.cLabel = cLabel;
         this.fHook = fHook;

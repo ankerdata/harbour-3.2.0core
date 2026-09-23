@@ -21,7 +21,7 @@ public class BlockTally
     public decimal nPunches = 0;
     public decimal nDayTotal = 5;
 
-    public virtual dynamic Punch()
+    public virtual BlockTally Punch()
     {
         this.nPunches++;
         return this;

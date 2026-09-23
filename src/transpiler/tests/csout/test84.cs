@@ -21,7 +21,7 @@ public class TestOrmRec84
 {
     public decimal nNo;
 
-    public virtual dynamic New()
+    public virtual TestOrmRec84 New()
     {
         return this;
     }

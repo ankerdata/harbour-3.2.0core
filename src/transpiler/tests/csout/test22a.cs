@@ -22,19 +22,19 @@ public class Numbers
 {
     public decimal nTotal = 0;
 
-    public virtual dynamic New()
+    public virtual Numbers New()
     {
         this.nTotal = 0;
         return this;
     }
 
-    public virtual dynamic Add(decimal nValue = default)
+    public virtual Numbers Add(decimal nValue = default)
     {
         this.nTotal = this.nTotal + nValue;
         return this;
     }
 
-    public virtual dynamic Show()
+    public virtual Numbers Show()
     {
         HbRuntime.QOut("total=" + HbRuntime.Str(this.nTotal));
         return this;

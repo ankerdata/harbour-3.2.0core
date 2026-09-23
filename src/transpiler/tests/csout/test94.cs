@@ -30,7 +30,7 @@ public class Kettle
     public decimal nWatts = 0;
     public bool lIsBoiling = false;
 
-    public virtual dynamic Init(decimal nWatts = default)
+    public virtual Kettle Init(decimal nWatts = default)
     {
         this.nWatts = nWatts;
         return this;
@@ -41,7 +41,7 @@ public class Teapot
 {
     public decimal nCups = 0;
 
-    public virtual dynamic New(decimal nCups = default)
+    public virtual Teapot New(decimal nCups = default)
     {
         this.nCups = nCups;
         return this;
@@ -63,7 +63,7 @@ public class BigMug : Mug
 {
     public long nHandles = 2;
 
-    public virtual dynamic New()
+    public virtual BigMug New()
     {
         this.nSize = 2;
         return this;

@@ -27,7 +27,7 @@ public class Voyage
     public DateOnly dDepart;
     public string cPort;
 
-    public virtual dynamic New(DateOnly dDepart = default, string cPort = default)
+    public virtual Voyage New(DateOnly dDepart = default, string cPort = default)
     {
         this.dDepart = dDepart;
         this.cPort = cPort;

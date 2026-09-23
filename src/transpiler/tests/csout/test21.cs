@@ -21,12 +21,12 @@ using static Program;
 public class Calculator
 {
 
-    public virtual dynamic New()
+    public virtual Calculator New()
     {
         return this;
     }
 
-    public virtual dynamic Adjust(ref decimal nValue)
+    public virtual Calculator Adjust(ref decimal nValue)
     {
         nValue = nValue * 2;
         return this;

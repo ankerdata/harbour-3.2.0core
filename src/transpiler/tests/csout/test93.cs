@@ -30,7 +30,7 @@ public class Sconce
     public dynamic oLight;
     public string cLabel = "";
 
-    public virtual dynamic New(Lantern oLight = default, string cRoom = default)
+    public virtual Sconce New(Lantern oLight = default, string cRoom = default)
     {
         this.oLight = oLight;
         this.cLabel = cRoom + "/" + HbRuntime.LTrim(HbRuntime.Str(oLight.nLumens));

@@ -42,7 +42,7 @@ public class Base
 public class Derived : Base
 {
 
-    public virtual dynamic New(string cLabel = default)
+    public virtual Derived New(string cLabel = default)
     {
         base.New(cLabel, lFlag: true);
         return this;

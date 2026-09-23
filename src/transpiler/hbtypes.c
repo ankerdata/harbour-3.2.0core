@@ -2243,6 +2243,103 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    }
 }
 
+/* ---- RETURN Self ------------------------------------------------------
+   A method that returns only Self, or Self and NIL, is the receiver's
+   own identity: Harbour's constructors (`METHOD New() ... RETURN Self`)
+   and its chaining methods, and the device classes' Init(), which
+   answers NIL when it cannot connect — 33 of those in EasiPOS. Its C#
+   return type is the class it is declared in, where the inference alone
+   says OBJECT, which is emitted as dynamic. A class-typed C# return
+   takes null, so the NIL path needs nothing and its callers' `== nil`
+   tests read as they did. Counting the kinds of RETURN keeps the rule
+   honest: Self among returns of other kinds is not an identity. */
+
+static HB_BOOL hb_astExprIsSelf( PHB_EXPR pExpr )
+{
+   return pExpr &&
+          ( pExpr->ExprType == HB_ET_SELF ||
+            ( pExpr->ExprType == HB_ET_VARIABLE &&
+              pExpr->value.asSymbol.name &&
+              hb_stricmp( pExpr->value.asSymbol.name, "Self" ) == 0 ) );
+}
+
+static void hb_astCountSelfReturns( PHB_AST_NODE pBlock,
+                                    int * piSelf, int * piOther )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return;
+
+   pStmt = pBlock->value.asBlock.pFirst;
+   while( pStmt )
+   {
+      if( pStmt->type == HB_AST_RETURN )
+      {
+         PHB_EXPR pRet = pStmt->value.asReturn.pExpr;
+         if( hb_astExprIsSelf( pRet ) )
+            ( *piSelf )++;
+         /* NIL, and a bare RETURN, which is NIL: null in C#. */
+         else if( pRet == NULL || pRet->ExprType == HB_ET_NIL )
+            ;
+         else
+            ( *piOther )++;
+      }
+      else if( pStmt->type == HB_AST_IF )
+      {
+         PHB_AST_NODE pElseIf = pStmt->value.asIf.pElseIfs;
+         hb_astCountSelfReturns( pStmt->value.asIf.pThen, piSelf, piOther );
+         while( pElseIf )
+         {
+            hb_astCountSelfReturns( pElseIf->value.asElseIf.pBody, piSelf, piOther );
+            pElseIf = pElseIf->pNext;
+         }
+         hb_astCountSelfReturns( pStmt->value.asIf.pElse, piSelf, piOther );
+      }
+      else if( pStmt->type == HB_AST_DOWHILE )
+         hb_astCountSelfReturns( pStmt->value.asWhile.pBody, piSelf, piOther );
+      else if( pStmt->type == HB_AST_FOR )
+         hb_astCountSelfReturns( pStmt->value.asFor.pBody, piSelf, piOther );
+      else if( pStmt->type == HB_AST_FOREACH )
+         hb_astCountSelfReturns( pStmt->value.asForEach.pBody, piSelf, piOther );
+      else if( pStmt->type == HB_AST_DOCASE )
+      {
+         PHB_AST_NODE pCase = pStmt->value.asDoCase.pCases;
+         while( pCase )
+         {
+            hb_astCountSelfReturns( pCase->value.asCase.pBody, piSelf, piOther );
+            pCase = pCase->pNext;
+         }
+         hb_astCountSelfReturns( pStmt->value.asDoCase.pOtherwise, piSelf, piOther );
+      }
+      else if( pStmt->type == HB_AST_SWITCH )
+      {
+         PHB_AST_NODE pCase = pStmt->value.asSwitch.pCases;
+         while( pCase )
+         {
+            hb_astCountSelfReturns( pCase->value.asCase.pBody, piSelf, piOther );
+            pCase = pCase->pNext;
+         }
+         hb_astCountSelfReturns( pStmt->value.asSwitch.pDefault, piSelf, piOther );
+      }
+      else if( pStmt->type == HB_AST_BEGINSEQ )
+      {
+         hb_astCountSelfReturns( pStmt->value.asSeq.pBody, piSelf, piOther );
+         hb_astCountSelfReturns( pStmt->value.asSeq.pRecover, piSelf, piOther );
+      }
+
+      pStmt = pStmt->pNext;
+   }
+}
+
+HB_BOOL hb_astReturnsSelfOrNil( PHB_AST_NODE pBody )
+{
+   int iSelf = 0, iOther = 0;
+
+   hb_astCountSelfReturns( pBody, &iSelf, &iOther );
+   return iSelf > 0 && iOther == 0;
+}
+
 /* ================================================================
  * Call-site parameter-type refinement
  *

@@ -419,6 +419,15 @@ extern const char * hb_astPropagate( PHB_AST_NODE pBody,
                                      const char * szFuncKey,
                                      const char * szFile );
 
+/* HB_TRUE when pBody returns Self at least once and nothing but Self or
+   NIL — a method whose C# return type is its own class (`return this`),
+   not dynamic. Harbour's constructors and its chaining methods are the
+   population, and a device class's Init() answering NIL when it cannot
+   connect is the same method: a class-typed C# return takes null, and
+   the caller's `== nil` test reads it as it always did. A RETURN of
+   anything else answers HB_FALSE — the method is not the receiver. */
+extern HB_BOOL      hb_astReturnsSelfOrNil( PHB_AST_NODE pBody );
+
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
 extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );

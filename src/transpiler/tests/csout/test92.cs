@@ -28,7 +28,7 @@ public class Crate
     public dynamic oItem;
     public decimal nCount = 0;
 
-    public virtual dynamic New(dynamic oItem = default, decimal nCount = default)
+    public virtual Crate New(dynamic oItem = default, decimal nCount = default)
     {
         this.oItem = oItem;
         this.nCount = nCount;
@@ -46,7 +46,7 @@ public class Crate
 public class Tandem : Crate
 {
 
-    public virtual dynamic New(dynamic oItem = default, dynamic xCount = default)
+    public virtual Tandem New(dynamic oItem = default, dynamic xCount = default)
     {
         base.New((object)oItem, (decimal)xCount);
         return this;
