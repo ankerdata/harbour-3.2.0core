@@ -5,9 +5,10 @@ rem
 rem   runrtl.bat [all|prg|cs|run|report] [name ...]
 rem
 rem Overrides, as the transpiler suite's runtests.bat:
-rem   HB_ARCH        vcvarsall target (default x86, matching the Harbour
-rem                  install the tests link against)
-rem   HB_INSTALL     Harbour install prefix providing hbmk2 — the reference
+rem   HB_TEST_ARCH   vcvarsall target (default x86, matching the Harbour
+rem                  install the tests link against) - not HB_ARCH, which is
+rem                  build.bat's choice for the transpiler (runtests.bat says why)
+rem   HB_INSTALL     Harbour install prefix providing hbmk2 - the reference
 rem   HBTRANSPILER   transpiler binary (default ..\..\..\bin\hbtranspiler.exe)
 rem
 rem Python is invoked directly, never through bash: Git Bash puts
@@ -15,16 +16,17 @@ rem /usr/bin ahead of MSVC on PATH and GNU link shadows link.exe.
 setlocal
 
 set NoDefaultCurrentDirectoryInExePath=
-if "%HB_ARCH%"=="" set "HB_ARCH=x86"
+set "TEST_ARCH=%HB_TEST_ARCH%"
+if "%TEST_ARCH%"=="" set "TEST_ARCH=x86"
 if "%HB_INSTALL%"=="" set "HB_INSTALL=%USERPROFILE%\dev\harbour-3.2.0dev"
 
 set "VSROOT=C:\Program Files\Microsoft Visual Studio"
 if exist "%VSROOT%\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" (
-    call "%VSROOT%\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" %HB_ARCH% >nul
+    call "%VSROOT%\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" %TEST_ARCH% >nul
 ) else if exist "%VSROOT%\18\Community\VC\Auxiliary\Build\vcvarsall.bat" (
-    call "%VSROOT%\18\Community\VC\Auxiliary\Build\vcvarsall.bat" %HB_ARCH% >nul
+    call "%VSROOT%\18\Community\VC\Auxiliary\Build\vcvarsall.bat" %TEST_ARCH% >nul
 ) else if exist "%VSROOT%\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" (
-    call "%VSROOT%\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" %HB_ARCH% >nul
+    call "%VSROOT%\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" %TEST_ARCH% >nul
 ) else (
     echo runrtl.bat: no vcvarsall.bat found under "%VSROOT%"
     exit /b 9
