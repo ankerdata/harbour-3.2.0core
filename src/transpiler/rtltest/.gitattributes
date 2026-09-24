@@ -1,0 +1,11 @@
+# The harness writes these itself, always with LF (newline="\n"): the
+# Harbour reference outputs, the tables and the extracted tests. Checked out
+# as CRLF under core.autocrlf, every run rewrote them in another form than
+# git had written — "LF will be replaced by CRLF" on each, and a file
+# (hbref/own_process.txt) that git status kept calling modified with no
+# difference in it. As LF on both sides a rewrite is byte for byte what
+# git checked out.
+hbref/*.txt       text eol=lf
+generated/*.prg   text eol=lf
+manifest.tsv      text eol=lf
+status.tsv        text eol=lf
