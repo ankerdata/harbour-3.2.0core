@@ -133,8 +133,20 @@ def stage_gen():
         base.append("--preload-list=" + PRELOAD)
     base += ["-I" + os.path.join(ROOT, "include"), "-I" + TESTS]
 
+    # Every pass's exit code is read: a transpiler failure used to pass
+    # unnoticed here and surface, if at all, as a baffling build error or
+    # diff later. The negative tests (tests/errors/) are not in srcs, so
+    # every file gen touches must transpile cleanly.
+    failed = []
+
     def run(args):
-        subprocess.run(args, cwd=TESTS, capture_output=True)
+        r = subprocess.run(args, cwd=TESTS, capture_output=True, text=True, errors="replace")
+        if r.returncode != 0:
+            mode = next((a for a in args if a in ("-GF", "-GT", "-GS")), "?")
+            src = next((a for a in args if SRC_RE.match(os.path.basename(a))), "?")
+            text = (r.stdout + r.stderr).strip().splitlines()
+            failed.append("   FAIL %-12s %s exit %d: %s"
+                          % (src, mode, r.returncode, text[-1] if text else "(no output)"))
 
     if os.path.isfile(REFTAB):
         os.remove(REFTAB)
@@ -166,6 +178,11 @@ def stage_gen():
     for f in srcs:
         run(base + opts + ["-o" + CSOUT + os.sep, f, "-GS", "-q"])
     print("csout/  regenerated")
+    if failed:
+        print("gen: %d transpiler run(s) failed" % len(failed))
+        for line in failed:
+            print(line)
+        sys.exit(1)
 
 
 # ------------------------------------------------------- incremental ----
