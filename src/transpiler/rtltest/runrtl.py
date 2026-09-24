@@ -36,6 +36,10 @@ Exit status 1 when any run-fn assertion is not a pass and carries no
 ruling. run-op (operators and the VM) is reported only.
 
 Usage: runrtl.py [all|prg|cs|run|report] [name ...]
+A name is a generated module (own_codecs, hbt_str) or hbtest's name for
+one (rt_str, str); one that matches nothing stops the run. Naming
+modules is a partial run: it reports them and leaves status.tsv, which
+only a full run writes, as it was.
 Run it from runrtl.bat, which sets up MSVC and Harbour as the
 transpiler suite's runtests.bat does.
 """
@@ -73,10 +77,28 @@ ID_ON_LINE_RE = re.compile(r'TEST_CALL\("([^"]+:\d+)"')
 
 
 def names_from(args):
+    """The modules to run: every generated one, or those named. A name is
+    taken as it is (own_codecs, hbt_str), or as hbtest's module (rt_str)
+    or its short form (str), both of which extract.py writes as hbt_str.
+    A name that matches nothing stops the run: it used to become
+    hbt_<name>, match nothing, and exit 0 having tested nothing."""
     have = sorted(os.path.splitext(f)[0] for f in os.listdir(GENERATED) if f.endswith(".prg"))
     if not args:
         return have
-    return [n if n in have else "hbt_" + n for n in args]
+    names, unknown = [], []
+    for n in args:
+        for cand in (n, "hbt_" + n[3:] if n.startswith("rt_") else None, "hbt_" + n):
+            if cand in have:
+                names.append(cand)
+                break
+        else:
+            unknown.append(n)
+    if unknown:
+        # 2, not 1: a bad name is not a failing test
+        print("runrtl: no generated test for %s (have: %s)"
+              % (", ".join(unknown), " ".join(have)), file=sys.stderr)
+        sys.exit(2)
+    return names
 
 
 RUN_TIMEOUT = 120               # seconds; a whole module runs in a few
@@ -339,7 +361,11 @@ def load_needed(path):
     return calls
 
 
-def stage_report(names, needed_path):
+def stage_report(names, needed_path, full=True):
+    """Compare the named modules and print the tiers. status.tsv, which is
+    tracked, is written only when every module ran (full): a partial run's
+    table would hold only its own modules' functions and read as a diff.
+    work/failures.txt is untracked and always describes this run."""
     manifest = load_manifest()
     needed = load_needed(needed_path)
     outcome = {}
@@ -395,16 +421,17 @@ def stage_report(names, needed_path):
                     if fn != row["subject"]:
                         also_in[fn] = also_in.get(fn, 0) + 1
     kinds = ["pass", "fail", "quarantine", "missing", "harbour"]
-    with open(STATUS, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("# Per function the application calls: the outcomes of the assertions\n"
-                 "# it is the subject of (their outermost call), and how many other\n"
-                 "# failing assertions it takes part in.\n")
-        fh.write("# function\tstate\tapp calls\t" + "\t".join(kinds) + "\talso in\n")
-        for fn in sorted(needed, key=lambda f: (-needed[f][2], f)):
-            canon, state, ncalls = needed[fn]
-            c = per_fn.get(fn, {})
-            fh.write("%s\t%s\t%d\t%s\t%d\n" % (canon, state, ncalls,
-                     "\t".join(str(c.get(k, 0)) for k in kinds), also_in.get(fn, 0)))
+    if full:
+        with open(STATUS, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# Per function the application calls: the outcomes of the assertions\n"
+                     "# it is the subject of (their outermost call), and how many other\n"
+                     "# failing assertions it takes part in.\n")
+            fh.write("# function\tstate\tapp calls\t" + "\t".join(kinds) + "\talso in\n")
+            for fn in sorted(needed, key=lambda f: (-needed[f][2], f)):
+                canon, state, ncalls = needed[fn]
+                c = per_fn.get(fn, {})
+                fh.write("%s\t%s\t%d\t%s\t%d\n" % (canon, state, ncalls,
+                         "\t".join(str(c.get(k, 0)) for k in kinds), also_in.get(fn, 0)))
     with open(os.path.join(WORK, "failures.txt"), "w", encoding="utf-8", newline="\n") as fh:
         for tid in sorted(detail, key=lambda t: (t.split(":")[0], int(t.split(":")[1]))):
             row = manifest.get(tid, {"expr": "?", "disp": "?"})
@@ -412,7 +439,11 @@ def stage_report(names, needed_path):
     for tier, c in tiers.items():
         print("%-7s %s" % (tier, "  ".join("%s %d" % (k, c.get(k, 0)) for k in kinds)))
     gating = sum(tiers["run-fn"].get(k, 0) for k in ("fail", "quarantine", "missing", "harbour"))
-    print("status.tsv: %d functions; failures in work/failures.txt" % len(per_fn))
+    if full:
+        print("status.tsv: %d functions; failures in work/failures.txt" % len(per_fn))
+    else:
+        print("partial run (%s): status.tsv left as it was; failures in work/failures.txt"
+              % " ".join(names))
     return gating == 0
 
 
@@ -425,6 +456,7 @@ def main():
         needed = args[i + 1]
         del args[i:i + 2]
     names = names_from(args)
+    full = not args
     ok = True
     if stage in ("all", "prg"):
         ok &= stage_prg(names)
@@ -433,7 +465,7 @@ def main():
     if stage in ("all", "run"):
         stage_run(names)
     if stage in ("all", "run", "report"):
-        ok &= stage_report(names, needed)
+        ok &= stage_report(names, needed, full)
     return 0 if ok else 1
 
 

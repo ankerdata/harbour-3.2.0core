@@ -55,7 +55,7 @@ RAt	implemented	71	20	0	0	0	0	0
 FErase	implemented	61	10	0	0	0	0	0
 hb_mutexUnlock	implemented	59	0	0	0	0	0	0
 hb_HGetDef	implemented	58	4	0	0	0	0	0
-hb_jsonEncode	implemented	56	17	0	0	0	0	0
+hb_jsonEncode	implemented	54	17	0	0	0	0	0
 hb_HKeys	implemented	49	2	0	0	0	0	0
 hb_mutexLock	implemented	49	0	0	0	0	0	0
 FRead	implemented	45	7	0	0	0	0	0
@@ -82,9 +82,9 @@ hb_HClone	implemented	23	1	0	0	0	0	0
 hb_mutexCreate	implemented	22	9	0	0	0	0	0
 hb_socketErrorString	implemented	22	5	0	0	0	0	0
 hb_TToC	implemented	22	27	0	0	0	0	0
-hb_jsonDecode	implemented	21	11	0	0	0	0	0
 hb_ps	implemented	21	1	0	0	0	0	0
 Day	implemented	20	2	0	0	0	0	0
+hb_jsonDecode	implemented	20	11	0	0	0	0	0
 hb_StrToTS	implemented	20	0	0	0	0	0	0
 Max	implemented	19	1	0	0	0	0	0
 DoW	implemented	18	14	0	0	0	0	0
