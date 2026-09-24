@@ -9,7 +9,8 @@
 // pair and wapi_OutputDebugString are console stand-ins that still
 // need a real implementation. wapi_CreateMutex and wapi_GetLastError,
 // EasiPOS's single-instance check, are real since 2026-09-22, and
-// wapi_FormatMessage, Windows' text for an error code, since 2026-09-24.
+// wapi_FormatMessage, Windows' text for an error code, since 2026-09-24,
+// as is the performance counter pair EasiPOS's MonotonicSeconds() reads.
 
 public static partial class HbWin
 {
@@ -17,6 +18,23 @@ public static partial class HbWin
     {
         System.Threading.Thread.Sleep((int)nMs);
         return 0;
+    }
+
+    // wapi_QueryPerformanceFrequency( @nFrequency ) --> lOk and
+    // wapi_QueryPerformanceCounter( @nCounter ) --> lOk: the Windows
+    // high-resolution counter and its ticks per second, which is what
+    // Stopwatch reads on Windows - the same values Harbour gets. Neither
+    // call fails on any Windows .NET runs on.
+    public static bool wapi_QueryPerformanceFrequency(ref decimal nFrequency)
+    {
+        nFrequency = System.Diagnostics.Stopwatch.Frequency;
+        return true;
+    }
+
+    public static bool wapi_QueryPerformanceCounter(ref decimal nCounter)
+    {
+        nCounter = System.Diagnostics.Stopwatch.GetTimestamp();
+        return true;
     }
 
     // Stand-in: prints instead of showing a message box.

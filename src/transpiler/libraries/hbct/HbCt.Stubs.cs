@@ -11,6 +11,4 @@ public static partial class HbCt
     public static dynamic Ceiling(params dynamic[] args) => throw new NotImplementedException(nameof(Ceiling));
     public static dynamic DoY(params dynamic[] args) => throw new NotImplementedException(nameof(DoY));
     public static dynamic IsLeap(params dynamic[] args) => throw new NotImplementedException(nameof(IsLeap));
-    public static dynamic NetCancel(params dynamic[] args) => throw new NotImplementedException(nameof(NetCancel));
-    public static dynamic NetRedir(params dynamic[] args) => throw new NotImplementedException(nameof(NetRedir));
 }
