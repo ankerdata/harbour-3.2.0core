@@ -5234,6 +5234,20 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          /* Binary operators */
          if( pExpr->ExprType >= HB_EO_ASSIGN && pExpr->ExprType <= HB_EO_PREDEC )
          {
+            /* A hash literal assigned to a variable takes that variable's
+               key type, as a declaration's initializer does (HB_ET_HASH
+               reads s_szHashKeyCs): `hById := { => }` on an integer-keyed
+               hash is an OrderedDictionary<long, dynamic>, not the string-
+               keyed default that C# cannot assign to it. */
+            const char * szSavedKey = s_szHashKeyCs;
+            if( pExpr->ExprType == HB_EO_ASSIGN &&
+                pExpr->value.asOperator.pLeft &&
+                pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
+                pExpr->value.asOperator.pRight &&
+                pExpr->value.asOperator.pRight->ExprType == HB_ET_HASH )
+               s_szHashKeyCs = hb_csHashKeyCsFor( hb_csArgVarType(
+                  pExpr->value.asOperator.pLeft->value.asSymbol.name ) );
+
             /* Handle special operators */
             if( pExpr->ExprType == HB_EO_POWER )
             {
@@ -5396,6 +5410,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                if( fNeedParen )
                   fprintf( yyc, ")" );
             }
+            s_szHashKeyCs = szSavedKey;
          }
          else
          {
