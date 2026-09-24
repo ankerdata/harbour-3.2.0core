@@ -8,7 +8,8 @@
 // HbRuntime.cs, moved unchanged. wapi_Sleep is real; the message box
 // pair and wapi_OutputDebugString are console stand-ins that still
 // need a real implementation. wapi_CreateMutex and wapi_GetLastError,
-// EasiPOS's single-instance check, are real since 2026-09-22.
+// EasiPOS's single-instance check, are real since 2026-09-22, and
+// wapi_FormatMessage, Windows' text for an error code, since 2026-09-24.
 
 public static partial class HbWin
 {
@@ -70,4 +71,37 @@ public static partial class HbWin
         }
         return null;
     }
+
+    // wapi_FormatMessage( [<nFlags>], [<cSource>], [<nMessageId>], [<nLanguageId>],
+    //                     @<cBuffer> ) -> nChars (wapi_winbase_2.c): the text Windows
+    // has for a message id, in cBuffer; the number of characters, or 0 and ""
+    // when it has none. As hbwin does it: FORMAT_MESSAGE_FROM_SYSTEM unless told
+    // otherwise, the last wapi_*() error when no id is given, and room for as many
+    // characters as cBuffer holds — EasiPOS's win_ErrorDesc() passes 2048 spaces.
+    // A message source (cSource) is not supported: EasiPOS passes none.
+    public static decimal wapi_FormatMessage(object? nFlags, object? cSource,
+        object? nMessageId, object? nLanguageId, ref string cBuffer)
+    {
+        const uint FromSystem = 0x00001000, AllocateBuffer = 0x00000100;
+        const uint NeutralDefaultLang = 0x0400;     // MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)
+
+        uint nFlagsIn = nFlags is null ? FromSystem : System.Convert.ToUInt32(nFlags);
+        uint nId = nMessageId is null ? (uint) t_lastError : System.Convert.ToUInt32(nMessageId);
+        uint nLang = nLanguageId is null ? NeutralDefaultLang : System.Convert.ToUInt32(nLanguageId);
+        // hbwin asks Windows to allocate only when the buffer given is empty;
+        // here there is always a buffer of our own, so that flag does nothing.
+        int nSize = string.IsNullOrEmpty(cBuffer) ? 65536 : cBuffer.Length;
+        var aBuffer = new char[nSize];
+
+        uint nChars = FormatMessageW(nFlagsIn & ~AllocateBuffer, System.IntPtr.Zero, nId, nLang,
+                                     aBuffer, (uint) nSize, System.IntPtr.Zero);
+        t_lastError = nChars == 0 ? System.Runtime.InteropServices.Marshal.GetLastPInvokeError() : 0;
+        cBuffer = nChars == 0 ? "" : new string(aBuffer, 0, (int) nChars);
+        return nChars;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll",
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    static extern uint FormatMessageW(uint dwFlags, System.IntPtr lpSource, uint dwMessageId,
+        uint dwLanguageId, char[] lpBuffer, uint nSize, System.IntPtr Arguments);
 }
