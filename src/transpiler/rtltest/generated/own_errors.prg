@@ -83,6 +83,28 @@ PROCEDURE Main_ERRORS()
    TEST_CALL( "own_errors:96", "UdmError():subCode()", {|| UdmError():subCode() }, 7, .F., NIL )
    TEST_CALL( "own_errors:97", "ErrorNew():description()", {|| ErrorNew():description() }, "", .F., NIL )
 
+
+
+
+   TEST_CALL( "own_errors:102", "NoMethod():genCode", {|| NoMethod():genCode }, 13, .F., NIL )
+   TEST_CALL( "own_errors:103", "NoMethod():subSystem", {|| NoMethod():subSystem }, "BASE", .F., NIL )
+   TEST_CALL( "own_errors:104", "NoMethod():subCode", {|| NoMethod():subCode }, 1004, .F., NIL )
+   TEST_CALL( "own_errors:105", "NoMethod():description", {|| NoMethod():description }, "No exported method", .F., NIL )
+   TEST_CALL( "own_errors:106", "NoMethod():operation", {|| NoMethod():operation }, "NOSUCHMESSAGE", .F., NIL )
+   TEST_CALL( "own_errors:107", "NoValue():genCode", {|| NoValue():genCode }, 13, .F., NIL )
+   TEST_CALL( "own_errors:108", "NoValue():subCode", {|| NoValue():subCode }, 1004, .F., NIL )
+   TEST_CALL( "own_errors:109", "NoValue():operation", {|| NoValue():operation }, "NOSUCHVALUE", .F., NIL )
+   TEST_CALL( "own_errors:110", "HashMiss():genCode", {|| HashMiss():genCode }, 2, .F., NIL )
+   TEST_CALL( "own_errors:111", "HashMiss():subSystem", {|| HashMiss():subSystem }, "BASE", .F., NIL )
+   TEST_CALL( "own_errors:112", "HashMiss():subCode", {|| HashMiss():subCode }, 1132, .F., NIL )
+   TEST_CALL( "own_errors:113", "HashMiss():description", {|| HashMiss():description }, "Bound error", .F., NIL )
+   TEST_CALL( "own_errors:114", "HashMiss():operation", {|| HashMiss():operation }, "array access", .F., NIL )
+   TEST_CALL( "own_errors:115", "OpMismatch():genCode", {|| OpMismatch():genCode }, 1, .F., NIL )
+   TEST_CALL( "own_errors:116", "OpMismatch():subSystem", {|| OpMismatch():subSystem }, "BASE", .F., NIL )
+   TEST_CALL( "own_errors:117", "OpMismatch():subCode", {|| OpMismatch():subCode }, 1083, .F., NIL )
+   TEST_CALL( "own_errors:118", "OpMismatch():description", {|| OpMismatch():description }, "Argument error", .F., NIL )
+   TEST_CALL( "own_errors:119", "OpMismatch():operation", {|| OpMismatch():operation }, "*", .F., NIL )
+
    RETURN
 
 STATIC FUNCTION UdmError()
@@ -241,6 +263,63 @@ STATIC FUNCTION Bound()
       nPos := aList[ nPos ]
    RECOVER USING oError
    end
+
+   RETURN oError
+
+STATIC FUNCTION NoMethod()
+
+   LOCAL oError
+   LOCAL oTarget := ErrorNew()
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      oTarget:NoSuchMessage()
+   RECOVER USING oError
+   end
+
+   RETURN oError
+
+STATIC FUNCTION NoValue()
+
+   LOCAL oError
+   LOCAL oTarget := ErrorNew()
+   LOCAL xValue
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      xValue := oTarget:NoSuchValue
+   RECOVER USING oError
+   end
+
+   ( ( xValue ) )
+
+   RETURN oError
+
+STATIC FUNCTION HashMiss()
+
+   LOCAL oError
+   LOCAL hList := { "a" => 1 }
+   LOCAL nValue
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      nValue := hList[ "b" ]
+   RECOVER USING oError
+   end
+
+   ( ( nValue ) )
+
+   RETURN oError
+
+STATIC FUNCTION OpMismatch()
+
+   LOCAL oError
+   LOCAL aPair := { "a", 1 }
+   LOCAL xResult
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      xResult := aPair[ 1 ] * aPair[ 2 ]
+   RECOVER USING oError
+   end
+
+   ( ( xResult ) )
 
    RETURN oError
 

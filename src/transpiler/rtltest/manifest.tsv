@@ -187,6 +187,24 @@ own_errors:91	run-fn	ERRORBLOCK	ERRORBLOCK,EVAL	BlockKeep()
 own_errors:95	run-fn	ERRORNEW	ERRORNEW	UdmError():subSystem()
 own_errors:96	run-fn	ERRORNEW	ERRORNEW	UdmError():subCode()
 own_errors:97	run-fn	ERRORNEW	ERRORNEW	ErrorNew():description()
+own_errors:102	run-fn	ERRORNEW	ERRORNEW	NoMethod():genCode
+own_errors:103	run-fn	ERRORNEW	ERRORNEW	NoMethod():subSystem
+own_errors:104	run-fn	ERRORNEW	ERRORNEW	NoMethod():subCode
+own_errors:105	run-fn	ERRORNEW	ERRORNEW	NoMethod():description
+own_errors:106	run-fn	ERRORNEW	ERRORNEW	NoMethod():operation
+own_errors:107	run-fn	ERRORNEW	ERRORNEW	NoValue():genCode
+own_errors:108	run-fn	ERRORNEW	ERRORNEW	NoValue():subCode
+own_errors:109	run-fn	ERRORNEW	ERRORNEW	NoValue():operation
+own_errors:110	run-op			HashMiss():genCode
+own_errors:111	run-op			HashMiss():subSystem
+own_errors:112	run-op			HashMiss():subCode
+own_errors:113	run-op			HashMiss():description
+own_errors:114	run-op			HashMiss():operation
+own_errors:115	run-op			OpMismatch():genCode
+own_errors:116	run-op			OpMismatch():subSystem
+own_errors:117	run-op			OpMismatch():subCode
+own_errors:118	run-op			OpMismatch():description
+own_errors:119	run-op			OpMismatch():operation
 own_files:33	run-fn	FILE	FILE	File( cFile )
 own_files:34	run-fn	FERASE	FERASE	FErase( cFile )
 own_files:35	run-fn	FERROR	FERROR	FError()

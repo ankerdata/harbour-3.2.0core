@@ -62,20 +62,49 @@ public class HbError : HbDynamicObject
     public string classname() => "ERROR";
 
     const int ES_ERROR = 2;                         // error.ch
-    const int EG_ARG = 1, EG_BOUND = 2, EG_NUMOVERFLOW = 4, EG_ZERODIV = 5;
+    const int EG_ARG = 1, EG_BOUND = 2, EG_NUMOVERFLOW = 4, EG_ZERODIV = 5,
+              EG_MEM = 11, EG_NOMETHOD = 13, EG_OPEN = 21, EG_UNSUPPORTED = 30;
+
+    // The subCode Harbour's VM gives an operator's argument error
+    // (vm/hvm.c), by the C# spelling the runtime binder names it in, with
+    // the name Harbour gives the operation.
+    static readonly Dictionary<string, (int subCode, string operation)> s_operatorError = new()
+    {
+        ["+"] = (1081, "+"),   ["-"] = (1082, "-"),   ["*"] = (1083, "*"),
+        ["/"] = (1084, "/"),   ["%"] = (1085, "%"),
+        ["=="] = (1070, "=="), ["!="] = (1072, "<>"),
+        ["<"] = (1073, "<"),   ["<="] = (1074, "<="), [">"] = (1075, ">"), [">="] = (1076, ">="),
+        ["!"] = (1077, ".NOT."), ["&&"] = (1078, ".AND."), ["||"] = (1079, ".OR."),
+    };
+    const int SUB_UNARY_MINUS = 1080;
+    const int SUB_NOMETHOD = 1004;
+
+    // How the runtime binder says a member or an operator is missing:
+    // "'HbError' does not contain a definition for 'Foo'", "Operator '-'
+    // cannot be applied to operands of type 'string' and 'decimal'", and
+    // "... to operand of type 'string'" for a unary one.
+    static readonly Regex s_binderNoMember =
+        new(@"does not contain a definition for '(\w+)'", RegexOptions.CultureInvariant);
+    static readonly Regex s_binderOperator =
+        new(@"^Operator '([^']+)' cannot be applied to (operands?)", RegexOptions.CultureInvariant);
 
     // HbRuntime's own errors say which Harbour error they are, and where
     // Harbour gives one its subCode: "Argument error (HB_SOCKETCLOSE, 3012)"
     static readonly Regex s_ownError =
         new(@"^(Argument error|Bound error) \((\w+)(?:, (\d+))?\)$", RegexOptions.CultureInvariant);
 
-    // What RECOVER USING gets under WITH { |e| break(e) }: a BREAK's own
-    // value, or the Error object Harbour would have raised. The runtime
-    // errors Harbour has a code for get Harbour's genCode, subCode,
-    // description and operation (the base subsystem's, errors of
-    // rtl/errapi.c); any other exception is subsystem ".NET" with its
-    // type and message. osCode is the DOS error a failed file operation
-    // gives FError().
+    // What RECOVER USING gets under WITH { |e| break(e) }, and what the
+    // error block at the entry point is handed: a BREAK's own value, or
+    // the Error object Harbour would have raised. The runtime errors
+    // Harbour has a code for get Harbour's genCode, subCode, description
+    // and operation (the base subsystem's, errors of rtl/errapi.c): a
+    // zero divisor, a bound error, a hash key that is not there, a
+    // message the object does not answer, an operator given the wrong
+    // types. Any other exception is subsystem ".NET" with its type and
+    // message, and a genCode for the kind of error it is where there is
+    // one, so the handler's "genCode:" line names it rather than reading
+    // "Unknown or reserved". osCode is the OS error a failed file
+    // operation gives FError().
     public static dynamic From(Exception ex)
     {
         if (ex is HbBreak b)
@@ -96,8 +125,11 @@ public class HbError : HbDynamicObject
             case DivideByZeroException:
                 (e.genCode, e.subCode, e.description, e.operation) = (EG_ZERODIV, 1340, "Zero divisor", "/");
                 break;
+            // A hash subscript whose key is not there is Harbour's bound
+            // error too (hb_vmArrayPush)
             case IndexOutOfRangeException:
             case ArgumentOutOfRangeException:
+            case KeyNotFoundException:
                 (e.genCode, e.subCode, e.description, e.operation) = (EG_BOUND, 1132, "Bound error", "array access");
                 break;
             case OverflowException:
@@ -106,14 +138,65 @@ public class HbError : HbDynamicObject
             case ArgumentException:
                 (e.genCode, e.description) = (EG_ARG, "Argument error");
                 break;
+            case Microsoft.CSharp.RuntimeBinder.RuntimeBinderException:
+                FromBinder(e, ex);
+                break;
+            // Neither can say which Harbour error it was: a message sent
+            // to NIL is "No exported method" in Harbour, NIL subscripted
+            // an argument error, and both reach C# as the same exception
+            case NullReferenceException:
+            case InvalidCastException:
+            case FormatException:
+                AsDotNet(e, ex, EG_ARG);
+                break;
+            case FileNotFoundException:
+            case DirectoryNotFoundException:
+            case UnauthorizedAccessException:
+                AsDotNet(e, ex, EG_OPEN);
+                break;
+            // What a routine guarded out of C# throws
+            case NotImplementedException:
+            case NotSupportedException:
+                AsDotNet(e, ex, EG_UNSUPPORTED);
+                break;
+            case OutOfMemoryException:
+                AsDotNet(e, ex, EG_MEM);
+                break;
             default:
-                e.subSystem = ".NET";
-                e.description = ex.GetType().Name + ": " + ex.Message;
+                AsDotNet(e, ex, 0);
                 break;
         }
         if (ex is IOException or UnauthorizedAccessException)
             e.osCode = HbRuntime.OsError(ex);
         return e;
+    }
+
+    // A dynamic send or operator the runtime binder could not bind: a
+    // message the object does not answer is Harbour's "No exported
+    // method", an operator given types it does not take its argument
+    // error, both named as Harbour names them. Anything else it refuses
+    // (a conversion, an overload, NIL as the receiver) is an argument
+    // error in .NET's own words.
+    static void FromBinder(HbError e, Exception ex)
+    {
+        var member = s_binderNoMember.Match(ex.Message);
+        var op = s_binderOperator.Match(ex.Message);
+        if (member.Success)
+            (e.genCode, e.subCode, e.description, e.operation) =
+                (EG_NOMETHOD, SUB_NOMETHOD, "No exported method", member.Groups[1].Value.ToUpperInvariant());
+        else if (op.Success && op.Groups[1].Value == "-" && op.Groups[2].Value == "operand")
+            (e.genCode, e.subCode, e.description, e.operation) = (EG_ARG, SUB_UNARY_MINUS, "Argument error", "-");
+        else if (op.Success && s_operatorError.TryGetValue(op.Groups[1].Value, out var harbour))
+            (e.genCode, e.subCode, e.description, e.operation) = (EG_ARG, harbour.subCode, "Argument error", harbour.operation);
+        else
+            AsDotNet(e, ex, EG_ARG);
+    }
+
+    static void AsDotNet(HbError e, Exception ex, int genCode)
+    {
+        e.subSystem = ".NET";
+        e.genCode = genCode;
+        e.description = ex.GetType().Name + ": " + ex.Message;
     }
 }
 

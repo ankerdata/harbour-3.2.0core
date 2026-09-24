@@ -96,6 +96,28 @@ PROCEDURE Main_ERRORS()
    HBTEST UdmError():subCode()                        IS 7
    HBTEST ErrorNew():description()                    IS ""
 
+   /* A message the object does not answer, a hash key that is not there
+      and an operator given the wrong types: in C# a runtime binder error
+      and a KeyNotFoundException, which HbError.From names as Harbour does */
+   HBTEST NoMethod():genCode                          IS 13
+   HBTEST NoMethod():subSystem                        IS "BASE"
+   HBTEST NoMethod():subCode                          IS 1004
+   HBTEST NoMethod():description                      IS "No exported method"
+   HBTEST NoMethod():operation                        IS "NOSUCHMESSAGE"
+   HBTEST NoValue():genCode                           IS 13
+   HBTEST NoValue():subCode                           IS 1004
+   HBTEST NoValue():operation                         IS "NOSUCHVALUE"
+   HBTEST HashMiss():genCode                          IS 2
+   HBTEST HashMiss():subSystem                        IS "BASE"
+   HBTEST HashMiss():subCode                          IS 1132
+   HBTEST HashMiss():description                      IS "Bound error"
+   HBTEST HashMiss():operation                        IS "array access"
+   HBTEST OpMismatch():genCode                        IS 1
+   HBTEST OpMismatch():subSystem                      IS "BASE"
+   HBTEST OpMismatch():subCode                        IS 1083
+   HBTEST OpMismatch():description                    IS "Argument error"
+   HBTEST OpMismatch():operation                      IS "*"
+
    RETURN
 
 STATIC FUNCTION UdmError()
@@ -254,6 +276,63 @@ STATIC FUNCTION Bound()
       nPos := aList[ nPos ]
    RECOVER USING oError
    END SEQUENCE
+
+   RETURN oError
+
+STATIC FUNCTION NoMethod()
+
+   LOCAL oError
+   LOCAL oTarget := ErrorNew()
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      oTarget:NoSuchMessage()
+   RECOVER USING oError
+   END SEQUENCE
+
+   RETURN oError
+
+STATIC FUNCTION NoValue()
+
+   LOCAL oError
+   LOCAL oTarget := ErrorNew()
+   LOCAL xValue
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      xValue := oTarget:NoSuchValue
+   RECOVER USING oError
+   END SEQUENCE
+
+   HB_SYMBOL_UNUSED( xValue )
+
+   RETURN oError
+
+STATIC FUNCTION HashMiss()
+
+   LOCAL oError
+   LOCAL hList := { "a" => 1 }
+   LOCAL nValue
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      nValue := hList[ "b" ]
+   RECOVER USING oError
+   END SEQUENCE
+
+   HB_SYMBOL_UNUSED( nValue )
+
+   RETURN oError
+
+STATIC FUNCTION OpMismatch()
+
+   LOCAL oError
+   LOCAL aPair := { "a", 1 }   /* elements, so C# meets the types at run time */
+   LOCAL xResult
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      xResult := aPair[ 1 ] * aPair[ 2 ]
+   RECOVER USING oError
+   END SEQUENCE
+
+   HB_SYMBOL_UNUSED( xResult )
 
    RETURN oError
 
