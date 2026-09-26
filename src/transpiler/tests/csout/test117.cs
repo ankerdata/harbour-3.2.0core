@@ -39,13 +39,13 @@ public class Ledger117
 
     public virtual Ledger117 Add(decimal nAmount = default)
     {
-        this.nTotal += nAmount;
+        nTotal += nAmount;
         return this;
     }
 
     public virtual string Describe()
     {
-        return this.cName + " " + HbRuntime.hb_ntos(this.nTotal);
+        return cName + " " + HbRuntime.hb_ntos(nTotal);
     }
 
     public virtual Ledger117 Maybe117(bool lWant = default)
@@ -82,7 +82,7 @@ public class TaxLedger117 : Ledger117
 
     public override TaxLedger117 Add(decimal nAmount = default)
     {
-        base.Add(nAmount + this.nFee);
+        base.Add(nAmount + nFee);
         return this;
     }
 }

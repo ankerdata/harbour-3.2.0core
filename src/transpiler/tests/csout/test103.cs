@@ -27,7 +27,7 @@ public class Beacon
 
     public override string ToString()
     {
-        return "beacon#" + HbRuntime.LTrim(HbRuntime.Str(this.nCode));
+        return "beacon#" + HbRuntime.LTrim(HbRuntime.Str(nCode));
     }
 }
 

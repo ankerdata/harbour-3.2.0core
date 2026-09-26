@@ -32,7 +32,7 @@ public class Base
 
     public virtual dynamic Show()
     {
-        HbRuntime.QOut(this.cLabel + "/" + (this.lFlag ? "T" : "F"));
+        HbRuntime.QOut(cLabel + "/" + (lFlag ? "T" : "F"));
         return null;
 
         /* ::Super:New with a gap: .T. must reach lFlag, not nUnused. */

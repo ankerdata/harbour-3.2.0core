@@ -27,7 +27,7 @@ public static partial class Program
         return;
     }
 
-    public static decimal SetBit119(decimal nFlags = default, bool lx = default)
+    public static long SetBit119(decimal nFlags = default, bool lx = default)
     {
         return (lx ? HbRuntime.hb_bitOr(nFlags, Test119PrgConst.FLAG119_BIT) : HbRuntime.hb_bitAnd(nFlags, HbRuntime.hb_bitNot(Test119PrgConst.FLAG119_BIT)));
     }

@@ -232,9 +232,13 @@ ABS     NUMERIC      HbRuntime
 
 - **RETTYPE** — declared return type, used by the type-propagation
   pass in [`hbtypes.c`](hbtypes.c) so callers of e.g. `Str()` know
-  the result is a `STRING`. One of `STRING`, `NUMERIC`, `LOGICAL`,
-  `DATE`, `TIMESTAMP`, `ARRAY`, `HASH`, `OBJECT`, `BLOCK`, or `-` if
-  unknown. A `-` says nothing, so a local such a call initialises takes
+  the result is a `STRING`. One of `STRING`, `NUMERIC`, `INTEGER`,
+  `LOGICAL`, `DATE`, `TIMESTAMP`, `ARRAY`, `HASH`, `OBJECT`, `BLOCK`, or
+  `-` if unknown. `INTEGER` is a C# integral return (`long`): the
+  `hb_bit*` family, so a bit setter `RETURN IIF( lx, hb_bitOr(…),
+  hb_bitAnd(…) )` returns `long` into an `AS INTEGER` member uncast, and a
+  division of one still gets the `(decimal)` that keeps `/` Harbour's
+  (test121). A `-` says nothing, so a local such a call initialises takes
   its type from its Hungarian prefix: `hCopy := hb_HClone( h )` is a
   hash, `nSev := hb_HGetDef( h, "sev", 0 )` a number (test116). It used
   to mean "dynamic on purpose" and beat the prefix, which turned those
@@ -844,7 +848,13 @@ strongest. Later rungs override earlier ones.
 3. **Initialisers and defines**: a `#define` with an integer value is
    integer tier (the defines map), and a LOCAL or STATIC initialised
    from an integer literal, such a define, or another integer variable
-   becomes an INTEGER *candidate*.
+   becomes an INTEGER *candidate*. One initialised as INTEGER outright —
+   from such a define, a call returning `long` (`hb_bitAnd`, a routine
+   returning an `i` local), an `AS INTEGER` member — goes back to
+   `decimal` if it later takes a fraction (a division, a fractional
+   literal), where every write into a `long` would otherwise be cast and
+   the fraction dropped (test121). An `i` name never does: W0024 names
+   the site instead.
 4. **Pass 2.5, per function**: the candidate stays `long` only if every
    write to it is provably integral (integer literals, defines, `+ - *
    %` of integrals, `++`) and it is used as an index or feeds an
@@ -905,7 +915,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `FOR i := 1 TO n STEP k`         | `for (i = 1; i <= n; i += k)` — `>=` for a negative constant step; a step that is not a constant is `HbRuntime.ForTest(i, n, k)`, its sign tested on every pass as HB_P_FORTEST does (test111) |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
 | `{\|x\| f(x), n := 0, x > 1}`    | `((x) => { f(x); n = 0; return x > 1; })` — every expression runs, the last is the value; a middle one that is not a call, assignment or step is `_ = …;`, an IIF is if/else (test110) |
-| `Self` / `::`                    | `this` / `this.` — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class |
+| `Self` / `::`                    | `this`; a member bare (`nCount`), `this.nCount` only where a parameter, local, codeblock parameter, PUBLIC or MEMVAR of the same name needs it (Alex; in INLINE bodies too, where any free use of the name keeps it) — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class; `this.Super()` and the other built-in object messages keep `this.` (extension methods need a receiver) |
 | `ClassName():New()`              | `new ClassName()` — or `(ClassName)new ClassName().New()` when the class declares a `New` / `Init` body (it used to be skipped). A name the reftab does not know as a class (`hbClass()`, `TOleAuto()`) leaves the receiving local `dynamic` (test103) |
 | `ClassName():New(args)` / `:new(args)` | `(ClassName) new ClassName().New(args)` (method name uppercase-normalised — `new` is a C# reserved word) |
 | `BREAK [x]` / `Break( x )`       | `throw new HbBreak(x)` — the value goes to RECOVER USING, NIL for a bare BREAK (test114) |
@@ -1447,6 +1457,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
+| 121       | `i` members (`VAR iCount INIT 0` is `long`, a decimal written into one is cast from inside the class and out); `@iX` into an `n` parameter and `@nX` into an `i` one (the shim seeds and writes back with a cast); a division of a call returning `long` stays Harbour's; an `n` local initialised from `hb_bitAnd` or an integral define that later takes a fraction is `decimal`; a bit setter returns `long` into an `AS INTEGER` member; members written bare, `this.` only where a parameter or codeblock parameter shares the name, in method and INLINE bodies |
 | 119       | An `IIF()` is the type its two branches share, as C#'s `? :` is: two numbers a number (a whole one beside a decimal widens), two strings a string, the hash family merged; a NIL branch or two unrelated types still dynamic. settflag's and buffflag's 100 bit setters, `RETURN IIF( lx, hb_bitOr(…), hb_bitAnd(…) )`, had all returned dynamic |
 | 120       | The `i` prefix: a whole number, C# `long`, for a local, a static, a parameter and a return, whatever number initialises it; a decimal assigned or passed to one is cast, an `i` or other integral variable is not |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |

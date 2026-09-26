@@ -721,8 +721,8 @@ const char * hb_astInferTypeFromInit( const char * szName, const char * szInit )
             if( szInit[ i ] != '.' && ( szInit[ i ] < '0' || szInit[ i ] > '9' ) )
                break;  /* not a simple number */
          }
-         if( i == n )
-            return "NUMERIC";
+         if( i == n )   /* `VAR iCount INIT 0` is long, as a local's is */
+            return hb_astIntegerByName( szName, "NUMERIC" );
       }
    }
 
@@ -3845,6 +3845,29 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       int i;
       for( i = 0; i < s_iIntCand; i++ )
       {
+         /* The other direction: a local its initializer typed INTEGER —
+            `LOCAL nMask := hb_bitAnd(...)`, `:= oTrans:nSaleIndex`, `:=
+            GetFlagI(...)` — that later takes a fraction (a division, a
+            literal with decimals) goes back to decimal: every write into
+            a long is cast, and the cast would drop what Harbour keeps
+            (test121). An `i` name stays long; W0024 named the site. */
+         if( s_aIntCand[ i ].fNonIntHard &&
+             ! hb_astIsIntegerName( s_aIntCand[ i ].szName ) )
+         {
+            const char * szCur = hb_typeEnvGet( &env, s_aIntCand[ i ].szName );
+            PHB_AST_NODE pDecl = pBody->value.asBlock.pFirst;
+            for( ; szCur && strcmp( szCur, "INTEGER" ) == 0 && pDecl;
+                 pDecl = pDecl->pNext )
+               if( ( pDecl->type == HB_AST_LOCAL ||
+                     pDecl->type == HB_AST_STATIC ) &&
+                   pDecl->value.asVar.szName &&
+                   hb_stricmp( pDecl->value.asVar.szName,
+                               s_aIntCand[ i ].szName ) == 0 )
+               {
+                  hb_typeEnvSet( &env, s_aIntCand[ i ].szName, "NUMERIC" );
+                  break;
+               }
+         }
          /* Two positive signals earn INTEGER: index-shaped use (a
             subscript MUST be int) and sink flow (the value is written
             into an INTEGER member/field). Either, absent a
@@ -3949,6 +3972,13 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
          /* NUMERIC upgraded to INTEGER by Pass 2.5 index candidacy. */
          else if( strcmp( szCurType, "NUMERIC" ) == 0 &&
                   szPropType && strcmp( szPropType, "INTEGER" ) == 0 )
+            fOverride = HB_TRUE;
+         /* ...and the other way: an INTEGER initializer (a call returning
+            long, an integral #define) Pass 2.5 sent back to decimal
+            because the local later takes a fraction. Only that demotion
+            leaves the env NUMERIC under an INTEGER initializer. */
+         else if( strcmp( szCurType, "INTEGER" ) == 0 &&
+                  szPropType && strcmp( szPropType, "NUMERIC" ) == 0 )
             fOverride = HB_TRUE;
          /* Audit: a hash whose keys never resolved — defaults to
             string-keyed emission on faith. */

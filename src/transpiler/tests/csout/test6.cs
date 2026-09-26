@@ -55,7 +55,7 @@ public class Person : Inherited
 
     public virtual decimal InternalCalc()
     {
-        return this.nAge * 2;
+        return nAge * 2;
     }
 }
 

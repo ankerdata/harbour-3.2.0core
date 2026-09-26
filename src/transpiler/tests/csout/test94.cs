@@ -49,7 +49,7 @@ public class Teapot
 
     public virtual decimal Serve()
     {
-        return this.nCups * 2;
+        return nCups * 2;
     }
 }
 
@@ -65,7 +65,7 @@ public class BigMug : Mug
 
     public virtual BigMug New()
     {
-        this.nSize = 2;
+        nSize = 2;
         return this;
 
         /* Called with a Mug and a BigMug, so the slot is Mug; nHandles exists

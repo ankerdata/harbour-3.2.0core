@@ -30,7 +30,7 @@ public class Bursar
 
     public virtual Bursar Post(decimal nAmount = default)
     {
-        this.nTotal += nAmount;
+        nTotal += nAmount;
         return this;
     }
 }

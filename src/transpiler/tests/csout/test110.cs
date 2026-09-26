@@ -23,7 +23,7 @@ public class BlockTally
 
     public virtual BlockTally Punch()
     {
-        this.nPunches++;
+        nPunches++;
         return this;
     }
 }

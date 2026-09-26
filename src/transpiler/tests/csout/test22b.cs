@@ -12,19 +12,19 @@ public class Names
 
     public virtual Names New()
     {
-        this.cAll = "";
+        cAll = "";
         return this;
     }
 
     public virtual Names Add(string cValue = default)
     {
-        this.cAll = this.cAll + cValue + " ";
+        cAll = cAll + cValue + " ";
         return this;
     }
 
     public virtual Names Show()
     {
-        HbRuntime.QOut("all=" + this.cAll);
+        HbRuntime.QOut("all=" + cAll);
         return this;
     }
 }

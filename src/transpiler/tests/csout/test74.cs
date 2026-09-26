@@ -40,7 +40,7 @@ public class Test74Holder
 
     public virtual string Identify()
     {
-        return "Test74Holder:" + this.cTag;
+        return "Test74Holder:" + cTag;
     }
 }
 

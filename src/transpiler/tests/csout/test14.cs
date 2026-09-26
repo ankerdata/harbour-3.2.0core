@@ -23,12 +23,12 @@ public class Animal
 
     public virtual string Speak()
     {
-        return this.cName + " says: " + this.cSound;
+        return cName + " says: " + cSound;
     }
 
     public virtual string Describe()
     {
-        return this.cName + " has " + HbRuntime.Str(this.nLegs) + " legs";
+        return cName + " has " + HbRuntime.Str(nLegs) + " legs";
     }
 }
 
@@ -47,7 +47,7 @@ public class Dog : Animal
 
     public virtual dynamic DescribeFull()
     {
-        return this.Describe() + " (" + this.cBreed + ")";
+        return Describe() + " (" + cBreed + ")";
     }
 }
 

@@ -48,7 +48,7 @@ public static partial class Program
 
     public static long Twice120(long iValue = default)
     {
-        long iResult = (long)(iValue * 2);
+        long iResult = iValue * 2;
         test120_siCalls120++;
         return iResult;
     }

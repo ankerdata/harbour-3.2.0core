@@ -33,7 +33,7 @@ public class Sconce
     public virtual Sconce New(Lantern oLight = default, string cRoom = default)
     {
         this.oLight = oLight;
-        this.cLabel = cRoom + "/" + HbRuntime.LTrim(HbRuntime.Str(oLight.nLumens));
+        cLabel = cRoom + "/" + HbRuntime.LTrim(HbRuntime.Str(oLight.nLumens));
         return this;
     }
 }

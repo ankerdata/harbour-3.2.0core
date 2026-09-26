@@ -2,7 +2,8 @@
 #
 # Combines two pieces of information about each known Harbour function:
 #   1. RETTYPE: declared/inferred return type, used by type propagation.
-#               One of STRING NUMERIC LOGICAL DATE ARRAY HASH OBJECT BLOCK
+#               One of STRING NUMERIC INTEGER LOGICAL DATE ARRAY HASH
+#               OBJECT BLOCK (INTEGER: a C# integral return, emitted long)
 #               or "-" if unknown / void / procedure.
 #   2. PREFIX:  namespace to remap calls to. e.g., a function with prefix
 #               "HbRuntime" produces `HbRuntime.NAME(...)` in C#.
@@ -381,11 +382,11 @@ hb_AScan	NUMERIC	HbRuntime
 hb_At	NUMERIC	HbRuntime
 HB_ATI	NUMERIC	-
 hb_ATokens	ARRAY	HbRuntime
-hb_bitAnd	NUMERIC	HbRuntime
-hb_bitNot	NUMERIC	HbRuntime
-hb_bitOr	NUMERIC	HbRuntime
-hb_bitShift	NUMERIC	HbRuntime
-hb_bitXor	NUMERIC	HbRuntime
+hb_bitAnd	INTEGER	HbRuntime
+hb_bitNot	INTEGER	HbRuntime
+hb_bitOr	INTEGER	HbRuntime
+hb_bitShift	INTEGER	HbRuntime
+hb_bitXor	INTEGER	HbRuntime
 hb_BLeft	STRING	HbRuntime
 hb_BLen	NUMERIC	HbRuntime
 hb_BSubStr	STRING	HbRuntime
@@ -708,7 +709,7 @@ Space	STRING	HbRuntime
 Sqrt	NUMERIC	HbRuntime
 SToD	DATE	HbRuntime
 Str	STRING	HbRuntime
-StrCmp	NUMERIC	HbRuntime
+StrCmp	INTEGER	HbRuntime
 STRFORMAT	STRING	-
 STRSWAP	STRING	-
 StrTran	STRING	HbRuntime

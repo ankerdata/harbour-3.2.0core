@@ -239,6 +239,7 @@ static HB_BOOL hb_csSendMemberIsInteger( PHB_EXPR pSend );
    Harbour terms, but the C#-side types still disagree (Len() returns
    decimal). Reads need nothing — int widens implicitly. */
 static HB_BOOL hb_csVarIsInteger( const char * szName );
+static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr );
 
 static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
 {
@@ -246,9 +247,12 @@ static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
        pExpr->value.asNum.NumType == HB_ET_LONG )
       return HB_FALSE;
 
-   /* a long already: an `i` name, a Pass 2.5 local, an integral static */
+   /* a long already: an `i` name, a Pass 2.5 local, an integral static,
+      a call returning long, integral arithmetic over those */
    if( pExpr && pExpr->ExprType == HB_ET_VARIABLE &&
        hb_csVarIsInteger( pExpr->value.asSymbol.name ) )
+      return HB_FALSE;
+   if( hb_csExprIsCsIntegral( pExpr ) )
       return HB_FALSE;
 
    /* An ORM def-class field access whose generated model property is
@@ -314,8 +318,16 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember );
      - int/long #define consts (defines map)
      - ORM def-class int/long fields (fieldtypes map)
      - `as int` members of the current class
+     - a call or a method whose return is long: hbfuncs.tab's INTEGER
+       rows (the hb_bit* family) and the program's own routines typed
+       INTEGER (one returning an `i` local, a bit setter) — without
+       this `hb_bitAnd( n, m ) / 2` and `GetFlagI( c ) / 2` divided as
+       integers
      - +,-,*,%,unary over integral operands (C# int arithmetic stays
        int); / and ^ excluded — they emit decimal-producing forms. */
+static const char * hb_csExprCsType( PHB_EXPR pExpr );
+static HB_BOOL hb_csCsTypeIs( const char * szCs, const char * szWant );
+
 static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
 {
    if( ! pExpr )
@@ -358,9 +370,14 @@ static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
                }
             }
             /* user-class members declared AS INTEGER */
-            return hb_csSendMemberIsInteger( pExpr );
+            if( hb_csSendMemberIsInteger( pExpr ) )
+               return HB_TRUE;
          }
-         return HB_FALSE;
+         /* a method returning long, on any receiver the probe resolves */
+         return hb_csCsTypeIs( hb_csExprCsType( pExpr ), "long" );
+
+      case HB_ET_FUNCALL:
+         return hb_csCsTypeIs( hb_csExprCsType( pExpr ), "long" );
 
       case HB_EO_PLUS:
       case HB_EO_MINUS:
@@ -866,6 +883,37 @@ static const char * hb_csResolveLocal( const char * szName )
    return NULL;
 }
 
+/* The codeblock parameters in scope where an expression is being emitted:
+   `{|nX| ... }` is a lambda whose `nX` a bare member name would bind to.
+   Pushed and popped around each codeblock (HB_ET_CODEBLOCK). */
+#define HB_CS_MAXCBSCOPE 32
+static PHB_CBVAR s_apCbScope[ HB_CS_MAXCBSCOPE ];
+static int       s_iCbScope = 0;
+
+static HB_BOOL hb_csIsMethodLocal( const char * szName );
+
+/* A member of the class being emitted is written bare (`nCount`, not
+   `this.nCount`) unless the bare name would mean something else in C#
+   here: a parameter or local of the method, a codeblock parameter in
+   scope, a PUBLIC or a file MEMVAR (both are referenced bare). Then it
+   keeps `this.` (Alex: `this.` only where it disambiguates). */
+static HB_BOOL hb_csMemberNeedsThis( const char * szName )
+{
+   int i;
+   if( ! szName || hb_csResolveLocal( szName ) || hb_csIsMethodLocal( szName ) )
+      return HB_TRUE;
+   for( i = 0; i < s_iCbScope && i < HB_CS_MAXCBSCOPE; i++ )
+   {
+      PHB_CBVAR pVar;
+      for( pVar = s_apCbScope[ i ]; pVar; pVar = pVar->pNext )
+         if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+            return HB_TRUE;
+   }
+   if( s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) )
+      return HB_TRUE;
+   return hb_csIsFileMemvar( szName );
+}
+
 /* True if szName is declared as a method-level local (HB_AST_LOCAL) in
    the current function body. Used by HB_AST_FOREACH emit to detect the
    shadow case where a loop variable reuses an already-declared local —
@@ -1212,9 +1260,12 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember )
                 pMember->value.asClassData.szName &&
                 hb_stricmp( pMember->value.asClassData.szName,
                             szMember ) == 0 )
-               return pMember->value.asClassData.szType &&
-                      hb_stricmp( hb_csTypeMap(
-                         pMember->value.asClassData.szType ), "long" ) == 0;
+               /* declared `AS INTEGER` (or `as int`), or undeclared and
+                  an `i` name, which the prefix makes long */
+               return hb_stricmp( hb_csTypeMap(
+                         pMember->value.asClassData.szType
+                            ? pMember->value.asClassData.szType
+                            : hb_astInferType( szMember, NULL ) ), "long" ) == 0;
          }
          return HB_FALSE;
       }
@@ -1709,12 +1760,19 @@ static void hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
       {
          char szType[ 96 ], szName[ 96 ];
          const HB_REFPARAM * pP = hb_csCallParam( szFunc, iArg );
+         const char * szSlot = hb_csShimSlotType( pP, szType, sizeof( szType ) );
+         PHB_EXPR pTarget = pArg->ExprType == HB_ET_REFERENCE
+            ? pArg->value.asReference : pArg;
+         /* A long slot (an `i` parameter) seeded from a Harbour number:
+            the same coercion the write-back gives the other direction */
+         HB_BOOL fIntCast = strncmp( szSlot, "long", 4 ) == 0 &&   /* long, long? */
+                            ! hb_csExprIsCsIntegral( pTarget );
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "%s %s = ",
-                  hb_csShimSlotType( pP, szType, sizeof( szType ) ),
-                  hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ) );
+         fprintf( yyc, "%s %s = %s", szSlot,
+                  hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ),
+                  fIntCast ? "(long)(" : "" );
          hb_csEmitRefTarget( pArg, yyc );
-         fprintf( yyc, ";\n" );
+         fprintf( yyc, "%s;\n", fIntCast ? ")" : "" );
       }
    }
 }
@@ -2469,6 +2527,33 @@ static HB_BOOL hb_csInlineIsParam( const char * szParams, const char * szId )
    return HB_FALSE;
 }
 
+/* True if szId stands in the INLINE text as a word of its own — not a
+   member after `:` or `::` — anywhere: a parameter, a codeblock
+   parameter, a free variable. Case-insensitive, strings not skipped
+   (a match there only keeps a `this.` that was not needed). */
+static HB_BOOL hb_csInlineWordIsFree( const char * p, HB_SIZE nLen,
+                                      const char * szId )
+{
+   HB_SIZE nIdLen = strlen( szId ), i = 0;
+
+   while( i < nLen )
+   {
+      if( hb_csInlineIsIdCh( p[ i ] ) )
+      {
+         HB_SIZE nStart = i;
+         while( i < nLen && hb_csInlineIsIdCh( p[ i ] ) )
+            i++;
+         if( i - nStart == nIdLen &&
+             hb_strnicmp( p + nStart, szId, nIdLen ) == 0 &&
+             ( nStart == 0 || p[ nStart - 1 ] != ':' ) )
+            return HB_TRUE;
+      }
+      else
+         i++;
+   }
+   return HB_FALSE;
+}
+
 static const char * hb_csTranslateInline( const char * szVal,
                                           const char * szParams )
 {
@@ -2640,6 +2725,7 @@ static const char * hb_csTranslateInline( const char * szVal,
          char    szId[ 128 ];
          HB_BOOL fClassVar = HB_FALSE;
          HB_BOOL fDynMember = HB_FALSE;
+         HB_BOOL fBare = HB_FALSE;
          while( nIdEnd < nLen && hb_csInlineIsIdCh( p[ nIdEnd ] ) )
             nIdEnd++;
          if( nIdEnd > nIdStart && ( nIdEnd - nIdStart ) < sizeof( szId ) )
@@ -2650,6 +2736,16 @@ static const char * hb_csTranslateInline( const char * szVal,
             if( ! fClassVar && s_fCurrentClassDynamic &&
                 ! hb_csIsDeclaredMember( s_szCurrentClass, szId ) )
                fDynMember = HB_TRUE;
+            /* written bare, as in a method body, when nothing in the
+               INLINE text takes the name: `INLINE ::cName := cName` keeps
+               its `this.` */
+            fBare = ! fClassVar && ! fDynMember &&
+                    hb_csIsDeclaredMember( s_szCurrentClass, szId ) &&
+                    ! hb_csIsBuiltinObjMsg( szId ) &&
+                    hb_stricmp( szId, "Super" ) != 0 &&
+                    ! hb_csInlineIsParam( szParams, szId ) &&
+                    ! hb_csInlineWordIsFree( p, nLen, szId ) &&
+                    ! hb_csMemberNeedsThis( szId );
          }
          if( fClassVar && strlen( s_szCurrentClass ) < 32 )
          {
@@ -2664,7 +2760,7 @@ static const char * hb_csTranslateInline( const char * szVal,
             memcpy( s_szBuf + nOut, "((dynamic)this).", 16 );
             nOut += 16;
          }
-         else
+         else if( ! fBare )
          {
             memcpy( s_szBuf + nOut, "this.", 5 );
             nOut += 5;
@@ -4425,6 +4521,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             HB_BOOL fViaDynamic = HB_FALSE;
             HB_BOOL fMethodRow  = HB_FALSE;
             HB_BOOL fDataRow    = HB_FALSE;
+            HB_BOOL fBareMember = HB_FALSE;   /* Self:member written without this. */
             if( szRecvClass && s_pRefTab && szMsgIn &&
                 ! hb_csIsBuiltinObjMsg( szMsgIn ) )
             {
@@ -4492,6 +4589,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                            ! hb_csIsBuiltinObjMsg( szMsgIn ) &&
                            ! hb_csIsDeclaredMember( s_szCurrentClass, szMsgIn ) )
                      fprintf( yyc, "((dynamic)this)" );
+                  /* a declared member, not a built-in object message (an
+                     extension method, which needs its receiver), whose
+                     name nothing else in scope takes: written bare */
+                  else if( szMsgIn && szMsgOut &&
+                           ! hb_csIsBuiltinObjMsg( szMsgIn ) &&
+                           hb_stricmp( szMsgIn, "Super" ) != 0 &&
+                           ! hb_csMemberNeedsThis( szMsgOut ) )
+                     fBareMember = HB_TRUE;
                   else
                      fprintf( yyc, "this" );
                }
@@ -4519,7 +4624,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                hb_csEmitExpr( s_pWithObject, yyc, HB_TRUE );
             }
             if( szMsgOut )
-               fprintf( yyc, ".%s", szMsgOut );
+               fprintf( yyc, fBareMember ? "%s" : ".%s", szMsgOut );
             else if( pExpr->value.asMessage.pMessage )
             {
                fprintf( yyc, "." );
@@ -5080,6 +5185,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             PHB_CBVAR pVar = pExpr->value.asCodeblock.pLocals;
             HB_BOOL fVParams =
                ( pExpr->value.asCodeblock.flags & HB_BLOCK_VPARAMS ) != 0;
+            if( s_iCbScope < HB_CS_MAXCBSCOPE )
+               s_apCbScope[ s_iCbScope ] = pVar;
+            s_iCbScope++;
             if( fVParams )
             {
                /* `{|...| body}` — emit as a Func<dynamic[], dynamic>
@@ -5175,6 +5283,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );
                fprintf( yyc, "))" );
             }
+            s_iCbScope--;
          }
          break;
 
@@ -7787,6 +7896,10 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                szSlotType = pP->szType;
             if( ! szSlotType )
                szSlotType = hb_astInferType( pVar->szName, NULL );
+            /* the body sees the parameter's type, as a function's does:
+               a write into an `i` parameter is cast, a read of one needs
+               no cast into a long */
+            hb_csLocalTypeSet( pVar->szName, szSlotType );
 
             if( nParam > 0 )
                fprintf( yyc, ", " );

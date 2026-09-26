@@ -160,12 +160,18 @@ def infer_return_type(token: str) -> str | None:
 # in HbRuntime — the C# signature is authoritative for what such a call
 # actually returns. `dynamic`, `void`, delegates and class types map to
 # None (left "-"): `dynamic`/`void` are deliberately untyped, and the rest
-# carry no Harbour-type equivalent worth propagating.
-CS_NUMERIC = {"decimal", "int", "long", "short", "byte", "sbyte",
-              "uint", "ulong", "ushort", "double", "float"}
+# carry no Harbour-type equivalent worth propagating. An integral return
+# is INTEGER, the emitter's long, so what it feeds stays long: a bit setter
+# `RETURN IIF( lx, hb_bitOr(...), hb_bitAnd(...) )` into an AS INTEGER member
+# needs no cast, and a division of it gets the emitter's (decimal). ulong
+# stays NUMERIC: C# cannot hand it to a long implicitly.
+CS_INTEGRAL = {"int", "long", "short", "byte", "sbyte", "uint", "ushort"}
+CS_NUMERIC = {"decimal", "ulong", "double", "float"}
 
 def cs_return_to_harbour(cs: str) -> str | None:
     base = cs.strip().rstrip("?").strip()
+    if base in CS_INTEGRAL:
+        return "INTEGER"
     if base in CS_NUMERIC:
         return "NUMERIC"
     if base == "string":
@@ -312,7 +318,8 @@ HEADER = """\
 #
 # Combines two pieces of information about each known Harbour function:
 #   1. RETTYPE: declared/inferred return type, used by type propagation.
-#               One of STRING NUMERIC LOGICAL DATE ARRAY HASH OBJECT BLOCK
+#               One of STRING NUMERIC INTEGER LOGICAL DATE ARRAY HASH
+#               OBJECT BLOCK (INTEGER: a C# integral return, emitted long)
 #               or "-" if unknown / void / procedure.
 #   2. PREFIX:  namespace to remap calls to. e.g., a function with prefix
 #               "HbRuntime" produces `HbRuntime.NAME(...)` in C#.

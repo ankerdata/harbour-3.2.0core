@@ -31,7 +31,7 @@ public static partial class Program
         }
 
         // integral arithmetic keeps int
-        nIdx = (long)(nIdx + 2);
+        nIdx = nIdx + 2;
         HbRuntime.QOut("a=", aItems[nIdx - 1]);
         HbRuntime.QOut("b=", aItems[nLast - 1]);
         // decimal index — cast path
@@ -54,7 +54,7 @@ public static partial class Program
 
         while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[nPos - 1]))
         {
-            nPos = (long)(nPos + 1);
+            nPos = nPos + 1;
         }
 
         return nPos;

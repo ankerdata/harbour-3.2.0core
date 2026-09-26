@@ -24,19 +24,19 @@ public class Numbers
 
     public virtual Numbers New()
     {
-        this.nTotal = 0;
+        nTotal = 0;
         return this;
     }
 
     public virtual Numbers Add(decimal nValue = default)
     {
-        this.nTotal = this.nTotal + nValue;
+        nTotal = nTotal + nValue;
         return this;
     }
 
     public virtual Numbers Show()
     {
-        HbRuntime.QOut("total=" + HbRuntime.Str(this.nTotal));
+        HbRuntime.QOut("total=" + HbRuntime.Str(nTotal));
         return this;
     }
 }

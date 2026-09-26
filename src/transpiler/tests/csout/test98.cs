@@ -30,8 +30,8 @@ public class Ledger
 
     public virtual long Add(decimal nQty = default)
     {
-        this.nCovers += (long)(HbRuntime.Int(nQty));
-        return this.nCovers;
+        nCovers += (long)(HbRuntime.Int(nQty));
+        return nCovers;
 
         /* NUMERIC return with a by-ref parameter: the caller's assignment is
    emitted inside the shim block. */
@@ -57,7 +57,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Ledger oLedger = new Ledger();
-        long nResult = (long)(Test98PrgConst.LAMP_OFF);
+        long nResult = Test98PrgConst.LAMP_OFF;
         string cOut = "";
         dynamic[] aList = new dynamic[] { "a", "b", "c" };
         string cAll = "";

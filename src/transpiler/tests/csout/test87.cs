@@ -28,7 +28,7 @@ public class Thing
 
     public virtual Thing Bump(decimal nBy = 1)
     {
-        this.nCount += nBy;
+        nCount += nBy;
         return this;
     }
 }

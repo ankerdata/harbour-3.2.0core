@@ -2398,9 +2398,17 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                      if( hb_refTabParamCount( pTab, szDKey ) < 0 )
                         hb_refTabAddFunc( pTab, szDKey, 0, NULL, NULL, HB_FALSE );
                   }
-                  if( ! pMember->value.asClassData.szType )
-                     continue;
                   szT = pMember->value.asClassData.szType;
+                  /* an undeclared `i` member is long by its prefix, as the
+                     emitter declares it: callers outside the class need to
+                     know, or a decimal written into it goes uncast */
+                  if( ! szT && pMember->value.asClassData.szName &&
+                      hb_stricmp( hb_astInferType(
+                         pMember->value.asClassData.szName, NULL ),
+                                  "INTEGER" ) == 0 )
+                     szT = "INTEGER";
+                  if( ! szT )
+                     continue;
 
                   if( hb_stricmp( szT, "INTEGER" ) == 0 ||
                       hb_stricmp( szT, "int" ) == 0 )

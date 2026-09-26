@@ -21,30 +21,30 @@ using static Program;
 public class Bin
 {
     protected dynamic[] aItems = System.Array.Empty<dynamic>();
-    public dynamic Peak { get { return this.Last(); } set { dynamic xNew = value; this.Pop(); this.Push( xNew ) ; } }
+    public dynamic Peak { get { return Last(); } set { dynamic xNew = value; Pop(); Push( xNew ) ; } }
     
-    public dynamic Len => this.Heft();
+    public dynamic Len => Heft();
     public virtual dynamic Push(dynamic xItem = default)
     {
-        HbRuntime.AAdd(ref this.aItems, xItem);
+        HbRuntime.AAdd(ref aItems, xItem);
         return xItem;
     }
 
     public virtual dynamic Pop()
     {
-        dynamic xLast = this.Last();
-        HbRuntime.ASize(ref this.aItems, HbRuntime.Len(this.aItems) - 1);
+        dynamic xLast = Last();
+        HbRuntime.ASize(ref aItems, HbRuntime.Len(aItems) - 1);
         return xLast;
     }
 
     public virtual dynamic Last()
     {
-        return this.aItems[(long)(HbRuntime.Len(this.aItems)) - 1];
+        return aItems[(long)(HbRuntime.Len(aItems)) - 1];
     }
 
     public virtual decimal Heft()
     {
-        return HbRuntime.Len(this.aItems);
+        return HbRuntime.Len(aItems);
     }
 }
 

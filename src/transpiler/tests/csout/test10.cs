@@ -10,14 +10,14 @@ public class MyObj
 
     public virtual MyObj New()
     {
-        this.nValue = 0;
+        nValue = 0;
         return this;
     }
 
     public virtual MyObj SetValue(decimal nVal = default)
     {
-        this.nValue = nVal;
-        HbRuntime.QOut("nValue=" + HbRuntime.Str(this.nValue));
+        nValue = nVal;
+        HbRuntime.QOut("nValue=" + HbRuntime.Str(nValue));
         return this;
     }
 }

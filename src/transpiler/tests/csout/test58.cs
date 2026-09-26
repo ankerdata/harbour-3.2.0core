@@ -36,7 +36,7 @@ public class Counter
         // CLASS VAR: becomes Counter.nTotal
         Counter.nTotal = Counter.nTotal + 1;
         // instance:  stays this.nLocal
-        this.nLocal = this.nLocal + 1;
+        nLocal = nLocal + 1;
         return this;
     }
 }

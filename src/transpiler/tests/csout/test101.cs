@@ -36,7 +36,7 @@ public class Voyage
 
     public virtual DateOnly Arrival(decimal nDays = default)
     {
-        return this.dDepart.AddDays((int)(nDays));
+        return dDepart.AddDays((int)(nDays));
     }
 }
 

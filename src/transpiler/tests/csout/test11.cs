@@ -10,32 +10,32 @@ public class Calculator
 
     public virtual Calculator New()
     {
-        this.nResult = 0;
+        nResult = 0;
         return this;
     }
 
     public virtual Calculator Add(decimal nValue = default)
     {
-        this.nResult = this.nResult + nValue;
-        HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
+        nResult = nResult + nValue;
+        HbRuntime.QOut("nResult=" + HbRuntime.Str(nResult));
         return this;
     }
 
     public virtual decimal GetResult()
     {
-        return this.nResult;
+        return nResult;
     }
 
     public virtual void Reset()
     {
-        this.nResult = 0;
-        HbRuntime.QOut("nResult=" + HbRuntime.Str(this.nResult));
+        nResult = 0;
+        HbRuntime.QOut("nResult=" + HbRuntime.Str(nResult));
         return;
     }
 
     public virtual void Display(string cLabel = default)
     {
-        HbRuntime.QOut(cLabel + ": " + HbRuntime.Str(this.nResult));
+        HbRuntime.QOut(cLabel + ": " + HbRuntime.Str(nResult));
         return;
     }
 }

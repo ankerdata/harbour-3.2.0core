@@ -42,9 +42,9 @@ public class Widget
 
     public virtual dynamic Fire()
     {
-        if (this.fHook != null)
+        if (fHook != null)
         {
-            HbRuntime.QOut("fire: " + HbRuntime.Eval(this.fHook, this.cLabel));
+            HbRuntime.QOut("fire: " + HbRuntime.Eval(fHook, cLabel));
         }
 
         return null;

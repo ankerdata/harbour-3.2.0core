@@ -37,9 +37,9 @@ public class Box
 
     public virtual decimal Widen(decimal? nBy = null)
     {
-        decimal nBy_ = nBy ?? this.nSize * 2;
-        this.nSize += nBy_;
-        return this.nSize;
+        decimal nBy_ = nBy ?? nSize * 2;
+        nSize += nBy_;
+        return nSize;
     }
 }
 

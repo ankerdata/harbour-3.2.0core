@@ -20,18 +20,18 @@ public class Shelf
 {
     protected dynamic[] aItems = System.Array.Empty<dynamic>();
 
-    public dynamic Len => this.StackLen();
-    public dynamic Size => this.StackLen();
-    public dynamic Init() { this.aItems = System.Array.Empty<dynamic>(); return this ; }
+    public dynamic Len => StackLen();
+    public dynamic Size => StackLen();
+    public dynamic Init() { aItems = System.Array.Empty<dynamic>(); return this ; }
     public virtual dynamic Stow(dynamic xItem = default)
     {
-        HbRuntime.AAdd(ref this.aItems, xItem);
+        HbRuntime.AAdd(ref aItems, xItem);
         return xItem;
     }
 
     public virtual decimal StackLen()
     {
-        return HbRuntime.Len(this.aItems);
+        return HbRuntime.Len(aItems);
     }
 }
 
