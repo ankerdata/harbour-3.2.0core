@@ -563,6 +563,20 @@ public static partial class HbRuntime
         }
     }
 
+    // hb_socketSelectRead( <pSocket>, [<nTimeout>] ): 1 when a receive (or an
+    // accept) would not wait — data came, or the other end closed and the
+    // receive gives 0 — 0 when the timeout passed first, -1 on an error.
+    // hbsockhb.c goes through hb_sockexCanRead(), whose raw socket has no
+    // buffer of its own, to hb_socketSelectRead(); a timeout is not an error.
+    public static decimal hb_socketSelectRead(object? pSocket, decimal? nTimeout = null) =>
+        SockSelect(SockParam(pSocket, "HB_SOCKETSELECTREAD").sd!, SelectMode.SelectRead,
+                   SockTimeout(nTimeout)) switch
+        {
+            SockWait.Ready => 1,
+            SockWait.TimedOut => 0,
+            _ => SockFailed,
+        };
+
     // hb_socketRecv( <pSocket>, @<cBuffer>, [<nLen>], [<nFlags>], [<nTimeout>] ):
     // read at most Len( cBuffer ) (or nLen, when less) bytes over the start
     // of cBuffer, which keeps its length. How many came; 0 when the other

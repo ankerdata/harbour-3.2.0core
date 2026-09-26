@@ -23,7 +23,7 @@ STATIC FUNCTION Muster( cA AS STRING, cB AS STRING, cC AS STRING ) AS STRING
 
 RETURN cOut
 
-FUNCTION Convoy( cFirst AS STRING, cSecond AS STRING )
+FUNCTION Convoy( cFirst AS STRING, cSecond AS STRING ) AS STRING
 
 RETURN "convoy=" + LTrim(Str(PCount())) + ":" + IIF(PCount() >= 2, cSecond, cFirst)
 

@@ -516,6 +516,7 @@ static HB_BOOL hb_refTabIsValueTypeHungarian( const char * szName )
    switch( szName[ 0 ] )
    {
       case 'n': case 'N':   /* numeric */
+      case 'i': case 'I':   /* integer */
       case 'l': case 'L':   /* logical */
       case 'd': case 'D':   /* date    */
       case 't': case 'T':   /* datetime */
@@ -617,6 +618,14 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
          hb_stricmp( szNewType, "INTEGER" ) == 0;
       if( fNumSlot && fNumNew )
       {
+         /* An `i` name is the callee saying the number is whole: its
+            slot stays INTEGER (C# long), and a caller's decimal is cast
+            at the call (hb_csEmitCallArgs), as a write into an `i`
+            local is. */
+         if( hb_stricmp( pParam->szType, "INTEGER" ) == 0 &&
+             pParam->szName &&
+             hb_stricmp( hb_astInferType( pParam->szName, NULL ), "INTEGER" ) == 0 )
+            return HB_REFINE_OK;
          if( hb_stricmp( pParam->szType, "NUMERIC" ) != 0 )
          {
             char * szDup = hb_refTabDup( "NUMERIC" );

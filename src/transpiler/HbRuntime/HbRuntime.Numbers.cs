@@ -236,8 +236,9 @@ public static partial class HbRuntime
     // Harbour bit ops (rtl/hbbit.c). hb_bitAnd / hb_bitOr / hb_bitXor are
     // variadic; every operand is a number truncated to 64 bits (hb_parnint:
     // 7.9 is 7, where Convert.ToInt64 would round it to 8), anything else
-    // an argument error. The result stays long so callers can compare it
-    // to an int/long/decimal mask (`hb_bitAnd(nFlags, MASK) == MASK`).
+    // an argument error. The result is a long, declared so, which gives the
+    // callers a type (hbfuncs.tab NUMERIC) and still compares with an
+    // int/long/decimal mask (`hb_bitAnd(nFlags, MASK) == MASK`).
     static long BitOperand(object x, string cFunc) => x switch
     {
         long l => l,
@@ -248,19 +249,19 @@ public static partial class HbRuntime
         _ => throw new ArgumentException("Argument error (" + cFunc + ")")
     };
 
-    public static dynamic hb_bitAnd(params dynamic[] args)
+    public static long hb_bitAnd(params dynamic[] args)
     {
         long r = ~0L;
         foreach (var a in args) r &= BitOperand((object)a, "HB_BITAND");
         return r;
     }
-    public static dynamic hb_bitOr(params dynamic[] args)
+    public static long hb_bitOr(params dynamic[] args)
     {
         long r = 0L;
         foreach (var a in args) r |= BitOperand((object)a, "HB_BITOR");
         return r;
     }
-    public static dynamic hb_bitXor(params dynamic[] args)
+    public static long hb_bitXor(params dynamic[] args)
     {
         long r = 0L;
         foreach (var a in args) r ^= BitOperand((object)a, "HB_BITXOR");
@@ -268,11 +269,11 @@ public static partial class HbRuntime
     }
 
     // hb_bitNot( <n> ): every bit inverted
-    public static dynamic hb_bitNot(dynamic n) => ~BitOperand((object)n, "HB_BITNOT");
+    public static long hb_bitNot(dynamic n) => ~BitOperand((object)n, "HB_BITNOT");
 
     // hb_bitShift( <n>, <nBits> ): left for a positive count, right
     // (arithmetic, the sign kept) for a negative one
-    public static dynamic hb_bitShift(dynamic n, dynamic nBits)
+    public static long hb_bitShift(dynamic n, dynamic nBits)
     {
         long l = BitOperand((object)n, "HB_BITSHIFT");
         long b = BitOperand((object)nBits, "HB_BITSHIFT");

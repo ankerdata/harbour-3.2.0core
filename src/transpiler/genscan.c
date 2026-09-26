@@ -23,7 +23,7 @@
 #include "hbdefinemap.h"
 
 /* Hungarian-prefix gate. Names are acceptable when:
-     - first character is a recognised type prefix (n/c/l/a/o/d/h/b/t/p)
+     - first character is a recognised type prefix (n/i/c/l/a/o/d/h/b/t/p)
        followed by an uppercase letter — standard Hungarian.
      - first character is `x` / `X` — explicit "USUAL" / variant.
    Anything else is flagged with W0021 so the source can be cleaned up.
@@ -34,7 +34,7 @@ static HB_BOOL hb_csCheckIsHungarianChar( char c )
 {
    switch( c )
    {
-      case 'n': case 'c': case 'l': case 'a': case 'o':
+      case 'n': case 'i': case 'c': case 'l': case 'a': case 'o':
       case 'd': case 'h': case 'b': case 't': case 'p':
       case 'f':                              /* function pointer */
          return HB_TRUE;

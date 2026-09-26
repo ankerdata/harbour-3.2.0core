@@ -75,7 +75,7 @@ public class BigMug : Mug
 
 public static partial class Program
 {
-    public static dynamic Handles(Mug oMug = default)
+    public static decimal Handles(Mug oMug = default)
     {
         return (oMug.nSize > 1 ? ((dynamic)oMug).nHandles : 1);
     }

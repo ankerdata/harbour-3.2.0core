@@ -50,7 +50,13 @@ PROCEDURE Main_SOCKETS()
    TEST_CALL( "own_sockets_mt:74", 'BadAddress( "localhost" )', {|| BadAddress( "localhost" ) }, "argument error in HB_SOCKETCONNECT", .F., NIL )
    TEST_CALL( "own_sockets_mt:75", 'BadAddress( "1.2.3" )', {|| BadAddress( "1.2.3" ) }, "argument error in HB_SOCKETCONNECT", .F., NIL )
 
-   TEST_CALL( "own_sockets_mt:77", "ValType( hb_inetCleanup() )", {|| ValType( hb_inetCleanup() ) }, "U", .F., NIL )
+
+
+
+   TEST_CALL( "own_sockets_mt:80", "SelectRead()", {|| SelectRead() }, "1 5 0 OK 1 0", .F., NIL )
+   TEST_CALL( "own_sockets_mt:81", "SelectClosed()", {|| SelectClosed() }, "argument error in HB_SOCKETSELECTREAD", .F., NIL )
+
+   TEST_CALL( "own_sockets_mt:83", "ValType( hb_inetCleanup() )", {|| ValType( hb_inetCleanup() ) }, "U", .F., NIL )
 
    RETURN
 
@@ -275,6 +281,43 @@ STATIC FUNCTION ErrorText( oError )
 
 
    RETURN "genCode " + hb_ntos( oError:genCode ) + ", subCode " + hb_ntos( oError:subCode ) +  " in " + oError:operation
+
+
+
+
+STATIC FUNCTION SelectRead()
+
+   LOCAL pMtx := hb_mutexCreate()
+   LOCAL pListen := Listener( 51749 )
+   LOCAL pThread := hb_threadStart( @Server(), pListen, "hello", pMtx )
+   LOCAL pSocket := Connected( 51749 )
+   LOCAL cBuffer := Space( 10 )
+   LOCAL cResult
+
+   cResult := hb_ntos( hb_socketSelectRead( pSocket, 5000 ) )
+   cResult += " " + hb_ntos( hb_socketRecv( pSocket, @cBuffer, , , 5000 ) )
+   cResult += " " + hb_ntos( hb_socketSelectRead( pSocket, 50 ) ) + " " + hb_socketErrorString()
+   hb_mutexNotify( pMtx )
+   cResult += " " + hb_ntos( hb_socketSelectRead( pSocket, 5000 ) )
+   cResult += " " + hb_ntos( hb_socketRecv( pSocket, @cBuffer, , , 5000 ) )
+   hb_socketClose( pSocket )
+   hb_threadWait( pThread, 5 )
+   hb_socketClose( pListen )
+
+   RETURN cResult
+
+STATIC FUNCTION SelectClosed()
+
+   LOCAL pSocket := hb_socketOpen()
+   LOCAL oError
+
+   hb_socketClose( pSocket )
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      hb_socketSelectRead( pSocket, 0 )
+   RECOVER USING oError
+   end
+
+   RETURN ErrorText( oError )
 
 
 PROCEDURE Main()

@@ -761,7 +761,7 @@ code exercises them.
 See [test18.prg](tests/test18.prg) for the full demo.
 
 **Strict value slots.** The `N` flag is refused for a value-typed
-Hungarian parameter — `n`/`l`/`d`/`t` — even when the body has a NIL
+Hungarian parameter — `n`/`i`/`l`/`d`/`t` — even when the body has a NIL
 guard (`hb_refTabSetNilable`). The name is the type contract: such a
 parameter is a number / logical / date, never NIL, and making it `T?`
 put a `decimal? → decimal` CS1503 on every typed call site downstream.
@@ -823,11 +823,17 @@ single variable's C# type is decided, from the weakest evidence to the
 strongest. Later rungs override earlier ones.
 
 1. **The Hungarian prefix** is the default for every local, parameter
-   and member: `n` `decimal`, `c` `string`, `l` `bool`, `d` `DateOnly`,
+   and member: `n` `decimal`, `i` `long` (a whole number: a count, an
+   index, an integer flag), `c` `string`, `l` `bool`, `d` `DateOnly`,
    `t` `DateTime`, `a` `dynamic[]`, `h` `OrderedDictionary<string, dynamic>`,
    `o` the class of that name when one exists (`oTransaction` →
    `Transaction`) and `dynamic` otherwise, `x` `dynamic` on purpose.
    A name that lies about its contents is a bug (W0021 / W0024).
+   An `i` name is the prefix that also beats a numeric initialiser
+   (`local iLen := Len( a )` is `long`); a decimal written into one, or
+   passed to an `i` parameter, is cast `(long)`, and a value that may
+   hold a fraction — a division, a power, a literal with decimals — is
+   W0024, so the source says `Int()` (test120).
 2. **A declaration** overrides the prefix: `AS INTEGER` is `long` and
    is the only integral annotation; `AS <type>`; a `VAR o<Class>`
    member is name-seeded to that class.
@@ -1437,6 +1443,8 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
+| 119       | An `IIF()` is the type its two branches share, as C#'s `? :` is: two numbers a number (a whole one beside a decimal widens), two strings a string, the hash family merged; a NIL branch or two unrelated types still dynamic. settflag's and buffflag's 100 bit setters, `RETURN IIF( lx, hb_bitOr(…), hb_bitAnd(…) )`, had all returned dynamic |
+| 120       | The `i` prefix: a whole number, C# `long`, for a local, a static, a parameter and a return, whatever number initialises it; a decimal assigned or passed to one is cast, an `i` or other integral variable is not |
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 

@@ -238,6 +238,7 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
  *
  * Prefixes:
  *   n  -> NUMERIC
+ *   i  -> INTEGER (C# long: a whole number, said so by the name)
  *   c  -> STRING
  *   l  -> LOGICAL
  *   a  -> ARRAY
@@ -253,6 +254,7 @@ static const char * hb_astTypeForPrefixChar( char c )
    switch( c )
    {
       case 'n': return "NUMERIC";
+      case 'i': return "INTEGER";
       case 'c': return "STRING";
       case 'l': return "LOGICAL";
       case 'a': return "ARRAY";
@@ -598,6 +600,22 @@ static const char * hb_astInferFromPrefix( const char * szName )
    return NULL;
 }
 
+/* An `i` name is a whole number whatever number initialises it:
+   `local iCount := 0` and `local iLen := Len( a )` are INTEGER (C# long),
+   where for any other name the initializer's NUMERIC wins. The emitter
+   casts a decimal initializer, as for a Pass 2.5 local. */
+static const char * hb_astIntegerByName( const char * szName,
+                                         const char * szType )
+{
+   if( szType && hb_stricmp( szType, "NUMERIC" ) == 0 )
+   {
+      const char * szPrefix = hb_astInferFromPrefix( szName );
+      if( szPrefix && hb_stricmp( szPrefix, "INTEGER" ) == 0 )
+         return szPrefix;
+   }
+   return szType;
+}
+
 /*
  * Main type inference function.
  *
@@ -614,7 +632,7 @@ const char * hb_astInferType( const char * szName, PHB_EXPR pInit )
    /* 1. Try to infer from initializer expression */
    szType = hb_astInferFromExpr( pInit );
    if( szType )
-      return szType;
+      return hb_astIntegerByName( szName, szType );
 
    /* 2. Try Hungarian notation prefix */
    szType = hb_astInferFromPrefix( szName );
@@ -1099,6 +1117,38 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
       case HB_EO_EXPEQ:
          /* Compound assignment — type of variable */
          return hb_astInferExprType( pExpr->value.asOperator.pLeft, pEnv );
+
+      case HB_ET_IIF:
+      {
+         /* IIF( cond, a, b ) is the type its two branches share, as C#'s
+            `cond ? a : b` is: settflag's and buffflag's 100 setters are
+            `RETURN IIF( lx, hb_bitOr(...), hb_bitAnd(...) )` and returned
+            dynamic. The branches merge as disagreeing RETURNs do
+            (hb_astCollectReturnTypes) but for classes: INTEGER beside
+            NUMERIC is NUMERIC (C# widens long to decimal), the HASH family
+            merges; anything else unequal, NIL included, says nothing. */
+         PHB_EXPR pCond = pExpr->value.asList.pExprList;
+         PHB_EXPR pTrue = pCond ? pCond->pNext : NULL;
+         PHB_EXPR pFalse = pTrue ? pTrue->pNext : NULL;
+         const char * szTrue, * szFalse, * szHash;
+
+         if( ! pFalse )
+            return NULL;
+         szTrue = hb_astInferExprType( pTrue, pEnv );
+         if( ! szTrue )
+            return NULL;
+         szFalse = hb_astInferExprType( pFalse, pEnv );
+         if( ! szFalse )
+            return NULL;
+         if( strcmp( szTrue, szFalse ) == 0 )
+            return szTrue;
+         if( ( strcmp( szTrue, "INTEGER" ) == 0 || strcmp( szTrue, "NUMERIC" ) == 0 ) &&
+             ( strcmp( szFalse, "INTEGER" ) == 0 || strcmp( szFalse, "NUMERIC" ) == 0 ) )
+            return "NUMERIC";
+         if( ( szHash = hb_astHashFamilyMerge( szTrue, szFalse ) ) != NULL )
+            return szHash;
+         return NULL;
+      }
 
       case HB_ET_FUNCALL:
          /* Infer return types for known functions:
@@ -3426,6 +3476,24 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
       for the numeric family: INTEGER is a refinement of NUMERIC. */
    if( hb_astHashFamilyMerge( szLhs, szRhs ) )
       return;
+   /* An `i` name promises a whole number, and the emitter's (long) cast
+      would drop what Harbour keeps: a division, a power or a literal
+      with decimals may hold a fraction, so the source says Int() (or
+      Round()) where it means one. Any other number is taken at its word. */
+   if( hb_stricmp( szLhs, "INTEGER" ) == 0 &&
+       ( pRHS->ExprType == HB_EO_DIV || pRHS->ExprType == HB_EO_POWER ||
+         ( pRHS->ExprType == HB_ET_NUMERIC &&
+           pRHS->value.asNum.NumType == HB_ET_DOUBLE ) ) )
+   {
+      if( ! hb_astHungSeen( iLine, szName ) )
+         fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0024  "
+                  "assigning a value that may hold a fraction to '%s' "
+                  "contradicts its Hungarian-prefix type INTEGER\n",
+                  hb_strCollapsePath( szFile ? szFile : "?" ),
+                  iLine, szName );
+      return;
+   }
    if( ( hb_stricmp( szLhs, "NUMERIC" ) == 0 ||
          hb_stricmp( szLhs, "INTEGER" ) == 0 ) &&
        ( hb_stricmp( szRhs, "NUMERIC" ) == 0 ||
@@ -3631,7 +3699,8 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                                   pStmt->value.asVar.pInit, &env, szFile,
                                   pStmt->iLine );
          if( pStmt->value.asVar.pInit )
-            szType = hb_astInferExprType( pStmt->value.asVar.pInit, &env );
+            szType = hb_astIntegerByName( pStmt->value.asVar.szName,
+               hb_astInferExprType( pStmt->value.asVar.pInit, &env ) );
          if( ! szType )
             szType = hb_astInferType( pStmt->value.asVar.szName,
                                       pStmt->value.asVar.pInit );

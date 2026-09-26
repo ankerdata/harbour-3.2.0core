@@ -13,7 +13,7 @@
 // canonical signature (passing @lLog), so all three forms must round
 // trip identically through -GT (Harbour) and -GS (C#).
 
-FUNCTION ErrText65( nCode AS NUMERIC, /*@*/lLog AS LOGICAL, lUpper AS LOGICAL )
+FUNCTION ErrText65( nCode AS NUMERIC, /*@*/lLog AS LOGICAL, lUpper AS LOGICAL ) AS STRING
    // written back -> marks lLog by-ref
    lLog := (nCode > 0)
 RETURN IIF(lUpper == .T., "CODE", "code") + Str(nCode, 2)

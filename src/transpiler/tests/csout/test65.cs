@@ -17,7 +17,7 @@ using static Program;
 // trip identically through -GT (Harbour) and -GS (C#).
 public static partial class Program
 {
-    public static dynamic ErrText65(decimal nCode, ref bool lLog, bool lUpper = default)
+    public static string ErrText65(decimal nCode, ref bool lLog, bool lUpper = default)
     {
         // written back -> marks lLog by-ref
         lLog = (nCode > 0);

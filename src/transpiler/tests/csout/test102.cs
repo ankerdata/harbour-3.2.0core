@@ -35,7 +35,7 @@ public static partial class Program
         return cOut;
     }
 
-    public static dynamic Convoy(params dynamic[] hbva)
+    public static string Convoy(params dynamic[] hbva)
     {
         dynamic cFirst = hbva.Length > 0 ? hbva[0] : null;
         dynamic cSecond = hbva.Length > 1 ? hbva[1] : null;

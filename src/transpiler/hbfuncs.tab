@@ -381,11 +381,11 @@ hb_AScan	NUMERIC	HbRuntime
 hb_At	NUMERIC	HbRuntime
 HB_ATI	NUMERIC	-
 hb_ATokens	ARRAY	HbRuntime
-hb_bitAnd	-	HbRuntime
-hb_bitNot	-	HbRuntime
-hb_bitOr	-	HbRuntime
-hb_bitShift	-	HbRuntime
-hb_bitXor	-	HbRuntime
+hb_bitAnd	NUMERIC	HbRuntime
+hb_bitNot	NUMERIC	HbRuntime
+hb_bitOr	NUMERIC	HbRuntime
+hb_bitShift	NUMERIC	HbRuntime
+hb_bitXor	NUMERIC	HbRuntime
 hb_BLeft	STRING	HbRuntime
 hb_BLen	NUMERIC	HbRuntime
 hb_BSubStr	STRING	HbRuntime
@@ -529,6 +529,7 @@ hb_socketGetError	NUMERIC	HbRuntime
 hb_socketListen	LOGICAL	HbRuntime
 hb_socketOpen	-	HbRuntime
 hb_socketRecv	NUMERIC	HbRuntime
+hb_socketSelectRead	NUMERIC	HbRuntime
 hb_socketSend	NUMERIC	HbRuntime
 hb_socketShutdown	LOGICAL	HbRuntime
 hb_SToD	DATE	HbRuntime

@@ -74,6 +74,12 @@ PROCEDURE Main_SOCKETS()
    HBTEST BadAddress( "localhost" )                   IS "argument error in HB_SOCKETCONNECT"
    HBTEST BadAddress( "1.2.3" )                       IS "argument error in HB_SOCKETCONNECT"
 
+   /* Waiting to read: 1 once data is there, 0 when the timeout passes
+      first, 1 again when the other end closes (the receive then gives 0);
+      a closed handle is the argument error */
+   HBTEST SelectRead()                                IS "1 5 0 OK 1 0"
+   HBTEST SelectClosed()                              IS "argument error in HB_SOCKETSELECTREAD"
+
    HBTEST ValType( hb_inetCleanup() )                 IS "U"
 
    RETURN
@@ -299,3 +305,40 @@ STATIC FUNCTION ErrorText( oError )
 
    RETURN "genCode " + hb_ntos( oError:genCode ) + ", subCode " + hb_ntos( oError:subCode ) + ;
           " in " + oError:operation
+
+/* after the others, so no assertion above moves its id */
+#define PORT_SELECT     51749
+
+STATIC FUNCTION SelectRead()
+
+   LOCAL pMtx := hb_mutexCreate()
+   LOCAL pListen := Listener( PORT_SELECT )
+   LOCAL pThread := hb_threadStart( @Server(), pListen, "hello", pMtx )
+   LOCAL pSocket := Connected( PORT_SELECT )
+   LOCAL cBuffer := Space( 10 )
+   LOCAL cResult
+
+   cResult := hb_ntos( hb_socketSelectRead( pSocket, 5000 ) )
+   cResult += " " + hb_ntos( hb_socketRecv( pSocket, @cBuffer, , , 5000 ) )
+   cResult += " " + hb_ntos( hb_socketSelectRead( pSocket, 50 ) ) + " " + hb_socketErrorString()
+   hb_mutexNotify( pMtx )
+   cResult += " " + hb_ntos( hb_socketSelectRead( pSocket, 5000 ) )
+   cResult += " " + hb_ntos( hb_socketRecv( pSocket, @cBuffer, , , 5000 ) )
+   hb_socketClose( pSocket )
+   hb_threadWait( pThread, 5 )
+   hb_socketClose( pListen )
+
+   RETURN cResult
+
+STATIC FUNCTION SelectClosed()
+
+   LOCAL pSocket := hb_socketOpen()
+   LOCAL oError
+
+   hb_socketClose( pSocket )
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      hb_socketSelectRead( pSocket, 0 )
+   RECOVER USING oError
+   END SEQUENCE
+
+   RETURN ErrorText( oError )

@@ -68,7 +68,7 @@ RETURN Self
 
    /* Called with a Mug and a BigMug, so the slot is Mug; nHandles exists
    only on BigMug and the guard keeps the read to those. */
-FUNCTION Handles( oMug AS OBJECT )
+FUNCTION Handles( oMug AS OBJECT ) AS NUMERIC
 RETURN IIF(oMug:nSize > 1, oMug:nHandles, 1)
 
 PROCEDURE Main()

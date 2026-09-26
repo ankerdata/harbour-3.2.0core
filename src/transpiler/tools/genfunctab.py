@@ -121,6 +121,7 @@ RE_HBRUNTIME_METHOD = re.compile(
 # Harbour Hungarian-prefix convention applied to the return token.
 PREFIX_TO_TYPE = {
     "n": "NUMERIC",
+    "i": "INTEGER",
     "c": "STRING",
     "l": "LOGICAL",
     "d": "DATE",

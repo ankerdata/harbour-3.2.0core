@@ -238,10 +238,17 @@ static HB_BOOL hb_csSendMemberIsInteger( PHB_EXPR pSend );
    anything but an int literal: the classifier proved integral-ness in
    Harbour terms, but the C#-side types still disagree (Len() returns
    decimal). Reads need nothing — int widens implicitly. */
+static HB_BOOL hb_csVarIsInteger( const char * szName );
+
 static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
 {
    if( pExpr && pExpr->ExprType == HB_ET_NUMERIC &&
        pExpr->value.asNum.NumType == HB_ET_LONG )
+      return HB_FALSE;
+
+   /* a long already: an `i` name, a Pass 2.5 local, an integral static */
+   if( pExpr && pExpr->ExprType == HB_ET_VARIABLE &&
+       hb_csVarIsInteger( pExpr->value.asSymbol.name ) )
       return HB_FALSE;
 
    /* An ORM def-class field access whose generated model property is
@@ -2301,6 +2308,23 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                fDynSlot = hb_stricmp( szCs, "dynamic" ) == 0;
                fprintf( yyc, "(%s%s)", fDynSlot ? "object" : szCs,
                         ( ! fDynSlot && pP && pP->fNilable ) ? "?" : "" );
+            }
+         }
+         /* A long slot (an `i` parameter) takes a Harbour number, which
+            C# cannot narrow from decimal on its own: cast it, as a write
+            into an `i` local is. */
+         if( szFunc )
+         {
+            const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+            if( pP && ! pP->fByRef && ! pP->fNilable && pP->szType &&
+                hb_stricmp( pP->szType, "INTEGER" ) == 0 &&
+                hb_csNeedsIntCast( pArg ) )
+            {
+               fprintf( yyc, "(long)(" );
+               hb_csEmitExpr( pArg, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+               pItem = pItem->pNext;
+               continue;
             }
          }
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
