@@ -2287,6 +2287,38 @@ PHB_EXPR hb_refTabStmtDeclaredDefault( PHB_AST_NODE pStmt,
    return NULL;
 }
 
+/* The spelling this file's class declaration gives a method. Harbour pairs
+   `METHOD COMMIT() CLASS SQLtTable` with the declared `METHOD Commit()` in
+   any case; the row takes the declaration's, so every send, in any file,
+   is written as declared and meets the emitter's definition (gencsharp.c
+   hb_csDeclaredMethodName). NULL when the file declares no such method. */
+static const char * hb_refTabDeclaredMethod( HB_COMP_DECL, const char * szClass,
+                                             const char * szMethod )
+{
+   PHB_AST_NODE pFirst = HB_COMP_PARAM->ast.pFuncList;
+   PHB_AST_NODE p;
+
+   if( ! szClass || ! szMethod || ! pFirst || pFirst->type != HB_AST_FUNCTION ||
+       ! pFirst->value.asFunc.pBody ||
+       pFirst->value.asFunc.pBody->type != HB_AST_BLOCK )
+      return NULL;
+   for( p = pFirst->value.asFunc.pBody->value.asBlock.pFirst; p; p = p->pNext )
+   {
+      if( p->type == HB_AST_CLASS && p->value.asClass.szName &&
+          hb_stricmp( p->value.asClass.szName, szClass ) == 0 )
+      {
+         PHB_AST_NODE pMember;
+         for( pMember = p->value.asClass.pMembers; pMember; pMember = pMember->pNext )
+            if( pMember->type == HB_AST_CLASSMETHOD &&
+                pMember->value.asClassMethod.szName &&
+                hb_stricmp( pMember->value.asClassMethod.szName, szMethod ) == 0 )
+               return pMember->value.asClassMethod.szName;
+         return NULL;
+      }
+   }
+   return NULL;
+}
+
 void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
 {
    PHB_AST_NODE pFunc;
@@ -2509,8 +2541,26 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                szKey = szStaticKey;
             }
             else
-               szKey = hb_refTabMethodKey(
-                  szClass, pFunc->value.asFunc.szName );
+            {
+               /* a method under its declared spelling (the name is
+                  `<Class>__<Method>` as the implementation spells it) */
+               const char * szName = pFunc->value.asFunc.szName;
+               char szDeclName[ 256 ];
+               HB_SIZE nCls = szClass ? strlen( szClass ) : 0;
+               if( szClass && szName && hb_strnicmp( szName, szClass, nCls ) == 0 &&
+                   szName[ nCls ] == '_' && szName[ nCls + 1 ] == '_' )
+               {
+                  const char * szDecl = hb_refTabDeclaredMethod(
+                     HB_COMP_PARAM, szClass, szName + nCls + 2 );
+                  if( szDecl )
+                  {
+                     hb_snprintf( szDeclName, sizeof( szDeclName ), "%s__%s",
+                                  szClass, szDecl );
+                     szName = szDeclName;
+                  }
+               }
+               szKey = hb_refTabMethodKey( szClass, szName );
+            }
 
             while( pVar && nParams < nCount && nParams < HB_REFTAB_MAXPARAM )
             {

@@ -214,6 +214,9 @@ struct _HB_AST_NODE
          const char *   szParent;      /* parent class name (NULL if none) */
          PHB_AST_NODE   pMembers;      /* list of DATA/METHOD nodes */
          PHB_AST_NODE   pMembersLast;  /* last member (for fast append) */
+         const char *   szDestructor;  /* DESTRUCTOR <method>, or NULL */
+         HB_BOOL        fFriendly;     /* MODULE FRIENDLY: the file's functions
+                                          reach its PROTECTED / HIDDEN members */
       } asClass;
 
       /* HB_AST_CLASSDATA */

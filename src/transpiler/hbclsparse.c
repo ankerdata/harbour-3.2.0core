@@ -226,6 +226,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
    PHB_AST_NODE pClass;
    const char * szName;
    const char * szParent = NULL;
+   HB_BOOL fFriendly = HB_FALSE;
    int iLine = hb_clsCurrLine( HB_COMP_PARAM );
 
    /* Next token should be class name */
@@ -243,8 +244,15 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
       pToken = hb_clsNextToken( HB_COMP_PARAM );
    }
 
-   /* Skip rest of CLASS line */
-   pToken = hb_clsSkipLine( HB_COMP_PARAM, pToken );
+   /* Rest of the CLASS line: `MODULE FRIENDLY` is kept (the file's
+      functions may use the class's non-exported members), the rest
+      skipped */
+   while( ! hb_clsTokenIsEOL( pToken ) )
+   {
+      if( hb_clsTokenIs( pToken, "FRIENDLY" ) )
+         fFriendly = HB_TRUE;
+      pToken = hb_clsNextToken( HB_COMP_PARAM );
+   }
 
    /* Create CLASS node */
    pClass = hb_astNew( HB_AST_CLASS, iLine );
@@ -252,6 +260,8 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
    pClass->value.asClass.szParent     = szParent;
    pClass->value.asClass.pMembers     = NULL;
    pClass->value.asClass.pMembersLast = NULL;
+   pClass->value.asClass.szDestructor = NULL;
+   pClass->value.asClass.fFriendly    = fFriendly;
 
    /* Track current scope — default is EXPORTED */
    {
@@ -627,6 +637,18 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                pMethod->value.asClassMethod.fMessageAlias = HB_TRUE;
                hb_clsAddMember( pClass, pMethod );
             }
+         }
+         else if( hb_clsTokenIs( pToken, "DESTRUCTOR" ) )
+         {
+            /* `DESTRUCTOR <method>`: Harbour runs it when the object is
+               freed; the emitter gives the class a finalizer that calls
+               it (`DESTRUCTOR FUNCTION <func>` is not used and not kept) */
+            pToken = hb_clsNextToken( HB_COMP_PARAM );
+            if( pToken && ! hb_clsTokenIsEOL( pToken ) &&
+                ! hb_clsTokenIs( pToken, "FUNCTION" ) )
+               pClass->value.asClass.szDestructor =
+                  hb_clsSaveId( HB_COMP_PARAM, pToken );
+            hb_clsSkipLine( HB_COMP_PARAM, pToken );
          }
          else
          {

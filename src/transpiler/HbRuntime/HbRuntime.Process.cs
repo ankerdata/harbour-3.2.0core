@@ -156,8 +156,18 @@ public static partial class HbRuntime
         return null;
     }
 
-    // hb_gcAll( [<lForce>] ): a full collection.
-    public static object? hb_gcAll(bool lForce = true) { GC.Collect(); return null; }
+    // hb_gcAll( [<lForce>] ): a full collection, the destructors of what it
+    // freed run before it returns, as Harbour's do: ORM tests close a
+    // connection or release an exclusive table by dropping the last
+    // reference and collecting. A caller must not hold a lock a destructor
+    // takes (ormsql.prg's AddOpenORMTable() lets go of its own first).
+    public static object? hb_gcAll(bool lForce = true)
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        return null;
+    }
 
     // Version(): what the program runs on. Once the port is the product the
     // Harbour code is gone (Alex, 2026-09-21), so this is .NET's own

@@ -266,6 +266,23 @@ public static partial class HbRuntime
     // The thread runs under RunEntry, which a QUIT unwinds to
     [ThreadStatic] static bool t_inEntry;
 
+    // A DESTRUCTOR run by a C# finalizer (the emitter's `~Class()`), on the
+    // collector's thread: it has no error block, and an exception leaving a
+    // finalizer ends the process, so an error is reported as on a thread
+    // with no error block, and the object goes.
+    [System.Diagnostics.StackTraceHidden]
+    public static void RunDestructor(Action destructor)
+    {
+        try
+        {
+            destructor();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Error in a destructor: " + ex);
+        }
+    }
+
     // hb_errLaunch() for an error that reached the top: the error block
     // evaluated with the Error object. It runs as RunEntry's exception
     // filter, before C# unwinds the stack, so the block sees the stack

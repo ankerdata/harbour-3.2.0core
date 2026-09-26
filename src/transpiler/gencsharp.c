@@ -2467,13 +2467,23 @@ static const char * hb_csTypeMap( const char * szHbType )
    return szHbType;
 }
 
+/* A MODULE FRIENDLY class (s_fCurrentClassFriendly) lets the functions of
+   its own file use its PROTECTED and HIDDEN members: ormsql.prg's
+   PreparedSeek() reads SQLtTable's hSeekStmts. The transpiled file's
+   functions sit in Program, so the nearest C# is `internal` alongside the
+   member's own scope: the whole program is one assembly. */
+static HB_BOOL s_fCurrentClassFriendly = HB_FALSE;
+
 static const char * hb_csScopeStr( int iScope )
 {
    switch( iScope )
    {
-      case HB_AST_SCOPE_PROTECTED: return "protected";
-      case HB_AST_SCOPE_HIDDEN:    return "private";
-      default:                      return "public";
+      case HB_AST_SCOPE_PROTECTED:
+         return s_fCurrentClassFriendly ? "protected internal" : "protected";
+      case HB_AST_SCOPE_HIDDEN:
+         return s_fCurrentClassFriendly ? "internal" : "private";
+      default:
+         return "public";
    }
 }
 
@@ -7733,6 +7743,36 @@ static const char * hb_csMethodInherit( const char * szMethod,
 }
 
 /* Emit a C# class method body */
+/* The spelling the class declaration gives a method. Harbour pairs
+   `METHOD COMMIT() CLASS SQLtTable` with the declared `METHOD Commit()` in
+   any case; C# names are exact, and every send is written in the
+   declaration's spelling, so the definition takes it too (a model's
+   oTable:Commit() was CS1061 against the emitted COMMIT()). */
+static const char * hb_csDeclaredMethodName( const char * szClass,
+                                             const char * szMethod )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! szClass || ! szMethod )
+      return szMethod;
+   for( pStmt = s_pClassList; pStmt; pStmt = pStmt->pNext )
+   {
+      if( pStmt->type == HB_AST_CLASS && pStmt->value.asClass.szName &&
+          hb_stricmp( pStmt->value.asClass.szName, szClass ) == 0 )
+      {
+         PHB_AST_NODE pMember;
+         for( pMember = pStmt->value.asClass.pMembers; pMember;
+              pMember = pMember->pNext )
+            if( pMember->type == HB_AST_CLASSMETHOD &&
+                pMember->value.asClassMethod.szName &&
+                hb_stricmp( pMember->value.asClassMethod.szName, szMethod ) == 0 )
+               return pMember->value.asClassMethod.szName;
+         break;
+      }
+   }
+   return szMethod;
+}
+
 static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                                   FILE * yyc, int iIndent )
 {
@@ -7818,12 +7858,13 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    }
    else
    {
+      const char * szDeclName =
+         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
+            ? hb_csDeclaredMethodName( pFirstStmt->value.asClassMethod.szClass,
+                                       pFirstStmt->value.asClassMethod.szName )
+            : NULL;
       fprintf( yyc, "%s",
-               hb_csMethodInherit( ( pFirstStmt &&
-                                     pFirstStmt->type == HB_AST_CLASSMETHOD )
-                                      ? pFirstStmt->value.asClassMethod.szName
-                                      : NULL,
-                                   szRetType, fProcedure ) );
+               hb_csMethodInherit( szDeclName, szRetType, fProcedure ) );
       if( fProcedure )
       {
          fprintf( yyc, "void" );
@@ -7837,11 +7878,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             fprintf( yyc, "dynamic" );
          s_fVoidFunc = HB_FALSE;
       }
-      fprintf( yyc, " %s(",
-               ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
-                 pFirstStmt->value.asClassMethod.szName )
-                  ? pFirstStmt->value.asClassMethod.szName
-                  : pFunc->value.asFunc.szName );
+      fprintf( yyc, " %s(", szDeclName ? szDeclName : pFunc->value.asFunc.szName );
    }
 
    /* Parameters */
@@ -8089,6 +8126,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
       can `((dynamic)this)` reach a dictionary-backed member. */
    s_fCurrentClassDynamic =
       pClass->fDynamic && ! pClassNode->value.asClass.szParent;
+   s_fCurrentClassFriendly = pClassNode->value.asClass.fFriendly;
 
    /* Emit DATA members as properties or fields */
    pMember = pClassNode->value.asClass.pMembers;
@@ -8202,15 +8240,22 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 
             default:
                /* Instance DATA — emit as plain field for the same
-                  ref-passability reason as CLASSDATA. Readonly DATA
-                  keeps the `{ get; }` shape: a `readonly` field would
-                  reject all assignments outside the constructor, while
-                  Harbour readonly only blocks the source `:=` syntax. */
+                  ref-passability reason as CLASSDATA. Readonly DATA is
+                  a property anyone reads and only the class hierarchy
+                  assigns, as Harbour's READONLY lets the class's own
+                  methods assign it: `{ get; }` alone took assignments in
+                  a constructor only, and a method setting its own
+                  READONLY member (ormsql.prg's InitInstance) was CS0200. */
                if( pMember->value.asClassData.fReadOnly )
-                  fprintf( yyc, "%s %s %s { get; }",
+                  /* the setter is narrower than the property only when the
+                     property is public: C# rejects an accessor repeating
+                     the property's own accessibility (CS0273) */
+                  fprintf( yyc, "%s %s %s { get; %sset; }",
                            szScope,
                            hb_csTypeMap( szType ),
-                           pMember->value.asClassData.szName );
+                           pMember->value.asClassData.szName,
+                           strcmp( szScope, "public" ) != 0 ? "" :
+                              s_fCurrentClassFriendly ? "protected internal " : "protected " );
                else
                {
                   fField = HB_TRUE;
@@ -8391,9 +8436,22 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
       pMethod = pMethod->pNext;
    }
 
+   /* DESTRUCTOR <method>: Harbour runs it when the object is freed, at
+      once when its last reference goes (reference counting) or when the
+      collector finds it; C# runs a finalizer when the collector reclaims
+      the object, and hb_gcAll() waits for them. RunDestructor keeps an
+      error inside it from ending the process, as .NET would. The method
+      itself is emitted with the others; the lambda lets one that returns
+      a value (ApiWebSocket's Cleanup, a test suite's Teardown) be called
+      as an Action. */
+   if( pClass->pClassNode && pClass->pClassNode->value.asClass.szDestructor )
+      fprintf( yyc, "\n    ~%s() => HbRuntime.RunDestructor(() => %s());\n",
+               pClass->szName, pClass->pClassNode->value.asClass.szDestructor );
+
    fprintf( yyc, "}\n" );
    s_szCurrentClass[ 0 ] = '\0';
    s_fCurrentClassDynamic = HB_FALSE;
+   s_fCurrentClassFriendly = HB_FALSE;
 }
 
 /* Emit a standalone function as a static method */
