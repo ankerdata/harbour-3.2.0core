@@ -13,4 +13,18 @@
     <AssemblyName>HbSqlit3</AssemblyName>
   </PropertyGroup>
 
+  <!-- SQLite3 Multiple Ciphers, one DLL per architecture (native\build.bat
+       builds them from harbour-core's contrib\3rd\sqlite3): copied to
+       native\<arch>\ in the output of every project that references this
+       one, where HbSqlit3 loads the one for the process's architecture. -->
+  <ItemGroup>
+    <None Include="native\x86\sqlite3mc.dll;native\x64\sqlite3mc.dll;native\arm64\sqlite3mc.dll"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CheckSqlite3mc" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('native\x86\sqlite3mc.dll') Or !Exists('native\x64\sqlite3mc.dll') Or !Exists('native\arm64\sqlite3mc.dll')"
+           Text="sqlite3mc.dll is missing: run $(MSBuildThisFileDirectory)native\build.bat" />
+  </Target>
+
 </Project>

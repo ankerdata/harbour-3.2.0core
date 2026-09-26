@@ -8,22 +8,4 @@ using System;
 
 public static partial class HbSqlit3
 {
-    public static dynamic sqlite3_bind_double(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_bind_double));
-    public static dynamic sqlite3_bind_int(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_bind_int));
-    public static dynamic sqlite3_bind_int64(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_bind_int64));
-    public static dynamic sqlite3_bind_text(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_bind_text));
-    public static dynamic sqlite3_clear_bindings(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_clear_bindings));
-    public static dynamic sqlite3_column_double(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_column_double));
-    public static dynamic sqlite3_column_int(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_column_int));
-    public static dynamic sqlite3_column_int64(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_column_int64));
-    public static dynamic sqlite3_column_name(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_column_name));
-    public static dynamic sqlite3_column_text(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_column_text));
-    public static dynamic sqlite3_errmsg(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_errmsg));
-    public static dynamic sqlite3_exec(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_exec));
-    public static dynamic sqlite3_finalize(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_finalize));
-    public static dynamic sqlite3_get_table(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_get_table));
-    public static dynamic sqlite3_open(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_open));
-    public static dynamic sqlite3_prepare(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_prepare));
-    public static dynamic sqlite3_reset(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_reset));
-    public static dynamic sqlite3_step(params dynamic[] args) => throw new NotImplementedException(nameof(sqlite3_step));
 }

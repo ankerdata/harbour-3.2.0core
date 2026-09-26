@@ -1631,6 +1631,24 @@ that split:
   at every call to it (CS0103). Core names keep their stubs in the
   application instead (`gen_stubs.py`), because HbRuntime is compiled
   into it as source.
+- **hbsqlit3 is real** (2026-09-26): the 18 functions EasiPOS calls, ports
+  of `contrib/hbsqlit3/core.c` over the SQLite Harbour's hbsqlit3 links,
+  SQLite3 Multiple Ciphers (`contrib/3rd/sqlite3/sqlite3.c`, 2.3.3). It is
+  built from that same amalgamation with `sqlite3.hbp`'s flags into
+  `libraries/hbsqlit3/native/<x86|x64|arm64>/sqlite3mc.dll` by
+  `native/build.bat` (the DLLs are not committed: run it once; the project
+  stops the build with a message while one is missing), copied to
+  `native/<arch>/` beside the program and loaded for the process's
+  architecture. So an EasiPOS database keyed with `PRAGMA key` opens as it
+  does under 9.0, with the default cipher, ChaCha20-Poly1305. A database is
+  a `SafeHandle` the collector closes, a statement one its owner finalizes;
+  HbRuntime counts any `SafeHandle` as a pointer (`ValType()` "P"). Text
+  crosses as UTF-8 under the Latin-1 convention of `hb_StrToUTF8()`, a
+  failed open or prepare is NIL (the sockets' ruling), a dead handle the
+  argument error.
+- **xhb's `hb_regexReplace()`** (2026-09-26, `libraries/xhb`): every match
+  replaced by the text as it stands, as `contrib/xhb/regexrpl.prg` does
+  over `hb_regexAll()`; EasiPOS turns index expressions into SQL with it.
 - **Core wins a name both list** (`hb_FEof` is in core and in hbmisc).
   The loader's old duplicate rule, "later load wins", depended on an
   unstable sort.

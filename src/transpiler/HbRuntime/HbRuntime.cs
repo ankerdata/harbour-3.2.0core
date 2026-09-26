@@ -123,7 +123,9 @@ public static partial class HbRuntime
 
     // Harbour's pointer items: a thread, a mutex, a socket, a Windows handle
     static bool IsPointer(object? x) =>
-        x is HbThread or HbMutex or HbSocket or HbRegex or System.Threading.WaitHandle;
+        x is HbThread or HbMutex or HbSocket or HbRegex or System.Threading.WaitHandle
+            // a native library's handle: HbSqlit3's database and statement
+            or System.Runtime.InteropServices.SafeHandle;
 
     public static decimal PCount() => 0;  // varargs path uses hbva.Length directly
 

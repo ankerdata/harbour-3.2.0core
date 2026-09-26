@@ -8,6 +8,5 @@ using System;
 
 public static partial class Xhb
 {
-    public static dynamic hb_regexReplace(params dynamic[] args) => throw new NotImplementedException(nameof(hb_regexReplace));
     public static dynamic xhb_RTrim(params dynamic[] args) => throw new NotImplementedException(nameof(xhb_RTrim));
 }
