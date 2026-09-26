@@ -483,7 +483,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0021 | scan  | LOCAL / STATIC / MEMVAR / PRIVATE / parameter lacks a Hungarian prefix (exempt names via `--var-types`) |
 | W0022 | scan  | Two call sites disagree on a parameter's type — slot frozen as USUAL (`C` flag). Transient mid-convergence hits are filtered against the converged table by the pipeline |
 | W0023 | emit  | `@` on an array parameter the callee only mutates element-wise (redundant) |
-| W0024 | scan  | Assignment whose RHS type contradicts the lvalue's Hungarian prefix (`cDate := dDate`) |
+| W0024 | scan  | Assignment whose RHS type contradicts the lvalue's Hungarian prefix (`cDate := dDate`); for an `i` name, anything that may leave a fraction in it — assigned, passed to an `i` parameter, a compound assignment, a FOR STEP |
 | W0025 | scan  | Member name-typed as class X but its call doesn't match X — receiver is probably not an X; rename the member |
 | W0026 | scan  | Variable used as an array/hash index but a division/fractional write forces it to stay decimal — wrap with `Int()` or keep decimal |
 | W0028 | scan  | ORM member not in the def contract, or mis-cased (`nID` vs `nId`) — never persists at runtime, CS1061 in C# |
@@ -833,7 +833,11 @@ strongest. Later rungs override earlier ones.
    (`local iLen := Len( a )` is `long`); a decimal written into one, or
    passed to an `i` parameter, is cast `(long)`, and a value that may
    hold a fraction — a division, a power, a literal with decimals — is
-   W0024, so the source says `Int()` (test120).
+   W0024, so the source says `Int()` (test120). The same goes for such a
+   value passed to an `i` parameter, a compound assignment of one, a FOR
+   STEP of one on an `i` counter, and `/=` or `^=` whatever the right
+   side (C#'s `long /= long` is integer division)
+   (`tests/errors/integer_fraction.prg`).
 2. **A declaration** overrides the prefix: `AS INTEGER` is `long` and
    is the only integral annotation; `AS <type>`; a `VAR o<Class>`
    member is name-seeded to that class.
@@ -1471,6 +1475,7 @@ the errors, where the file fails and the test asserts the error line:
 | `seq_with_block.prg`          | `E0101` | `BEGIN SEQUENCE WITH` a block that is not the break idiom |
 | `switch_break.prg`            | `W0033` | A bare `BREAK` ending a `SWITCH` `CASE` (C's `break`)     |
 | `thread_static_init.prg`      | `W0034` | A `THREAD STATIC` initialised to something a second thread would not see |
+| `integer_fraction.prg`        | `W0024` | An `i` name given what may hold a fraction: assigned, passed, `/=`, `*= 1.5`, a FOR STEP; and exactly those five, the `Int()` lines quiet |
 
 ### The runtime library — `rtltest/`
 

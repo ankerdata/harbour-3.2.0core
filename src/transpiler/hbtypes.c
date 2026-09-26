@@ -616,6 +616,46 @@ static const char * hb_astIntegerByName( const char * szName,
    return szType;
 }
 
+/* The name promises a whole number: an `i` prefix (or a static's `si`). */
+static HB_BOOL hb_astIsIntegerName( const char * szName )
+{
+   const char * szPrefix = szName ? hb_astInferFromPrefix( szName ) : NULL;
+   return szPrefix && hb_stricmp( szPrefix, "INTEGER" ) == 0;
+}
+
+/* What an `i` name must not be given: a value that may hold a fraction,
+   which the emitter's (long) cast would drop where Harbour keeps it — a
+   division (Harbour's 5 / 2 is 2.5), a power, a literal with decimals,
+   negated or in brackets. Pass 2.5's hard disqualifier is the same
+   shape. Any other number is taken at its word: a call, a variable, a
+   member say nothing either way. */
+static HB_BOOL hb_astMayHoldFraction( PHB_EXPR pExpr )
+{
+   while( pExpr )
+   {
+      switch( pExpr->ExprType )
+      {
+         case HB_ET_NUMERIC:
+            return pExpr->value.asNum.NumType != HB_ET_LONG;
+         case HB_EO_DIV:
+         case HB_EO_POWER:
+            return HB_TRUE;
+         case HB_EO_NEGATE:
+            pExpr = pExpr->value.asOperator.pLeft;
+            break;
+         case HB_ET_LIST:   /* ( <expr> ) */
+            if( ! pExpr->value.asList.pExprList ||
+                pExpr->value.asList.pExprList->pNext )
+               return HB_FALSE;
+            pExpr = pExpr->value.asList.pExprList;
+            break;
+         default:
+            return HB_FALSE;
+      }
+   }
+   return HB_FALSE;
+}
+
 /*
  * Main type inference function.
  *
@@ -2552,6 +2592,30 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
          if( pArg->ExprType == HB_ET_VARREF ||
              pArg->ExprType == HB_ET_REFERENCE )
             hb_refTabMark( pEnv->pRefTab, szCallee, iPos );
+         /* W0024 for an argument, as for an assignment: an `i` parameter
+            is long, and the call's (long) cast (hb_csEmitCallArgs) would
+            drop a fraction the argument may hold. The row names the
+            parameter; one the scan has not registered yet (a callee in a
+            later file) is silent this pass and fires on the next. */
+         else if( hb_astMayHoldFraction( pArg ) )
+         {
+            const HB_REFPARAM * pP =
+               hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+            if( pP && pP->szName && hb_astIsIntegerName( pP->szName ) )
+            {
+               char szDedup[ 192 ];
+               hb_snprintf( szDedup, sizeof( szDedup ), "W0024 %s:%s",
+                            szCallee, pP->szName );
+               if( ! hb_astOrmSeen( iLine, szDedup ) )
+                  fprintf( stderr,
+                           "hbtranspiler: %s(%d): warning W0024  "
+                           "passing a value that may hold a fraction as '%s' "
+                           "to '%s' contradicts its Hungarian-prefix type "
+                           "INTEGER\n",
+                           pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                           iLine, pP->szName, szCallee );
+            }
+         }
 
          {
             const char * szArgType =
@@ -3480,10 +3544,7 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
       would drop what Harbour keeps: a division, a power or a literal
       with decimals may hold a fraction, so the source says Int() (or
       Round()) where it means one. Any other number is taken at its word. */
-   if( hb_stricmp( szLhs, "INTEGER" ) == 0 &&
-       ( pRHS->ExprType == HB_EO_DIV || pRHS->ExprType == HB_EO_POWER ||
-         ( pRHS->ExprType == HB_ET_NUMERIC &&
-           pRHS->value.asNum.NumType == HB_ET_DOUBLE ) ) )
+   if( hb_stricmp( szLhs, "INTEGER" ) == 0 && hb_astMayHoldFraction( pRHS ) )
    {
       if( ! hb_astHungSeen( iLine, szName ) )
          fprintf( stderr,
@@ -3506,6 +3567,34 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
             "assigning %s to '%s' contradicts its Hungarian-prefix type %s\n",
             hb_strCollapsePath( szFile ? szFile : "?" ),
             iLine, szRhs, szName, szLhs );
+}
+
+/* The compound assignments into an `i` name: `/=` and `^=` may leave a
+   fraction whatever the right side (7 / 2), the others only when the
+   right side may hold one (`iX *= 1.5`). C#'s `long /= long` is integer
+   division, so without this `iX /= 2` would truncate where Harbour keeps
+   the half. */
+static void hb_astCheckIntegerCompound( PHB_EXPR pExpr, const char * szFile,
+                                        int iLine )
+{
+   /* spelt in the order of the HB_EO_PLUSEQ .. HB_EO_EXPEQ enum */
+   static const char * s_szOp[] = { "+=", "-=", "*=", "/=", "%=", "^=" };
+   const char * szName = pExpr->value.asOperator.pLeft->value.asSymbol.name;
+   HB_BOOL fDivides = pExpr->ExprType == HB_EO_DIVEQ ||
+                      pExpr->ExprType == HB_EO_EXPEQ;
+
+   if( ! hb_astIsIntegerName( szName ) )
+      return;
+   if( ! fDivides && ! hb_astMayHoldFraction( pExpr->value.asOperator.pRight ) )
+      return;
+   if( hb_astHungSeen( iLine, szName ) )
+      return;
+   fprintf( stderr,
+            "hbtranspiler: %s(%d): warning W0024  "
+            "'%s' may leave a fraction in '%s', which contradicts its "
+            "Hungarian-prefix type INTEGER\n",
+            hb_strCollapsePath( szFile ? szFile : "?" ), iLine,
+            s_szOp[ pExpr->ExprType - HB_EO_PLUSEQ ], szName );
 }
 
 static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
@@ -3534,6 +3623,11 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                      pExpr->value.asOperator.pRight,
                      pEnv, szFile, pStmt->iLine );
                }
+               else if( pExpr->ExprType >= HB_EO_PLUSEQ &&
+                        pExpr->ExprType <= HB_EO_EXPEQ &&
+                        pExpr->value.asOperator.pLeft &&
+                        pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+                  hb_astCheckIntegerCompound( pExpr, szFile, pStmt->iLine );
             }
             break;
          case HB_AST_FOR:
@@ -3541,6 +3635,17 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                hb_astCheckOneAssign( pStmt->value.asFor.szVar,
                                      pStmt->value.asFor.pStart,
                                      pEnv, szFile, pStmt->iLine );
+            /* a STEP that may hold a fraction leaves one in the counter */
+            if( pStmt->value.asFor.szVar &&
+                hb_astIsIntegerName( pStmt->value.asFor.szVar ) &&
+                hb_astMayHoldFraction( pStmt->value.asFor.pStep ) &&
+                ! hb_astHungSeen( pStmt->iLine, pStmt->value.asFor.szVar ) )
+               fprintf( stderr,
+                        "hbtranspiler: %s(%d): warning W0024  "
+                        "a FOR STEP that may hold a fraction for '%s' "
+                        "contradicts its Hungarian-prefix type INTEGER\n",
+                        hb_strCollapsePath( szFile ? szFile : "?" ),
+                        pStmt->iLine, pStmt->value.asFor.szVar );
             hb_astCheckHungarianMismatch( pStmt->value.asFor.pBody, pEnv, szFile );
             break;
          case HB_AST_FOREACH:
@@ -3752,8 +3857,10 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                but it can't be int." A sink-only conflict (a fractional
                value written into an int member) is already flagged as
                W0029 at the write site — don't double-warn; just leave
-               it decimal. */
+               it decimal. An `i` name is long whatever happens; W0024 has
+               already named its fraction at the site. */
             if( s_aIntCand[ i ].fIndexUsed &&
+                ! hb_astIsIntegerName( s_aIntCand[ i ].szName ) &&
                 ! hb_astHungSeen( s_aIntCand[ i ].iNonIntLine,
                                   s_aIntCand[ i ].szName ) )
                fprintf( stderr,

@@ -57,6 +57,22 @@ run_one "$SCRIPT_DIR/equal_for.prg"     "E0100" "in FOR"
 run_one "$SCRIPT_DIR/seq_with_block.prg" "E0101" "takes only"
 run_one "$SCRIPT_DIR/switch_break.prg"  "W0033" "ends a SWITCH CASE"
 run_one "$SCRIPT_DIR/thread_static_init.prg" "W0034" "is initialised"
+run_one "$SCRIPT_DIR/integer_fraction.prg" "W0024" "assigning a value that may hold a fraction to 'iHalf'"
+run_one "$SCRIPT_DIR/integer_fraction.prg" "W0024" "'/=' may leave a fraction in 'iCount'"
+run_one "$SCRIPT_DIR/integer_fraction.prg" "W0024" "'[*]=' may leave a fraction in 'iCount'"
+run_one "$SCRIPT_DIR/integer_fraction.prg" "W0024" "FOR STEP that may hold a fraction for 'iPos'"
+run_one "$SCRIPT_DIR/integer_fraction.prg" "W0024" "passing a value that may hold a fraction as 'iValue'"
+
+# ...and nothing else: the file's quiet lines (Int(), a whole literal) stay quiet
+count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/integer_fraction.prg" -GS 2>&1 | grep -c "warning W")
+rm -f "$SCRIPT_DIR/integer_fraction.cs"
+if [ "$count" -eq 5 ]; then
+   echo "PASS: integer_fraction (5 warnings, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: integer_fraction (expected 5 warnings, got $count)"
+   fail=$((fail+1))
+fi
 
 echo ""
 echo "Results: $pass passed, $fail failed"
