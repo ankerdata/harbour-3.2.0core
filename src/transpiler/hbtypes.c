@@ -722,6 +722,18 @@ static const char * hb_astInferFromPrefix( const char * szName )
 static const char * hb_astNameOverInit( const char * szName,
                                         const char * szType )
 {
+   /* A USUAL initializer - a call whose RETURNs disagree, as flags.prg's
+      TypedFlag() returns GetFlag()'s value - says the value could be
+      anything, which is no evidence against a name that commits to a
+      type: `local lValue := TypedFlag( cFlagName, "L" )` is declared
+      `bool` (Pass 3 keeps the prefix), and a RETURN of it is LOGICAL. */
+   if( szType && hb_stricmp( szType, "USUAL" ) == 0 )
+   {
+      const char * szPrefix = hb_astInferFromPrefix( szName );
+      if( szPrefix && hb_stricmp( szPrefix, "USUAL" ) != 0 )
+         return szPrefix;
+      return szType;
+   }
    if( szType && hb_stricmp( szType, "NUMERIC" ) == 0 )
    {
       const char * szPrefix = hb_astInferFromPrefix( szName );
@@ -880,6 +892,63 @@ static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
    pEnv->pRefTab = pRefTab;
    pEnv->szFile  = szFile;
    pEnv->szSelfClass[ 0 ] = '\0';
+}
+
+/* The current file's function list (the compiler's ast.pFuncList),
+   published by the scan (hb_refTabCollect) and the emitter for the
+   length of a file, as the reftab is (hb_astSetPrefixReftab): it is what
+   tells a call to one of the file's STATIC functions from a call to a
+   free function of the same name. */
+static PHB_AST_NODE s_pFileFuncs = NULL;
+
+void hb_astSetFileFuncs( PHB_AST_NODE pFuncList )
+{
+   s_pFileFuncs = pFuncList;
+}
+
+static HB_BOOL hb_astIsFileStaticFunc( const char * szName )
+{
+   PHB_AST_NODE pF;
+   for( pF = s_pFileFuncs; pF; pF = pF->pNext )
+      if( pF->type == HB_AST_FUNCTION && pF->value.asFunc.szName &&
+          ( pF->value.asFunc.cScope & HB_FS_STATIC ) != 0 &&
+          hb_stricmp( pF->value.asFunc.szName, szName ) == 0 )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+/* A called function's return type from the reftab. A STATIC function is
+   keyed `<FileBase>::<Name>` (hb_refTabCollect), so a call to one from
+   its own file reads that row, as the emitter does: the bare name alone
+   read nothing, and `oFirst := SharedIdsFixtureTable()` (ormtestsuite.prg)
+   and `RETURN LangHashFromDB( … )` (languages.prg) stayed dynamic. The
+   file's own function list decides it, not the key: member rows share the
+   separator (`Class::member`), and a class may be named after its file
+   (OrmTestSuite in ormtestsuite.prg, Queue in queue.prg). */
+static const char * hb_typeEnvFuncReturnType( HB_TYPEENV * pEnv,
+                                              const char * szFunc )
+{
+   if( ! pEnv || ! pEnv->pRefTab || ! szFunc )
+      return NULL;
+   if( pEnv->szFile && ! strstr( szFunc, "::" ) &&
+       hb_astIsFileStaticFunc( szFunc ) )
+   {
+      PHB_FNAME pSplit = hb_fsFNameSplit( pEnv->szFile );
+      const char * szRet = NULL;
+      if( pSplit && pSplit->szName )
+      {
+         char szStaticKey[ 256 ];
+         hb_snprintf( szStaticKey, sizeof( szStaticKey ), "%s::%s",
+                      pSplit->szName, szFunc );
+         szRet = hb_refTabReturnType( pEnv->pRefTab, szStaticKey );
+      }
+      if( pSplit )
+         hb_xfree( pSplit );
+      /* the file's own function: a free function of the same name
+         elsewhere is not the one called */
+      return szRet;
+   }
+   return hb_refTabReturnType( pEnv->pRefTab, szFunc );
 }
 
 static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
@@ -1349,8 +1418,7 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             szRet = hb_funcTabReturnType( szFunc );
             if( szRet )
                return szRet;
-            if( pEnv && pEnv->pRefTab )
-               return hb_refTabReturnType( pEnv->pRefTab, szFunc );
+            return hb_typeEnvFuncReturnType( pEnv, szFunc );
          }
          return NULL;
 
@@ -1744,8 +1812,7 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                (its own index-shaped locals) — int-ness chains. */
             if( szFn && pEnv && pEnv->pRefTab )
             {
-               const char * szRet =
-                  hb_refTabReturnType( pEnv->pRefTab, szFn );
+               const char * szRet = hb_typeEnvFuncReturnType( pEnv, szFn );
                return szRet && hb_stricmp( szRet, "INTEGER" ) == 0;
             }
          }
@@ -3018,7 +3085,10 @@ static void hb_astOrmAssignCheck( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
    }
    szCs = hb_fieldTypesMember( szClass, pLhs->value.asMessage.szMessage,
                                NULL );
-   if( ! szCs || strcmp( szCs, "method" ) == 0 )
+   /* a method, or a member declared with no TYPE (`dynamic`: SQLtTable's
+      pDB, which a released table sets to NIL): nothing to check */
+   if( ! szCs || strcmp( szCs, "method" ) == 0 ||
+       strcmp( szCs, "dynamic" ) == 0 )
       return;
    hb_snprintf( szSym, sizeof( szSym ), "%s:%s", szClass,
                 pLhs->value.asMessage.szMessage );
@@ -3138,7 +3208,8 @@ static const char * hb_astOrmFieldCs( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
       return NULL;
    szCs = hb_fieldTypesMember( szClass, pExpr->value.asMessage.szMessage,
                                NULL );
-   return ( szCs && strcmp( szCs, "method" ) != 0 ) ? szCs : NULL;
+   return ( szCs && strcmp( szCs, "method" ) != 0 &&
+            strcmp( szCs, "dynamic" ) != 0 ) ? szCs : NULL;
 }
 
 /* A USER-class member send: Self:member (class from the enclosing
@@ -3924,7 +3995,21 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                                                    szFuncKey, i );
          if( p && p->szName && p->szType &&
              hb_stricmp( p->szType, "USUAL" ) != 0 )
-            hb_typeEnvSet( &env, p->szName, p->szType );
+         {
+            /* OBJECT is only the `o` prefix's default on a slot no caller
+               refined; the name says more where it names a class, as it
+               does for any other variable (hb_astInferFromPrefix), so
+               `oTransaction` in a method nothing calls statically
+               (Paypoint:Event()) still reads as Transaction. */
+            const char * szSeed = p->szType;
+            if( hb_stricmp( szSeed, "OBJECT" ) == 0 )
+            {
+               const char * szName = hb_astInferFromPrefix( p->szName );
+               if( szName && hb_astIsClassType( szName ) )
+                  szSeed = szName;
+            }
+            hb_typeEnvSet( &env, p->szName, szSeed );
+         }
       }
    }
 

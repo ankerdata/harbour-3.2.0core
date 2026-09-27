@@ -1303,6 +1303,38 @@ static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName 
    return HB_FALSE;
 }
 
+/* Inside a method, does the class being emitted - or an ancestor, here or
+   in another file (the reftab's method and member rows) - have a member
+   called szName? Harbour's `name( ... )` is always the function; C#'s
+   unqualified call binds to the member first, so dialog.prg's
+   `method EnableScanners()`, which calls scanio.prg's procedure of the
+   same name, called itself until the stack overflowed. */
+static HB_BOOL hb_csMemberShadowsFunc( const char * szName )
+{
+   const char * szCls;
+   int iDepth;
+
+   if( ! s_szCurrentClass[ 0 ] || ! szName )
+      return HB_FALSE;
+   if( hb_csIsDeclaredMember( s_szCurrentClass, szName ) )
+      return HB_TRUE;
+   if( ! s_pRefTab )
+      return HB_FALSE;
+   for( szCls = s_szCurrentClass, iDepth = 0; szCls && *szCls && iDepth < 16;
+        iDepth++ )
+   {
+      char szKey[ 256 ];
+      hb_snprintf( szKey, sizeof( szKey ), "%s::%s__%s", szCls, szCls, szName );
+      if( hb_refTabParamCount( s_pRefTab, szKey ) >= 0 )
+         return HB_TRUE;
+      hb_snprintf( szKey, sizeof( szKey ), "%s::%s", szCls, szName );
+      if( hb_refTabParamCount( s_pRefTab, szKey ) >= 0 )
+         return HB_TRUE;
+      szCls = hb_refTabClassParent( s_pRefTab, szCls );
+   }
+   return HB_FALSE;
+}
+
 /* The built-in OO helper Super is emitted as an extension method on
    `object` (HbObjectExtensions). The DLR does not resolve extension
    methods, so a `Self:` call to it must stay `this.` (compile-time
@@ -2059,6 +2091,13 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
    return szBuf;
 }
 
+/* Set by a send whose receiver's class is unknown, just before its
+   arguments: the method row every class declaring the method shares
+   (hb_refTabUniformMethodKey), so hb_csEmitCallArgs can name the
+   arguments after an empty slot rather than pass NIL there. Consumed on
+   entry, as the ref-shim map is, so nested calls do not inherit it. */
+static const char * s_szGapNameKey = NULL;
+
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc )
 {
    PHB_EXPR pHead;
@@ -2072,7 +2111,9 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
       the temps this call's shimmed slots refer to. */
    const HB_BOOL * aShim = s_aRefShim;
    int            iShimBase = s_iRefShimBase;
+   const char *   szGapKey = s_szGapNameKey;
    s_aRefShim = NULL;
+   s_szGapNameKey = NULL;
 
    if( ! pParms )
       return;
@@ -2189,6 +2230,12 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
             }
             else if( hb_csCallParam( szFunc, iPos ) )
                fNamed = HB_TRUE;   /* gap; next real slot emits named */
+            else if( szGapKey && hb_refTabParam( s_pRefTab, szGapKey, iPos ) )
+               /* an untyped receiver, but one signature everywhere the
+                  method is declared: named as a typed receiver's are.
+                  NIL here fails a value-typed slot (`decimal nNext`)
+                  that the empty slot's declared default would fill. */
+               fNamed = HB_TRUE;
             else
             {
                /* No signature to name the later slots from (unresolved
@@ -2212,6 +2259,8 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( fNamed )
          {
             const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+            if( ! pP && szGapKey )
+               pP = hb_refTabParam( s_pRefTab, szGapKey, iPos );
             if( pP && pP->szName && pP->szName[ 0 ] )
                fprintf( yyc, "%s: ", pP->szName );
             /* If we can't find the name the emission falls back to
@@ -4310,10 +4359,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   /* Harbour resolves `name( ... )` as a function call
                      whatever locals are in scope; C# sees the local and
                      refuses (CS0149: easipayback's `local nTax` beside
-                     the tax.prg function nTax). Every free function is
-                     a Program static, so qualify — the same treatment a
-                     user ToString gets against object.ToString. */
-                  if( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) )
+                     the tax.prg function nTax), and inside a method C#
+                     binds a member of the same name first. Every free
+                     function is a Program static, so qualify — the same
+                     treatment a user ToString gets against
+                     object.ToString. */
+                  if( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) ||
+                      hb_csMemberShadowsFunc( szName ) )
                      fprintf( yyc, "Program." );
                   fprintf( yyc, "%s", szMapped );
                   /* Extra-argument calls (W0018) are the scan walk's
@@ -4767,6 +4819,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "(" );
                s_aRefShim = aSendShim;
                s_iRefShimBase = iSendShimBase;
+               if( szKey && ! szKey[ 0 ] && szMsgIn && s_pRefTab )
+                  s_szGapNameKey = hb_refTabUniformMethodKey( s_pRefTab, szMsgIn );
                hb_csEmitCallArgs( szKey, pExpr->value.asMessage.pParms, yyc );
                fprintf( yyc, ")" );
             }
@@ -7909,15 +7963,29 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    HB_BOOL fProcedure = HB_FALSE;
    HB_BOOL fMethodSpread = HB_FALSE;
 
-   /* Run type propagation */
-   if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL,
-                                   s_pCompCtx ? s_pCompCtx->currModule : NULL );
-
    /* Get CLASSMETHOD marker */
    if( pFunc->value.asFunc.pBody &&
        pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
       pFirstStmt = pFunc->value.asFunc.pBody->value.asBlock.pFirst;
+
+   /* Run type propagation under the method's reftab key, as the scan does
+      (hbreftab.c): the key seeds the parameters with their slot types and
+      names the class Self is (hb_csEmitFunc says why). Copied: the key is
+      hb_refTabMethodKey's static buffer, which the inference reuses. */
+   if( pFunc->value.asFunc.pBody )
+   {
+      char szKeyBuf[ 256 ];
+      const char * szKey = hb_refTabMethodKey(
+         ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
+            ? pFirstStmt->value.asClassMethod.szClass : NULL,
+         pFunc->value.asFunc.szName );
+      szKeyBuf[ 0 ] = '\0';
+      if( szKey )
+         hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab,
+                                   szKeyBuf[ 0 ] ? szKeyBuf : NULL,
+                                   s_pCompCtx ? s_pCompCtx->currModule : NULL );
+   }
 
    if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
       fProcedure = pFirstStmt->value.asClassMethod.fProcedure;
@@ -8968,10 +9036,21 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    const char * szRetType = NULL;
    HB_BOOL fIsMain = HB_FALSE;
 
-   /* Run type propagation */
+   /* Run type propagation under the function's reftab key, as the scan
+      does (hbreftab.c): the key seeds the parameters with their slot
+      types, which the signature below declares. Without it a parameter
+      was unknown here, and screensetup.prg's `nClkPanel :=
+      PanelDefault( oPOSStatus )` (a function returning INTEGER) retyped
+      the decimal parameter as long: ClerkPanel() returned long where the
+      scan recorded NUMERIC, and the assignment did not compile. */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL,
+   {
+      char szKeyBuf[ 256 ];
+      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab,
+                                   hb_csFuncRefKey( pFunc->value.asFunc.szName,
+                                                    szKeyBuf, sizeof( szKeyBuf ) ),
                                    s_pCompCtx ? s_pCompCtx->currModule : NULL );
+   }
 
    /* Return-key override from the hash pre-pass: this function's
       result lands in a key-typed hash static (e.g. a CreateLangHash-
@@ -9477,6 +9556,8 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       during emit too — nested hb_astPropagate calls save/restore
       around this, so the reftab stays live for the whole pass. */
    hb_astSetPrefixReftab( s_pRefTab );
+   /* the file's STATIC functions, for a bare-name call's return type */
+   hb_astSetFileFuncs( HB_COMP_PARAM->ast.pFuncList );
 
    /* Collect STATIC function/procedure names so intra-file call sites
       can be mangled consistently with the declaration. Cross-file
@@ -10018,6 +10099,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
 
    /* Cleanup */
    hb_astSetPrefixReftab( NULL );
+   hb_astSetFileFuncs( NULL );
    hb_csFreeClasses( pClassList );
    hb_refTabFree( s_pRefTab );
    s_pRefTab = NULL;

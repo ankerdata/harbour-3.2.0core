@@ -304,5 +304,7 @@ const char * hb_fieldTypesHbType( const char * szCsToken )
       return "ARRAY";
    if( hb_stricmp( szCsToken, "hash" ) == 0 )
       return "HASH";
+   /* `method`, and `dynamic` (a SQLtTable member declared with no TYPE),
+      say that the member exists and nothing about its type */
    return NULL;
 }

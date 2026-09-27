@@ -411,6 +411,11 @@ extern const char * hb_astInferTypeFromInit( const char * szName, const char * s
    save/restores around its own runs so nesting is safe. Pass NULL to
    clear. */
 extern void         hb_astSetPrefixReftab( void * pRefTab );
+/* Publish the current file's function list (the compiler's ast.pFuncList)
+   so a bare-name call can be told to be one of the file's STATIC
+   functions, whose reftab row is `<FileBase>::<Name>`. Set with the
+   reftab for the length of a file; NULL to clear. */
+extern void         hb_astSetFileFuncs( PHB_AST_NODE pFuncList );
 /* The third argument is an opaque pointer to the active user-function
    signature table (PHB_REFTAB from hbreftab.h). It is consulted to
    resolve return types for calls to user-defined functions defined in

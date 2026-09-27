@@ -31,7 +31,8 @@ PROCEDURE Main()
    LOCAL hByName := { => }
    LOCAL oLedger127 := Ledger127():New():Fill127()
    LOCAL nId := 7
-   LOCAL xKey := Seven127() + 2
+   // a key of no known type: Eval() answers whatever its block does
+   LOCAL xKey := Eval( { || Seven127() + 2 } )
 
    hnById[ nId ] := "seven"
    hnById[ xKey ] := "nine"

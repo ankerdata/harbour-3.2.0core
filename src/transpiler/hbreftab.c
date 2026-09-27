@@ -941,6 +941,64 @@ int hb_refTabMemberNameKind( PHB_REFTAB pTab, const char * szMember )
    return iKind;
 }
 
+const char * hb_refTabUniformMethodKey( PHB_REFTAB pTab,
+                                        const char * szMember )
+{
+   HB_SIZE i;
+   PHB_REFENTRY pFirst = NULL;
+   if( ! pTab || ! szMember )
+      return NULL;
+   for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
+   {
+      PHB_REFENTRY e;
+      for( e = pTab->buckets[ i ]; e; e = e->pNext )
+      {
+         const char * szSep;
+         const char * szTail;
+         const char * szUs;
+         char szOwner[ 128 ];
+         HB_SIZE nOwner;
+         int j;
+         if( e->nParams < 0 || ! e->szName )
+            continue;               /* a stub is not a declaration */
+         szSep = strstr( e->szName, "::" );
+         if( ! szSep )
+            continue;
+         nOwner = ( HB_SIZE ) ( szSep - e->szName );
+         if( nOwner == 0 || nOwner >= sizeof( szOwner ) )
+            continue;
+         memcpy( szOwner, e->szName, nOwner );
+         szOwner[ nOwner ] = '\0';
+         if( ! hb_refTabIsClass( pTab, szOwner ) )
+            continue;               /* `file::func`, a static function */
+         szTail = szSep + 2;
+         szUs = strstr( szTail, "__" );
+         if( ! szUs )
+         {
+            if( hb_stricmp( szTail, szMember ) == 0 )
+               return NULL;         /* a member somewhere: not a method everywhere */
+            continue;
+         }
+         if( hb_stricmp( szUs + 2, szMember ) != 0 )
+            continue;
+         if( e->nParams > 0 && ! e->pParams )
+            return NULL;
+         if( ! pFirst )
+         {
+            pFirst = e;
+            continue;
+         }
+         if( e->nParams != pFirst->nParams )
+            return NULL;
+         for( j = 0; j < e->nParams; j++ )
+            if( ! e->pParams[ j ].szName || ! pFirst->pParams[ j ].szName ||
+                hb_stricmp( e->pParams[ j ].szName, pFirst->pParams[ j ].szName ) != 0 )
+               return NULL;
+      }
+   }
+   return pFirst ? pFirst->szName : NULL;
+}
+
 HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
                                    const char * szMember )
 {
@@ -2690,6 +2748,8 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
       finds entries to refine regardless of source order. */
    pFunc     = HB_COMP_PARAM->ast.pFuncList;
    pCompFunc = HB_COMP_PARAM->functions.pFirst;
+   /* the file's STATIC functions, for a bare-name call's return type */
+   hb_astSetFileFuncs( HB_COMP_PARAM->ast.pFuncList );
    while( pFunc )
    {
       if( pFunc->type == HB_AST_FUNCTION )
@@ -2752,4 +2812,5 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
       }
       pFunc = pFunc->pNext;
    }
+   hb_astSetFileFuncs( NULL );
 }

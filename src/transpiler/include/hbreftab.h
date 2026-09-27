@@ -214,6 +214,13 @@ extern HB_BOOL hb_refTabMemberOnSubclass( PHB_REFTAB pTab, const char * szClass,
    everywhere is a call; empty parentheses on a name that is a member
    everywhere are dropped. */
 extern int hb_refTabMemberNameKind( PHB_REFTAB pTab, const char * szMember );
+/* The method row (`Class::Class__member`) of szMember when every class
+   declaring it as a METHOD gives it the same parameter names in the same
+   order, and no class has a member of that name; NULL otherwise. A send
+   whose receiver's class is unknown names the arguments after an empty
+   slot from it, as a typed receiver's does from its own row. */
+extern const char * hb_refTabUniformMethodKey( PHB_REFTAB pTab,
+                                               const char * szMember );
 /* Returns HB_TRUE if szName has been marked as a class. */
 extern HB_BOOL hb_refTabIsClass( PHB_REFTAB pTab, const char * szName );
 

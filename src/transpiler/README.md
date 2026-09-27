@@ -681,7 +681,12 @@ that share a field static (the four index defs, the five detail defs)
 get a synthetic base (`TableFieldsBase`, `TableDetailBase`, …) via
 `=inherit` rows, so a parameter fed several sibling classes widens to
 the typed base instead of `USUAL`. Base-surface rows (`OrmTable
-Append method`) keep base-class calls from false-positiving W0028.
+Append method`) keep base-class calls from false-positiving W0028; a
+SQLtTable member declared with no TYPE is written `dynamic` (`OrmTable
+pDB dynamic`), which says it exists and nothing of its type, so a write
+to it through a receiver typed SQLtTable is neither W0028 nor, for NIL,
+W0030. `array` and `hash` are SQLtTable's own `TYPE Array` / `TYPE Hash`
+members.
 Tests: [test83.prg](tests/test83.prg), [test85.prg](tests/test85.prg).
 
 ### Type mapping
@@ -861,7 +866,11 @@ strongest. Later rungs override earlier ones.
    `decimal` if it later takes a fraction (a division, a fractional
    literal), where every write into a `long` would otherwise be cast and
    the fraction dropped (test121). An `i` name never does: W0024 names
-   the site instead.
+   the site instead. A USUAL initialiser — a call whose RETURNs disagree,
+   as flags.prg's TypedFlag() returns GetFlag()'s value — is no evidence
+   against a name that commits to a type: `local lValue := TypedFlag(…)`
+   stays LOGICAL, as its C# declaration `bool` does, and so does a RETURN
+   of it (test129).
 4. **Pass 2.5, per function**: the candidate stays `long` only if every
    write to it is provably integral (integer literals, defines, `+ - *
    %` of integrals, `++`) and it is used as an index or feeds an
@@ -878,7 +887,20 @@ strongest. Later rungs override earlier ones.
    NUMERIC slot; a real conflict widens to USUAL with a W0022. Return
    types come from the RETURN expressions, member types from their
    declarations, and a `Class():New(…)` call site refines the
-   constructor's own slots (test93).
+   constructor's own slots (test93). A call to one of the file's STATIC
+   functions reads that function's own row, `<file>::<Name>`: the file's
+   function list decides it, not the key's text, since member rows share
+   the separator and a class may be named after its file (OrmTestSuite in
+   ormtestsuite.prg). Before that, `oFirst := SharedIdsFixtureTable()`
+   stayed dynamic, only the typed callers refined OrmTestOrderedIds()'s
+   slot, and the call passing the fixture failed in the binder (test129).
+   The scan and the emitter infer a body from the same start: its
+   parameters seeded with their slot types — an OBJECT slot, which no
+   caller refined, with the class its name gives (`oTransaction`) — and,
+   in a method, the class Self is. The emitter used to start with none,
+   and typed a return from an assignment (`nClkPanel := PanelDefault(…)`,
+   a `long` into a `decimal` parameter) where the scan had recorded
+   NUMERIC.
 6. Anything still unknown is `dynamic`.
 
 Day to day: the prefix is the contract, `AS INTEGER` promises "never a
@@ -1038,7 +1060,9 @@ to hold the reasoning.
 | a dynamic argument in `::Super:M(…)`     | cast to the parent slot's type (test92)                                   |
 | `Foo(...)` spread                        | the caller's `hbva` passed through                                        |
 | `Class():New(a, , c)`                    | the row resolved through the INHERIT chain; a gap nothing can name passes `null` (test90) |
+| `x:M(a, , c)` on a receiver of unknown class | named when every class declaring M gives it the same parameter names — the gap takes the declared default, where `null` failed a `decimal` or `bool` slot in the binder (easipos TestEval; test128) |
 | a call whose name a local shadows        | qualified `Program.name(…)` (test100)                                     |
+| a call, inside a method, whose name a member of the class or an ancestor has | qualified `Program.name(…)`: Harbour's `name(…)` is always the function, C# binds the member first — dialog.prg's `method EnableScanners()` calling scanio.prg's procedure called itself until the stack overflowed (test130) |
 
 #### `HbDiscard<T>`
 
@@ -1470,6 +1494,9 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
+| 130       | Inside a method, a call to a function that a member of the class or an ancestor names is the function: `Program.Wake130()`, where C# would bind the method and recurse |
+| 129       | A call to one of the file's STATIC functions takes its return type (a class named after the file notwithstanding), so two callers widen a slot to their common ancestor; the emitter infers from seeded parameters (a numeric parameter given an INTEGER result stays decimal); a USUAL initialiser leaves a committed prefix its type |
+| 128       | A gap in a send on a receiver of unknown class is named when every class declaring the method gives it the same parameters: the declared default, not a `null` |
 | 127       | A hash keyed by numbers is named `hn<...>` / `shn<...>`: a local (`{ => }` initializer included), a file static, a member and a parameter are `OrderedDictionary<long, dynamic>`, a key of no known type taken as the name says; an `h` name beside it keyed by strings |
 | 126       | SWITCH falls through as Harbour's does: stacked labels (a comment between them), a body without EXIT running into the next CASE and into OTHERWISE, the last CASE empty; on a string, a number and a dynamic value |
 | 125       | Harbour arrays are `List<dynamic>`: `AAdd` / `ASize` / `hb_AIns` / `hb_ADel` grow and shrink the array every holder shares (a second variable, an element of another array, a member), with no `ref`; literals and `Array()` of every dimension; FOR EACH sees an element the body adds; an array parameter passed to `AAdd` is not `ref` |

@@ -40,7 +40,8 @@ public static partial class Program
         OrderedDictionary<string, dynamic> hByName = new OrderedDictionary<string, dynamic> {  };
         Ledger127 oLedger127 = new Ledger127().Fill127();
         long nId = 7;
-        dynamic xKey = test127_Seven127() + 2;
+        // a key of no known type: Eval() answers whatever its block does
+        dynamic xKey = HbRuntime.Eval(((Func<dynamic>)(() => test127_Seven127() + 2)));
 
         hnById[nId] = "seven";
         hnById[(long)(xKey)] = "nine";
