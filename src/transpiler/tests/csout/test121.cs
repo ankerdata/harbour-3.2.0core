@@ -49,7 +49,7 @@ public class Tally121
         return this;
     }
 
-    public virtual Tally121 Spread121(dynamic[] aSteps = default)
+    public virtual Tally121 Spread121(List<dynamic> aSteps = default)
     {
         // ...and a codeblock parameter named as one
         HbRuntime.AEval(aSteps, ((Func<dynamic, dynamic>)((iCount) => iTotal += (long)(iCount + this.iCount))));
@@ -92,7 +92,7 @@ public static partial class Program
         HbRuntime.QOut("member:", oTally.iTotal);
 
         oTally.Rename121("t");
-        oTally.Spread121(new dynamic[] { 1, 2 });
+        oTally.Spread121(new List<dynamic> { 1, 2 });
         HbRuntime.QOut("names:", oTally.Label121(), oTally.iTotal);
         oTally.Relabel121("u");
         HbRuntime.QOut("inline:", oTally.Label121());

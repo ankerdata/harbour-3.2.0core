@@ -10,11 +10,14 @@
 // find the same entry; hb_HKeyAt / hb_HPos / hb_HSet / hb_HGet /
 // hb_HClone are implemented (a clone copies nested arrays and hashes, as
 // AClone now does too), and `$` finds nothing for an empty string.
+//
+// Since 2026-09-27 the name declares the key type (test127): the hashes
+// keyed by numbers here are hn<...> / shn<...>.
 
 PROCEDURE Main()
 
    LOCAL hStock := { "tea" => 1, "milk" => 2, "rusk" => 3 }
-   LOCAL hById := { => }
+   LOCAL hnById := { => }
    LOCAL hSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
    LOCAL hCopy
    LOCAL aSrc := { { "k" => 1 } }
@@ -35,10 +38,10 @@ PROCEDURE Main()
    ? "tea" $ hStock, "milk" $ hStock, "" $ "abc", "b" $ "abc"
    ? hb_HKeepOrder( hStock, .T. )
 
-   hById[ nId ] := "seven"
-   hById[ 3 ] := "three"
-   ? hById[ nId ], hById[ 3 ], hb_HHasKey( hById, 7 ), hb_HHasKey( hById, 7.0 )
-   ? hb_HGetDef( hById, 4, "none" ), hb_HKeyAt( hById, 1 ) + 1
+   hnById[ nId ] := "seven"
+   hnById[ 3 ] := "three"
+   ? hnById[ nId ], hnById[ 3 ], hb_HHasKey( hnById, 7 ), hb_HHasKey( hnById, 7.0 )
+   ? hb_HGetDef( hnById, 4, "none" ), hb_HKeyAt( hnById, 1 ) + 1
 
    hCopy := hb_HClone( hSrc )
    hCopy[ "a" ][ 1 ] := 9

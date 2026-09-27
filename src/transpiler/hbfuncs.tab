@@ -686,6 +686,7 @@ Round	NUMERIC	HbRuntime
 ROW	NUMERIC	-
 RTOD	NUMERIC	-
 RTrim	STRING	HbRuntime
+RunDestructor	-	HbRuntime
 RunEntry	-	HbRuntime
 SAVETOKEN	STRING	-
 Seconds	NUMERIC	HbRuntime

@@ -24,10 +24,10 @@ public class Brewer
 {
     public string cName = "tea";
 
-    public virtual decimal Measure(string cWhat, ref decimal nOut, ref dynamic[] aLog)
+    public virtual decimal Measure(string cWhat, ref decimal nOut, ref List<dynamic> aLog)
     {
         nOut = HbRuntime.Len(cWhat) * 10;
-        aLog = new dynamic[] { cWhat };
+        aLog = new List<dynamic> { cWhat };
         return nOut;
     }
 }
@@ -76,14 +76,14 @@ public static partial class Program
         decimal i = default;
         bool lReset = true;
         string cWord = "tea";
-        dynamic[] aLog = new dynamic[] {  };
+        List<dynamic> aLog = new List<dynamic> {  };
         Brewer oBrewer = test95_GetBrewer();
 
         // @aLog: the slot is by-ref
         oBrewer.Measure("coffee", ref nOut, ref aLog);
         HbRuntime.QOut("coffee=" + HbRuntime.LTrim(HbRuntime.Str(nOut)) + " log=" + aLog[0]);
         // aLog omitted
-        test95_GetBrewer().Measure("tea", ref nOut, ref HbDiscard<dynamic[]>.Value);
+        test95_GetBrewer().Measure("tea", ref nOut, ref HbDiscard<List<dynamic>>.Value);
         HbRuntime.QOut("tea=" + HbRuntime.LTrim(HbRuntime.Str(nOut)));
 
         // @lReset: the slot is by-ref

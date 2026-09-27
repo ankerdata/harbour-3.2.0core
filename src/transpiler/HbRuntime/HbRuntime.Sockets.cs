@@ -308,11 +308,11 @@ public static partial class HbRuntime
 
     static IPEndPoint SockAddrParam(object? aAddr, string cFunc)
     {
-        if (aAddr is object?[] { Length: >= 2 } a && a[0] is object xFamily && IsNumeric(xFamily)
+        if (aAddr is System.Collections.IList { Count: >= 2 } a && IsHbArray(a) && a[0] is object xFamily && IsNumeric(xFamily)
             && Convert.ToInt64(xFamily, INV) == HB_SOCKET_AF_INET)
         {
             string cAddress = a[1] as string ?? "";
-            long nPort = a.Length > 2 && a[2] is object xPort && IsNumeric(xPort)
+            long nPort = a.Count > 2 && a[2] is object xPort && IsNumeric(xPort)
                 ? (long) Math.Truncate(Convert.ToDecimal(xPort, INV)) : 0;
             IPAddress? ip = cAddress.Length == 0 ? IPAddress.Any
                 : s_dottedQuad.IsMatch(cAddress) && IPAddress.TryParse(cAddress, out var parsed) ? parsed

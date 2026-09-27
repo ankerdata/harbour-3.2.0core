@@ -23,8 +23,8 @@ public static partial class Program
         HbRuntime.QOut("sign=" + SignOf(5) + SignOf(-5) + SignOf(0));
         HbRuntime.QOut("kind=" + Kind(1) + Kind(2) + Kind(9));
         HbRuntime.QOut("count=" + HbRuntime.LTrim(HbRuntime.Str(CountTo(3))));
-        HbRuntime.QOut("first=" + HbRuntime.LTrim(HbRuntime.Str(FirstOver(new dynamic[] { 1, 5, 9 }, 4))));
-        HbRuntime.QOut("none=" + HbRuntime.LTrim(HbRuntime.Str(FirstOver(new dynamic[] { 1, 2 }, 4))));
+        HbRuntime.QOut("first=" + HbRuntime.LTrim(HbRuntime.Str(FirstOver(new List<dynamic> { 1, 5, 9 }, 4))));
+        HbRuntime.QOut("none=" + HbRuntime.LTrim(HbRuntime.Str(FirstOver(new List<dynamic> { 1, 2 }, 4))));
         HbRuntime.QOut("name=" + Ordinal(1) + Ordinal(2) + Ordinal(3));
         return;
 
@@ -79,7 +79,7 @@ public static partial class Program
         /* Control: a DO WHILE .T. WITH an EXIT falls through, so the final
    RETURN stays — and the second call above returns through it. */
     }
-    public static dynamic FirstOver(dynamic[] aList = default, decimal nOver = default)
+    public static dynamic FirstOver(List<dynamic> aList = default, decimal nOver = default)
     {
         long i = 0;
         while (true)
@@ -90,9 +90,9 @@ public static partial class Program
                 break;
             }
 
-            if (aList[i - 1] > nOver)
+            if (aList[(int)i - 1] > nOver)
             {
-                return aList[i - 1];
+                return aList[(int)i - 1];
             }
         }
 

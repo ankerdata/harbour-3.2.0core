@@ -29,19 +29,19 @@ public class TestOrmRec84
 
 public static partial class Program
 {
-    public static dynamic[] TestDeptDef(string cPath = default)
+    public static List<dynamic> TestDeptDef(string cPath = default)
     {
-        return new dynamic[] { new dynamic[] { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new dynamic[] {  }, new dynamic[] {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
+        return new List<dynamic> { new List<dynamic> { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new List<dynamic> {  }, new List<dynamic> {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
     }
 
-    public static TestOrmRec84 ConstructORMTable(dynamic[] aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
+    public static TestOrmRec84 ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
         return (TestOrmRec84)new TestOrmRec84().New();
     }
 
     public static void Main(string[] args)
     {
-        dynamic[] aList = new dynamic[] { 10, 20, 30 };
+        List<dynamic> aList = new List<dynamic> { 10, 20, 30 };
         long i = 3;
         TestDeptDef oDept = new TestDeptDef(TestDeptDef());
 
@@ -51,7 +51,7 @@ public static partial class Program
         // division results as 1.50 where C# Str gives 1.5; the semantics
         // under test are the VALUES, so pin the format on both sides.
         // 30 — index use makes i an int
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(aList[i - 1], 4, 0)));
+        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(aList[(int)i - 1], 4, 0)));
         // 1.50  int local / int literal
         HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str((decimal)(i) / 2, 8, 2)));
         // 3.50  int define / int literal

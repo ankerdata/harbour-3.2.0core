@@ -72,7 +72,7 @@ public static partial class Program
     }
     public static dynamic test25_BugDCheck()
     {
-        dynamic[] aLocal = new dynamic[] { 1, 2, 3 };
+        List<dynamic> aLocal = new List<dynamic> { 1, 2, 3 };
         return aLocal[0];
     }
 }

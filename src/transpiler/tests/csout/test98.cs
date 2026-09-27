@@ -59,7 +59,7 @@ public static partial class Program
         Ledger oLedger = new Ledger();
         long nResult = Test98PrgConst.LAMP_OFF;
         string cOut = "";
-        dynamic[] aList = new dynamic[] { "a", "b", "c" };
+        List<dynamic> aList = new List<dynamic> { "a", "b", "c" };
         string cAll = "";
         decimal nLen = default;
         long i = default;
@@ -73,7 +73,7 @@ public static partial class Program
         HbRuntime.QOut("result=" + HbRuntime.LTrim(HbRuntime.Str(nResult)) + " " + cOut);
         for (i = 1; i <= (nLen = HbRuntime.Len(aList)); i++)
         {
-            cAll += aList[i - 1];
+            cAll += aList[(int)i - 1];
         }
 
         HbRuntime.QOut("all=" + cAll + " len=" + HbRuntime.LTrim(HbRuntime.Str(nLen)));

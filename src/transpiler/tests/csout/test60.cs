@@ -17,7 +17,7 @@ public static partial class Program
     {
         OrderedDictionary<string, dynamic> hData = new OrderedDictionary<string, dynamic> { { "a", 1 }, { "b", 2 }, { "c", 3 } };
         // note the duplicate 1
-        dynamic[] aNums = new dynamic[] { 3, 1, 2, 1 };
+        List<dynamic> aNums = new List<dynamic> { 3, 1, 2, 1 };
         long i = default;
         string cOut = default;
 
@@ -31,7 +31,7 @@ public static partial class Program
         cOut = "";
         for (i = 1; i <= HbRuntime.Len(aNums); i++)
         {
-            cOut += HbRuntime.LTrim(HbRuntime.Str(aNums[i - 1]));
+            cOut += HbRuntime.LTrim(HbRuntime.Str(aNums[(int)i - 1]));
         }
 
         HbRuntime.QOut("sorted=" + cOut);

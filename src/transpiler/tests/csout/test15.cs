@@ -7,12 +7,12 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aNumbers = new dynamic[] { 10, 20, 30, 40, 50 };
-        dynamic[] aNames = new dynamic[] { "Alice", "Bob", "Charlie" };
+        List<dynamic> aNumbers = new List<dynamic> { 10, 20, 30, 40, 50 };
+        List<dynamic> aNames = new List<dynamic> { "Alice", "Bob", "Charlie" };
         OrderedDictionary<string, dynamic> hPerson = new OrderedDictionary<string, dynamic> { { "name", "John" }, { "age", 30 } };
         OrderedDictionary<string, dynamic> hConfig = new OrderedDictionary<string, dynamic> { { "debug", true }, { "timeout", 60 } };
-        dynamic[] aMatrix = new dynamic[] { new dynamic[] { 1, 2 }, new dynamic[] { 3, 4 }, new dynamic[] { 5, 6 } };
-        dynamic[] aEmpty = new dynamic[] {  };
+        List<dynamic> aMatrix = new List<dynamic> { new List<dynamic> { 1, 2 }, new List<dynamic> { 3, 4 }, new List<dynamic> { 5, 6 } };
+        List<dynamic> aEmpty = new List<dynamic> {  };
         decimal nTotal = 0;
         decimal nLen = default;
         decimal nPos = default;
@@ -40,14 +40,14 @@ public static partial class Program
         nTotal = 0;
         for (i = 1; i <= HbRuntime.Len(aNumbers); i++)
         {
-            nTotal += aNumbers[i - 1];
+            nTotal += aNumbers[(int)i - 1];
         }
 
         HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
 
         // FOR EACH over array
         nTotal = 0;
-        foreach (dynamic __hb_fe_nItem in aNumbers)
+        foreach (dynamic __hb_fe_nItem in HbRuntime.HbEnumValues(aNumbers))
         {
             nItem = __hb_fe_nItem;
             nTotal += nItem;

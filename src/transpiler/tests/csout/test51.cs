@@ -22,10 +22,10 @@ using static Program;
 // pipelines all build and produce identical output.
 public static partial class Program
 {
-    public static dynamic[] aFlag;
+    public static List<dynamic> aFlag;
     public static void Main(string[] args)
     {
-        aFlag = new dynamic[3];
+        aFlag = HbRuntime.Array(3);
 
         aFlag[0] = 10;
         aFlag[1] = 20;
@@ -42,12 +42,12 @@ public static partial class Program
         return;
     }
 
-    public static void AddDelta(dynamic[] aArr = default, decimal nDelta = default)
+    public static void AddDelta(List<dynamic> aArr = default, decimal nDelta = default)
     {
         long nI = default;
         for (nI = 1; nI <= HbRuntime.Len(aArr); nI++)
         {
-            aArr[nI - 1] = aArr[nI - 1] + nDelta;
+            aArr[(int)nI - 1] = aArr[(int)nI - 1] + nDelta;
         }
 
         return;

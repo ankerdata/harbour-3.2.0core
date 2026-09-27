@@ -21,9 +21,9 @@ using static Program;
 public class Store
 {
 
-    public virtual decimal Fill(ref dynamic[] aOut)
+    public virtual decimal Fill(ref List<dynamic> aOut)
     {
-        aOut = new dynamic[] { "x", "y", "z" };
+        aOut = new List<dynamic> { "x", "y", "z" };
 
         return HbRuntime.Len(aOut);
     }
@@ -37,14 +37,14 @@ public static partial class Program
         return test86_soStore;
     }
 
-    public static dynamic Wrap(ref dynamic[] aOut)
+    public static dynamic Wrap(ref List<dynamic> aOut)
     {
         return GetStore().Fill(ref aOut);
     }
 
     public static void Main(string[] args)
     {
-        dynamic[] aData = new dynamic[] {  };
+        List<dynamic> aData = new List<dynamic> {  };
         decimal nCount = default;
 
         test86_soStore = new Store();

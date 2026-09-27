@@ -244,7 +244,9 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
  *   a  -> ARRAY
  *   o  -> OBJECT
  *   d  -> DATE
- *   h  -> HASH
+ *   h  -> HASH (keyed by strings; hb_astHashNameKeys)
+ *   hn -> HASHN (keyed by numbers: a two-letter prefix, see
+ *         hb_astInferFromPrefix)
  *   b  -> BLOCK
  *   t  -> TIMESTAMP
  *   x  -> USUAL (explicitly variant)
@@ -542,6 +544,110 @@ static HB_BOOL hb_astIsNameSeededClass( const char * szName,
    return szClass != NULL && hb_stricmp( szClass, szType ) == 0;
 }
 
+/* The key type a hash's name declares (Alex, 2026-09-27): 'N' for
+   `hn<X>` / `shn<X>`, a hash keyed by numbers (C# long); 'C' for any other
+   `h<X>` / `sh<X>`, keyed by strings, the default; 0 for a name that is
+   no hash's. The name decides, as `i` decides a whole number: C# has to
+   commit to a key type, and a guess from the keys the code happens to use
+   went wrong wherever the key came from a macro or an `x` value
+   (languages.prg's CreateLangHash). */
+int hb_astHashNameKeys( const char * szName )
+{
+   if( ! szName )
+      return 0;
+   if( szName[ 0 ] == 's' && szName[ 1 ] == 'h' )
+      szName++;
+   if( szName[ 0 ] != 'h' )
+      return 0;
+   if( szName[ 1 ] == 'n' && szName[ 2 ] >= 'A' && szName[ 2 ] <= 'Z' )
+      return 'N';
+   if( ( szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' ) ||
+       ( szName[ 1 ] >= '0' && szName[ 1 ] <= '9' ) )
+      return 'C';
+   return 0;
+}
+
+static HB_BOOL hb_astOrmSeen( int iLine, const char * szKey );
+
+/* W0035: a hash used with keys its name does not declare — a number as
+   the key of an `h` name, a string as the key of an `hn` one, or a hash of
+   the other kind given to it. The name is the declaration, so the fix is
+   the name (or the key). cKeys is the kind met: 'N' or 'C'. */
+static void hb_astHashKeyCheck( const char * szName, int cKeys,
+                                const char * szFile, int iLine,
+                                HB_BOOL fGiven )
+{
+   int  iDeclared = hb_astHashNameKeys( szName );
+   char szKey[ 160 ];
+
+   if( ! iDeclared || ! cKeys || iDeclared == cKeys )
+      return;
+   hb_snprintf( szKey, sizeof( szKey ), "W0035:%s", szName );
+   if( hb_astOrmSeen( iLine, szKey ) )
+      return;
+   if( fGiven )
+      fprintf( stderr,
+         "hbtranspiler: %s(%d): warning W0035  '%s' is given a hash keyed "
+         "by %s, but its name declares one keyed by %s: a hash keyed by %s "
+         "is named %s<...>\n",
+         szFile ? hb_strCollapsePath( szFile ) : "?", iLine, szName,
+         cKeys == 'N' ? "numbers" : "strings",
+         iDeclared == 'N' ? "numbers" : "strings",
+         cKeys == 'N' ? "numbers" : "strings",
+         cKeys == 'N' ? "hn" : "h" );
+   else
+      fprintf( stderr,
+         "hbtranspiler: %s(%d): warning W0035  '%s' takes %s as a key, but "
+         "its name declares a hash keyed by %s: a hash keyed by %s is named "
+         "%s<...>\n",
+         szFile ? hb_strCollapsePath( szFile ) : "?", iLine, szName,
+         cKeys == 'N' ? "a number" : "a string",
+         iDeclared == 'N' ? "numbers" : "strings",
+         cKeys == 'N' ? "numbers" : "strings",
+         cKeys == 'N' ? "hn" : "h" );
+}
+
+/* The kind of key an index expression is: 'N', 'C', or 0 unknown. */
+static int hb_astKeyKind( const char * szType )
+{
+   if( ! szType )
+      return 0;
+   if( strcmp( szType, "NUMERIC" ) == 0 || strcmp( szType, "INTEGER" ) == 0 )
+      return 'N';
+   if( strcmp( szType, "STRING" ) == 0 )
+      return 'C';
+   return 0;
+}
+
+/* The kind of hash a type is: 'N' for HASHN, 'C' for HASHC, 0 otherwise
+   (a weak HASH says nothing). */
+static int hb_astHashKind( const char * szType )
+{
+   if( ! szType )
+      return 0;
+   if( strcmp( szType, "HASHN" ) == 0 )
+      return 'N';
+   if( strcmp( szType, "HASHC" ) == 0 )
+      return 'C';
+   return 0;
+}
+
+/* The name a subscript's or an assignment's target is known by: a
+   variable, a file static (parsed as MEMVAR->name), or a member send. */
+static const char * hb_astTargetName( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return NULL;
+   if( pExpr->ExprType == HB_ET_VARIABLE || pExpr->ExprType == HB_ET_VARREF )
+      return pExpr->value.asSymbol.name;
+   if( pExpr->ExprType == HB_ET_ALIASVAR && pExpr->value.asAlias.pVar &&
+       pExpr->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+      return pExpr->value.asAlias.pVar->value.asSymbol.name;
+   if( pExpr->ExprType == HB_ET_SEND )
+      return pExpr->value.asMessage.szMessage;
+   return NULL;
+}
+
 static const char * hb_astInferFromPrefix( const char * szName )
 {
    if( ! szName || ! szName[ 0 ] )
@@ -558,6 +664,11 @@ static const char * hb_astInferFromPrefix( const char * szName )
       if( szClass )
          return szClass;
    }
+
+   /* `hn<X>` / `shn<X>`: a hash keyed by numbers (Alex, 2026-09-27).
+      A plain `h<X>` is keyed by strings, the default. */
+   if( hb_astHashNameKeys( szName ) == 'N' )
+      return "HASHN";
 
    /* The prefix is the first character, which should be lowercase.
       If the name starts with uppercase or underscore, no prefix. */
@@ -600,12 +711,16 @@ static const char * hb_astInferFromPrefix( const char * szName )
    return NULL;
 }
 
-/* An `i` name is a whole number whatever number initialises it:
-   `local iCount := 0` and `local iLen := Len( a )` are INTEGER (C# long),
-   where for any other name the initializer's NUMERIC wins. The emitter
-   casts a decimal initializer, as for a Pass 2.5 local. */
-static const char * hb_astIntegerByName( const char * szName,
-                                         const char * szType )
+/* Where the name says more than the initializer, the name wins. An `i`
+   name is a whole number whatever number initialises it: `local iCount :=
+   0` and `local iLen := Len( a )` are INTEGER (C# long), where for any
+   other name the initializer's NUMERIC wins; the emitter casts a decimal
+   initializer, as for a Pass 2.5 local. An `hn` name is keyed by numbers
+   whatever hash initialises it: `local hnById := { => }` is HASHN, where
+   the empty literal says nothing of its keys (a literal keyed by strings
+   is W0035). */
+static const char * hb_astNameOverInit( const char * szName,
+                                        const char * szType )
 {
    if( szType && hb_stricmp( szType, "NUMERIC" ) == 0 )
    {
@@ -613,6 +728,9 @@ static const char * hb_astIntegerByName( const char * szName,
       if( szPrefix && hb_stricmp( szPrefix, "INTEGER" ) == 0 )
          return szPrefix;
    }
+   if( szType && hb_stricmp( szType, "HASH" ) == 0 &&
+       hb_astHashNameKeys( szName ) == 'N' )
+      return "HASHN";
    return szType;
 }
 
@@ -672,7 +790,7 @@ const char * hb_astInferType( const char * szName, PHB_EXPR pInit )
    /* 1. Try to infer from initializer expression */
    szType = hb_astInferFromExpr( pInit );
    if( szType )
-      return hb_astIntegerByName( szName, szType );
+      return hb_astNameOverInit( szName, szType );
 
    /* 2. Try Hungarian notation prefix */
    szType = hb_astInferFromPrefix( szName );
@@ -722,7 +840,7 @@ const char * hb_astInferTypeFromInit( const char * szName, const char * szInit )
                break;  /* not a simple number */
          }
          if( i == n )   /* `VAR iCount INIT 0` is long, as a local's is */
-            return hb_astIntegerByName( szName, "NUMERIC" );
+            return hb_astNameOverInit( szName, "NUMERIC" );
       }
    }
 
@@ -1856,7 +1974,45 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       {
          PHB_EXPR pBase = pExpr->value.asList.pExprList;
          PHB_EXPR pIdx  = pExpr->value.asList.pIndex;
-         if( pBase && pBase->ExprType == HB_ET_VARIABLE && pIdx )
+         const char * szTarget = hb_astTargetName( pBase );
+         /* the name declares the key type: a key of the other kind is
+            W0035, and never upgrades an `h` name to numeric keys */
+         if( szTarget && pIdx && hb_astHashNameKeys( szTarget ) )
+            hb_astHashKeyCheck( szTarget,
+               hb_astKeyKind( hb_astInferExprType( pIdx, pEnv ) ),
+               pEnv->szFile, s_iObserveLine, HB_FALSE );
+         /* W0036: an `x` name says nothing of array or hash, and a key
+            that is not a string does not decide it — the source says,
+            by assigning it to an a<...> / h<...> / hn<...> name where
+            it knows (a ValType() branch); a hash whose keys may be of
+            either kind is read with hb_HGet(), which takes any key
+            (ormtestsuite.prg's LangValuesEqual()) */
+         else if( szTarget && pIdx &&
+                  ( ( szTarget[ 0 ] == 'x' && szTarget[ 1 ] >= 'A' &&
+                      szTarget[ 1 ] <= 'Z' ) ||
+                    ( szTarget[ 0 ] == 's' && szTarget[ 1 ] == 'x' &&
+                      szTarget[ 2 ] >= 'A' && szTarget[ 2 ] <= 'Z' ) ) )
+         {
+            const char * szBase = hb_astInferExprType( pBase, pEnv );
+            if( ! ( szBase && ( strcmp( szBase, "ARRAY" ) == 0 ||
+                                hb_astIsHashFamily( szBase ) ) ) &&
+                hb_astKeyKind( hb_astInferExprType( pIdx, pEnv ) ) != 'C' )
+            {
+               char szKey[ 160 ];
+               hb_snprintf( szKey, sizeof( szKey ), "W0036:%s", szTarget );
+               if( ! hb_astOrmSeen( s_iObserveLine, szKey ) )
+                  fprintf( stderr,
+                     "hbtranspiler: %s(%d): warning W0036  '%s' is "
+                     "subscripted, but an x name says neither array nor "
+                     "hash: assign it to an a<...>, h<...> or hn<...> "
+                     "name where the code knows which, or read a hash "
+                     "that may have either kind of key with hb_HGet()\n",
+                     pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                     s_iObserveLine, szTarget );
+            }
+         }
+         if( pBase && pBase->ExprType == HB_ET_VARIABLE && pIdx &&
+             ! hb_astHashNameKeys( pBase->value.asSymbol.name ) )
          {
             const char * szBase =
                hb_astInferExprType( pBase, pEnv );
@@ -1982,6 +2138,17 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       }
 
       default:
+         if( pExpr->ExprType == HB_EO_ASSIGN &&
+             pExpr->value.asOperator.pLeft && pExpr->value.asOperator.pRight )
+         {
+            const char * szTarget =
+               hb_astTargetName( pExpr->value.asOperator.pLeft );
+            if( szTarget && hb_astHashNameKeys( szTarget ) )
+               hb_astHashKeyCheck( szTarget,
+                  hb_astHashKind( hb_astInferExprType(
+                     pExpr->value.asOperator.pRight, pEnv ) ),
+                  pEnv->szFile, s_iObserveLine, HB_TRUE );
+         }
          if( pExpr->ExprType >= HB_EO_POSTINC )
          {
             /* READING an int in a division is fine since the emitter
@@ -2082,6 +2249,13 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
             /* A declaration initializer is an assignment for
                int-candidacy purposes: fractional literal / division
                result = hard disqualifier, other non-integral = soft. */
+            if( pStmt->value.asVar.szName && pStmt->value.asVar.pInit &&
+                ! pStmt->value.asVar.fArrayDim &&
+                hb_astHashNameKeys( pStmt->value.asVar.szName ) )
+               hb_astHashKeyCheck( pStmt->value.asVar.szName,
+                  hb_astHashKind( hb_astInferExprType(
+                     pStmt->value.asVar.pInit, pEnv ) ),
+                  pEnv->szFile, pStmt->iLine, HB_TRUE );
             if( pStmt->value.asVar.szName && pStmt->value.asVar.pInit &&
                 ! pStmt->value.asVar.fArrayDim )
             {
@@ -3804,7 +3978,7 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                                   pStmt->value.asVar.pInit, &env, szFile,
                                   pStmt->iLine );
          if( pStmt->value.asVar.pInit )
-            szType = hb_astIntegerByName( pStmt->value.asVar.szName,
+            szType = hb_astNameOverInit( pStmt->value.asVar.szName,
                hb_astInferExprType( pStmt->value.asVar.pInit, &env ) );
          if( ! szType )
             szType = hb_astInferType( pStmt->value.asVar.szName,

@@ -47,7 +47,7 @@ public static partial class HbRuntime
     {
         // A structure that contains itself is "null", as deep as the path
         // it is found in (hbjson.c walks pCtx->pId the same way).
-        if (x is object[] or System.Collections.IDictionary && JsonSize(x) > 0)
+        if ((IsHbArray(x) || x is System.Collections.IDictionary) && JsonSize(x) > 0)
         {
             if (aPath.Exists(xSeen => ReferenceEquals(xSeen, x)))
             {
@@ -93,11 +93,11 @@ public static partial class HbRuntime
                 // that: 2.50 stays "2.50", 42 is "42".
                 sb.Append(Convert.ToDecimal(x, INV).ToString(INV));
                 break;
-            case object[] aValues:
-                JsonEncodeArray(aValues, sb, nLevel, nIndent, aPath);
-                break;
             case System.Collections.IDictionary hValues:
                 JsonEncodeHash(hValues, sb, nLevel, nIndent, aPath);
+                break;
+            case System.Collections.IList aValues:
+                JsonEncodeArray(aValues, sb, nLevel, nIndent, aPath);
                 break;
             default:
                 // An object, a codeblock, a pointer: hbjson.c has no form
@@ -114,8 +114,8 @@ public static partial class HbRuntime
 
     static int JsonSize(object? x) => x switch
     {
-        object[] a => a.Length,
         System.Collections.IDictionary d => d.Count,
+        System.Collections.IList a => a.Count,
         _ => 0
     };
 
@@ -150,10 +150,10 @@ public static partial class HbRuntime
         sb.Append('"');
     }
 
-    static void JsonEncodeArray(object[] aValues, StringBuilder sb, int nLevel,
+    static void JsonEncodeArray(System.Collections.IList aValues, StringBuilder sb, int nLevel,
                                 int nIndent, List<object> aPath)
     {
-        if (aValues.Length == 0)
+        if (aValues.Count == 0)
         {
             sb.Append("[]");
             return;
@@ -161,7 +161,7 @@ public static partial class HbRuntime
         if (nIndent != 0)
             JsonIndent(sb, nLevel, nIndent);
         sb.Append('[');
-        for (int i = 0; i < aValues.Length; i++)
+        for (int i = 0; i < aValues.Count; i++)
         {
             if (i > 0)
                 sb.Append(',');
@@ -384,7 +384,7 @@ public static partial class HbRuntime
 
     static object JsonParseArray(string c, ref int i)
     {
-        var aValues = new List<dynamic?>();
+        var aValues = new List<dynamic>();
         i++;
         JsonSkipWs(c, ref i);
         if (i < c.Length && c[i] == ']')
@@ -407,7 +407,7 @@ public static partial class HbRuntime
             if (i < c.Length && c[i] == ']')
             {
                 i++;
-                return aValues.ToArray();
+                return aValues;
             }
             return JsonFailure.Value;
         }
@@ -562,7 +562,7 @@ public static partial class HbRuntime
     // hb_regex( <cRegex>|<pRegex>, <cString>, [<lCaseSensitive>], [<lNewLine>] ):
     // the whole match first, then one element per group, or an empty array
     // when it does not match (rtl/hbregex.c).
-    public static dynamic[] hb_regex(object? xRegex, string cString,
+    public static List<dynamic> hb_regex(object? xRegex, string cString,
                                      bool lCaseSensitive = true, bool lNewLine = false)
     {
         Regex re = xRegex switch
@@ -572,11 +572,11 @@ public static partial class HbRuntime
             _ => throw new ArgumentException("Argument error (HB_REGEX)")
         };
         Match m = re.Match(cString ?? "");
+        var aResult = new List<dynamic>();
         if (!m.Success)
-            return System.Array.Empty<dynamic>();
-        var aResult = new dynamic[m.Groups.Count];
+            return aResult;
         for (int i = 0; i < m.Groups.Count; i++)
-            aResult[i] = m.Groups[i].Success ? m.Groups[i].Value : "";
+            aResult.Add(m.Groups[i].Success ? m.Groups[i].Value : "");
         return aResult;
     }
 }

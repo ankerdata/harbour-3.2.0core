@@ -17,15 +17,15 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aArr = new dynamic[] {  };
+        List<dynamic> aArr = new List<dynamic> {  };
 
-        LoadFlags("full.dat", ref aArr, 4);
+        LoadFlags("full.dat", aArr, 4);
         HbRuntime.QOut("full[1]=" + aArr[0]);
         HbRuntime.QOut("full[4]=" + aArr[3]);
 
         if (false)
         {
-            LoadFlags("short.dat", ref HbDiscard<dynamic[]>.Value);
+            LoadFlags("short.dat", default(List<dynamic>));
         }
 
         return;

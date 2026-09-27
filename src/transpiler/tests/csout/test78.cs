@@ -18,7 +18,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aItems = new dynamic[] { "alpha", "beta", "gamma", "delta" };
+        List<dynamic> aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
         long i = default;
         long nIdx = 1;
         long nLast = (long)(HbRuntime.Len(aItems));
@@ -27,16 +27,16 @@ public static partial class Program
 
         for (i = 1; i <= HbRuntime.Len(aItems); i++)
         {
-            HbRuntime.QOut("i=", aItems[i - 1]);
+            HbRuntime.QOut("i=", aItems[(int)i - 1]);
         }
 
         // integral arithmetic keeps int
         nIdx = nIdx + 2;
-        HbRuntime.QOut("a=", aItems[nIdx - 1]);
-        HbRuntime.QOut("b=", aItems[nLast - 1]);
+        HbRuntime.QOut("a=", aItems[(int)nIdx - 1]);
+        HbRuntime.QOut("b=", aItems[(int)nLast - 1]);
         // decimal index — cast path
-        HbRuntime.QOut("c=", aItems[(long)(nHalf) - 1]);
-        HbRuntime.QOut("d=", aItems[(long)(FirstReal(aItems)) - 1]);
+        HbRuntime.QOut("c=", aItems[(int)(nHalf) - 1]);
+        HbRuntime.QOut("d=", aItems[(int)(FirstReal(aItems)) - 1]);
         // int widens into decimal math
         HbRuntime.QOut("e=", HbRuntime.Str(nIdx * 1.5m, 6, 1));
         // (explicit width: Harbour's
@@ -48,11 +48,11 @@ public static partial class Program
         // Returns an always-int local: the function's return type resolves to
         // INTEGER and callers may chain it straight into subscripts.
     }
-    public static long FirstReal(dynamic[] aList = default)
+    public static long FirstReal(List<dynamic> aList = default)
     {
         long nPos = 1;
 
-        while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[nPos - 1]))
+        while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[(int)nPos - 1]))
         {
             nPos = nPos + 1;
         }

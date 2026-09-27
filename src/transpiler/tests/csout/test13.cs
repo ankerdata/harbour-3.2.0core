@@ -41,7 +41,7 @@ public static partial class Program
         return nSum;
     }
 
-    public static decimal FindFirst(dynamic[] aItems = default, string cTarget = default)
+    public static decimal FindFirst(List<dynamic> aItems = default, string cTarget = default)
     {
         string cItem = default;
         decimal nPos = 0;
@@ -50,7 +50,7 @@ public static partial class Program
         // Nested FOR with EXIT
         for (i = 1; i <= HbRuntime.Len(aItems); i++)
         {
-            if (aItems[i - 1] == cTarget)
+            if (aItems[(int)i - 1] == cTarget)
             {
                 nPos = i;
                 HbRuntime.QOut("nPos=" + HbRuntime.Str(nPos));
@@ -118,7 +118,7 @@ public static partial class Program
         HbRuntime.QOut("Classify(0)=" + Classify(0));
         HbRuntime.QOut("Classify(42)=" + Classify(42));
         HbRuntime.QOut("SumEvenTo(10)=" + HbRuntime.Str(SumEvenTo(10)));
-        HbRuntime.QOut("FindFirst=" + HbRuntime.Str(FindFirst(new dynamic[] { "a", "b", "c" }, "b")));
+        HbRuntime.QOut("FindFirst=" + HbRuntime.Str(FindFirst(new List<dynamic> { "a", "b", "c" }, "b")));
         HbRuntime.QOut("DeepNest(5)=" + DeepNest(5));
         HbRuntime.QOut("DeepNest(30)=" + DeepNest(30));
         HbRuntime.QOut("DeepNest(200)=" + DeepNest(200));

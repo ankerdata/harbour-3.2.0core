@@ -18,14 +18,14 @@ using static Program;
 // #include "hbclass.ch"
 public class Shelf
 {
-    protected dynamic[] aItems = System.Array.Empty<dynamic>();
+    protected List<dynamic> aItems = new List<dynamic>();
 
     public dynamic Len => StackLen();
     public dynamic Size => StackLen();
-    public dynamic Init() { aItems = System.Array.Empty<dynamic>(); return this ; }
+    public dynamic Init() { aItems = new List<dynamic>(); return this ; }
     public virtual dynamic Stow(dynamic xItem = default)
     {
-        HbRuntime.AAdd(ref aItems, xItem);
+        HbRuntime.AAdd(aItems, xItem);
         return xItem;
     }
 
@@ -39,7 +39,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Shelf oShelf = (Shelf)new Shelf().Init();
+        Shelf oShelf = HbRuntime.Initialised(new Shelf(), self => self.Init());
         oShelf.Stow("jar");
         oShelf.Stow("tin");
         HbRuntime.QOut("len=" + HbRuntime.LTrim(HbRuntime.Str(oShelf.Len)) + " size=" + HbRuntime.LTrim(HbRuntime.Str(oShelf.Size)));

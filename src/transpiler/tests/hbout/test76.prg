@@ -13,42 +13,45 @@
 // Emission: HASHN → Dictionary<decimal, dynamic>, HASHC/HASH →
 // Dictionary<string, dynamic>; empty `{ => }` initializers inherit
 // the declared variable's key type.
+//
+// Since 2026-09-27 the name declares the key type (test127): the hashes
+// keyed by numbers here are hn<...> / shn<...>.
 
-STATIC shPanels AS HASH
+STATIC shnPanels AS HASH
 STATIC shNames := {"alpha" => 1, "beta" => 2} AS HASH
 
 PROCEDURE Main()
-   LOCAL hById := {=>} AS HASH
-   LOCAL hLit := {10 => "ten", 20 => "twenty"} AS HASH
+   LOCAL hnById := {=>} AS HASH
+   LOCAL hnLit := {10 => "ten", 20 => "twenty"} AS HASH
 
-   shPanels := BuildPanels()
+   shnPanels := BuildPanels()
 
-   hById[7] := "seven"
-   hById[8] := "eight"
+   hnById[7] := "seven"
+   hnById[8] := "eight"
 
-   QOut("a=", hLit[10])
-   QOut("b=", hLit[20])
-   QOut("c=", hById[7])
-   QOut("d=", hById[8])
+   QOut("a=", hnLit[10])
+   QOut("b=", hnLit[20])
+   QOut("c=", hnById[7])
+   QOut("d=", hnById[8])
    QOut("e=", GetPanel(3))
    QOut("f=", GetPanel(4))
    QOut("g=", shNames["alpha"] + shNames["beta"])
-   QOut("h=", Len(shPanels))
+   QOut("h=", Len(shnPanels))
 
 RETURN
 
    // Factory in the CreateLangHash shape: its own keys flow through a
    // variable, so the literal gives no key evidence — the return-key
-   // override from the `shPanels := BuildPanels()` site types it.
+   // override from the `shnPanels := BuildPanels()` site types it.
 FUNCTION BuildPanels() AS HASH
-   LOCAL hOut := {=>} AS HASH
+   LOCAL hnOut := {=>} AS HASH
    LOCAL nKey AS NUMERIC
 
    FOR nKey := 1 TO 5
-      hOut[nKey] := "panel" + AllTrim(Str(nKey))
+      hnOut[nKey] := "panel" + AllTrim(Str(nKey))
    NEXT
 
-RETURN hOut
+RETURN hnOut
 
 FUNCTION GetPanel( nNo AS NUMERIC )
-RETURN shPanels[nNo]
+RETURN shnPanels[nNo]

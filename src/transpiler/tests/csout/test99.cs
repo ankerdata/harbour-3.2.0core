@@ -20,26 +20,26 @@ using static Program;
 // #include "hbclass.ch"
 public class Bin
 {
-    protected dynamic[] aItems = System.Array.Empty<dynamic>();
+    protected List<dynamic> aItems = new List<dynamic>();
     public dynamic Peak { get { return Last(); } set { dynamic xNew = value; Pop(); Push( xNew ) ; } }
     
     public dynamic Len => Heft();
     public virtual dynamic Push(dynamic xItem = default)
     {
-        HbRuntime.AAdd(ref aItems, xItem);
+        HbRuntime.AAdd(aItems, xItem);
         return xItem;
     }
 
     public virtual dynamic Pop()
     {
         dynamic xLast = Last();
-        HbRuntime.ASize(ref aItems, HbRuntime.Len(aItems) - 1);
+        HbRuntime.ASize(aItems, HbRuntime.Len(aItems) - 1);
         return xLast;
     }
 
     public virtual dynamic Last()
     {
-        return aItems[(long)(HbRuntime.Len(aItems)) - 1];
+        return aItems[(int)(HbRuntime.Len(aItems)) - 1];
     }
 
     public virtual decimal Heft()

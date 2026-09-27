@@ -96,11 +96,12 @@ public static partial class HbSqlit3
     }
 
     // sqlite3_get_table( <pDb>, <cSQL> ): { { <column names> }, { <row> }, ... },
-    // every value text ("" for NULL); {} when the statement fails.
-    public static object?[] sqlite3_get_table(object? pDb, object? cSQL)
+    // every value text ("" for NULL); {} when the statement fails. Harbour
+    // arrays are List<dynamic> in C#.
+    public static List<dynamic> sqlite3_get_table(object? pDb, object? cSQL)
     {
         IntPtr db = Db(pDb, "SQLITE3_GET_TABLE");
-        var aResult = new List<object?>();
+        var aResult = new List<dynamic>();
         int rc = Native.sqlite3_get_table(db, ToUtf8(cSQL as string ?? ""), out IntPtr pResult,
                                           out int nRow, out int nCol, out IntPtr pErr);
         if (rc == SQLITE_OK)
@@ -108,16 +109,16 @@ public static partial class HbSqlit3
             int k = 0;
             for (int i = 0; i < nRow + 1; i++)
             {
-                var aRow = new object?[nCol];
+                var aRow = new List<dynamic>(nCol);
                 for (int j = 0; j < nCol; j++, k++)
-                    aRow[j] = FromUtf8(Marshal.ReadIntPtr(pResult, k * IntPtr.Size), -1);
+                    aRow.Add(FromUtf8(Marshal.ReadIntPtr(pResult, k * IntPtr.Size), -1));
                 aResult.Add(aRow);
             }
         }
         else if (pErr != IntPtr.Zero)
             Native.sqlite3_free(pErr);
         Native.sqlite3_free_table(pResult);
-        return aResult.ToArray();
+        return aResult;
     }
 
     // sqlite3_errmsg( <pDb> ): the last error's text

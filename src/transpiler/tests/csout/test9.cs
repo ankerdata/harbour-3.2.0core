@@ -17,7 +17,7 @@ public class Person : Inherited
     public string cName = "";
     public DateOnly dBirth;
     public bool lActive = true;
-    public dynamic[] aItems = System.Array.Empty<dynamic>();
+    public List<dynamic> aItems = new List<dynamic>();
     public dynamic oParent;
     public OrderedDictionary<string, dynamic> hConfig;
     public dynamic bCallback;
@@ -40,14 +40,14 @@ public static partial class Program
         decimal nPrice = 9.99m;
         string cName = "hello";
         bool lFound = true;
-        dynamic[] aList = new dynamic[] { 1, 2, 3 };
+        List<dynamic> aList = new List<dynamic> { 1, 2, 3 };
         OrderedDictionary<string, dynamic> hMap = new OrderedDictionary<string, dynamic> { { "key", "value" } };
 
         // Type from Hungarian prefix (no initializer)
         decimal nTotal = default;
         string cResult = default;
         bool lDone = default;
-        dynamic[] aBuffer = default;
+        List<dynamic> aBuffer = default;
         dynamic oConnection = default;
         DateOnly dToday = default;
         OrderedDictionary<string, dynamic> hSettings = default;

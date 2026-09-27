@@ -45,6 +45,8 @@ public static partial class HbRuntime
        the emitter; everything else comes through here. */
     public static IEnumerable<dynamic> HbEnumValues(dynamic x, bool reverse = false)
     {
+        if (IsHbArray((object)x))
+            return ArrayValues((System.Collections.IList)x, reverse);
         var list = new List<dynamic>();
         if (x is System.Collections.IDictionary d)
         {
@@ -66,12 +68,28 @@ public static partial class HbRuntime
         return list;
     }
 
+    // FOR EACH over an array: by index, reading its length at every step as
+    // Harbour's enumerator does, so an element the loop adds is visited
+    // and the loop may add to it (a C# foreach over a List would throw)
+    static IEnumerable<dynamic> ArrayValues(System.Collections.IList a, bool reverse)
+    {
+        if (reverse)
+        {
+            for (int i = a.Count - 1; i >= 0; i--)
+                if (i < a.Count)
+                    yield return a[i];
+        }
+        else
+            for (int i = 0; i < a.Count; i++)
+                yield return a[i];
+    }
+
     public static decimal Len(dynamic x)
     {
         if (x is string s) return s.Length;
-        if (x is System.Array a) return a.Length;
         // Harbour Len() of a hash is its key count.
         if (x is System.Collections.IDictionary h) return h.Count;
+        if (IsHbArray(x)) return ((System.Collections.IList)x).Count;
         return 0;
     }
 
@@ -341,15 +359,15 @@ public static partial class HbRuntime
     // (",," gives an empty token); lEOL splits on line ends (CR, LF, CRLF,
     // LFCR). lSkipStrings keeps quoted text (" or ') whole, " only with
     // lDoubleQuoteOnly. An empty string is one empty token.
-    public static dynamic[] hb_ATokens(string cString, string cDelim = null,
+    public static List<dynamic> hb_ATokens(string cString, string cDelim = null,
                                        bool lSkipStrings = false, bool lDoubleQuoteOnly = false) =>
         Tokens(cString, string.IsNullOrEmpty(cDelim) ? null : cDelim, false, lSkipStrings, lDoubleQuoteOnly);
 
-    public static dynamic[] hb_ATokens(string cString, bool lEOL,
+    public static List<dynamic> hb_ATokens(string cString, bool lEOL,
                                        bool lSkipStrings = false, bool lDoubleQuoteOnly = false) =>
         Tokens(cString, null, lEOL, lSkipStrings, lDoubleQuoteOnly);
 
-    static dynamic[] Tokens(string s, string cDelim, bool fEOL, bool fQuotes, bool fDoubleOnly)
+    static List<dynamic> Tokens(string s, string cDelim, bool fEOL, bool fQuotes, bool fDoubleOnly)
     {
         bool fIsDelim = cDelim != null;
         if (s.Length > 0 && !fIsDelim && !fEOL)
@@ -389,7 +407,7 @@ public static partial class HbRuntime
             }
         }
         aTokens.Add(nStart < nLen ? s.Substring(nStart) : "");
-        return aTokens.ToArray();
+        return aTokens;
     }
 
     // hb_StrReplace( <c>, <cSource>|<aSource>|<hReplace>[, <cDest>|<aDest>] )
@@ -414,17 +432,17 @@ public static partial class HbRuntime
         return sb.ToString();
     }
 
-    public static string hb_StrReplace(string cString, dynamic[] aSource, dynamic[] aDest = null)
+    public static string hb_StrReplace(string cString, List<dynamic> aSource, List<dynamic> aDest = null)
     {
-        var keys = System.Array.ConvertAll(aSource, x => x as string ?? "");
+        var keys = aSource.Select(x => (object)x as string ?? "").ToArray();
         var values = aDest == null ? System.Array.Empty<string>()
-                                   : System.Array.ConvertAll(aDest, x => x as string ?? "");
+                                   : aDest.Select(x => (object)x as string ?? "").ToArray();
         return StrReplace(cString, keys, values);
     }
 
-    public static string hb_StrReplace(string cString, dynamic[] aSource, string cDest)
+    public static string hb_StrReplace(string cString, List<dynamic> aSource, string cDest)
     {
-        var keys = System.Array.ConvertAll(aSource, x => x as string ?? "");
+        var keys = aSource.Select(x => (object)x as string ?? "").ToArray();
         var values = new string[cDest.Length];
         for (int i = 0; i < cDest.Length; i++)
             values[i] = cDest[i].ToString();
@@ -802,8 +820,8 @@ public static partial class HbRuntime
             DateTime t => "t\"" + t.ToString("yyyy-MM-dd HH:mm:ss.fff", INV) + "\"",
             bool l => l ? ".T." : ".F.",
             Delegate => "{|| ... }",
-            System.Array a => "{ Array of " + a.Length + " Items }",
             System.Collections.IDictionary h => "{ Hash of " + h.Count + " Items }",
+            System.Collections.IList a when IsHbArray(a) => "{ Array of " + a.Count + " Items }",
             _ when IsNumeric(x) => Str(Convert.ToDecimal(x, INV)),
             _ => "{ " + CLASSNAME(x) + " Object }",
         };
@@ -831,7 +849,7 @@ public static partial class HbRuntime
         }
         if (IsNumeric(x))
             return hb_ntos(Convert.ToDecimal(x, INV));
-        if (x is not (System.Array or System.Collections.IDictionary))
+        if (x is not System.Collections.IDictionary && !IsHbArray(x))
             throw new NotSupportedException("hb_ValToExp() of an object needs __objGetIVars(), part of the deferred object reflection");
         if (!seen.Add(x))
             throw new NotSupportedException("hb_ValToExp() of a self-referencing array needs __itemSetRef()");
@@ -849,9 +867,9 @@ public static partial class HbRuntime
         }
         else
         {
-            var a = (System.Array)x;
-            for (int i = 0; i < a.Length; i++)
-                sb.Append(i == 0 ? "" : ", ").Append(ValToExp(a.GetValue(i), seen));
+            var a = (System.Collections.IList)x;
+            for (int i = 0; i < a.Count; i++)
+                sb.Append(i == 0 ? "" : ", ").Append(ValToExp(a[i], seen));
         }
         seen.Remove(x);
         return sb.Append('}').ToString();

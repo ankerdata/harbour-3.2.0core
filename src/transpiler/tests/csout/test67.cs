@@ -19,28 +19,28 @@ using static Program;
 // ref one because the reassignment is passed back.
 public static partial class Program
 {
-    public static decimal Scale(dynamic[] aArr, decimal nFactor = default)
+    public static decimal Scale(List<dynamic> aArr, decimal nFactor = default)
     {
         // element mutation only
         long i = default;
         for (i = 1; i <= HbRuntime.Len(aArr); i++)
         {
-            aArr[i - 1] = aArr[i - 1] * nFactor;
+            aArr[(int)i - 1] = aArr[(int)i - 1] * nFactor;
         }
 
         return HbRuntime.Len(aArr);
     }
 
-    public static decimal Replace(ref dynamic[] aArr)
+    public static decimal Replace(ref List<dynamic> aArr)
     {
         // reassigns the whole variable
-        aArr = new dynamic[] { 7, 8, 9 };
+        aArr = new List<dynamic> { 7, 8, 9 };
         return HbRuntime.Len(aArr);
     }
 
     public static void Main(string[] args)
     {
-        dynamic[] aData = new dynamic[] { 1, 2, 3 };
+        List<dynamic> aData = new List<dynamic> { 1, 2, 3 };
         // elided: aData[i] mutated in place
         Scale(aData, 10);
         HbRuntime.QOut("scaled=" + HbRuntime.Str(aData[0], 4) + HbRuntime.Str(aData[1], 4) + HbRuntime.Str(aData[2], 4));

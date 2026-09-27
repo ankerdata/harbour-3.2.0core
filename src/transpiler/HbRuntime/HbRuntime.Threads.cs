@@ -169,7 +169,7 @@ public static partial class HbRuntime
         HbThread[] aThreads = xThreads switch
         {
             HbThread h => new[] { h },
-            System.Array a => a.OfType<HbThread>().ToArray(),
+            System.Collections.IList a when IsHbArray(a) => a.OfType<HbThread>().ToArray(),
             _ => System.Array.Empty<HbThread>(),
         };
         if (aThreads.Length == 0)

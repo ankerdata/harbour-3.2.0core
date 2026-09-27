@@ -182,7 +182,7 @@ def cs_return_to_harbour(cs: str) -> str | None:
         return "DATE"
     if base in ("DateTime", "System.DateTime"):
         return "TIMESTAMP"
-    if base.endswith("[]"):
+    if base.endswith("[]") or base.startswith("List<"):
         return "ARRAY"
     if base.startswith("Dictionary"):
         return "HASH"

@@ -1722,19 +1722,6 @@ static HB_BOOL hb_refTabIsVariadicProbe( const char * szName )
         hb_stricmp( szName, "HB_APARAMS"   ) == 0 );
 }
 
-/* Builtins that reallocate their array argument — the C# emitter passes
-   it as `ref dynamic[]`, so the variable is effectively reassigned.
-   Mirrors gencsharp's hb_csIsArrayMutator; an array passed here can't
-   have its `ref` elided. */
-static HB_BOOL hb_refTabIsArrayMutator( const char * szName )
-{
-   return szName &&
-      ( hb_stricmp( szName, "ASize"   ) == 0 ||
-        hb_stricmp( szName, "AAdd"    ) == 0 ||
-        hb_stricmp( szName, "hb_ADel" ) == 0 ||
-        hb_stricmp( szName, "hb_AIns" ) == 0 );
-}
-
 /* Walk an HB_ET_LIST/HB_ET_ARGLIST argument list and:
      1) mark positions where the arg is HB_ET_VARREF/HB_ET_REFERENCE
      2) recurse into each arg expression so nested calls are scanned too
@@ -1807,22 +1794,14 @@ static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
          hb_refTabScanExpr( pTab, pArg, pCtx );
 
       /* Propagate reassignment onto an enclosing array parameter so its
-         `ref` isn't elided: it's passed to an array-mutator (ASize/AAdd
-         realloc it via ref, even without `@`), or it's `@`-passed to a
-         callee slot that is itself reassigned (transitive — converges
-         over the scan's fixpoint passes). */
-      if( pCtx &&
-          ( pArg->ExprType == HB_ET_VARREF ||
-            pArg->ExprType == HB_ET_VARIABLE ) )
-      {
-         const char * szArgName = pArg->value.asSymbol.name;
-         HB_BOOL fMutator = ( iPos == 0 && hb_refTabIsArrayMutator( szFunc ) );
-         HB_BOOL fByRefToReassigned =
-            pArg->ExprType == HB_ET_VARREF && szFunc &&
-            hb_refTabIsReassigned( pTab, szFunc, iPos );
-         if( fMutator || fByRefToReassigned )
-            hb_refTabMaybeMarkReassigned( pTab, pCtx, szArgName );
-      }
+         `ref` isn't elided: it's `@`-passed to a callee slot that is
+         itself reassigned (transitive — converges over the scan's
+         fixpoint passes). AAdd(), ASize(), hb_ADel() and hb_AIns() no
+         longer count: they change the List<dynamic> itself, which every
+         holder shares, so the array is not reassigned. */
+      if( pCtx && pArg->ExprType == HB_ET_VARREF && szFunc &&
+          hb_refTabIsReassigned( pTab, szFunc, iPos ) )
+         hb_refTabMaybeMarkReassigned( pTab, pCtx, pArg->value.asSymbol.name );
       iLastReal = iPos;
       pArg = pArg->pNext;
       iPos++;

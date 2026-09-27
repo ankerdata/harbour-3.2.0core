@@ -98,6 +98,17 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
 
 public static partial class HbRuntime
 {
+    // X():New( ... ) for a class that declares Init() and no New():
+    // HBObject's New() (rtl/tobject.prg) runs Init( ... ) and answers the
+    // object itself, whatever Init() returned. Transaction's and
+    // POSStatus's Init() return NIL, and a device class's Init() returns
+    // NIL to say it could not connect; New() gives the object all the same.
+    [System.Diagnostics.StackTraceHidden]
+    public static T Initialised<T>(T self, Action<T> init)
+    {
+        init(self);
+        return self;
+    }
 
     public static readonly System.Reflection.BindingFlags MemberFlags =
         System.Reflection.BindingFlags.Public |
@@ -212,7 +223,7 @@ public static partial class HbRuntime
     // HB_ISARRAY( <x> ): an array, and not an object — Harbour's objects
     // are arrays there (hb_extIsArray, vm/extend.c), where ours are real
     // classes, so the question is only whether it is an array.
-    public static bool HB_ISARRAY(object? x) => x is object[];
+    public static bool HB_ISARRAY(object? x) => IsHbArray(x);
 
     // hb_defaultValue( <xValue>, <xDefault> ): the value, or the default
     // when the two are not of the same type (rtl/hbdef.c compares the
@@ -239,14 +250,20 @@ public static partial class HbRuntime
     public static dynamic hb_ExecFromArray(object? x1, object? x2) => ExecFromArray(new[] { x1, x2 });
     public static dynamic hb_ExecFromArray(object? x1, object? x2, object? x3) => ExecFromArray(new[] { x1, x2, x3 });
 
+    // a Harbour array of arguments as the call's own
+    static object?[] ArgsOf(object? x) =>
+        IsHbArray(x) ? ((System.Collections.IList)x!).Cast<object?>().ToArray()
+                     : throw new ArgumentException("Argument error (HB_EXECFROMARRAY)");
+
     static dynamic ExecFromArray(object?[] args)
     {
         object? xSelf = null, xFunc = null;
         object?[] aParams = System.Array.Empty<object?>();
         if (args.Length == 1)
         {
-            if (args[0] is object[] aExec)
+            if (IsHbArray(args[0]))
             {
+                object?[] aExec = ((System.Collections.IList)args[0]!).Cast<object?>().ToArray();
                 int nFunc = aExec.Length > 0 && ValType(aExec[0]) == "O" ? 1 : 0;
                 if (nFunc == 1)
                     xSelf = aExec[0];
@@ -261,13 +278,13 @@ public static partial class HbRuntime
             xSelf = args[0];
             xFunc = args[1];
             if (args.Length == 3)
-                aParams = args[2] as object[] ?? throw new ArgumentException("Argument error (HB_EXECFROMARRAY)");
+                aParams = ArgsOf(args[2]);
         }
         else if (args.Length == 2)
         {
             xFunc = args[0];
             if (args[1] != null)
-                aParams = args[1] as object[] ?? throw new ArgumentException("Argument error (HB_EXECFROMARRAY)");
+                aParams = ArgsOf(args[1]);
         }
 
         if (xSelf != null)

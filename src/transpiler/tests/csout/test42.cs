@@ -34,30 +34,30 @@ public class Record : HbDynamicObject
         return HbRuntime.GETMEMBER(this, cField);
     }
 
-    public virtual dynamic DumpFields(dynamic[] aFields = default)
+    public virtual dynamic DumpFields(List<dynamic> aFields = default)
     {
         long i = default;
         dynamic xVal = default;
         string cType = default;
         for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
-            xVal = HbRuntime.GETMEMBER(this, aFields[i - 1]);
+            xVal = HbRuntime.GETMEMBER(this, aFields[(int)i - 1]);
             cType = HbRuntime.ValType(xVal);
             if (cType == "C")
             {
-                HbRuntime.QOut(aFields[i - 1] + ": " + xVal);
+                HbRuntime.QOut(aFields[(int)i - 1] + ": " + xVal);
             }
             else if (cType == "N")
             {
-                HbRuntime.QOut(aFields[i - 1] + ": " + HbRuntime.Str(xVal, 4));
+                HbRuntime.QOut(aFields[(int)i - 1] + ": " + HbRuntime.Str(xVal, 4));
             }
             else if (cType == "L")
             {
-                HbRuntime.QOut(aFields[i - 1] + ": " + (xVal ? "T" : "F"));
+                HbRuntime.QOut(aFields[(int)i - 1] + ": " + (xVal ? "T" : "F"));
             }
             else
             {
-                HbRuntime.QOut(aFields[i - 1] + ": ?");
+                HbRuntime.QOut(aFields[(int)i - 1] + ": ?");
             }
         }
 
@@ -70,7 +70,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         dynamic oRec = new Record();
-        dynamic[] aFields = new dynamic[] { "cName", "nValue", "lActive" };
+        List<dynamic> aFields = new List<dynamic> { "cName", "nValue", "lActive" };
 
         // Direct property access — baseline
         oRec.cName = "hello";

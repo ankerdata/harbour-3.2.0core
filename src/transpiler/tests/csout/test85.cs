@@ -35,17 +35,17 @@ public class TestOrmRec85
 
 public static partial class Program
 {
-    public static dynamic[] TestDeptDef(string cPath = default)
+    public static List<dynamic> TestDeptDef(string cPath = default)
     {
-        return new dynamic[] { new dynamic[] { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new dynamic[] {  }, new dynamic[] {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
+        return new List<dynamic> { new List<dynamic> { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new List<dynamic> {  }, new List<dynamic> {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
     }
 
-    public static dynamic[] TestBranchDef(string cPath = default)
+    public static List<dynamic> TestBranchDef(string cPath = default)
     {
-        return new dynamic[] { new dynamic[] { "Branch", "BRNCH" }, (cPath != null ? cPath : ""), new dynamic[] {  }, new dynamic[] {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
+        return new List<dynamic> { new List<dynamic> { "Branch", "BRNCH" }, (cPath != null ? cPath : ""), new List<dynamic> {  }, new List<dynamic> {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
     }
 
-    public static TestOrmRec85 ConstructORMTable(dynamic[] aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
+    public static TestOrmRec85 ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
         return (TestOrmRec85)new TestOrmRec85().New();
 

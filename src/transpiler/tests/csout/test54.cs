@@ -19,7 +19,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         string cPath = "/tmp/";
-        dynamic[] aFile = new dynamic[] { "report.zip" };
+        List<dynamic> aFile = new List<dynamic> { "report.zip" };
         string cZipFile = "/tmp/report.zip";
         decimal nA = 5;
         decimal nB = 3;

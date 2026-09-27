@@ -17,7 +17,7 @@ public static partial class Program
     {
         OrderedDictionary<string, dynamic> h = new OrderedDictionary<string, dynamic> { { "a", 1 }, { "b", 2 } };
         OrderedDictionary<string, dynamic> hCopy = HbRuntime.hb_HClone(h);
-        dynamic[] aKeys = HbRuntime.hb_HKeys(h);
+        List<dynamic> aKeys = HbRuntime.hb_HKeys(h);
         decimal nB = HbRuntime.hb_HGetDef(h, "b", 0);
         dynamic xAny = HbRuntime.hb_HGetDef(h, "c", "none");
         string cText = HbRuntime.hb_ntos(nB + 1);
@@ -26,7 +26,7 @@ public static partial class Program
         hCopy["c"] = 3;
         HbRuntime.QOut("clone:", HbRuntime.hb_ntos(HbRuntime.Len(h)), HbRuntime.hb_ntos(HbRuntime.Len(hCopy)));
         HbRuntime.QOut("keys:");
-        foreach (dynamic __hb_fe_cKey in aKeys)
+        foreach (dynamic __hb_fe_cKey in HbRuntime.HbEnumValues(aKeys))
         {
             cKey = __hb_fe_cKey;
             HbRuntime.QQOut(" " + cKey);

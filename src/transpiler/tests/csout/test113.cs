@@ -14,20 +14,23 @@ using static Program;
 // find the same entry; hb_HKeyAt / hb_HPos / hb_HSet / hb_HGet /
 // hb_HClone are implemented (a clone copies nested arrays and hashes, as
 // AClone now does too), and `$` finds nothing for an empty string.
+//
+// Since 2026-09-27 the name declares the key type (test127): the hashes
+// keyed by numbers here are hn<...> / shn<...>.
 public static partial class Program
 {
     public static void Main(string[] args)
     {
         OrderedDictionary<string, dynamic> hStock = new OrderedDictionary<string, dynamic> { { "tea", 1 }, { "milk", 2 }, { "rusk", 3 } };
-        OrderedDictionary<long, dynamic> hById = new OrderedDictionary<long, dynamic> {  };
+        OrderedDictionary<long, dynamic> hnById = new OrderedDictionary<long, dynamic> {  };
         OrderedDictionary<string, dynamic> hSrc = new OrderedDictionary<string, dynamic>
         {
-            { "a", new dynamic[] { 1, 2 } },
+            { "a", new List<dynamic> { 1, 2 } },
             { "b", new OrderedDictionary<string, dynamic> { { "x", 1 } } }
         };
         OrderedDictionary<string, dynamic> hCopy = default;
-        dynamic[] aSrc = new dynamic[] { new OrderedDictionary<string, dynamic> { { "k", 1 } } };
-        dynamic[] aCopy = default;
+        List<dynamic> aSrc = new List<dynamic> { new OrderedDictionary<string, dynamic> { { "k", 1 } } };
+        List<dynamic> aCopy = default;
         long nId = 7;
         string cKey = default;
         string cKeys = "";
@@ -47,10 +50,10 @@ public static partial class Program
         HbRuntime.QOut(HbRuntime.HbIn("tea", hStock), HbRuntime.HbIn("milk", hStock), HbRuntime.HbIn("", "abc"), HbRuntime.HbIn("b", "abc"));
         HbRuntime.QOut(HbRuntime.hb_HKeepOrder(hStock, true));
 
-        hById[nId] = "seven";
-        hById[3] = "three";
-        HbRuntime.QOut(hById[nId], hById[3], HbRuntime.hb_HHasKey(hById, 7), HbRuntime.hb_HHasKey(hById, 7.0m));
-        HbRuntime.QOut(HbRuntime.hb_HGetDef(hById, 4, "none"), HbRuntime.hb_HKeyAt(hById, 1) + 1);
+        hnById[nId] = "seven";
+        hnById[3] = "three";
+        HbRuntime.QOut(hnById[nId], hnById[3], HbRuntime.hb_HHasKey(hnById, 7), HbRuntime.hb_HHasKey(hnById, 7.0m));
+        HbRuntime.QOut(HbRuntime.hb_HGetDef(hnById, 4, "none"), HbRuntime.hb_HKeyAt(hnById, 1) + 1);
 
         hCopy = HbRuntime.hb_HClone(hSrc);
         hCopy["a"][0] = 9;

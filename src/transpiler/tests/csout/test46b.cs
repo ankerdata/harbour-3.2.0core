@@ -9,9 +9,9 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aArr = new dynamic[] {  };
+        List<dynamic> aArr = new List<dynamic> {  };
 
-        SaveFlags("out.dat", ref aArr, 3);
+        SaveFlags("out.dat", aArr, 3);
 
         HbRuntime.QOut("saved[1]=" + aArr[0]);
         HbRuntime.QOut("saved[3]=" + aArr[2]);

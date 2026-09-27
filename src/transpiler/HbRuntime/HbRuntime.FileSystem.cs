@@ -205,7 +205,7 @@ public static partial class HbRuntime
     // <cAttr> asks for them, and "D" brings "." and ".." with it. A spec
     // ending in a path or drive separator gets "*.*" added, as Clipper's
     // did.
-    public static dynamic[] Directory(string cDirSpec = null, string cAttr = null)
+    public static List<dynamic> Directory(string cDirSpec = null, string cAttr = null)
     {
         int nMask = HB_FA_ARCHIVE | HB_FA_READONLY | AttrEncode(cAttr);
 
@@ -218,7 +218,7 @@ public static partial class HbRuntime
         foreach (FoundFile f in FindFiles(cDirSpec, nMask))
         {
             DateTime tWrite = f.WriteUtc.ToLocalTime();
-            aDir.Add(new dynamic[]
+            aDir.Add(new List<dynamic>
             {
                 f.Name,
                 (decimal) f.Size,
@@ -227,7 +227,7 @@ public static partial class HbRuntime
                 AttrDecode(f.Attr),
             });
         }
-        return aDir.ToArray();
+        return aDir;
     }
 
     // hb_strMatchWildRaw() (common/strwild.c) as hb_strMatchFile() calls it
@@ -291,14 +291,14 @@ public static partial class HbRuntime
     // hb_DirScan( [<cPath>], [<cFileMask>], [<cAttr>] ) (rtl/dirscan.prg):
     // Directory()'s entries for the whole tree, each name carrying the path
     // below <cPath> it was found at.
-    public static dynamic[] hb_DirScan(string cPath = null, string cFileMask = null, string cAttr = null) =>
-        DirScan(hb_DirSepAdd(cPath ?? ""), cFileMask ?? "*.*", cAttr ?? "").ToArray();
+    public static List<dynamic> hb_DirScan(string cPath = null, string cFileMask = null, string cAttr = null) =>
+        DirScan(hb_DirSepAdd(cPath ?? ""), cFileMask ?? "*.*", cAttr ?? "");
 
     static List<dynamic> DirScan(string cPath, string cMask, string cAttr)
     {
         var aResult = new List<dynamic>();
 
-        foreach (dynamic[] aFile in Directory(cPath + "*.*", cAttr + "D"))
+        foreach (List<dynamic> aFile in Directory(cPath + "*.*", cAttr + "D"))
         {
             string cName = (string) aFile[0];
             bool lMatch = FileMatch(cName, cMask);
@@ -308,7 +308,7 @@ public static partial class HbRuntime
                 if (lMatch && cAttr.Contains('D'))
                     aResult.Add(aFile);
                 if (cName != "." && cName != ".." && cName != "")
-                    foreach (dynamic[] aSub in DirScan(cPath + cName + "\\", cMask, cAttr))
+                    foreach (List<dynamic> aSub in DirScan(cPath + cName + "\\", cMask, cAttr))
                     {
                         aSub[0] = cName + "\\" + (string) aSub[0];
                         aResult.Add(aSub);

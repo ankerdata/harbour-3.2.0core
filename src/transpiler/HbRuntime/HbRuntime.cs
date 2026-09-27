@@ -77,8 +77,8 @@ public static partial class HbRuntime
         if (val is DateOnly dt) return dt == default;
         if (val is DateTime ts) return ts == default;
         if (val is bool b) return !b;
-        if (val is System.Array a) return a.Length == 0;
         if (val is System.Collections.IDictionary h) return h.Count == 0;
+        if (IsHbArray(val)) return ((System.Collections.IList)val).Count == 0;
         return false;
     }
 
@@ -114,12 +114,20 @@ public static partial class HbRuntime
         if (x is bool) return "L";
         if (x is DateOnly) return "D";
         if (x is DateTime) return "T";      // a timestamp
-        if (x is System.Array) return "A";
+        if (IsHbArray(x)) return "A";
         if (x is Delegate) return "B";
         if (x is System.Collections.IDictionary) return "H";
         if (IsPointer(x)) return "P";
         return "O";
     }
+
+    // A Harbour array: a List<dynamic>, one object every holder shares and
+    // AAdd() grows in place, as Harbour's does (HbRuntime.Arrays.cs). Any
+    // IList counts, so a typed List<T> can be one, and so can a C# params
+    // array handed on as a value - but not a hash, which is an IList too
+    // (OrderedDictionary).
+    internal static bool IsHbArray(object? x) =>
+        x is System.Collections.IList && x is not System.Collections.IDictionary;
 
     // Harbour's pointer items: a thread, a mutex, a socket, a Windows handle
     static bool IsPointer(object? x) =>
@@ -160,11 +168,11 @@ public static partial class HbRuntime
     public static bool ISNUMBER(dynamic x) => IsNumeric(x);
     public static bool ISLOGICAL(dynamic x) => x is bool;
     public static bool ISDATE(dynamic x) => x is DateOnly or DateTime;
-    public static bool ISARRAY(dynamic x) => x is System.Array;
+    public static bool ISARRAY(dynamic x) => IsHbArray(x);
     public static bool ISHASH(dynamic x) => x is System.Collections.IDictionary;
     public static bool ISOBJECT(dynamic x) =>
-        x is not null && !(x is string or bool or DateOnly or DateTime or System.Array or Delegate
-                          or System.Collections.IDictionary || IsNumeric(x));
+        x is not null && !(x is string or bool or DateOnly or DateTime or System.Collections.IList
+                          or Delegate or System.Collections.IDictionary || IsNumeric(x));
     public static bool ISBLOCK(dynamic x) => x is Delegate;
 
     // ---- Misc ----

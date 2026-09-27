@@ -497,6 +497,8 @@ can reach zero. Things that are merely *type debt* go to the
 | W0032 | scan  | Message sent to a scalar-named variable (`aLine:nQty`) — rename to `o<…>`   |
 | W0033 | scan  | A bare BREAK ends a SWITCH CASE: C's `break`, which Harbour runs as the sequence BREAK — leave the CASE with EXIT |
 | W0034 | emit  | THREAD STATIC with an initializer other than NIL, 0 or .F.: a `[ThreadStatic]` field's initializer runs on the first thread only, so another would start with the C# default |
+| W0035 | scan  | A hash used with keys its name does not declare: a number as the key of an `h` name, a string as the key of an `hn` one, or a hash of the other kind assigned to it — rename (`hn<...>` for numbers, `h<...>` for strings) or change the key |
+| W0036 | scan  | An `x` name subscripted by a key that is not a string: C# cannot tell an array from a hash — assign it to an `a`/`h`/`hn` name where the code knows which (a `ValType()` branch), or read a hash whose keys may be either kind with `hb_HGet()` |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -690,9 +692,9 @@ Tests: [test83.prg](tests/test83.prg), [test85.prg](tests/test85.prg).
 | `LOGICAL`         | `lOk`                  | `bool`                               |
 | `DATE`            | `dPosted`              | `DateOnly`                           |
 | `TIMESTAMP`       | `tStamp`               | `DateTime`                           |
-| `ARRAY`           | `aLines`               | `dynamic[]`                          |
-| `HASH` / `HASHC`  | `hConfig`              | `OrderedDictionary<string, dynamic>` (keys unknown or string-typed; .NET 9's, which keeps Harbour's insertion order across deletes — test113) |
-| `HASHN`           | `hByRecNo`             | `OrderedDictionary<long, dynamic>` (numeric keys inferred from literals / subscripts — see test76; integer ids, the subscript casts the key `(long)` — test113) |
+| `ARRAY`           | `aLines`               | `List<dynamic>` — one object every holder shares, grown and shrunk in place (test125) |
+| `HASH` / `HASHC`  | `hConfig`              | `OrderedDictionary<string, dynamic>` (keyed by strings, what an `h` name declares; .NET 9's, which keeps Harbour's insertion order across deletes — test113) |
+| `HASHN`           | `hnByRecNo`            | `OrderedDictionary<long, dynamic>` — keyed by numbers, what an `hn` / `shn` name declares (Alex, 2026-09-27; test127): integer ids, the subscript casts the key `(long)`. A key of the other kind is W0035. The keys an `x` or untyped name's hash is used with still decide it (test76) |
 | `OBJECT`          | `oTable`               | `dynamic`  *(messages bind via the DLR; or a class name when the refTab knows it)* |
 | `BLOCK`           | `bAction`, `pDB`, `fCallback` | `dynamic`  *(typed `Func<>` if args known)* |
 | `USUAL` / unknown | `xValue`               | `dynamic`                            |
@@ -829,7 +831,10 @@ strongest. Later rungs override earlier ones.
 1. **The Hungarian prefix** is the default for every local, parameter
    and member: `n` `decimal`, `i` `long` (a whole number: a count, an
    index, an integer flag), `c` `string`, `l` `bool`, `d` `DateOnly`,
-   `t` `DateTime`, `a` `dynamic[]`, `h` `OrderedDictionary<string, dynamic>`,
+   `t` `DateTime`, `a` `List<dynamic>`, `h` `OrderedDictionary<string, dynamic>`
+   (a hash keyed by strings), `hn` `OrderedDictionary<long, dynamic>` (keyed
+   by numbers; an `hn` name beats an empty `{ => }` initializer, as `i`
+   beats a number),
    `o` the class of that name when one exists (`oTransaction` →
    `Transaction`) and `dynamic` otherwise, `x` `dynamic` on purpose.
    A name that lies about its contents is a bug (W0021 / W0024).
@@ -911,10 +916,12 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `^` / `$`                        | `HbRuntime.Pow()` (decimal) / `HbRuntime.HbIn()` (substring or hash-key) |
 | `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
 | `iif(c, a(), b())` as statement  | `if (c) a(); else b();` (empty branches → `default`)     |
-| `AAdd(a, x)`, `ASize(a, n)`, `hb_ADel(a, n, .T.)`, `hb_AIns(a, n, x, .T.)` | `HbRuntime.AAdd(ref a, x)` … — the functions that change an array's length take it by `ref` (`ref dynamic[]`, or `ref dynamic` for an lvalue typed dynamic) when it is a variable or a member; any other argument gets the plain overload, whose returned array is resized but whose caller's array cannot follow. The scan marks an array parameter passed to one of them as reassigned, so it stays `ref` (test112) |
+| `AAdd(a, x)`, `ASize(a, n)`, `hb_ADel(a, n, .T.)`, `hb_AIns(a, n, x, .T.)` | `HbRuntime.AAdd(a, x)` … — the array is a `List<dynamic>` and the functions change it in place, so every holder sees the new length: a second variable, an element of another array (`AAdd(aX[i], y)`), a member. No `ref` (C# arrays took one, and an array held anywhere but the variable passed kept its length; test112, test125) |
+| `SWITCH x` / `CASE a` / `CASE b` … `EXIT` | `switch (x)` — Harbour runs from the matching CASE on until an EXIT: a CASE with no statements stacks its label on the next (`case a: case b:`), a body that runs on ends in `goto case <next>;` or `goto default;`, one that EXITs in `break;` (every CASE had ended in `break;`, so a stacked label did nothing; test126) |
 | `FOR i := 1 TO n STEP k`         | `for (i = 1; i <= n; i += k)` — `>=` for a negative constant step; a step that is not a constant is `HbRuntime.ForTest(i, n, k)`, its sign tested on every pass as HB_P_FORTEST does (test111) |
 | `{\|a, b\| expr}`                | `Func<dynamic, dynamic, dynamic> = ((a, b) => expr)`     |
 | `{\|x\| f(x), n := 0, x > 1}`    | `((x) => { f(x); n = 0; return x > 1; })` — every expression runs, the last is the value; a middle one that is not a call, assignment or step is `_ = …;`, an IIF is if/else (test110) |
+| `X():New(a)` where X's chain declares `Init` and no `New` | `HbRuntime.Initialised(new X(), self => self.Init(a))` — Harbour's `New()` runs `Init()` and answers the object whatever `Init()` returned (a `(X)new X().Init(a)` answered NIL for easipos's Transaction and POSStatus); `X():Init(a)` is `new X().Init(a)` and answers `Init()`'s result (test124) |
 | `Self` / `::`                    | `this`; a member bare (`nCount`), `this.nCount` only where a parameter, local, codeblock parameter, PUBLIC or MEMVAR of the same name needs it (Alex; in INLINE bodies too, where any free use of the name keeps it) — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for an undeclared member of a dynamic class; `this.Super()` and the other built-in object messages keep `this.` (extension methods need a receiver) |
 | `VAR x READONLY`                 | `{ get; protected set; }`: read by anyone, assigned by the class hierarchy, as Harbour's READONLY lets the class's own methods assign it (`{ get; }` took a constructor only). A non-public READONLY member is `{ get; set; }`, since C# rejects an accessor repeating its property's accessibility (CS0273); test122 |
 | `CLASS X ... MODULE FRIENDLY`    | the file's functions reach the class's non-exported members, as Harbour's friend rule has it: PROTECTED is `protected internal`, HIDDEN `internal`, a public READONLY's setter `protected internal` (ormsql.prg's PreparedSeek() reads SQLtTable's hSeekStmts); test122 |
@@ -948,7 +955,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `DEFAULT lX TO .T.` / `hb_default(@nX, 40)` on a value slot | `bool lX = true` / `decimal nX = 40` on the declaration; the guard is dropped (see [NIL semantics](#nil-semantics)) |
 | `DEFAULT nIdx TO <expr>` on a value slot (or any declared default at/before a `ref`) | `decimal? nIdx = null` at the boundary, `decimal nIdx_ = nIdx ?? <expr>;` where the guard stood, later references aliased to `nIdx_`; callers pad `default(decimal?)` into a pre-ref gap |
 | `VAR bFilter AS CODEBLOCK INIT { \|\| .T. }` | `private dynamic bFilter = ((Func<dynamic>)(() => true));` — the codeblock is parsed, not passed through as text |
-| Array index `a[i]`               | `a[(long)(i) - 1]` (1-based → 0-based; `long` indexes C# arrays natively) |
+| Array index `a[i]`               | `a[(int)(i) - 1]` (1-based → 0-based; a List's indexer takes an `int`), `a[0]` for `a[1]`; the same in an INLINE body (test123) |
 | `a / b` with both operands C#-integral | `(decimal)(a) / b` — Harbour `/` is always float (`7/2 == 3.5`); the cast is emitted only when both sides are statically `long` (int literals, INTEGER locals, int/long defines, ORM int fields, `AS INTEGER` members). `%` needs no cast; `^` already routes via `HbRuntime.Pow`. See [test84.prg](tests/test84.prg) |
 | `oX.nIntMember := <decimal expr>` | `oX.nIntMember = (long)(expr);` — writes into `AS INTEGER` members and int/long ORM fields are coerced; the truncation is recorded in the audit (`ORM-NARROW`) |
 | Hash subscript `h["k"]`          | `h["k"]` (string keys passed through)                    |
@@ -1012,7 +1019,7 @@ to hold the reasoning.
 | trailing arguments omitted               | `= default` on every slot after the last `ref` — C# forbids defaults on `ref` slots, hence the cutoff ([Strong typing strategy](#strong-typing-strategy)) |
 | body tests the parameter against NIL     | `T?` with `= null` (`N`); refused on `n`/`l`/`d`/`t` names, whose prefix is the contract ([NIL semantics](#nil-semantics), test18, test53) |
 | `DEFAULT p TO v` / `hb_default(@p, v)`   | a constant after the last `ref` becomes the C# default and the dead guard goes; an expression, or a slot at/before a `ref`, goes nullable at the boundary with a normalising local where the guard stood (`D`; test87, test88) |
-| some caller writes `@p`                  | `ref T` for every caller (`R`). A by-ref ARRAY slot the callee never reassigns (no `W`) is elided to a plain `dynamic[]` — element writes propagate anyway |
+| some caller writes `@p`                  | `ref T` for every caller (`R`). A by-ref ARRAY slot the callee never reassigns (no `W`) is elided to a plain `List<dynamic>` — element writes and length changes propagate anyway |
 | `Foo(...)`, `PCount()`, `hb_AParams()`, a name defined twice with different counts | `params dynamic[] hbva` (`V`), the named parameters re-bound from the array (test102) |
 | callers that stop before the first `@` slot | the **short overload**, below |
 
@@ -1461,6 +1468,11 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
+| 127       | A hash keyed by numbers is named `hn<...>` / `shn<...>`: a local (`{ => }` initializer included), a file static, a member and a parameter are `OrderedDictionary<long, dynamic>`, a key of no known type taken as the name says; an `h` name beside it keyed by strings |
+| 126       | SWITCH falls through as Harbour's does: stacked labels (a comment between them), a body without EXIT running into the next CASE and into OTHERWISE, the last CASE empty; on a string, a number and a dynamic value |
+| 125       | Harbour arrays are `List<dynamic>`: `AAdd` / `ASize` / `hb_AIns` / `hb_ADel` grow and shrink the array every holder shares (a second variable, an element of another array, a member), with no `ref`; literals and `Array()` of every dimension; FOR EACH sees an element the body adds; an array parameter passed to `AAdd` is not `ref` |
+| 124       | `X():New( ... )` on a class that declares only `Init()` answers the object even when `Init()` returns NIL (`HbRuntime.Initialised`); `X():Init( ... )` answers `Init()`'s result |
+| 123       | A subscript in an INLINE method is rebased as one in a method body: a literal, a parameter, a member, an expression, two dimensions and an assignment into an array; a hash's string-literal and `c`-named key passed as they are |
 | 122       | A `DESTRUCTOR` runs when its object is dropped and collected (a value-returning one through a lambda); a READONLY member assigned by its own method, and a PROTECTED READONLY one; a `MODULE FRIENDLY` class's protected members written by a function of its file; a method implemented as `PEEK122` under a declared `Peek122` is defined and called as declared |
 | 121       | `i` members (`VAR iCount INIT 0` is `long`, a decimal written into one is cast from inside the class and out); `@iX` into an `n` parameter and `@nX` into an `i` one (the shim seeds and writes back with a cast); a division of a call returning `long` stays Harbour's; an `n` local initialised from `hb_bitAnd` or an integral define that later takes a fraction is `decimal`; a bit setter returns `long` into an `AS INTEGER` member; members written bare, `this.` only where a parameter or codeblock parameter shares the name, in method and INLINE bodies |
 | 119       | An `IIF()` is the type its two branches share, as C#'s `? :` is: two numbers a number (a whole one beside a decimal widens), two strings a string, the hash family merged; a NIL branch or two unrelated types still dynamic. settflag's and buffflag's 100 bit setters, `RETURN IIF( lx, hb_bitOr(…), hb_bitAnd(…) )`, had all returned dynamic |
@@ -1492,6 +1504,8 @@ the errors, where the file fails and the test asserts the error line:
 | `switch_break.prg`            | `W0033` | A bare `BREAK` ending a `SWITCH` `CASE` (C's `break`)     |
 | `thread_static_init.prg`      | `W0034` | A `THREAD STATIC` initialised to something a second thread would not see |
 | `integer_fraction.prg`        | `W0024` | An `i` name given what may hold a fraction: assigned, passed, `/=`, `*= 1.5`, a FOR STEP; and exactly those five, the `Int()` lines quiet |
+| `hash_key_name.prg`           | `W0035` | A number as an `h` name's key, a string as an `hn` name's, a numerically keyed literal given to an `h` name; exactly those three |
+| `x_subscript.prg`             | `W0036` | An `x` name subscripted by a number; the same value through an `a` name, and by a string, quiet |
 
 ### The runtime library — `rtltest/`
 
@@ -1846,9 +1860,12 @@ for a lambda assigned to a `dynamic` field).
   itself runs one pass per invocation and leaves the loop to the
   driver.
 - **`INLINE` method bodies are translated textually**
-  (`hb_csTranslateInline`), so a subscript inside one gets no 1→0
-  conversion — any that compiles is off by one at runtime. (A
-  codeblock `CLASS VAR` INIT is the exception — it is parsed; see
+  (`hb_csTranslateInline`). A subscript is rebased there as in a
+  method body (test123) — hash or array decided from the index (a
+  string, a `c` name) and the receiver's name, as `HB_ET_ARRAYAT`
+  decides — but the translator sees no types beyond names, so an
+  INLINE body that needs more than a name to decide belongs in a
+  METHOD. (A codeblock `CLASS VAR` INIT is parsed; see
   [Defines map](#defines-map).)
 - **NIL tests on value slots that are not declared defaults** still
   emit dead code. A `DEFAULT` nested inside an `IF` is conditional and

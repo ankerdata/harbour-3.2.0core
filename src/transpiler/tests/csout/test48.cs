@@ -16,7 +16,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aFields = new dynamic[] { "one", "two", "three" };
+        List<dynamic> aFields = new List<dynamic> { "one", "two", "three" };
         string cMemberName = default;
         long i = default;
         string cAccum = "";
@@ -24,7 +24,7 @@ public static partial class Program
         // Use cMemberName inside a FOR-loop body first (nested scope).
         for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
-            cMemberName = aFields[i - 1];
+            cMemberName = aFields[(int)i - 1];
             cAccum += "[" + cMemberName + "]";
         }
 
@@ -32,7 +32,7 @@ public static partial class Program
 
         // Then reuse the same name as a FOREACH iterator.
         cAccum = "";
-        foreach (dynamic __hb_fe_cMemberName in aFields)
+        foreach (dynamic __hb_fe_cMemberName in HbRuntime.HbEnumValues(aFields))
         {
             cMemberName = __hb_fe_cMemberName;
             cAccum += "<" + cMemberName + ">";

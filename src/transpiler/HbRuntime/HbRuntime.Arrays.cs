@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -11,17 +12,20 @@ using System.Linq;
 public static partial class HbRuntime
 {
     // ---- Array functions ----
-    // Harbour arrays map to C# dynamic[]. Size-changing mutators (ASize,
-    // AAdd) take `ref dynamic[]` so the reallocated array propagates back;
-    // the transpiler inserts `ref` at the call site. Size-stable mutators
-    // (AIns, ADel, AFill, ASort) shift contents in place.
+    // A Harbour array is a List<dynamic> (IsHbArray, HbRuntime.cs): one
+    // object every holder shares, which AAdd(), ASize() and hb_AIns() /
+    // hb_ADel() grow and shrink in place, as Harbour's do. They were C#
+    // arrays, which cannot: the size-changing functions took the array by
+    // ref and handed back a new one, so an array held in an element or by
+    // a second variable never saw the change. The functions read any
+    // IList, so a typed List<T> can be a Harbour array too.
 
     // Array( <nElements> [, <nElements>...] ): an array of NIL with one
     // more dimension for each argument — Array( 2, 3 ) is two arrays of
     // three (vm/arrayshb.c, hb_arrayNewRagged). No argument gives NIL; a
     // negative dimension is Harbour's bound error. (Harbour gives NIL for
     // a non-numeric argument too; the signature makes that a compile error.)
-    public static dynamic[] Array(params decimal[] anElements)
+    public static List<dynamic> Array(params decimal[] anElements)
     {
         if (anElements.Length == 0)
             return null;
@@ -32,86 +36,54 @@ public static partial class HbRuntime
         return ArrayRagged(anElements, 0);
     }
 
-    static dynamic[] ArrayRagged(decimal[] anElements, int iDimension)
+    static List<dynamic> ArrayRagged(decimal[] anElements, int iDimension)
     {
-        var a = new dynamic[(int)anElements[iDimension]];
-        if (iDimension + 1 < anElements.Length)
-            for (int i = 0; i < a.Length; i++)
-                a[i] = ArrayRagged(anElements, iDimension + 1);
+        int n = (int)Math.Truncate(anElements[iDimension]);
+        var a = new List<dynamic>(n);
+        for (int i = 0; i < n; i++)
+            a.Add(iDimension + 1 < anElements.Length ? ArrayRagged(anElements, iDimension + 1) : null);
         return a;
     }
 
-    public static dynamic AAdd(ref dynamic[] arr, dynamic val)
+    // AAdd( <aArray>, <xValue> ): xValue, added at the end of the array
+    // itself. An object is an array of its instance variables in Harbour,
+    // which AAdd() grows; a C# object is not an array, so it is left as it
+    // is, as ASize() and ACopy() leave it. Anything else is the argument
+    // error (1123).
+    public static dynamic AAdd(dynamic arr, dynamic val)
     {
-        int n = arr?.Length ?? 0;
-        System.Array.Resize(ref arr, n + 1);
-        arr[n] = val;
+        if ((object)arr is IList a && IsHbArray(a))
+            a.Add(val);
+        else if (ValType((object)arr) != "O")
+            throw new ArgumentException("Argument error (AADD, 1123)");
         return val;
     }
 
-    // `ref dynamic` overload — used when the lvalue's static type is
-    // `dynamic` (a class DATA field without a Hungarian array prefix,
-    // e.g. `protected dynamic array;`). C# `ref` is invariant so a
-    // `ref dynamic` arg won't bind to a `ref dynamic[]` parameter even
-    // though the runtime value is an array. Build a new array, assign
-    // it back through the ref.
-    public static dynamic AAdd(ref dynamic arr, dynamic val)
+    // ASize( <aArray>, <nLen> ): the array itself, grown with NILs or cut
+    // to nLen (a size below 0 is 0); not an array, NIL
+    public static dynamic ASize(dynamic arr, decimal nLen)
     {
-        if (arr is object[] objArr)
-        {
-            int n = objArr.Length;
-            var tmp = new dynamic[n + 1];
-            System.Array.Copy(objArr, tmp, n);
-            tmp[n] = val;
-            arr = tmp;
-        }
-        else if (arr == null)
-        {
-            arr = new dynamic[] { val };
-        }
-        return val;
-    }
-
-    // Non-ref fallback for call sites the emitter can't pin to an lvalue
-    // (GETMEMBER results, array indices, method-call results). Returns
-    // val to preserve Harbour's AAdd return semantic; the underlying
-    // array isn't actually grown — same silent-failure mode as the
-    // pre-ref-overload runtime. Real fix requires the source to be
-    // restructured to assign through.
-    public static dynamic AAdd(dynamic arr, dynamic val) => val;
-
-    // ASize() (vm/arrayshb.c): a size below 0 is 0; not an array, NIL
-    public static dynamic[] ASize(ref dynamic[] arr, decimal nLen)
-    {
-        int n = SizeArg(nLen);
-        if (arr == null)
-            arr = new dynamic[n];
-        else
-            System.Array.Resize(ref arr, n);
+        if ((object)arr is not IList a || !IsHbArray(a))
+            return null;
+        Resize(a, SizeArg(nLen));
         return arr;
     }
 
-    public static dynamic[] ASize(ref dynamic arr, decimal nLen)
+    static void Resize(IList a, int n)
     {
-        if (arr is not object[] objArr)
-            return null;
-        var tmp = new dynamic[SizeArg(nLen)];
-        System.Array.Copy(objArr, tmp, Math.Min(objArr.Length, tmp.Length));
-        arr = tmp;
-        return tmp;
-    }
-
-    // Non-ref fallback. Returns a new resized array but can't update
-    // the caller's variable — caller code that does `aArr := ASize(...)`
-    // still works; `ASize(GETMEMBER(...), n)` as a statement is a
-    // silent no-op for the caller, matching the pre-ref behavior.
-    public static dynamic[] ASize(dynamic arr, decimal nLen)
-    {
-        if (arr is not object[] objArr)
-            return null;
-        var copy = new dynamic[SizeArg(nLen)];
-        System.Array.Copy(objArr, copy, Math.Min(objArr.Length, copy.Length));
-        return copy;
+        if (a is List<dynamic> l)
+        {
+            if (n < l.Count)
+                l.RemoveRange(n, l.Count - n);
+            else
+                while (l.Count < n)
+                    l.Add(null);
+            return;
+        }
+        while (a.Count > n)
+            a.RemoveAt(a.Count - 1);
+        while (a.Count < n)
+            a.Add(null);
     }
 
     static int SizeArg(decimal n) => n <= 0 ? 0 : (int)Math.Min(Math.Truncate(n), int.MaxValue);
@@ -138,13 +110,13 @@ public static partial class HbRuntime
     // AClone(): a copy with nested arrays and hashes copied too
     // (CloneNested); objects are shared. Not an array, NIL.
     public static dynamic AClone(dynamic arr) =>
-        (object)arr is object[] a
-            ? CloneNested(a, new Dictionary<object, object>(ReferenceEqualityComparer.Instance))
+        IsHbArray((object)arr)
+            ? CloneNested(arr, new Dictionary<object, object>(ReferenceEqualityComparer.Instance))
             : null;
 
     // ATail(): the last element, NIL for an empty array or none
     public static dynamic ATail(dynamic arr) =>
-        arr is object[] a && a.Length > 0 ? a[a.Length - 1] : null;
+        (object)arr is IList a && IsHbArray(a) && a.Count > 0 ? a[a.Count - 1] : null;
 
     // AScan( <a>, <xValue>|<bBlock>[, <nStart>[, <nCount>]] ) and
     // hb_AScan( ..., <lExact> ) (vm/arrays.c, hb_arrayScan). A block is
@@ -162,21 +134,21 @@ public static partial class HbRuntime
 
     static decimal ArrayScan(object arr, object xValue, decimal? nStart, decimal? nCount, bool fExact)
     {
-        if (arr is not object[] a)
+        if (arr is not IList a || !IsHbArray(a))
             return 0;
-        (long i, long n) = StartCount(a.Length, nStart, nCount);
+        (long i, long n) = StartCount(a.Count, nStart, nCount);
         if (xValue is Delegate)
         {
-            for (; n > 0 && i < a.Length; n--)
+            for (; n > 0 && i < a.Count; n--)
             {
                 i++;
-                if (Eval(xValue, a[i - 1], (decimal)i) is bool l && l)
+                if (Eval(xValue, a[(int)i - 1], (decimal)i) is bool l && l)
                     return i;
             }
             return 0;
         }
         for (; n > 0; n--, i++)
-            if (ScanMatch(a[i], xValue, fExact))
+            if (ScanMatch(a[(int)i], xValue, fExact))
                 return i + 1;
         return 0;
     }
@@ -207,11 +179,11 @@ public static partial class HbRuntime
     // element and its index; stops early if the block shrinks the array
     public static dynamic AEval(dynamic arr, dynamic block, decimal? nStart = null, decimal? nCount = null)
     {
-        if (arr is object[] a && block is Delegate)
+        if ((object)arr is IList a && IsHbArray(a) && block is Delegate)
         {
-            (long i, long n) = StartCount(a.Length, nStart, nCount);
-            for (; n > 0 && i < a.Length; n--, i++)
-                Eval(block, a[i], (decimal)(i + 1));
+            (long i, long n) = StartCount(a.Count, nStart, nCount);
+            for (; n > 0 && i < a.Count; n--, i++)
+                Eval(block, a[(int)i], (decimal)(i + 1));
         }
         return arr;
     }
@@ -221,103 +193,67 @@ public static partial class HbRuntime
     // is 1; out of range, nothing happens.
     public static dynamic ADel(dynamic arr, decimal nPos)
     {
-        if (arr is object[] a)
+        if ((object)arr is IList a && IsHbArray(a))
             ArrayDel(a, nPos);
         return arr;
     }
 
     public static dynamic AIns(dynamic arr, decimal nPos)
     {
-        if (arr is object[] a)
+        if ((object)arr is IList a && IsHbArray(a))
             ArrayIns(a, nPos);
         return arr;
     }
 
-    static bool ArrayDel(object[] a, decimal nPos)
+    static bool ArrayDel(IList a, decimal nPos)
     {
         long i = (long)Math.Truncate(nPos);
         if (i == 0)
             i = 1;
-        if (i < 1 || i > a.Length)
+        if (i < 1 || i > a.Count)
             return false;
-        System.Array.Copy(a, (int)i, a, (int)i - 1, a.Length - (int)i);
-        a[^1] = null;
+        a.RemoveAt((int)i - 1);
+        a.Add(null);
         return true;
     }
 
-    static bool ArrayIns(object[] a, decimal nPos)
+    static bool ArrayIns(IList a, decimal nPos)
     {
         long i = (long)Math.Truncate(nPos);
         if (i == 0)
             i = 1;
-        if (i < 1 || i > a.Length)
+        if (i < 1 || i > a.Count)
             return false;
-        System.Array.Copy(a, (int)i - 1, a, (int)i, a.Length - (int)i);
-        a[i - 1] = null;
+        a.RemoveAt(a.Count - 1);
+        a.Insert((int)i - 1, null);
         return true;
     }
 
     // hb_ADel( <a>, <nPos>[, <lAutoSize>] ) and hb_AIns( <a>, <nPos>[,
     // <xValue>[, <lAutoSize>]] ) (vm/arrayshb.c): ADel()/AIns() that can
     // also shrink or grow the array (lAutoSize), and set the inserted
-    // element; they return the array, NIL for anything else. A C# array
-    // cannot change length in place, so the emitter passes the array by
-    // ref, as for AAdd() and ASize(): `ref dynamic[]`, or `ref dynamic` for
-    // an lvalue typed dynamic (C# ref is invariant). An argument that is
-    // not an lvalue (a literal, an element, a method's result) gets the
-    // plain overload: the array returned is resized, but the caller's
-    // array cannot follow — in Harbour it would, being the same array.
-    public static dynamic[] hb_ADel(ref dynamic[] arr, decimal nPos, bool lAutoSize = false)
-    {
-        if (arr is not null && ArrayDel(arr, nPos) && lAutoSize)
-            System.Array.Resize(ref arr, arr.Length - 1);
-        return arr;
-    }
-
-    public static dynamic hb_ADel(ref dynamic arr, decimal nPos, bool lAutoSize = false)
-    {
-        if (arr is not object[] a)
-            return null;
-        dynamic[] d = a;
-        return arr = hb_ADel(ref d, nPos, lAutoSize);
-    }
-
+    // element; they return the array, NIL for anything else.
     public static dynamic hb_ADel(dynamic arr, decimal nPos, bool lAutoSize = false)
     {
-        if (arr is not object[] a)
+        if ((object)arr is not IList a || !IsHbArray(a))
             return null;
-        dynamic[] d = a;
-        return hb_ADel(ref d, nPos, lAutoSize);
-    }
-
-    public static dynamic[] hb_AIns(ref dynamic[] arr, decimal nPos, dynamic xValue = null, bool lAutoSize = false)
-    {
-        if (arr is null)
-            return null;
-        long i = (long)Math.Truncate(nPos);
-        if (i == 0)
-            i = 1;
-        if (lAutoSize && i >= 1 && i <= arr.Length + 1)
-            System.Array.Resize(ref arr, arr.Length + 1);
-        if (ArrayIns(arr, i) && xValue is not null)
-            arr[i - 1] = xValue;
+        if (ArrayDel(a, nPos) && lAutoSize)
+            a.RemoveAt(a.Count - 1);
         return arr;
-    }
-
-    public static dynamic hb_AIns(ref dynamic arr, decimal nPos, dynamic xValue = null, bool lAutoSize = false)
-    {
-        if (arr is not object[] a)
-            return null;
-        dynamic[] d = a;
-        return arr = hb_AIns(ref d, nPos, xValue, lAutoSize);
     }
 
     public static dynamic hb_AIns(dynamic arr, decimal nPos, dynamic xValue = null, bool lAutoSize = false)
     {
-        if (arr is not object[] a)
+        if ((object)arr is not IList a || !IsHbArray(a))
             return null;
-        dynamic[] d = a;
-        return hb_AIns(ref d, nPos, xValue, lAutoSize);
+        long i = (long)Math.Truncate(nPos);
+        if (i == 0)
+            i = 1;
+        if (lAutoSize && i >= 1 && i <= a.Count + 1)
+            a.Add(null);
+        if (ArrayIns(a, i) && xValue is not null)
+            a[(int)i - 1] = xValue;
+        return arr;
     }
 
     // ACopy( <aSource>, <aTarget>[, <nStart>[, <nCount>[, <nTargetPos>]]] )
@@ -328,9 +264,10 @@ public static partial class HbRuntime
     public static dynamic ACopy(dynamic aSource, dynamic aTarget, decimal? nStart = null,
                                 decimal? nCount = null, decimal? nTargetPos = null)
     {
-        if (aSource is not object[] src || aTarget is not object[] dst)
+        if ((object)aSource is not IList src || !IsHbArray(src) ||
+            (object)aTarget is not IList dst || !IsHbArray(dst))
             return null;
-        ulong uSrcLen = (ulong)src.Length, uDstLen = (ulong)dst.Length;
+        ulong uSrcLen = (ulong)src.Count, uDstLen = (ulong)dst.Count;
         ulong uStart = nStart is not null && SizeParam(nStart.Value) >= 1 ? SizeParam(nStart.Value) : 1;
         ulong uTarget = nTargetPos is not null && SizeParam(nTargetPos.Value) >= 1 ? SizeParam(nTargetPos.Value) : 1;
         if (uStart > uSrcLen)
@@ -344,7 +281,7 @@ public static partial class HbRuntime
         if (uCount > uDstLen - uTarget)
             uCount = uDstLen - uTarget + 1;
         for (ulong k = 0; k < uCount; k++)
-            dst[uTarget - 1 + k] = src[uStart - 1 + k];
+            dst[(int)(uTarget - 1 + k)] = src[(int)(uStart - 1 + k)];
         return aTarget;
     }
 
@@ -356,7 +293,7 @@ public static partial class HbRuntime
     // nothing from anywhere else
     public static dynamic AFill(dynamic arr, dynamic xValue, decimal? nStart = null, decimal? nCount = null)
     {
-        if (arr is not object[] a)
+        if ((object)arr is not IList a || !IsHbArray(a))
             return arr;
         long lStart = nStart is null ? 0 : (long)Math.Truncate(nStart.Value);
         long lCount = nCount is null ? 0 : (long)Math.Truncate(nCount.Value);
@@ -371,9 +308,9 @@ public static partial class HbRuntime
                 return arr;
             dCount = 0;
         }
-        (long i, long n) = StartCount(a.Length, nStart is null ? null : lStart, dCount is null || dCount == 0 ? null : dCount);
+        (long i, long n) = StartCount(a.Count, nStart is null ? null : lStart, dCount is null || dCount == 0 ? null : dCount);
         for (; n > 0; n--)
-            a[i++] = xValue;
+            a[(int)i++] = xValue;
         return arr;
     }
 
@@ -382,12 +319,15 @@ public static partial class HbRuntime
     // block gets two elements and says whether the first goes first; a
     // result that is not a logical or a number counts as .T. Without a
     // block like types compare natively (strings exactly, by decision)
-    // and unlike ones by Clipper's weights. Not an array, NIL.
+    // and unlike ones by Clipper's weights. A block that shrinks the
+    // array is survived as Harbour survives it: a pair no longer in the
+    // array compares .F., and only the elements still there are placed.
+    // Not an array, NIL.
     public static dynamic ASort(dynamic arr, decimal? nStart = null, decimal? nCount = null, dynamic bOrder = null)
     {
-        if (arr is not object[] a)
+        if ((object)arr is not IList a || !IsHbArray(a))
             return null;
-        long nLen = a.Length;
+        long nLen = a.Count;
         ulong uStart = nStart is not null && SizeParam(nStart.Value) >= 1 ? SizeParam(nStart.Value) : 1;
         if (uStart > (ulong)nLen)
             return arr;
@@ -399,7 +339,7 @@ public static partial class HbRuntime
             return arr;
         int iStart = (int)uStart - 1, n = (int)uCount;
         Func<int, int, bool> isLess = bOrder is Delegate
-            ? (x, y) => Eval(bOrder, a[x], a[y]) switch
+            ? (x, y) => x < a.Count && y < a.Count && Eval(bOrder, a[x], a[y]) switch
             {
                 bool l => l,
                 object v when IsNumeric(v) => Convert.ToDecimal(v, INV) != 0,
@@ -410,10 +350,19 @@ public static partial class HbRuntime
         for (int k = 0; k < n; k++)
             mem[k] = iStart + k;
         int iDest = SortMerge(isLess, mem, 0, n, n) ? 0 : n;
+        if (iStart + n > a.Count)
+        {
+            int nTo = 0;
+            for (int k = 0; k < n; k++)
+                if (mem[iDest + k] < a.Count)
+                    mem[iDest + nTo++] = mem[iDest + k];
+            n = nTo;
+        }
         var sorted = new object[n];
         for (int k = 0; k < n; k++)
             sorted[k] = a[mem[iDest + k]];
-        System.Array.Copy(sorted, 0, a, iStart, n);
+        for (int k = 0; k < n; k++)
+            a[iStart + k] = sorted[k];
         return arr;
     }
 

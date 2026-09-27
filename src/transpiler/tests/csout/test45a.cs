@@ -27,23 +27,16 @@ using static Program;
 // never use a short form must NOT emit the overload.
 public static partial class Program
 {
-    public static void LoadFlags(string cFile, ref dynamic[] aFlag, decimal nCount = default)
+    public static void LoadFlags(string cFile, List<dynamic> aFlag, decimal nCount = default)
     {
         long i = default;
 
-        HbRuntime.ASize(ref aFlag, nCount);
+        HbRuntime.ASize(aFlag, nCount);
         for (i = 1; i <= nCount; i++)
         {
-            aFlag[i - 1] = cFile + ":" + HbRuntime.Str(i, 1);
+            aFlag[(int)i - 1] = cFile + ":" + HbRuntime.Str(i, 1);
         }
 
         return;
-    }
-
-    public static void LoadFlags(string cFile = default)
-    {
-        dynamic[] _arg1 = default;
-        decimal _arg2 = default;
-        LoadFlags(cFile, ref _arg1, _arg2);
     }
 }

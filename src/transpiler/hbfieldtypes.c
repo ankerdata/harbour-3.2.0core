@@ -298,5 +298,11 @@ const char * hb_fieldTypesHbType( const char * szCsToken )
       return "DATE";
    if( hb_stricmp( szCsToken, "timestamp" ) == 0 )
       return "TIMESTAMP";
+   /* SQLtTable's own TYPE Array / TYPE Hash members, the OrmTable
+      surface rows (easipos-transpiled gen_fieldtypes.py) */
+   if( hb_stricmp( szCsToken, "array" ) == 0 )
+      return "ARRAY";
+   if( hb_stricmp( szCsToken, "hash" ) == 0 )
+      return "HASH";
    return NULL;
 }

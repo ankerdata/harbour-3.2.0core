@@ -25,25 +25,25 @@ using static Program;
 // Output must round-trip identically through -GT and -GS.
 public static partial class Program
 {
-    public static dynamic[] test70_saTotals = new dynamic[3];
+    public static List<dynamic> test70_saTotals = HbRuntime.Array(3);
     public static void Main(string[] args)
     {
         // 1-D dim'd LOCAL
-        dynamic[] aConfirm = new dynamic[5];
+        List<dynamic> aConfirm = HbRuntime.Array(5);
         // 2-D — only outer dim sized eagerly
-        dynamic[] aGrid = new dynamic[2];
+        List<dynamic> aGrid = HbRuntime.Array(2, 3);
         long nI = default;
 
         for (nI = 1; nI <= 3; nI++)
         {
-            test70_saTotals[nI - 1] = nI * 10;
+            test70_saTotals[(int)nI - 1] = nI * 10;
         }
 
         aConfirm[0] = "first";
         aConfirm[4] = "fifth";
 
-        aGrid[0] = new dynamic[] { "a", "b", "c" };
-        aGrid[1] = new dynamic[] { "d", "e", "f" };
+        aGrid[0] = new List<dynamic> { "a", "b", "c" };
+        aGrid[1] = new List<dynamic> { "d", "e", "f" };
 
         HbRuntime.QOut("saTotals=" + HbRuntime.Str(test70_saTotals[0], 2) + "," + HbRuntime.Str(test70_saTotals[1], 2) + "," + HbRuntime.Str(test70_saTotals[2], 2));
         HbRuntime.QOut("aConfirm=" + aConfirm[0] + "/" + aConfirm[4]);

@@ -16,7 +16,7 @@ using static Program;
 // #include "hbclass.ch"
 public class SaleBuffer
 {
-    public dynamic[] aLines = System.Array.Empty<dynamic>();
+    public List<dynamic> aLines = new List<dynamic>();
     public dynamic xQueue;
 
 }
@@ -25,38 +25,38 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aNums = new dynamic[] { 1, 2, 3, 4 };
+        List<dynamic> aNums = new List<dynamic> { 1, 2, 3, 4 };
         SaleBuffer oBuf = new SaleBuffer();
 
-        HbRuntime.hb_ADel(ref aNums, 2, true);
+        HbRuntime.hb_ADel(aNums, 2, true);
         HbRuntime.QOut(HbRuntime.Len(aNums), aNums[1]);
-        HbRuntime.hb_AIns(ref aNums, 1, 9, true);
+        HbRuntime.hb_AIns(aNums, 1, 9, true);
         HbRuntime.QOut(HbRuntime.Len(aNums), aNums[0], aNums[3]);
-        HbRuntime.hb_ADel(ref aNums, 1);
+        HbRuntime.hb_ADel(aNums, 1);
         HbRuntime.QOut(HbRuntime.Len(aNums), HbRuntime.ValType(aNums[3]));
 
-        oBuf.aLines = new dynamic[] { "a", "b", "c" };
-        HbRuntime.hb_AIns(ref oBuf.aLines, 2, "x", true);
+        oBuf.aLines = new List<dynamic> { "a", "b", "c" };
+        HbRuntime.hb_AIns(oBuf.aLines, 2, "x", true);
         HbRuntime.QOut(HbRuntime.Len(oBuf.aLines), oBuf.aLines[1], oBuf.aLines[3]);
-        HbRuntime.hb_ADel(ref oBuf.aLines, 1, true);
+        HbRuntime.hb_ADel(oBuf.aLines, 1, true);
         HbRuntime.QOut(HbRuntime.Len(oBuf.aLines), oBuf.aLines[0]);
 
-        oBuf.xQueue = new dynamic[] { 10, 20 };
-        HbRuntime.hb_ADel(ref oBuf.xQueue, 1, true);
+        oBuf.xQueue = new List<dynamic> { 10, 20 };
+        HbRuntime.hb_ADel(oBuf.xQueue, 1, true);
         HbRuntime.QOut(HbRuntime.Len(oBuf.xQueue), oBuf.xQueue[0]);
-        HbRuntime.hb_AIns(ref oBuf.xQueue, 2, 30, true);
+        HbRuntime.hb_AIns(oBuf.xQueue, 2, 30, true);
         HbRuntime.QOut(HbRuntime.Len(oBuf.xQueue), oBuf.xQueue[1]);
 
-        aNums = new dynamic[] { 5, 6, 7 };
-        BufferTrim(ref aNums);
+        aNums = new List<dynamic> { 5, 6, 7 };
+        BufferTrim(aNums);
         HbRuntime.QOut(HbRuntime.Len(aNums), aNums[0]);
 
         return;
     }
 
-    public static void BufferTrim(ref dynamic[] aList)
+    public static void BufferTrim(List<dynamic> aList)
     {
-        HbRuntime.hb_ADel(ref aList, 1, true);
+        HbRuntime.hb_ADel(aList, 1, true);
         return;
     }
 }

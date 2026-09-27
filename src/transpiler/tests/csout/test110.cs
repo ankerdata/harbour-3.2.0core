@@ -32,12 +32,12 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic[] aSeen = new dynamic[] {  };
+        List<dynamic> aSeen = new List<dynamic> {  };
         decimal nSum = 0;
         string cTrail = "";
-        dynamic[] aNums = new dynamic[] { 3, 1, 2 };
+        List<dynamic> aNums = new List<dynamic> { 3, 1, 2 };
         decimal nCalls = 0;
-        Func<dynamic, dynamic> bPair = ((Func<dynamic, dynamic>)((x) => { HbRuntime.AAdd(ref aSeen, x); return x * 10; }));
+        Func<dynamic, dynamic> bPair = ((Func<dynamic, dynamic>)((x) => { HbRuntime.AAdd(aSeen, x); return x * 10; }));
         Func<dynamic> bThree = ((Func<dynamic>)(() => { nSum += 1; nSum += 10; return nSum; }));
         BlockTally oTally = new BlockTally();
 
@@ -58,7 +58,7 @@ public static partial class Program
         HbRuntime.QOut(HbRuntime.Eval(((Func<dynamic>)(() => { _ = nSum > 0 && BlockSay("and"); return "kept"; }))));
 
         // an IIF in the middle, a procedure, a member assigned through a send
-        HbRuntime.AEval(aNums, ((Func<dynamic, dynamic>)((n) => { if (n > 1) { HbRuntime.AAdd(ref aSeen, n); } else { } BlockNote("n"); return n; })));
+        HbRuntime.AEval(aNums, ((Func<dynamic, dynamic>)((n) => { if (n > 1) { HbRuntime.AAdd(aSeen, n); } else { } BlockNote("n"); return n; })));
         HbRuntime.QOut(HbRuntime.Len(aSeen));
         HbRuntime.Eval(((Func<dynamic>)(() => { oTally.Punch(); return oTally.nDayTotal = 0; })));
         HbRuntime.QOut(oTally.nPunches, oTally.nDayTotal);
@@ -86,12 +86,12 @@ public static partial class Program
         return true;
     }
 
-    public static decimal BlockCount(dynamic[] aItems = default, dynamic bFor = default)
+    public static decimal BlockCount(List<dynamic> aItems = default, dynamic bFor = default)
     {
         decimal nHits = 0;
         decimal nItem = default;
 
-        foreach (dynamic __hb_fe_nItem in aItems)
+        foreach (dynamic __hb_fe_nItem in HbRuntime.HbEnumValues(aItems))
         {
             nItem = __hb_fe_nItem;
             if (HbRuntime.Eval(bFor, nItem))

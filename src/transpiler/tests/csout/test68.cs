@@ -17,21 +17,21 @@ using static Program;
 // is shimmed. The values must round-trip identically through -GT and -GS.
 public static partial class Program
 {
-    public static dynamic MinMax(dynamic[] aData, ref dynamic xLo, ref dynamic xHi)
+    public static dynamic MinMax(List<dynamic> aData, ref dynamic xLo, ref dynamic xHi)
     {
         long i = default;
         xLo = aData[0];
         xHi = aData[0];
         for (i = 2; i <= HbRuntime.Len(aData); i++)
         {
-            if (aData[i - 1] < xLo)
+            if (aData[(int)i - 1] < xLo)
             {
-                xLo = aData[i - 1];
+                xLo = aData[(int)i - 1];
             }
 
-            if (aData[i - 1] > xHi)
+            if (aData[(int)i - 1] > xHi)
             {
-                xHi = aData[i - 1];
+                xHi = aData[(int)i - 1];
             }
         }
 
@@ -46,7 +46,7 @@ public static partial class Program
         {
             dynamic _hbref_nLo = nLo;
             dynamic _hbref_nHi = nHi;
-            MinMax(new dynamic[] { 3, 1, 4, 1, 5 }, ref _hbref_nLo, ref _hbref_nHi);
+            MinMax(new List<dynamic> { 3, 1, 4, 1, 5 }, ref _hbref_nLo, ref _hbref_nHi);
             nLo = _hbref_nLo;
             nHi = _hbref_nHi;
         }
@@ -55,7 +55,7 @@ public static partial class Program
         {
             dynamic _hbref_nLo = nLo;
             dynamic _hbref_nHi = nHi;
-            MinMax(new dynamic[] { 9, 2, 6, 8, 7 }, ref _hbref_nLo, ref _hbref_nHi);
+            MinMax(new List<dynamic> { 9, 2, 6, 8, 7 }, ref _hbref_nLo, ref _hbref_nHi);
             nLo = _hbref_nLo;
             nHi = _hbref_nHi;
         }

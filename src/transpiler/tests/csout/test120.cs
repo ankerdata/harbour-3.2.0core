@@ -19,7 +19,7 @@ public static partial class Program
     public static long test120_siCalls120 = 0;
     public static void Main(string[] args)
     {
-        dynamic[] aItems = new dynamic[] { "a", "b", "c", "d" };
+        List<dynamic> aItems = new List<dynamic> { "a", "b", "c", "d" };
         long iCount = 0;
         long iLen = (long)(HbRuntime.Len(aItems));
         decimal nPrice = 2.5m;
@@ -34,7 +34,7 @@ public static partial class Program
         HbRuntime.QOut("count:", iCount, iLen);
 
         iWhole = (long)(HbRuntime.Int(nPrice * 1.2m));
-        HbRuntime.QOut("whole:", iWhole, aItems[iWhole - 1]);
+        HbRuntime.QOut("whole:", iWhole, aItems[(int)iWhole - 1]);
 
         iWhole = (long)(HbRuntime.Round(nPrice, 0) + iLen);
         HbRuntime.QOut("rounded:", iWhole);

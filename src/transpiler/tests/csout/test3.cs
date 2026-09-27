@@ -8,7 +8,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nChoice = 2;
-        dynamic[] aItems = new dynamic[] { "apple", "banana", "cherry" };
+        List<dynamic> aItems = new List<dynamic> { "apple", "banana", "cherry" };
         string cItem = default;
         string cResult = "";
         dynamic oErr = default;
@@ -31,7 +31,7 @@ public static partial class Program
         }
 
         // FOR EACH
-        foreach (dynamic __hb_fe_cItem in aItems)
+        foreach (dynamic __hb_fe_cItem in HbRuntime.HbEnumValues(aItems))
         {
             cItem = __hb_fe_cItem;
             cResult = cResult + cItem;

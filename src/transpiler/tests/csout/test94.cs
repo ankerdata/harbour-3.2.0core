@@ -83,7 +83,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nServed = ((Teapot)new Teapot().New(2)).Serve();
-        Kettle oKettle = (Kettle)new Kettle().Init(1500);
+        Kettle oKettle = HbRuntime.Initialised(new Kettle(), self => self.Init(1500));
         BigMug oBigMug = (BigMug)new BigMug().New();
         oKettle.lIsBoiling = true;
         HbRuntime.QOut("served=" + HbRuntime.LTrim(HbRuntime.Str(nServed)));

@@ -40,28 +40,21 @@ static void hb_csEmitForEachSource( PHB_EXPR pEnum, int iDir, FILE * yyc );
 static HB_BOOL hb_csSendHasArgs( PHB_EXPR pExpr );
 static void hb_csEmitIndent( FILE * yyc, int iIndent );
 
-/* Emit a dim expression inside an `new dynamic[<dim>]` allocation. A
-   long integer literal goes bare (`5`); anything else is wrapped in
-   `(long)(...)` — C# array-creation sizes take long natively, and the
-   cast coerces whatever Harbour computed at runtime (a `#define`d
-   constant, a `decimal` local, ...). Single integral tier: nothing the
-   emitter produces is Int32. NULL pDim falls back to a literal 0 so
-   the site still compiles. */
-static void hb_csEmitArrayDim( PHB_EXPR pDim, FILE * yyc )
+/* A declared array (`LOCAL a[3]`, `STATIC a[2][3]`, `PUBLIC a[n]`): every
+   dimension, as Harbour allocates it, by HbRuntime.Array(), which builds
+   the ragged List<dynamic> of NILs (a C# array took only the first
+   dimension). pDim is the first dimension; the rest follow on pNext. */
+static void hb_csEmitArrayNew( PHB_EXPR pDim, FILE * yyc )
 {
+   fprintf( yyc, "HbRuntime.Array(" );
    if( ! pDim )
-   {
       fprintf( yyc, "0" );
-      return;
-   }
-   if( pDim->ExprType == HB_ET_NUMERIC &&
-       pDim->value.asNum.NumType == HB_ET_LONG )
+   for( ; pDim; pDim = pDim->pNext )
    {
-      fprintf( yyc, "%" HB_PF64 "d", pDim->value.asNum.val.l );
-      return;
+      hb_csEmitExpr( pDim, yyc, HB_FALSE );
+      if( pDim->pNext )
+         fprintf( yyc, ", " );
    }
-   fprintf( yyc, "(long)(" );
-   hb_csEmitExpr( pDim, yyc, HB_FALSE );
    fprintf( yyc, ")" );
 }
 static const char * hb_csTypeMap( const char * szHbType );
@@ -804,17 +797,17 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
 
 /* Callback used by hb_refTabForEachPublic — emits one field line per
    PUBLIC variable whose owner matches this .prg. Sized-array forms
-   (`PUBLIC name[size]`) emit as `dynamic[]` so cross-file callers can
-   pass them by-ref to callees declared `ref dynamic[]` (the typical
-   shape for flag-table mutators like LoadAFlag). The runtime
-   allocation (`new dynamic[N]`) still happens at the source's PUBLIC
-   statement — see HB_AST_PUBLIC emission. */
+   (`PUBLIC name[size]`) emit as `List<dynamic>` so cross-file callers can
+   pass them by-ref to callees declared `ref List<dynamic>` (the typical
+   shape for flag-table mutators like LoadAFlag). The allocation
+   (`HbRuntime.Array(N)`) still happens at the source's PUBLIC statement
+   — see HB_AST_PUBLIC emission. */
 static void hb_csEmitPublicField( const char * szName, HB_BOOL fArrayDim,
                                    void * userdata )
 {
    FILE * fp = *( FILE ** ) userdata;
-   fprintf( fp, "    public static dynamic%s %s;\n",
-            fArrayDim ? "[]" : "", szName );
+   fprintf( fp, "    public static %s %s;\n",
+            fArrayDim ? "List<dynamic>" : "dynamic", szName );
 }
 
 static HB_BOOL hb_csIsFileMemvar( const char * szName )
@@ -1184,23 +1177,6 @@ static int hb_csStmtDefaultKind( PHB_AST_NODE pStmt, const char ** pszParam,
    return 0;
 }
 
-/* Harbour builtins that may reallocate their first array argument.
-   The HbRuntime overload takes `ref dynamic[]` so the new array
-   propagates back; the emitter inserts `ref` at the call site. AIns,
-   ADel, AFill, ASort etc. are size-stable and don't need it. */
-static HB_BOOL hb_csIsArrayMutator( const char * szFunc )
-{
-   if( ! szFunc )
-      return HB_FALSE;
-   /* hb_ADel / hb_AIns resize their array when lAutoSize is .T. —
-      every EasiPOS call passes it (the sale buffer's line delete and
-      insert); without the ref the C# array kept its length. */
-   return hb_stricmp( szFunc, "ASize"   ) == 0 ||
-          hb_stricmp( szFunc, "AAdd"    ) == 0 ||
-          hb_stricmp( szFunc, "hb_ADel" ) == 0 ||
-          hb_stricmp( szFunc, "hb_AIns" ) == 0;
-}
-
 /* True when szMember is a CLASS VAR (CLASSDATA — a static, class-level
    member) of class szClass. A `Self:` access to such a member must
    emit `Class.member`, not `this.member`: the field is emitted static
@@ -1411,10 +1387,11 @@ static const HB_REFPARAM * hb_csCallParam( const char * szFunc, int iPos )
 }
 
 /* True when parameter iPos of szFunc is a by-ref ARRAY slot the callee
-   never reassigns. C# arrays are reference types, so element mutation
-   propagates without `ref`; the `ref` is only needed when the variable is
-   repointed (`p := ...`). Such a slot is emitted as a plain `dynamic[]`
-   parameter, and call sites pass it without `ref` and without a shim. */
+   never reassigns. A List<dynamic> is a reference type, so element and
+   length changes propagate without `ref`; the `ref` is only needed when
+   the variable is repointed (`p := ...`). Such a slot is emitted as a
+   plain `List<dynamic>` parameter, and call sites pass it without `ref`
+   and without a shim. */
 static HB_BOOL hb_csParamElidesArrayRef( const char * szFunc, int iPos )
 {
    const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
@@ -1423,7 +1400,7 @@ static HB_BOOL hb_csParamElidesArrayRef( const char * szFunc, int iPos )
 }
 
 /* Whether parameter iPos of szFunc is actually emitted as `ref` — the
-   reftab by-ref flag minus the array slots elided to a plain dynamic[].
+   reftab by-ref flag minus the array slots elided to a plain List<dynamic>.
    The short-overload generator keys off this so it doesn't manufacture a
    `ref _argN` against a parameter that emits plain. */
 static HB_BOOL hb_csParamEmitsRef( const char * szFunc, int iPos )
@@ -1433,9 +1410,9 @@ static HB_BOOL hb_csParamEmitsRef( const char * szFunc, int iPos )
 }
 
 /* Warn when a call passes an array by-ref (`@aArr`) to a parameter the
-   callee never reassigns: the `@` is redundant (C# arrays are reference
-   types, so element mutation already propagates), and the slot is emitted
-   as a plain `dynamic[]`. One warning per call site. */
+   callee never reassigns: the `@` is redundant (a List<dynamic> is a
+   reference type, so element mutation already propagates), and the slot
+   is emitted as a plain `List<dynamic>`. One warning per call site. */
 static void hb_csWarnArrayRefElided( const char * szFunc, PHB_EXPR pParms )
 {
    PHB_EXPR pHead, pItem;
@@ -1593,7 +1570,7 @@ static int hb_csCollectRefShims( PHB_EXPR pCall, HB_BOOL * pfShim, int iMax )
       if( ! pP || ! pP->fByRef )
          continue;
       /* By-ref array slot the callee never reassigns: emitted as a plain
-         `dynamic[]` param, so no `ref` and no shim — element mutation
+         `List<dynamic>` param, so no `ref` and no shim — element mutation
          flows through the shared reference. */
       if( hb_csParamElidesArrayRef( szFunc, iPos ) )
          continue;
@@ -2263,32 +2240,6 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
             if( ! ( szFunc && hb_csParamElidesArrayRef( szFunc, iPos ) ) )
                fprintf( yyc, "ref " );
          }
-         else if( iPos == 0 && szFunc && hb_csIsArrayMutator( szFunc ) )
-         {
-            /* ASize / AAdd may reallocate the dynamic[]; the HbRuntime
-               overload takes `ref dynamic[]`. Emit `ref` only when the
-               first arg is something C# can take by reference: a plain
-               variable or a no-arg field access (DATA emits as fields).
-               Other shapes fall back to the non-ref overload. */
-            HB_BOOL fRefable = HB_FALSE;
-            if( pArg->ExprType == HB_ET_VARIABLE )
-               fRefable = HB_TRUE;
-            else if( pArg->ExprType == HB_ET_SEND &&
-                     pArg->value.asMessage.szMessage )
-            {
-               PHB_EXPR pSendParms = pArg->value.asMessage.pParms;
-               HB_BOOL fNoParms = ! pSendParms ||
-                  ( ( pSendParms->ExprType == HB_ET_LIST ||
-                      pSendParms->ExprType == HB_ET_ARGLIST ||
-                      pSendParms->ExprType == HB_ET_MACROARGLIST ) &&
-                    ( ! pSendParms->value.asList.pExprList ||
-                      pSendParms->value.asList.pExprList->ExprType == HB_ET_NONE ) );
-               if( fNoParms )
-                  fRefable = HB_TRUE;
-            }
-            if( fRefable )
-               fprintf( yyc, "ref " );
-         }
          else if( szFunc && pArg->ExprType != HB_ET_REFERENCE )
          {
             /* A non-`@` argument into a by-ref param — a plain variable,
@@ -2430,7 +2381,11 @@ static const char * hb_csTypeMap( const char * szHbType )
          every slot to a concrete class. */
       return "dynamic";
    if( hb_stricmp( szHbType, "ARRAY" ) == 0 )
-      return "dynamic[]";
+      /* One object every holder shares, grown in place by AAdd() and
+         ASize() as Harbour's is (HbRuntime.Arrays.cs); a C# array was
+         reallocated, and a holder other than the one passed by ref
+         never saw the change. */
+      return "List<dynamic>";
    if( hb_stricmp( szHbType, "HASH"  ) == 0 ||
        hb_stricmp( szHbType, "HASHC" ) == 0 )
       /* A Harbour hash keeps its keys in the order they were added
@@ -2496,6 +2451,7 @@ static const char * hb_csScopeStr( int iScope )
      ::name       → this.name          (Self:member shorthand)
      :=           → =                  (Harbour assignment)
      .T./.t./.F./.f. → true/false      (logical literals, word-bounded)
+     a[ n ]       → a[(int)(n) - 1]    (an array subscript, rebased)
    Anything else passes through. The result is C# source; the caller
    decides between expression-body (`=> expr`) and block-body (for
    sequence expressions with top-level commas — this helper does not
@@ -2564,6 +2520,98 @@ static HB_BOOL hb_csInlineWordIsFree( const char * p, HB_SIZE nLen,
    return HB_FALSE;
 }
 
+/* The `[` at nAt in an INLINE body: 0 when it is not a subscript (it
+   follows an operator, a comma or nothing, so it opens Harbour's
+   [string] literal), 1 for a hash key, 2 for a numeric-keyed hash's key
+   (HASHN, keyed by long), 3 for an array index. Decided as the AST
+   emitter decides for HB_ET_ARRAYAT: a hash when the index is a string
+   literal or a name whose type is STRING, or the receiver's name says
+   hash; otherwise an array. *pnClose gets the position of the matching
+   `]`. */
+static int hb_csInlineSubscript( const char * p, HB_SIZE nLen, HB_SIZE nAt,
+                                 HB_SIZE * pnClose )
+{
+   HB_SIZE k = nAt, nIdxStart, nIdxEnd, e;
+   char    szName[ 128 ];
+   int     iDepth = 0;
+   HB_BOOL fInStr = HB_FALSE;
+   char    cStrQ = '\0';
+
+   while( k > 0 && ( p[ k - 1 ] == ' ' || p[ k - 1 ] == '\t' ) )
+      k--;
+   if( k == 0 || ! ( hb_csInlineIsIdCh( p[ k - 1 ] ) ||
+                     p[ k - 1 ] == ']' || p[ k - 1 ] == ')' ) )
+      return 0;
+
+   for( e = nAt + 1; e < nLen; e++ )
+   {
+      if( fInStr )
+      {
+         if( p[ e ] == cStrQ )
+            fInStr = HB_FALSE;
+         continue;
+      }
+      if( p[ e ] == '"' || p[ e ] == '\'' )
+      {
+         fInStr = HB_TRUE;
+         cStrQ = p[ e ];
+      }
+      else if( p[ e ] == '(' || p[ e ] == '[' || p[ e ] == '{' )
+         iDepth++;
+      else if( p[ e ] == ')' || p[ e ] == ']' || p[ e ] == '}' )
+      {
+         if( iDepth == 0 )
+            break;
+         iDepth--;
+      }
+   }
+   if( e >= nLen || p[ e ] != ']' )
+      return 0;
+   *pnClose = e;
+
+   nIdxStart = nAt + 1;
+   while( nIdxStart < e && ( p[ nIdxStart ] == ' ' || p[ nIdxStart ] == '\t' ) )
+      nIdxStart++;
+   nIdxEnd = e;
+   while( nIdxEnd > nIdxStart &&
+          ( p[ nIdxEnd - 1 ] == ' ' || p[ nIdxEnd - 1 ] == '\t' ) )
+      nIdxEnd--;
+   if( nIdxStart < nIdxEnd && ( p[ nIdxStart ] == '"' || p[ nIdxStart ] == '\'' ) )
+      return 1;
+   /* a lone name as the index: its type */
+   {
+      HB_SIZE i = nIdxStart;
+      while( i < nIdxEnd && hb_csInlineIsIdCh( p[ i ] ) )
+         i++;
+      if( i == nIdxEnd && i > nIdxStart && i - nIdxStart < sizeof( szName ) )
+      {
+         const char * szT;
+         memcpy( szName, p + nIdxStart, i - nIdxStart );
+         szName[ i - nIdxStart ] = '\0';
+         szT = hb_astInferType( szName, NULL );
+         if( szT && hb_stricmp( szT, "STRING" ) == 0 )
+            return 1;
+      }
+   }
+   /* the receiver's name */
+   if( hb_csInlineIsIdCh( p[ k - 1 ] ) )
+   {
+      HB_SIZE nEnd = k, nStart = k;
+      while( nStart > 0 && hb_csInlineIsIdCh( p[ nStart - 1 ] ) )
+         nStart--;
+      if( nEnd - nStart < sizeof( szName ) )
+      {
+         const char * szT;
+         memcpy( szName, p + nStart, nEnd - nStart );
+         szName[ nEnd - nStart ] = '\0';
+         szT = hb_astInferType( szName, NULL );
+         if( hb_astIsHashFamily( szT ) )
+            return hb_stricmp( szT, "HASHN" ) == 0 ? 2 : 1;
+      }
+   }
+   return 3;
+}
+
 static const char * hb_csTranslateInline( const char * szVal,
                                           const char * szParams )
 {
@@ -2578,6 +2626,10 @@ static const char * hb_csTranslateInline( const char * szVal,
    int          iDepth = 0;
    int          iIifTop = -1;
    struct { int depth; int commas; } aIif[ 16 ];
+   /* open subscripts whose `]` needs a closing rewrite: `) - 1]` for an
+      array index, `)]` for a numeric-keyed hash's */
+   int          iSubTop = -1;
+   struct { int depth; HB_BOOL fArray; } aSub[ 16 ];
 
    if( ! szVal )
       return szVal;
@@ -2706,8 +2758,8 @@ static const char * hb_csTranslateInline( const char * szVal,
             k++;
          if( k < nLen && p[ k ] == '}' )
          {
-            memcpy( s_szBuf + nOut, "System.Array.Empty<dynamic>()", 29 );
-            nOut += 29;
+            memcpy( s_szBuf + nOut, "new List<dynamic>()", 19 );
+            nOut += 19;
             nIn = k;
             continue;
          }
@@ -2987,6 +3039,65 @@ static const char * hb_csTranslateInline( const char * szVal,
          nIn--;   /* outer loop `nIn++` advances past last id char */
          continue;
       }
+      /* `recv[ idx ]`: rebased as the AST emitter rebases a subscript
+         (HB_ET_ARRAYAT). An array's 1-based index becomes the List's
+         0-based int (an integer literal decremented where it stands); a
+         hash's key passes as it is, a numeric-keyed hash's cast to long.
+         The `]` that closes it is rewritten through aSub. */
+      if( p[ nIn ] == '[' )
+      {
+         HB_SIZE nClose = 0;
+         int     iKind = hb_csInlineSubscript( p, nLen, nIn, &nClose );
+         if( iKind == 3 )
+         {
+            HB_SIZE i = nIn + 1, nD;
+            while( i < nClose && ( p[ i ] == ' ' || p[ i ] == '\t' ) )
+               i++;
+            nD = i;
+            while( nD < nClose && p[ nD ] >= '0' && p[ nD ] <= '9' )
+               nD++;
+            if( nD > i && nD - i < 18 )
+            {
+               HB_SIZE j = nD;
+               while( j < nClose && ( p[ j ] == ' ' || p[ j ] == '\t' ) )
+                  j++;
+               if( j == nClose )
+               {
+                  char szNum[ 24 ];
+                  memcpy( szNum, p + i, nD - i );
+                  szNum[ nD - i ] = '\0';
+                  nOut += hb_snprintf( s_szBuf + nOut, sizeof( s_szBuf ) - nOut,
+                                       "[%" HB_PF64 "d]",
+                                       ( HB_I64 ) atoll( szNum ) - 1 );
+                  nIn = nClose;
+                  continue;
+               }
+            }
+         }
+         if( ( iKind == 3 || iKind == 2 ) &&
+             iSubTop < ( int ) HB_SIZEOFARRAY( aSub ) - 1 )
+         {
+            const char * szOpen = iKind == 3 ? "[(int)(" : "[(long)(";
+            HB_SIZE nL = strlen( szOpen );
+            memcpy( s_szBuf + nOut, szOpen, nL );
+            nOut += nL;
+            iDepth++;
+            iSubTop++;
+            aSub[ iSubTop ].depth = iDepth;
+            aSub[ iSubTop ].fArray = iKind == 3;
+            continue;
+         }
+      }
+      if( p[ nIn ] == ']' && iSubTop >= 0 && iDepth == aSub[ iSubTop ].depth )
+      {
+         const char * szClose = aSub[ iSubTop ].fArray ? ") - 1]" : ")]";
+         HB_SIZE nL = strlen( szClose );
+         memcpy( s_szBuf + nOut, szClose, nL );
+         nOut += nL;
+         iSubTop--;
+         iDepth--;
+         continue;
+      }
       /* Depth-aware fall-through: track ( [ { nesting so an active
          iif( rewrite (aIif stack above) can recognize its own
          top-level commas and closing paren. Commas nested deeper —
@@ -3138,7 +3249,7 @@ static const char * hb_csTranslateInit( const char * szVal )
    /* {} → empty array (fully qualified — see comment in the char-scan
       branch above for why System.Array is needed). */
    if( strcmp( szVal, "{}" ) == 0 )
-      return "System.Array.Empty<dynamic>()";
+      return "new List<dynamic>()";
 
    /* { => } → empty hash. Match with any whitespace between tokens. */
    {
@@ -4099,7 +4210,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                return. */
             if( szName && hb_stricmp( szName, "HB_APARAMS" ) == 0 )
             {
-               fprintf( yyc, "hbva" );
+               /* a new array each call, as Harbour's */
+               fprintf( yyc, "new List<dynamic>(hbva)" );
                break;
             }
             /* PCount() in the same position is that array's length.
@@ -4291,25 +4403,30 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                            and an unnamed gap would slide the later
                            arguments into it. A class declaring no New
                            but an Init is Harbour's "classy"
-                           compatibility: HBObject's New forwards to
-                           Init, so the call goes there. As a receiver
-                           (`X():New( a ):Run()`) the cast must bind to
-                           the constructor call, not to the chained
-                           member; the send emitter parenthesises it. */
+                           compatibility: HBObject's New runs Init and
+                           answers the object whatever Init returned,
+                           which HbRuntime.Initialised() does. As a
+                           receiver (`X():New( a ):Run()`) the cast must
+                           bind to the constructor call, not to the
+                           chained member; the send emitter
+                           parenthesises it. */
                         char szCtorKey[ 256 ];
-                        const char * szCtorMsg = szMsg;
                         const char * szKey = hb_csClassMethodKey(
                            szCtor, pExpr->value.asMessage.szMessage,
                            szCtorKey, sizeof( szCtorKey ) );
-                        if( hb_stricmp( pExpr->value.asMessage.szMessage, "New" ) == 0 &&
-                            ! hb_csCtorDeclares( szCtor, "New" ) &&
-                            hb_csCtorDeclares( szCtor, "Init" ) )
+                        HB_BOOL fInit =
+                           hb_stricmp( pExpr->value.asMessage.szMessage, "New" ) == 0 &&
+                           ! hb_csCtorDeclares( szCtor, "New" ) &&
+                           hb_csCtorDeclares( szCtor, "Init" );
+                        if( fInit )
                         {
                            szKey = hb_csClassMethodKey( szCtor, "Init", szCtorKey,
                                                         sizeof( szCtorKey ) );
-                           szCtorMsg = "Init";
+                           fprintf( yyc, "HbRuntime.Initialised(new %s(), self => self.Init(",
+                                    szCtor );
                         }
-                        fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor, szCtorMsg );
+                        else
+                           fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor, szMsg );
                         s_aRefShim = aSendShim;
                         s_iRefShimBase = iSendShimBase;
                         hb_csEmitCallArgs(
@@ -4318,7 +4435,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                                                           pExpr->value.asMessage.szMessage,
                                                           szCtorKey, sizeof( szCtorKey ) ),
                            pArgs, yyc );
-                        fprintf( yyc, ")" );
+                        fprintf( yyc, fInit ? "))" : ")" );
                      }
                   }
                   else
@@ -4328,11 +4445,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                         `new X()` alone would skip it, and a constructor
                         that sets members or registers itself would
                         silently not. Only the hbclass default constructor
-                        — no row at all — is plain `new X()`. */
+                        — no row at all — is plain `new X()`. Init's
+                        result is not New's: see HbRuntime.Initialised(). */
                      if( hb_csCtorDeclares( szCtor, "New" ) )
                         fprintf( yyc, "(%s)new %s().New()", szCtor, szCtor );
                      else if( hb_csCtorDeclares( szCtor, "Init" ) )
-                        fprintf( yyc, "(%s)new %s().Init()", szCtor, szCtor );
+                        fprintf( yyc, "HbRuntime.Initialised(new %s(), self => self.Init())",
+                                 szCtor );
                      else
                         fprintf( yyc, "new %s()", szCtor );
                   }
@@ -4683,7 +4802,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                    Hungarian on a `h<X>` / `sh<X>` name (variable or
                    message).
                OrderedDictionary<string, dynamic> accepts any string key; the
-               array branch wraps in `(long)(...) - 1` which is wrong
+               array branch wraps in `(int)(...) - 1` which is wrong
                for hashes and produces CS errors at runtime indices. */
             HB_BOOL fHash = HB_FALSE;
             HB_BOOL fLongKey = HB_FALSE;   /* the hash is HASHN */
@@ -4767,20 +4886,21 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "[%" HB_PF64 "d]",
                         pIdx->value.asNum.val.l - 1 );
             }
-            /* INTEGER-typed variable index (Pass 2.5 int candidacy) —
-               already a C# int, no cast needed. */
+            /* INTEGER-typed variable index (Pass 2.5 int candidacy): a
+               C# long, cast without parentheses. */
             else if( pIdx && pIdx->ExprType == HB_ET_VARIABLE &&
                      hb_csLocalTypeGet( pIdx->value.asSymbol.name ) &&
                      hb_stricmp( hb_csLocalTypeGet(
                                     pIdx->value.asSymbol.name ),
                                  "INTEGER" ) == 0 )
             {
-               fprintf( yyc, "[%s - 1]", pIdx->value.asSymbol.name );
+               fprintf( yyc, "[(int)%s - 1]", pIdx->value.asSymbol.name );
             }
-            /* Variable or expression index — cast and subtract at runtime */
+            /* Variable or expression index — cast and subtract at runtime
+               (a List<dynamic>'s indexer takes an int) */
             else
             {
-               fprintf( yyc, "[(long)(" );
+               fprintf( yyc, "[(int)(" );
                hb_csEmitExpr( pIdx, yyc, HB_FALSE );
                fprintf( yyc, ") - 1]" );
             }
@@ -4802,10 +4922,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                 pItem->value.asList.reference &&
                 ! pItem->value.asList.pExprList )
             {
-               fprintf( yyc, "hbva" );
+               fprintf( yyc, "new List<dynamic>(hbva)" );
                break;
             }
-            fprintf( yyc, "new dynamic[] { " );
+            fprintf( yyc, "new List<dynamic> { " );
             while( pItem )
             {
                hb_csEmitExpr( pItem, yyc, HB_FALSE );
@@ -5385,11 +5505,25 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             const char * szSavedKey = s_szHashKeyCs;
             if( pExpr->ExprType == HB_EO_ASSIGN &&
                 pExpr->value.asOperator.pLeft &&
-                pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
                 pExpr->value.asOperator.pRight &&
                 pExpr->value.asOperator.pRight->ExprType == HB_ET_HASH )
-               s_szHashKeyCs = hb_csHashKeyCsFor( hb_csArgVarType(
-                  pExpr->value.asOperator.pLeft->value.asSymbol.name ) );
+            {
+               /* a variable by its type; a member (`::hnRows := { => }`)
+                  or a file static parsed as MEMVAR->name by its name */
+               PHB_EXPR pLeft = pExpr->value.asOperator.pLeft;
+               if( pLeft->ExprType == HB_ET_VARIABLE )
+                  s_szHashKeyCs = hb_csHashKeyCsFor(
+                     hb_csArgVarType( pLeft->value.asSymbol.name ) );
+               else if( pLeft->ExprType == HB_ET_SEND &&
+                        pLeft->value.asMessage.szMessage )
+                  s_szHashKeyCs = hb_csHashKeyCsFor( hb_astInferType(
+                     pLeft->value.asMessage.szMessage, NULL ) );
+               else if( pLeft->ExprType == HB_ET_ALIASVAR &&
+                        pLeft->value.asAlias.pVar &&
+                        pLeft->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+                  s_szHashKeyCs = hb_csHashKeyCsFor( hb_csArgVarType(
+                     pLeft->value.asAlias.pVar->value.asSymbol.name ) );
+            }
 
             /* Handle special operators */
             if( pExpr->ExprType == HB_EO_POWER )
@@ -6178,10 +6312,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
             /* `LOCAL name[dim1][dim2]...` — emitted by the grammar
                as an HB_AST_LOCAL with fArrayDim + pInit = ARGLIST of
-               dims. Allocate a jagged dynamic[] sized by the first
-               dim; inner dims get filled lazily (matching Harbour's
-               runtime-grown array semantics). Same shape as the
-               file-scope STATIC fArrayDim branch above. */
+               dims. HbRuntime.Array() allocates every dimension, as
+               Harbour does. Same shape as the file-scope STATIC
+               fArrayDim branch above. */
             if( pNode->value.asVar.fArrayDim &&
                 pNode->value.asVar.pInit &&
                 ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
@@ -6190,10 +6323,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                PHB_EXPR pDim =
                   pNode->value.asVar.pInit->value.asList.pExprList;
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "dynamic[] %s = new dynamic[",
-                        pNode->value.asVar.szName );
-               hb_csEmitArrayDim( pDim, yyc );
-               fprintf( yyc, "];\n" );
+               fprintf( yyc, "List<dynamic> %s = ", pNode->value.asVar.szName );
+               hb_csEmitArrayNew( pDim, yyc );
+               fprintf( yyc, ";\n" );
                break;
             }
 
@@ -6293,9 +6425,9 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             {
                PHB_EXPR pDim = pNode->value.asVar.pInit->value.asList.pExprList;
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "%s = new dynamic[", szName );
-               hb_csEmitArrayDim( pDim, yyc );
-               fprintf( yyc, "];\n" );
+               fprintf( yyc, "%s = ", szName );
+               hb_csEmitArrayNew( pDim, yyc );
+               fprintf( yyc, ";\n" );
                break;
             }
 
@@ -6328,15 +6460,12 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                    ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
                      pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
                {
-                  /* `name[size]` array-dim declaration: allocate a
-                     runtime dynamic[]. Multi-dim (`a[i][j]`) takes only
-                     the first dim — nested allocation would need a
-                     loop and isn't yet emitted. */
+                  /* `name[size]` array-dim declaration: every
+                     dimension, by HbRuntime.Array(). */
                   PHB_EXPR pDim =
                      pNode->value.asVar.pInit->value.asList.pExprList;
-                  fprintf( yyc, " = new dynamic[" );
-                  hb_csEmitArrayDim( pDim, yyc );
-                  fprintf( yyc, "]" );
+                  fprintf( yyc, " = " );
+                  hb_csEmitArrayNew( pDim, yyc );
                }
                else if( pNode->value.asVar.pInit )
                {
@@ -6664,35 +6793,55 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "{\n" );
          {
+            /* Harbour runs from the matching CASE on, through the CASEs
+               after it, until an EXIT: `CASE "C"; CASE "M"; x := ""; EXIT`
+               is one body for both. C# falls through only between labels
+               with no statement between them, so a CASE with no
+               statements stacks its label on the next (on `default:` when
+               it is the last), and a body that can run on says where to,
+               `goto case <next>;` or `goto default;`. A `break;` there
+               had ended every CASE: sqlthelpers.prg's
+               GetDefaultFromType() gave NIL for "C", "M", "N" and every
+               label but the last of each group. */
             PHB_AST_NODE pCase = pNode->value.asSwitch.pCases;
+            while( pCase && ! pCase->value.asCase.pCondition )
+               pCase = pCase->pNext;
             while( pCase )
             {
-               /* Skip default case (NULL condition) — handled below */
-               if( ! pCase->value.asCase.pCondition )
-               {
-                  pCase = pCase->pNext;
-                  continue;
-               }
+               PHB_AST_NODE pNext = pCase->pNext;
+               while( pNext && ! pNext->value.asCase.pCondition )
+                  pNext = pNext->pNext;
                hb_csEmitIndent( yyc, iIndent + 1 );
                fprintf( yyc, "case " );
                hb_csEmitExpr( pCase->value.asCase.pCondition, yyc, HB_FALSE );
                fprintf( yyc, ":\n" );
                s_iLastLine = 0;
                if( pCase->value.asCase.pBody )
-               {
                   hb_csEmitBlock( pCase->value.asCase.pBody, yyc, iIndent + 2 );
-                  if( ! hb_csBlockEndsWithBreak( pCase->value.asCase.pBody ) )
+               if( ! hb_csBlockLastStmt( pCase->value.asCase.pBody ) )
+               {
+                  /* no statements: the label stacks on the next one */
+                  if( ! pNext && ! pNode->value.asSwitch.pDefault )
                   {
                      hb_csEmitIndent( yyc, iIndent + 2 );
                      fprintf( yyc, "break;\n" );
                   }
                }
-               else
+               else if( ! hb_csBlockEndsWithBreak( pCase->value.asCase.pBody ) )
                {
                   hb_csEmitIndent( yyc, iIndent + 2 );
-                  fprintf( yyc, "break;\n" );
+                  if( pNext )
+                  {
+                     fprintf( yyc, "goto case " );
+                     hb_csEmitExpr( pNext->value.asCase.pCondition, yyc, HB_FALSE );
+                     fprintf( yyc, ";\n" );
+                  }
+                  else if( pNode->value.asSwitch.pDefault )
+                     fprintf( yyc, "goto default;\n" );
+                  else
+                     fprintf( yyc, "break;\n" );
                }
-               pCase = pCase->pNext;
+               pCase = pNext;
             }
          }
          if( pNode->value.asSwitch.pDefault )
@@ -7286,37 +7435,14 @@ static HB_BOOL hb_csBlockUsesEnumMsg( PHB_AST_NODE pBlock, const char * szVar )
    return HB_FALSE;
 }
 
-/* The enumerable of a FOR EACH. Harbour hands out a hash's VALUES and a
-   string's characters as one-character strings; C# iterating a
-   Dictionary hands out pairs and a string chars. An array is iterated
-   directly; anything else — a hash, a string, an enumerable whose
-   static type is unknown — goes through HbRuntime.HbEnumValues. */
+/* The enumerable of a FOR EACH: HbRuntime.HbEnumValues. Harbour hands
+   out a hash's VALUES and a string's characters as one-character strings
+   (C# iterating a Dictionary hands out pairs, a string chars), and walks
+   an array by index against its length at each step, so the loop sees an
+   element it adds; a C# foreach over a List<dynamic> would throw when the
+   body grows it. */
 static void hb_csEmitForEachSource( PHB_EXPR pEnum, int iDir, FILE * yyc )
 {
-   /* the parser hands the enumerable over wrapped in a list node */
-   PHB_EXPR pProbe = pEnum;
-   const char * szT;
-   const char * szCs;
-   HB_BOOL fArray;
-   if( pProbe && ( pProbe->ExprType == HB_ET_ARGLIST ||
-                   pProbe->ExprType == HB_ET_LIST ) &&
-       pProbe->value.asList.pExprList && ! pProbe->value.asList.pExprList->pNext )
-      pProbe = pProbe->value.asList.pExprList;
-   szT = ( pProbe && pProbe->ExprType == HB_ET_VARIABLE )
-      ? hb_csArgVarType( pProbe->value.asSymbol.name )
-      : hb_astInferType( NULL, pProbe );
-   szCs = szT ? hb_csTypeMap( szT ) : NULL;
-   fArray = ( szT && hb_stricmp( szT, "ARRAY" ) == 0 ) ||
-            ( szCs && strcmp( szCs, "dynamic[]" ) == 0 ) ||
-            ( pProbe && pProbe->ExprType == HB_ET_VARIABLE &&
-              hb_stricmp( pProbe->value.asSymbol.name, "hbva" ) == 0 );
-   if( fArray )
-   {
-      hb_csEmitExpr( pEnum, yyc, HB_FALSE );
-      if( iDir < 0 )
-         fprintf( yyc, ".Reverse()" );
-      return;
-   }
    fprintf( yyc, "HbRuntime.HbEnumValues(" );
    hb_csEmitExpr( pEnum, yyc, HB_FALSE );
    fprintf( yyc, "%s)", iDir < 0 ? ", true" : "" );
@@ -7925,7 +8051,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szMethName, iPos );
             const HB_REFPARAM * pP =
                hb_refTabParam( s_pRefTab, szMethName, iPos );
-            /* By-ref array slot the callee never reassigns → plain dynamic[]. */
+            /* By-ref array slot the callee never reassigns → plain List<dynamic>. */
             if( fThisRef && hb_csParamElidesArrayRef( szMethName, iPos ) )
                fThisRef = HB_FALSE;
             const char * szSlotType = NULL;
@@ -8186,8 +8312,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                   /* An INLINE body becomes the accessor's body. KNOWN
                      GAP: an ACCESS whose body is a METHOD definition
                      (skipped below) is still an auto-property reading
-                     default; and the inline translator does not rebase
-                     a 1-based subscript — keep those in a method. */
+                     default. */
                   if( pMember->value.asClassData.szInit ||
                       ( pAssign && pAssign->value.asClassData.szInit ) )
                      hb_csEmitInlineProperty( szScope,
@@ -8982,7 +9107,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          HB_BOOL fThisRef     = hb_refTabIsRef( s_pRefTab, szFnName, iPos );
          HB_BOOL fThisNilable = hb_refTabIsNilable( s_pRefTab, szFnName, iPos );
          /* A by-ref array slot the callee never reassigns emits as a plain
-            `dynamic[]` — element mutation propagates without `ref`. */
+            `List<dynamic>` — element mutation propagates without `ref`. */
          if( fThisRef && hb_csParamElidesArrayRef( szFnName, iPos ) )
             fThisRef = HB_FALSE;
          /* Prefer the table's per-slot type (which may have been
@@ -9716,14 +9841,11 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      }
                      if( fArrayDim )
                      {
-                        /* `STATIC name[dim1][dim2]...` — allocate a
-                           jagged dynamic[] sized by the first dim.
-                           Inner dims get nulls until assigned, matching
-                           Harbour's semantics (callers can grow them
-                           via ASize or by direct index assignment into
-                           a resizable list). szType from Hungarian is
-                           usually "ARRAY"; force `dynamic[]` so the
-                           C# field type matches `new dynamic[N]`.
+                        /* `STATIC name[dim1][dim2]...` — every
+                           dimension, as Harbour allocates it, by
+                           HbRuntime.Array(). szType from Hungarian is
+                           usually "ARRAY"; force `List<dynamic>` so the
+                           field type matches whatever the prefix says.
                            `public static` (not just `static`) so
                            methods of sibling classes in the same file
                            — which are emitted outside the Program
@@ -9736,10 +9858,9 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                            at runtime. */
                         PHB_EXPR pDim =
                            pStmt->value.asVar.pInit->value.asList.pExprList;
-                        fprintf( yyc, "public static dynamic[] %s = new dynamic[",
-                                 szFld );
-                        hb_csEmitArrayDim( pDim, yyc );
-                        fprintf( yyc, "];\n" );
+                        fprintf( yyc, "public static List<dynamic> %s = ", szFld );
+                        hb_csEmitArrayNew( pDim, yyc );
+                        fprintf( yyc, ";\n" );
                      }
                      else
                      {
@@ -9839,16 +9960,16 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                             hb_stricmp( szOwner, s_szFileBase ) == 0 )
                         {
                            /* Sized-array form (`PUBLIC name[size]`) —
-                              emit as `dynamic[]` so cross-file callers
+                              emit as `List<dynamic>` so cross-file callers
                               passing `ref aXxx` to a callee declared
-                              `ref dynamic[]` (the LoadAFlag shape) bind
+                              `ref List<dynamic>` (the LoadAFlag shape) bind
                               cleanly. The runtime allocation is still
                               emitted at the PUBLIC statement site. */
                            HB_BOOL fArr = pStmt->value.asVar.fArrayDim;
                            hb_csAddFileMemvar( szPName );
                            hb_csEmitIndent( yyc, 1 );
-                           fprintf( yyc, "public static dynamic%s %s;\n",
-                                    fArr ? "[]" : "", szPName );
+                           fprintf( yyc, "public static %s %s;\n",
+                                    fArr ? "List<dynamic>" : "dynamic", szPName );
                         }
                      }
                   }

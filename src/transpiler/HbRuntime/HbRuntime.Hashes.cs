@@ -159,14 +159,15 @@ public static partial class HbRuntime
     // clone its instance variables.
     static object CloneNested(object x, Dictionary<object, object> done)
     {
-        if (x is object[] a)
+        if (IsHbArray(x))
         {
+            var a = (System.Collections.IList)x;
             if (done.TryGetValue(a, out object c))
                 return c;
-            var copy = new object[a.Length];
+            var copy = new List<dynamic>(a.Count);
             done[a] = copy;
-            for (int i = 0; i < a.Length; i++)
-                copy[i] = CloneNested(a[i], done);
+            foreach (object xItem in a)
+                copy.Add(CloneNested(xItem, done));
             return copy;
         }
         if (x is System.Collections.IDictionary d)
@@ -197,20 +198,18 @@ public static partial class HbRuntime
     public static dynamic hb_HKeys(dynamic h)
     {
         var d = AsDict((object)h);
-        if (d == null) return System.Array.Empty<dynamic>();
-        var r = new dynamic[d.Count];
-        int i = 0;
-        foreach (var k in d.Keys) r[i++] = k;
+        var r = new List<dynamic>();
+        if (d == null) return r;
+        foreach (var k in d.Keys) r.Add(k);
         return r;
     }
 
     public static dynamic hb_HValues(dynamic h)
     {
         var d = AsDict((object)h);
-        if (d == null) return System.Array.Empty<dynamic>();
-        var r = new dynamic[d.Count];
-        int i = 0;
-        foreach (var v in d.Values) r[i++] = v;
+        var r = new List<dynamic>();
+        if (d == null) return r;
+        foreach (var v in d.Values) r.Add(v);
         return r;
     }
 }

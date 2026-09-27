@@ -12,42 +12,45 @@
 // Emission: HASHN → Dictionary<decimal, dynamic>, HASHC/HASH →
 // Dictionary<string, dynamic>; empty `{ => }` initializers inherit
 // the declared variable's key type.
+//
+// Since 2026-09-27 the name declares the key type (test127): the hashes
+// keyed by numbers here are hn<...> / shn<...>.
 
-static shPanels
+static shnPanels
 static shNames := { "alpha" => 1, "beta" => 2 }
 
 PROCEDURE Main()
-    LOCAL hById := { => }
-    LOCAL hLit  := { 10 => "ten", 20 => "twenty" }
+    LOCAL hnById := { => }
+    LOCAL hnLit  := { 10 => "ten", 20 => "twenty" }
 
-    shPanels := BuildPanels()
+    shnPanels := BuildPanels()
 
-    hById[7] := "seven"
-    hById[8] := "eight"
+    hnById[7] := "seven"
+    hnById[8] := "eight"
 
-    ? "a=", hLit[10]
-    ? "b=", hLit[20]
-    ? "c=", hById[7]
-    ? "d=", hById[8]
+    ? "a=", hnLit[10]
+    ? "b=", hnLit[20]
+    ? "c=", hnById[7]
+    ? "d=", hnById[8]
     ? "e=", GetPanel(3)
     ? "f=", GetPanel(4)
     ? "g=", shNames["alpha"] + shNames["beta"]
-    ? "h=", Len(shPanels)
+    ? "h=", Len(shnPanels)
 
 RETURN
 
 // Factory in the CreateLangHash shape: its own keys flow through a
 // variable, so the literal gives no key evidence — the return-key
-// override from the `shPanels := BuildPanels()` site types it.
+// override from the `shnPanels := BuildPanels()` site types it.
 function BuildPanels()
-    local hOut := { => }
+    local hnOut := { => }
     local nKey
 
     for nKey := 1 to 5
-        hOut[nKey] := "panel" + AllTrim(Str(nKey))
+        hnOut[nKey] := "panel" + AllTrim(Str(nKey))
     next
 
-return hOut
+return hnOut
 
 function GetPanel(nNo)
-return shPanels[nNo]
+return shnPanels[nNo]
