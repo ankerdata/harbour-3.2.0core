@@ -161,11 +161,17 @@ public static partial class HbRuntime
     // connection or release an exclusive table by dropping the last
     // reference and collecting. A caller must not hold a lock a destructor
     // takes (ormsql.prg's AddOpenORMTable() lets go of its own first).
+    // An object waiting for its destructor keeps what it references alive
+    // through that collection, so what only it held (a table's connection,
+    // a SafeHandle that closes the file) is freed by the second one, and its
+    // finalizer waited for too: Harbour's reference counts free the chain at
+    // once (ormtestsuite.prg deletes the database file straight after).
     public static object? hb_gcAll(bool lForce = true)
     {
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
+        GC.WaitForPendingFinalizers();
         return null;
     }
 

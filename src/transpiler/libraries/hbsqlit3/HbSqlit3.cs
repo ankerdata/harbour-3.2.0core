@@ -10,7 +10,12 @@
 // (native\build.bat), so an encrypted EasiPOS database opens as it does
 // under 9.0. As in core.c:
 //   - a database is a handle the collector closes (sqlite3_close) when the
-//     last reference to it goes; a statement is finalized by its owner
+//     last reference to it goes; a statement is finalized by its owner.
+//     hbsqlit3 has no sqlite3_close(): Harbour closes the moment the count
+//     reaches zero, C# at the next collection (hb_gcAll() waits for it), and
+//     a Debug build holds a routine's references until it returns - code
+//     that must see the file closed drops the connection in a routine it
+//     calls (the transpiler README, DESTRUCTOR)
 //   - an index is 1-based, as Harbour counts columns
 //   - text crosses as UTF-8 through the Harbour string, a byte per char
 //     (the Latin-1 convention HbRuntime's hb_StrToUTF8() / hb_UTF8ToStr()
@@ -194,6 +199,23 @@ public static partial class HbSqlit3
     public static string sqlite3_column_name(object? pStmt, object? nColumn) =>
         FromUtf8(Native.sqlite3_column_name(Stmt(pStmt, "SQLITE3_COLUMN_NAME"), Int(nColumn) - 1), -1);
 
+    // sqlite3_column_count( <pStmt> ): the number of columns its rows have
+    public static long sqlite3_column_count(object? pStmt) =>
+        Native.sqlite3_column_count(Stmt(pStmt, "SQLITE3_COLUMN_COUNT"));
+
+    // sqlite3_stmt_readonly( <pStmt> ): .T. when it does not write the database
+    public static bool sqlite3_stmt_readonly(object? pStmt) =>
+        Native.sqlite3_stmt_readonly(Stmt(pStmt, "SQLITE3_STMT_READONLY")) != 0;
+
+    // sqlite3_bind_parameter_count( <pStmt> ): how many parameters it takes
+    public static long sqlite3_bind_parameter_count(object? pStmt) =>
+        Native.sqlite3_bind_parameter_count(Stmt(pStmt, "SQLITE3_BIND_PARAMETER_COUNT"));
+
+    // sqlite3_stmt_status( <pStmt>, <nOp>, [<lReset>] ): the counter nOp names
+    // (SQLITE_STMTSTATUS_*), zeroed after reading when lReset is .T.
+    public static long sqlite3_stmt_status(object? pStmt, object? nOp, object? lReset = null) =>
+        Native.sqlite3_stmt_status(Stmt(pStmt, "SQLITE3_STMT_STATUS"), Int(nOp), lReset is true ? 1 : 0);
+
     // ---- arguments ------------------------------------------------------
 
     // hb_sqlite3_param() / hb_parptr(): a live handle, else the argument
@@ -299,5 +321,9 @@ public static partial class HbSqlit3
         [DllImport(Lib)] internal static extern IntPtr sqlite3_column_text(IntPtr stmt, int iCol);
         [DllImport(Lib)] internal static extern int sqlite3_column_bytes(IntPtr stmt, int iCol);
         [DllImport(Lib)] internal static extern IntPtr sqlite3_column_name(IntPtr stmt, int iCol);
+        [DllImport(Lib)] internal static extern int sqlite3_column_count(IntPtr stmt);
+        [DllImport(Lib)] internal static extern int sqlite3_stmt_readonly(IntPtr stmt);
+        [DllImport(Lib)] internal static extern int sqlite3_bind_parameter_count(IntPtr stmt);
+        [DllImport(Lib)] internal static extern int sqlite3_stmt_status(IntPtr stmt, int op, int resetFlg);
     }
 }
