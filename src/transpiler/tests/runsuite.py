@@ -58,7 +58,7 @@ TRANSPILER = os.environ.get("HBTRANSPILER") or \
     os.path.join(ROOT, "bin", "hbtranspiler.exe")
 
 # Multi-file tests: testNNa + testNNb build as one project named testNN.
-PAIRS = ["19", "20", "22", "41", "45", "46"]
+PAIRS = ["19", "20", "22", "41", "45", "46", "131"]
 PAIRMEMBERS = set()
 for _p in PAIRS:
     PAIRMEMBERS |= {"test" + _p + "a", "test" + _p + "b"}

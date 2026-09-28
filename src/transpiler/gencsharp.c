@@ -1256,9 +1256,12 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember )
    either a dynamic class's dictionary-backed member or a name Harbour
    resolves at runtime; the caller routes it through `((dynamic)this)`
    so the DLR handles it rather than a missing static field surfacing
-   as CS1061. A class whose parent is outside this unit stops the walk
-   early (returns false) — routing through the DLR still works at
-   runtime, it just forgoes the static dispatch. */
+   as CS1061. An ancestor declared in another file is asked through the
+   reftab, whose member and method rows hb_csClassMethodKey() walks up
+   that ancestor's own parents: without it a member inherited across
+   files went through `((dynamic)this)` — TestSuite's oTestAssert 505
+   times in ormtestsuite.cs, Dialog's SendDialogData() and oPOSStatus
+   from every dialog subclass (test131). */
 static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName )
 {
    int iGuard = 0;   /* bound the walk against accidental inherit cycles */
@@ -1297,7 +1300,12 @@ static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName 
       }
 
       if( ! fFoundClass )
-         break;             /* class or an ancestor not in this unit */
+      {
+         /* a class of another file: its rows, and its ancestors' */
+         char szKey[ 256 ];
+         return s_pRefTab &&
+                hb_csClassMethodKey( szClass, szName, szKey, sizeof( szKey ) ) != NULL;
+      }
       szClass = szParent;   /* ascend to the parent and repeat */
    }
    return HB_FALSE;
