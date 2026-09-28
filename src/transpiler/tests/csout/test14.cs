@@ -45,7 +45,7 @@ public class Dog : Animal
         return this;
     }
 
-    public virtual dynamic DescribeFull()
+    public virtual string DescribeFull()
     {
         return Describe() + " (" + cBreed + ")";
     }

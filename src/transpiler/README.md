@@ -501,6 +501,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0034 | emit  | THREAD STATIC with an initializer other than NIL, 0 or .F.: a `[ThreadStatic]` field's initializer runs on the first thread only, so another would start with the C# default |
 | W0035 | scan  | A hash used with keys its name does not declare: a number as the key of an `h` name, a string as the key of an `hn` one, or a hash of the other kind assigned to it — rename (`hn<...>` for numbers, `h<...>` for strings) or change the key |
 | W0036 | scan  | An `x` name subscripted by a key that is not a string: C# cannot tell an array from a hash — assign it to an `a`/`h`/`hn` name where the code knows which (a `ValType()` branch), or read a hash whose keys may be either kind with `hb_HGet()` |
+| W0037 | scan  | `Self` sends a message neither its class nor an ancestor declares (an ancestor in another file included), on a class that keeps no members in a dynamic bag: Harbour raises "No exported method" when the line runs, C# would go through `((dynamic)this)` and throw there. HBObject's and the VM's own messages (`Init`, `ClassName`, `Super`, `__enum*` …) and ancestors the reftab does not know say nothing; the scan's last pass decides, as for W0018. First found easipos easizvt.prg sending to `::oEasiZVT` for its member oEasiZVTProxy in four methods |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -887,7 +888,10 @@ strongest. Later rungs override earlier ones.
    NUMERIC slot; a real conflict widens to USUAL with a W0022. Return
    types come from the RETURN expressions, member types from their
    declarations, and a `Class():New(…)` call site refines the
-   constructor's own slots (test93). A call to one of the file's STATIC
+   constructor's own slots (test93). A send passes on its method's return
+   type as a call does its function's — the method's own row,
+   `Class::Class__Method`, up the receiver's parents (test132); the
+   inference used to read a send's member rows only. A call to one of the file's STATIC
    functions reads that function's own row, `<file>::<Name>`: the file's
    function list decides it, not the key's text, since member rows share
    the separator and a class may be named after its file (OrmTestSuite in
@@ -1494,6 +1498,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
+| 132       | A method's return type reaches its caller through a send (`RETURN oObj:Label132()`, `x := oObj:Reading132()`), as a function's does through a call |
 | 131       | (pair) A member, a method and a defaulted method a subclass inherits from a class in another file are ordinary C# member access, not `((dynamic)this)` |
 | 130       | Inside a method, a call to a function that a member of the class or an ancestor names is the function: `Program.Wake130()`, where C# would bind the method and recurse |
 | 129       | A call to one of the file's STATIC functions takes its return type (a class named after the file notwithstanding), so two callers widen a slot to their common ancestor; the emitter infers from seeded parameters (a numeric parameter given an INTEGER result stays decimal); a USUAL initialiser leaves a committed prefix its type |
@@ -1536,6 +1541,7 @@ the errors, where the file fails and the test asserts the error line:
 | `integer_fraction.prg`        | `W0024` | An `i` name given what may hold a fraction: assigned, passed, `/=`, `*= 1.5`, a FOR STEP; and exactly those five, the `Int()` lines quiet |
 | `hash_key_name.prg`           | `W0035` | A number as an `h` name's key, a string as an `hn` name's, a numerically keyed literal given to an `h` name; exactly those three |
 | `x_subscript.prg`             | `W0036` | An `x` name subscripted by a number; the same value through an `a` name, and by a string, quiet |
+| `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 
 ### The runtime library — `rtltest/`
 

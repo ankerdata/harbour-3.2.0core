@@ -75,7 +75,7 @@ RETURN cVal
 METHOD InternalCalc() AS NUMERIC CLASS Person
 RETURN ::nAge * 2
 
-FUNCTION Main() AS USUAL
+FUNCTION Main() AS STRING
 
    LOCAL oPerson := Person():New() AS OBJECT
    QOut("oPerson created")

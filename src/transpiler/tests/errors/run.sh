@@ -94,6 +94,24 @@ for spec in "hash_key_name:3" "x_subscript:1"; do
    fi
 done
 
+# W0037 reads the class rows a scan writes: -GF with a private reftab, so
+# the suite's hbreftab.tab is left alone. One warning, and the quiet lines
+# (HBObject's Init, a declared and an inherited member, a dynamic class)
+# stay quiet.
+TAB="$SCRIPT_DIR/self_undeclared.tab"
+rm -f "$TAB"
+out=$("$TRANS" -I"$INC" --reftab="$TAB" "$SCRIPT_DIR/self_undeclared.prg" -GF 2>&1)
+rm -f "$TAB"
+if echo "$out" | grep -q "warning W0037  'Device37:oDevice37'" &&
+   [ "$(echo "$out" | grep -c "warning W0037")" -eq 1 ]; then
+   echo "PASS: self_undeclared (W0037 surfaced, 1 warning, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: self_undeclared (expected one W0037, for Device37:oDevice37)"
+   echo "$out" | sed 's|^|  |'
+   fail=$((fail+1))
+fi
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 [ $fail -eq 0 ]

@@ -9,7 +9,7 @@ using static Program;
 public class Child131 : Base131
 {
 
-    public virtual dynamic Run131()
+    public virtual string Run131()
     {
         Bump131();
         Bump131(2);

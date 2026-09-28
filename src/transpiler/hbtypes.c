@@ -1230,9 +1230,19 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             int iDepth;
             for( iDepth = 0; szCls && iDepth < 16; iDepth++ )
             {
+               char szMethodKey[ 256 ];
                const char * szMT = hb_refTabReturnType( pEnv->pRefTab,
                   hb_refTabMethodKey( szCls,
                      pExpr->value.asMessage.szMessage ) );
+               if( szMT )
+                  return szMT;
+               /* A METHOD's row, `Class::Class__Method`, carries its return
+                  type too, which the send passes on as a call passes on a
+                  function's: `RETURN ::Label131()` and
+                  `x := oObj:Method()` had read nothing (test132). */
+               hb_snprintf( szMethodKey, sizeof( szMethodKey ), "%s::%s__%s",
+                            szCls, szCls, pExpr->value.asMessage.szMessage );
+               szMT = hb_refTabReturnType( pEnv->pRefTab, szMethodKey );
                if( szMT )
                   return szMT;
                szCls = hb_refTabClassParent( pEnv->pRefTab, szCls );
@@ -2029,6 +2039,47 @@ static void hb_astAuditTypedView( PHB_EXPR pCond, PHB_AST_NODE pBody,
  * intra-function consistency; the cross-function registry upgrade for
  * their declarations happens at emit (gencsharp observation pre-pass).
  * ================================================================ */
+
+/* W0037's test: does Self, inside a method of pEnv->szSelfClass, send a
+   message that neither the class nor an ancestor declares? False (say
+   nothing) outside a method, for the messages every object answers
+   (HBObject's and the VM's own), for a class that keeps members in a
+   dynamic bag (::&(name) - SQLtTable's per-table fields, nId), and when
+   the chain reaches a class the reftab does not know (a contrib or
+   HwGUI parent, whose messages it cannot list). */
+static HB_BOOL hb_astSelfMessageUndeclared( HB_TYPEENV * pEnv, const char * szMsg )
+{
+   static const char * s_aBuiltin[] = {
+      "SUPER", "NEW", "INIT", "ERROR", "MSGNOTFOUND", "ISDERIVEDFROM",
+      "ISKINDOF", "CLASS", "CLASSNAME", "CLASSH", "CLASSSEL", "EVAL",
+      "EXEC", NULL };
+   const char * szCls = pEnv->szSelfClass;
+   int i;
+
+   if( ! pEnv->pRefTab || ! szCls[ 0 ] || ! szMsg || ! szMsg[ 0 ] ||
+       ( szMsg[ 0 ] == '_' && szMsg[ 1 ] == '_' ) )
+      return HB_FALSE;
+   for( i = 0; s_aBuiltin[ i ]; i++ )
+      if( hb_stricmp( szMsg, s_aBuiltin[ i ] ) == 0 )
+         return HB_FALSE;
+
+   for( i = 0; szCls && szCls[ 0 ] && i < 16; i++ )
+   {
+      char szKey[ 256 ];
+      if( ! hb_refTabIsClass( pEnv->pRefTab, szCls ) ||
+          hb_refTabIsClassDynamic( pEnv->pRefTab, szCls ) )
+         return HB_FALSE;
+      hb_snprintf( szKey, sizeof( szKey ), "%s::%s", szCls, szMsg );
+      if( hb_refTabParamCount( pEnv->pRefTab, szKey ) >= 0 )
+         return HB_FALSE;
+      hb_snprintf( szKey, sizeof( szKey ), "%s::%s__%s", szCls, szCls, szMsg );
+      if( hb_refTabParamCount( pEnv->pRefTab, szKey ) >= 0 )
+         return HB_FALSE;
+      szCls = hb_refTabClassParent( pEnv->pRefTab, szCls );
+   }
+   return i < 16;
+}
+
 static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                                HB_BOOL * pfChanged )
 {
@@ -2156,6 +2207,33 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                   s_iObserveLine, pRecv->value.asSymbol.name, szDetail,
                   "rename to o<...> (soft-typing contract)" );
             }
+         }
+         /* W0037 — Self sends a message neither its class nor an ancestor
+            declares, on classes that keep no members in a dynamic bag:
+            Harbour raises "No exported method" when it runs, C# routes it
+            through ((dynamic)this) and throws there. easizvt.prg's
+            ReadCard(), ActivateCardReader() and AbortCommand() sent to
+            ::oEasiZVT, a member the class calls oEasiZVTProxy. The scan's
+            last pass decides, as for W0018: an ancestor whose file is
+            scanned later has no rows yet in the first. */
+         if( pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+             hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name,
+                         "Self" ) == 0 &&
+             pExpr->value.asMessage.szMessage &&
+             hb_astSelfMessageUndeclared( pEnv, pExpr->value.asMessage.szMessage ) )
+         {
+            char szKey[ 160 ];
+            hb_snprintf( szKey, sizeof( szKey ), "W0037:%s",
+                         pExpr->value.asMessage.szMessage );
+            if( ! hb_astOrmSeen( s_iObserveLine, szKey ) )
+               fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0037  '%s:%s' — neither "
+                  "%s nor an ancestor declares it (Harbour: No exported "
+                  "method at run time)\n",
+                  pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                  s_iObserveLine, pEnv->szSelfClass,
+                  pExpr->value.asMessage.szMessage, pEnv->szSelfClass );
          }
          hb_astObserveExpr( pExpr->value.asMessage.pObject, pEnv, pfChanged );
          hb_astObserveExpr( pExpr->value.asMessage.pParms,  pEnv, pfChanged );
