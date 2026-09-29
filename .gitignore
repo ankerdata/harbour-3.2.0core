@@ -57,3 +57,6 @@ build-arm64.log
 # value beyond what the .prg change itself says. Determinism is
 # covered by src/transpiler/tests/verifyreftab.sh.
 /src/transpiler/hbreftab.tab
+
+# Python bytecode caches, wherever a script runs (tools/, rtltest/, tests/)
+__pycache__/
