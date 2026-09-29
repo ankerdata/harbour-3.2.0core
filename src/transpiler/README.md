@@ -914,6 +914,12 @@ strongest. Later rungs override earlier ones.
    ormtestsuite.prg). Before that, `oFirst := SharedIdsFixtureTable()`
    stayed dynamic, only the typed callers refined OrmTestOrderedIds()'s
    slot, and the call passing the fixture failed in the binder (test129).
+   That rule stands (Alex, 2026-09-29): an untyped caller has no say in a
+   slot's class, and C# converts its value at the call, which throws if it
+   holds another class. Each such call is an `ARG-DYNAMIC` audit row, for
+   review rather than a gate: most pass the right object untyped (a table
+   out of `hORMTables`), some rely on a guard the scan cannot see
+   (`aBuffer[i]` after `aBuffer[i]:nType == ITEM`).
    The scan and the emitter infer a body from the same start: its
    parameters seeded with their slot types — an OBJECT slot, which no
    caller refined, with the class its name gives (`oTransaction`) — and,
@@ -941,7 +947,9 @@ fraction" so anything fractional flowing into one needs `Int()` or
 - **The type audit** (`notes/type-audit.tsv` in easipos-transpiled):
   ORM-NARROW and INT-CONFLICT rows are exactly "a decimal feeds an
   integer", per site; MEMBER-TYPE rows say what evidence a member's
-  type rests on. It is a leaderboard, not a gate.
+  type rests on; ARG-DYNAMIC rows are the calls that pass an untyped
+  value into a class-typed parameter, converted (or refused) at run
+  time. It is a leaderboard, not a gate.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.

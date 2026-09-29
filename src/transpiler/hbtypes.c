@@ -2964,6 +2964,42 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
             HB_REFINE_RESULT r = hb_refTabRefineParamType(
                pEnv->pRefTab, szCallee, iPos, szArgType );
 
+            /* ARG-DYNAMIC (audit only; Alex, 2026-09-29, plan C10): an
+               untyped argument into a parameter its typed callers made a
+               class. The parameter keeps the class, since an untyped
+               caller has no say in it. In C# the call converts the value
+               at run time and throws if it holds another class, where
+               Harbour goes on while the object answers the messages sent
+               to it. Listed for review, not gated: most are the right
+               object reached untyped (a table out of hORMTables), and
+               some rely on a guard the scan cannot see (`aBuffer[i]`
+               after `aBuffer[i]:nType == ITEM`). A NIL passed is null
+               in C#, which converts to any class. */
+            if( hb_auditActive() && pEffective->ExprType != HB_ET_NIL &&
+                ( ! szArgType || hb_stricmp( szArgType, "USUAL" ) == 0 ||
+                  hb_stricmp( szArgType, "OBJECT" ) == 0 ) )
+            {
+               const HB_REFPARAM * pP =
+                  hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+               if( pP && pP->szType && ! pP->fConflict &&
+                   ( hb_refTabIsClass( pEnv->pRefTab, pP->szType ) ||
+                     hb_fieldTypesClassCanon( pP->szType ) ) )
+               {
+                  char szSym[ 192 ];
+                  char szDetail[ 192 ];
+                  hb_snprintf( szSym, sizeof( szSym ), "%s:%s", szCallee,
+                               pP->szName ? pP->szName : "?" );
+                  hb_snprintf( szDetail, sizeof( szDetail ),
+                               "untyped argument into a %s parameter: "
+                               "converted at run time, throws if it holds "
+                               "another class", pP->szType );
+                  hb_auditEmit( "ARG-DYNAMIC", pEnv->szFile, iLine, szSym,
+                     szDetail,
+                     "type the argument (an o<Class> name), or confirm a "
+                     "guard makes its class certain" );
+               }
+            }
+
             if( r == HB_REFINE_CONFLICT )
             {
                /* Emitted on the first call site that disagrees with
