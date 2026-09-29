@@ -209,6 +209,18 @@ void hb_fieldTypesLoad( void )
       if( ! *szClass || ! *szMember || ! *szType )
          continue;
 
+      /* `Factory<TAB>=model<TAB>Class` — the definition factory builds
+         that model (PLUDef builds PLUTable). The factory is no class, so
+         it gets no class row: hb_fieldTypesModelOf() reads this one, and
+         the model's `=built` row tells hb_fieldTypesModelCanon() that the
+         class is a model rather than OrmTable or a family base. */
+      if( strcmp( szMember, "=model" ) == 0 )
+      {
+         hb_ftInsert( szClass, "=model", szType, szType );
+         hb_ftInsert( szType, "=built", szClass, szClass );
+         continue;
+      }
+
       /* class row (member "") registers the canonical class spelling;
          inserted once thanks to first-writer-wins */
       hb_ftInsert( szClass, "", szClass, NULL );
@@ -244,6 +256,39 @@ const char * hb_fieldTypesClassCanon( const char * szClass )
 
    e = hb_ftFind( szClass, "" );
    return e ? e->szCanon : NULL;
+}
+
+/* The model a definition factory builds (`PLUDef` -> `PLUTable`, from an
+   `=model` row), or, in a map without such rows, the factory's own name
+   when it is a class (the model was named after its factory until
+   2026-09-28, and the suite's maps still are). NULL for anything else. */
+const char * hb_fieldTypesModelOf( const char * szFactory )
+{
+   PHB_FTENTRY e;
+
+   if( ! szFactory || ! *szFactory )
+      return NULL;
+   if( ! s_fLoaded )
+      hb_fieldTypesLoad();
+
+   e = hb_ftFind( szFactory, "=model" );
+   if( e )
+      return hb_fieldTypesClassCanon( e->szCanon );
+   return hb_fieldTypesClassCanon( szFactory );
+}
+
+/* A model some factory builds (`PLUTable`, from its `=model` row), in
+   the map's spelling; NULL for OrmTable, a family base or anything else.
+   An `o<Class>` name is typed by this: oPLUTable is a PLUTable, while
+   oOrmTable, the generic name for any table, says nothing. */
+const char * hb_fieldTypesModelCanon( const char * szClass )
+{
+   if( ! szClass || ! *szClass )
+      return NULL;
+   if( ! s_fLoaded )
+      hb_fieldTypesLoad();
+
+   return hb_ftFind( szClass, "=built" ) ? hb_fieldTypesClassCanon( szClass ) : NULL;
 }
 
 /* Family-base parent of a def class (from `=inherit` rows), or NULL.

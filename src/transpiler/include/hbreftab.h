@@ -180,6 +180,10 @@ extern void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int 
 
 /* Returns HB_TRUE if iPos carries a declared default. */
 extern HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
+/* An o<Class> parameter slot still at the generic OBJECT (unrefined, not
+   conflict-frozen) takes szType, the class its name names. */
+extern void hb_refTabDefaultParamType( PHB_REFTAB pTab, const char * szFunc, int iPos,
+                                       const char * szType );
 
 /* If pStmt is a declared default — the `IF p == NIL ; p := v ; END` that
    common.ch's DEFAULT expands to, or `hb_default(@p, v)` — return the

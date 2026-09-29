@@ -489,6 +489,30 @@ void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
       e->pParams[ iPos ].fDeclDefault = HB_TRUE;
 }
 
+/* An o<Class> parameter slot that is still the prefix's generic OBJECT -
+   no typed caller refined it, no conflict froze it - takes the class its
+   name names (Alex, 2026-09-28): oTransaction a Transaction. A slot the
+   callers refined keeps what they gave it, and the next pass's
+   re-registration keeps this one (a fresh OBJECT never beats a class). */
+void hb_refTabDefaultParamType( PHB_REFTAB pTab, const char * szFunc, int iPos,
+                                const char * szType )
+{
+   PHB_REFENTRY e;
+   HB_REFPARAM * pParam;
+
+   if( ! pTab || ! szFunc || ! szType || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( ! e || ! e->pParams || iPos >= e->nParams )
+      return;
+   pParam = &e->pParams[ iPos ];
+   if( pParam->fConflict || ! pParam->szType ||
+       hb_stricmp( pParam->szType, "OBJECT" ) != 0 )
+      return;
+   hb_refTabDefer( pTab, pParam->szType );
+   pParam->szType = hb_refTabDup( szType );
+}
+
 HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
 {
    PHB_REFENTRY e;
@@ -2511,14 +2535,17 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                         the later Class::member lookup, so it's safe to
                         register unconditionally. */
                      const char * szM = pMember->value.asClassData.szName;
-                     if( szM && ( szM[ 0 ] == 'o' || szM[ 0 ] == 'O' ) &&
-                         szM[ 1 ] >= 'A' && szM[ 1 ] <= 'Z' &&
-                         hb_refTabIsClass( pTab, szM + 1 ) )
-                        /* stem must name a REAL class — else a bogus
-                           name (oPLU -> "PLU", oOrmTable -> "OrmTable")
-                           would propagate as a receiver type and poison
-                           the ORM contract checks + emission (CS0246). */
-                        szTag = szM + 1;
+                     /* stem must name a REAL class - a program class or
+                        an ORM model (oPLUTable -> PLUTable) - else a
+                        bogus name (oPLU -> "PLU") would propagate as a
+                        receiver type and poison the ORM contract checks
+                        + emission (CS0246). */
+                     const char * szClassOfName =
+                        szM && ( szM[ 0 ] == 'o' || szM[ 0 ] == 'O' ) &&
+                        szM[ 1 ] >= 'A' && szM[ 1 ] <= 'Z'
+                           ? hb_astObjectNameClass( pTab, szM ) : NULL;
+                     if( szClassOfName )
+                        szTag = szClassOfName;
                   }
                   /* other tags (CODEBLOCK, class names, ...) add no
                      inference value yet — skip rather than guess */
@@ -2607,6 +2634,26 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                pVar = pVar->pNext;
             }
             hb_refTabAddFunc( pTab, szKey, nParams, names, types, HB_FALSE );
+
+            /* an o<Class> parameter nothing refined is its name's class
+               (hb_refTabDefaultParamType); the key is copied, as
+               hb_refTabMethodKey's buffer is shared */
+            {
+               char szParamKey[ 256 ];
+               int iP;
+               hb_strncpy( szParamKey, szKey, sizeof( szParamKey ) - 1 );
+               for( iP = 0; iP < nParams; iP++ )
+               {
+                  if( types[ iP ] && hb_stricmp( types[ iP ], "OBJECT" ) == 0 )
+                  {
+                     const char * szNameClass =
+                        hb_astObjectNameClass( pTab, names[ iP ] );
+                     if( szNameClass )
+                        hb_refTabDefaultParamType( pTab, szParamKey, iP,
+                                                   szNameClass );
+                  }
+               }
+            }
          }
 
          if( pCompFunc )

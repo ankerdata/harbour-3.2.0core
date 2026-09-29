@@ -416,6 +416,10 @@ extern void         hb_astSetPrefixReftab( void * pRefTab );
    functions, whose reftab row is `<FileBase>::<Name>`. Set with the
    reftab for the length of a file; NULL to clear. */
 extern void         hb_astSetFileFuncs( PHB_AST_NODE pFuncList );
+/* The class an o<Class> / so<Class> name names - a program class of the
+   reftab (opaque PHB_REFTAB) or an ORM model of the fieldtypes map - or
+   NULL. */
+extern const char * hb_astObjectNameClass( void * pRefTab, const char * szName );
 /* The third argument is an opaque pointer to the active user-function
    signature table (PHB_REFTAB from hbreftab.h). It is consulted to
    resolve return types for calls to user-defined functions defined in

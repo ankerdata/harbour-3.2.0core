@@ -64,7 +64,7 @@ Additional CLI flags:
 | `-o<dir>/`              | Redirect `.cs` / `.prg` output to `<dir>/` instead of alongside the source. **Required for `-GT`**, whose output shares the `.prg` extension and otherwise overwrites the input |
 | `--reftab=<path>`       | Override the default `hbreftab.tab` location                      |
 | `--defines-map=<path>`  | Qualify identifier references to per-source `<Name>Const` classes and type `#define` references (see [Defines map](#defines-map)) |
-| `--fieldtypes=<path>`   | ORM def-class field-type map (`fieldtypes.tsv`) — `ConstructORMTable(XxxDef())` receivers type as class `XxxDef` and their field accesses resolve to exact C# types (see [ORM def-class typing](#orm-def-class-typing)) |
+| `--fieldtypes=<path>`   | ORM def-class field-type map (`fieldtypes.tsv`) — `ConstructORMTable(XxxDef())` receivers type as the model `XxxTable` and their field accesses resolve to exact C# types (see [ORM def-class typing](#orm-def-class-typing)) |
 | `--var-types=<path>`    | `NAME<TAB>TYPE` hints for non-Hungarian names (`i`, `j`, `k` …): accepted by the W0021 gate and fed to inference ([`hbvartypes.c`](hbvartypes.c)) |
 | `--preload-list=<path>` | Extra `.ch` headers whose rules are loaded at startup on top of `std.ch` + `common.ch` (see test47) |
 | `--filename-casing=<path>` | `<stem><TAB><CamelCase>` map overriding on-disk file-stem casing for derived identifiers — file-static prefixes, file-mangled STATIC FUNCTION names, `<Name>Const` classes ([`hbfilecase.c`](hbfilecase.c)) |
@@ -381,8 +381,10 @@ POSStatus::oClerk                -  Clerk    0
   member typed `AS INTEGER` in `sharedx/transaction.prg` is `long` at
   every `oTransaction:nSaleClkNo` site in every other file. A generic
   `VAR oClerk AS OBJECT` is *name-seeded* to class `Clerk` only when
-  the stem is a registered class (unconditional seeding once exploded
-  the build via `oPLU` → nonexistent `PLU`).
+  the stem is a registered class or a generated ORM model
+  (`oClerkTable` → `ClerkTable`); unconditional seeding once exploded
+  the build via `oPLU` → nonexistent `PLU`. An `o<Class>` parameter no
+  caller refines is seeded the same way (test133).
 
 By default it is `src/transpiler/hbreftab.tab` of the checkout whose
 `bin/` holds the binary (from `argv[0]`; under the current directory
@@ -580,10 +582,10 @@ they share an ancestor: the refiner walks the reftab's INHERIT chain
 and widens the slot to the nearest common class (test79). ORM def
 classes have no source INHERIT — they are `hbClass()` runtime tables —
 so `fieldtypes.tsv` carries their parents instead: the family bases
-(`TableIndexDef → TableFieldsBase`, test85) and, for every other model
+(`TableIndexTable → TableFieldsBase`, test85) and, for every other model
 and family base, `OrmTable`, the base the generated C# models derive
-from. `BrowseDialog:New`'s `oOrmTable`, fed a `PLUDef` here and a
-`CustomerDef` there, therefore types as `OrmTable`; a table-specific
+from. `BrowseDialog:New`'s `oOrmTable`, fed a `PLUTable` here and a
+`CustomerTable` there, therefore types as `OrmTable`; a table-specific
 member on it is then a C# error, which is the point.
 
 ---
@@ -636,8 +638,8 @@ environment, nested chains via the class-typed member registry
 reftab hash lookups. It deliberately does not recurse into
 `hb_astInferExprType` — that form once took the scan from 0.08 s to
 60 s per file. `HB_DEFAULT(@param, ConstructORMTable(XxxDef()))` in a
-body types the parameter as `XxxDef` (only upgrading an OBJECT/USUAL
-slot, never overriding a caller's class).
+body types the parameter as the model `XxxTable` (only upgrading an
+OBJECT/USUAL slot, never overriding a caller's class).
 
 A receiver that is the class constructor call itself —
 `Sconce():New(oLantern, "hall")` — is a FUNCALL no return-type table
@@ -667,17 +669,29 @@ easipos-transpiled) joins them into `fieldtypes.tsv`:
 
 ```
 Class<TAB>accessor<TAB>cstype<TAB>DBFIELD<TAB>len<TAB>dec<TAB>deffile
-ClerkDef       cDallasKey  string  DALLASKEY  24  0  clerkdef.prg
-ADTArchiveDef  =inherit    ArchiveBase  -  0  0  -
-OrmTable       Append      method  -  0  0  orm.prg
+ClerkTable       cDallasKey  string  DALLASKEY  24  0  clerkdef.prg
+ADTArchiveTable  =inherit    ArchiveBase  -  0  0  -
+ClerkDef         =model      ClerkTable  -  0  0  -
+OrmTable         Append      method  -  0  0  ormsql.prg
 ```
 
 `cstype` is `int|long|decimal|string|bool|date|timestamp`; `dec=0`
-numerics are `long`. With `--fieldtypes` loaded,
-`ConstructORMTable(XxxDef())` types as class `XxxDef`, member reads
-resolve through the map (long → `INTEGER`, decimal → `NUMERIC`, …),
-and the emitter writes `new XxxDef(...)` against generated model
-classes that inherit an `OrmTable` base. **Family bases**: factories
+numerics are `long`. **The models are named after their factories:**
+`<Stem>Def` builds `<Stem>Table` (Alex, 2026-09-28), a stem that
+already ends in "Table" keeping it (`CashSaleTableDef` builds
+`CashSaleTable`, `TableDef` builds `TableTable`); an `=model` row
+records each pair (`hb_fieldTypesModelOf()`), and a map without them
+names the model after its factory, as before. With `--fieldtypes`
+loaded, `ConstructORMTable(XxxDef())` types as the model `XxxTable`,
+member reads resolve through the map (long → `INTEGER`, decimal →
+`NUMERIC`, …), and the emitter writes `new XxxTable(XxxDef(), ...)`
+against generated model classes that inherit an `OrmTable` base, their
+constructors taking the definition as `List<dynamic>?` and the three
+switches as `bool?`. A variable, member or parameter named after a model
+is typed by its name (`oClerkTable` is a `ClerkTable`,
+`hb_fieldTypesModelCanon()`); OrmTable and the family bases are not,
+since the generic `oOrmTable` holds any table and code reads a model's
+own fields through it (test133). **Family bases**: factories
 that share a field static (the four index defs, the five detail defs)
 get a synthetic base (`TableFieldsBase`, `TableDetailBase`, …) via
 `=inherit` rows, so a parameter fed several sibling classes widens to
@@ -844,7 +858,8 @@ strongest. Later rungs override earlier ones.
    by numbers; an `hn` name beats an empty `{ => }` initializer, as `i`
    beats a number),
    `o` the class of that name when one exists (`oTransaction` →
-   `Transaction`) and `dynamic` otherwise, `x` `dynamic` on purpose.
+   `Transaction`, `oClerkTable` → the ORM model `ClerkTable`) and
+   `dynamic` otherwise, `x` `dynamic` on purpose.
    A name that lies about its contents is a bug (W0021 / W0024).
    An `i` name is the prefix that also beats a numeric initialiser
    (`local iLen := Len( a )` is `long`); a decimal written into one, or
@@ -857,7 +872,8 @@ strongest. Later rungs override earlier ones.
    (`tests/errors/integer_fraction.prg`).
 2. **A declaration** overrides the prefix: `AS INTEGER` is `long` and
    is the only integral annotation; `AS <type>`; a `VAR o<Class>`
-   member is name-seeded to that class.
+   member is name-seeded to that class, and so is an `o<Class>`
+   parameter that no caller refines (test133).
 3. **Initialisers and defines**: a `#define` with an integer value is
    integer tier (the defines map), and a LOCAL or STATIC initialised
    from an integer literal, such a define, or another integer variable
@@ -1498,6 +1514,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
+| 133       | The ORM models are named `<Stem>Table` after their factories (`=model` rows); an `o<Class>` or `o<Model>` parameter no caller refines is declared as that class |
 | 132       | A method's return type reaches its caller through a send (`RETURN oObj:Label132()`, `x := oObj:Reading132()`), as a function's does through a call |
 | 131       | (pair) A member, a method and a defaulted method a subclass inherits from a class in another file are ordinary C# member access, not `((dynamic)this)` |
 | 130       | Inside a method, a call to a function that a member of the class or an ancestor names is the function: `Program.Wake130()`, where C# would bind the method and recurse |

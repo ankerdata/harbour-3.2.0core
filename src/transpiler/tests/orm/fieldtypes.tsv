@@ -12,3 +12,6 @@ TestFamBase	nNo	long	DEPTNO	5	0	test85
 TestFamBase	cName	string	NAME	30	0	test85
 TestDeptDef	=inherit	TestFamBase	-	0	0	-
 TestBranchDef	=inherit	TestFamBase	-	0	0	-
+TestShelf133Table	nNo	long	SHELFNO	5	0	test133
+TestShelf133Table	cName	string	NAME	30	0	test133
+TestShelf133Def	=model	TestShelf133Table	-	0	0	-

@@ -16,6 +16,15 @@
  *
  * Only the first three columns are read here; the rest are audit
  * context. cstype is one of int|long|decimal|string|bool|date|timestamp.
+ * Two kinds of row say something of classes instead:
+ *
+ *     Class<TAB>=inherit<TAB>Base       the model's parent class
+ *     Factory<TAB>=model<TAB>Class      the definition factory builds it
+ *
+ * The models are named `<Stem>Table` after their factories `<Stem>Def`
+ * (Alex, 2026-09-28: `ConstructORMTable(PLUDef())` builds a PLUTable,
+ * which a variable named oPLUTable types as by its name); a map without
+ * `=model` rows names each model after its factory, as before.
  * Lines starting with `#` are comments. Lookups are case-insensitive;
  * the stored spelling is canonical for emission (a source-side
  * `PluDef` call site must emit the generated class's `PLUDef`).
@@ -46,6 +55,16 @@ extern void hb_fieldTypesFree( void );
 /* Is szClass a mapped ORM def class? Returns the canonical spelling
    from the map (e.g. "PLUDef" for a "pludef" query), or NULL. */
 extern const char * hb_fieldTypesClassCanon( const char * szClass );
+
+/* The model a definition factory builds: its `=model` row's class, or in
+   a map without one the factory's own name when that is a class. The
+   ConstructORMTable( <Factory>() ) pattern asks this. */
+extern const char * hb_fieldTypesModelOf( const char * szFactory );
+
+/* A model some factory builds (a `=model` row names it), in the map's
+   spelling; NULL for OrmTable, a family base or anything else. What an
+   `o<Class>` name is typed by. */
+extern const char * hb_fieldTypesModelCanon( const char * szClass );
 
 /* Family-base parent of a def class (from `Class<TAB>=inherit<TAB>Base`
    rows), or NULL. Lets class-widening land a polymorphic def-class

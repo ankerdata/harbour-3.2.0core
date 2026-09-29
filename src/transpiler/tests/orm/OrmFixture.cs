@@ -62,3 +62,17 @@ public class TestBranchDef : TestFamBase
 
     public long nRegion;       // REGION (3,0)
 }
+// test133: a model named <Stem>Table after its factory <Stem>Def (the map's
+// `TestShelf133Def =model TestShelf133Table` row), with the constructor
+// gen_fieldtypes.py writes since 2026-09-28: the definition an array, the
+// three switches logicals.
+public class TestShelf133Table : OrmTable
+{
+    public TestShelf133Table(List<dynamic>? aFileDefinition = default,
+                             bool? lReadOnly = default, bool? lShared = default,
+                             bool? lRestructure = default)
+        : base(aFileDefinition, lReadOnly, lShared, lRestructure) { }
+
+    public long nNo;           // SHELFNO (5,0)
+    public string cName = "";  // NAME (30,0)
+}

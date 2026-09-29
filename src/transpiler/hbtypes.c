@@ -525,7 +525,28 @@ static const char * hb_astClassFromObjectName( const char * szName )
       szSuffix = szName + 2;
    if( ! szSuffix )
       return NULL;
-   return hb_refTabClassCanonName( s_pPropRefTab, szSuffix );
+   /* a class of the program, else a generated ORM model (fieldtypes.tsv:
+      oClerkTable is a ClerkTable). Not OrmTable or a family base: the
+      generic oOrmTable holds any table, and code reads a model's own
+      fields through it, which OrmTable does not declare (W0028). */
+   {
+      const char * szClass = hb_refTabClassCanonName( s_pPropRefTab, szSuffix );
+      return szClass ? szClass : hb_fieldTypesModelCanon( szSuffix );
+   }
+}
+
+/* The class an o<Class> name names - a program class or an ORM model -
+   or NULL. For the scan's parameter registration (hbreftab.c), which runs
+   outside hb_astPropagate and so has no published reftab of its own. */
+const char * hb_astObjectNameClass( void * pRefTab, const char * szName )
+{
+   PHB_REFTAB pSaved = s_pPropRefTab;
+   const char * szClass;
+
+   s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
+   szClass = hb_astClassFromObjectName( szName );
+   s_pPropRefTab = pSaved;
+   return szClass;
 }
 
 /* True when szType is exactly the class hb_astClassFromObjectName
@@ -1399,10 +1420,10 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             const char * szRet;
 
             /* ORM construction — ConstructORMTable(XxxDef(...), ...)
-               names the def class lexically in its first argument;
-               when XxxDef is in the fieldtypes map the expression IS
-               an instance of the generated model class (emitted as
-               `new XxxDef(...)`), so return the canonical class name.
+               names the def factory lexically in its first argument;
+               when the fieldtypes map knows the model it builds, the
+               expression IS an instance of that generated class (emitted
+               as `new XxxTable(...)`), so return the model's name.
                Checked before the generic return-type tables: reftab
                knows ConstructORMTable only as OBJECT-returning. The
                3 corpus sites that pass a variable/hash instead of a
@@ -1418,7 +1439,8 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
                    pFirst->value.asFunCall.pFunName &&
                    pFirst->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
                {
-                  const char * szCanon = hb_fieldTypesClassCanon(
+                  /* the model the factory builds (PLUDef -> PLUTable) */
+                  const char * szCanon = hb_fieldTypesModelOf(
                      pFirst->value.asFunCall.pFunName->value.asSymbol.name );
                   if( szCanon )
                      return szCanon;

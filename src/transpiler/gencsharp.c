@@ -4304,7 +4304,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                    pFirst->value.asFunCall.pFunName &&
                    pFirst->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
                {
-                  const char * szCanon = hb_fieldTypesClassCanon(
+                  /* the model the factory builds (PLUDef -> PLUTable) */
+                  const char * szCanon = hb_fieldTypesModelOf(
                      pFirst->value.asFunCall.pFunName->value.asSymbol.name );
                   if( szCanon )
                   {
