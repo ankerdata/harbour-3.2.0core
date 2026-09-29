@@ -78,12 +78,15 @@ run_one "$SCRIPT_DIR/hash_key_name.prg" "W0035" "'hWrong' is given a hash keyed 
 run_one "$SCRIPT_DIR/hash_key_name.prg" "W0035" "'hByName' takes a number as a key"
 run_one "$SCRIPT_DIR/hash_key_name.prg" "W0035" "'hnById' takes a string as a key"
 run_one "$SCRIPT_DIR/x_subscript.prg"   "W0036" "'xValue' is subscripted"
+run_one "$SCRIPT_DIR/foreach_after.prg" "W0038" "'cName' is read after its FOR EACH"
+run_one "$SCRIPT_DIR/foreach_after.prg" "W0038" "'cCell' is read after its FOR EACH"
+run_one "$SCRIPT_DIR/foreach_integer.prg" "W0039" "FOR EACH 'nId' is an integer only by inference"
 
 # ...and nothing else: the quiet lines stay quiet
-for spec in "hash_key_name:3" "x_subscript:1"; do
+for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer:1"; do
    name=${spec%%:*}
    want=${spec##*:}
-   count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/$name.prg" -GS 2>&1 | grep -c "warning W003[56]")
+   count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/$name.prg" -GS 2>&1 | grep -c "warning W003[5-9]")
    rm -f "$SCRIPT_DIR/$name.cs"
    if [ "$count" -eq "$want" ]; then
       echo "PASS: $name ($want warnings, no more)"

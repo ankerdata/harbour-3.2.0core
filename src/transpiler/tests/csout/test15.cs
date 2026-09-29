@@ -47,7 +47,7 @@ public static partial class Program
 
         // FOR EACH over array
         nTotal = 0;
-        foreach (dynamic __hb_fe_nItem in HbRuntime.HbEnumValues(aNumbers))
+        foreach (decimal __hb_fe_nItem in HbRuntime.HbEnumValues(aNumbers))
         {
             nItem = __hb_fe_nItem;
             nTotal += nItem;

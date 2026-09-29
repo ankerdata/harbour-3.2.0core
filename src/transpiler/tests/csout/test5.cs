@@ -29,7 +29,7 @@ public static partial class Program
         HbRuntime.QOut("nSum after DOWN=" + HbRuntime.Str(nSum));
 
         // FOR EACH with DESCEND
-        foreach (dynamic __hb_fe_cItem in HbRuntime.HbEnumValues(aItems, true))
+        foreach (string __hb_fe_cItem in HbRuntime.HbEnumValues(aItems, true))
         {
             cItem = __hb_fe_cItem;
             nSum = nSum + HbRuntime.Len(cItem);

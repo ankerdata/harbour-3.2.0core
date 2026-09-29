@@ -32,7 +32,7 @@ public static partial class Program
 
         // Then reuse the same name as a FOREACH iterator.
         cAccum = "";
-        foreach (dynamic __hb_fe_cMemberName in HbRuntime.HbEnumValues(aFields))
+        foreach (string __hb_fe_cMemberName in HbRuntime.HbEnumValues(aFields))
         {
             cMemberName = __hb_fe_cMemberName;
             cAccum += "<" + cMemberName + ">";

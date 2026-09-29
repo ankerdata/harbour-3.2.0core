@@ -37,7 +37,7 @@ public static partial class Program
 
         HbRuntime.hb_HDel(hStock, "milk");
         hStock["salt"] = 4;
-        foreach (dynamic __hb_fe_cKey in HbRuntime.HbEnumValues(HbRuntime.hb_HKeys(hStock)))
+        foreach (string __hb_fe_cKey in HbRuntime.HbEnumValues(HbRuntime.hb_HKeys(hStock)))
         {
             cKey = __hb_fe_cKey;
             cKeys += cKey + " ";

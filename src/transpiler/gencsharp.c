@@ -6780,8 +6780,19 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             if( szFEName && hb_csIsMethodLocal( szFEName ) )
             {
+               /* The temporary takes the local's type (`foreach (string
+                  __hb_fe_cLine in …)`), which is how a C# author writes
+                  the loop (plan C9, 2026-09-29). A typed foreach converts
+                  each element with an explicit cast, so an integer loop
+                  variable acts as an integer (Alex): a decimal element is
+                  cast `(long)`, as a decimal written into an `i` name is
+                  anywhere else. The `dynamic` temporary's implicit
+                  assignment threw on any decimal, a whole one too. */
+               const char * szFECs = hb_csTypeMap( hb_csArgVarType( szFEName ) );
+               if( ! szFECs )
+                  szFECs = "dynamic";
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "foreach (dynamic __hb_fe_%s in ", szFEName );
+               fprintf( yyc, "foreach (%s __hb_fe_%s in ", szFECs, szFEName );
                hb_csEmitForEachSource( pNode->value.asForEach.pEnum,
                                        pNode->value.asForEach.iDir, yyc );
                fprintf( yyc, ")\n" );

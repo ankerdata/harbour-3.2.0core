@@ -31,7 +31,7 @@ public static partial class Program
         }
 
         // FOR EACH
-        foreach (dynamic __hb_fe_cItem in HbRuntime.HbEnumValues(aItems))
+        foreach (string __hb_fe_cItem in HbRuntime.HbEnumValues(aItems))
         {
             cItem = __hb_fe_cItem;
             cResult = cResult + cItem;

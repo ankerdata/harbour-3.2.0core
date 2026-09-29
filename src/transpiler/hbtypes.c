@@ -4070,6 +4070,473 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
    }
 }
 
+/* ---- W0038: a FOR EACH variable read after its loop ----
+   Harbour restores a FOR EACH loop variable when the loop ends: after
+   NEXT it holds what it held before the loop, not the last element. The
+   C# loop leaves the last element in the local (the emitter assigns it
+   from the foreach temporary), so a read after the loop, before the
+   variable is assigned again, sees different values in the two
+   languages. In Harbour it is almost never what the author meant ("find
+   it, EXIT, use it" reads the value from before the loop). Alex,
+   2026-09-29: a scan warning rather than emitting the restore; there is
+   no such read in EasiPOS today.
+
+   The walk is textual: the first mention of the variable after NEXT in
+   the routine decides. An assignment `v := ...` (its right side read
+   first) or another FOR EACH over it passes; any other mention warns. A
+   mention inside a codeblock counts as a read. */
+
+/* 0: no mention, 1: read first, 2: assigned first */
+static int hb_astFEExprUse( PHB_EXPR pExpr, const char * szVar )
+{
+   int r;
+
+   if( ! pExpr )
+      return 0;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_VARIABLE:
+      case HB_ET_VARREF:
+         return pExpr->value.asSymbol.name &&
+                hb_stricmp( pExpr->value.asSymbol.name, szVar ) == 0 ? 1 : 0;
+      case HB_ET_REFERENCE:
+         return hb_astFEExprUse( pExpr->value.asReference, szVar );
+      case HB_ET_SEND:
+         if( ( r = hb_astFEExprUse( pExpr->value.asMessage.pObject, szVar ) ) != 0 )
+            return r;
+         return hb_astFEExprUse( pExpr->value.asMessage.pParms, szVar );
+      case HB_ET_FUNCALL:
+         return hb_astFEExprUse( pExpr->value.asFunCall.pParms, szVar );
+      case HB_ET_ARRAYAT:
+         if( ( r = hb_astFEExprUse( pExpr->value.asList.pExprList, szVar ) ) != 0 )
+            return r;
+         return hb_astFEExprUse( pExpr->value.asList.pIndex, szVar );
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR pI;
+         for( pI = pExpr->value.asList.pExprList; pI; pI = pI->pNext )
+            if( ( r = hb_astFEExprUse( pI, szVar ) ) != 0 )
+               return r;
+         return 0;
+      }
+      case HB_ET_CODEBLOCK:
+      {
+         PHB_EXPR pI;
+         for( pI = pExpr->value.asCodeblock.pExprList; pI; pI = pI->pNext )
+            if( hb_astFEExprUse( pI, szVar ) != 0 )
+               return 1;
+         return 0;
+      }
+      default:
+         if( pExpr->ExprType == HB_EO_ASSIGN &&
+             pExpr->value.asOperator.pLeft &&
+             pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
+             pExpr->value.asOperator.pLeft->value.asSymbol.name &&
+             hb_stricmp( pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                         szVar ) == 0 )
+            /* the right side is evaluated before the assignment */
+            return hb_astFEExprUse( pExpr->value.asOperator.pRight, szVar ) == 1
+                   ? 1 : 2;
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+         {
+            if( ( r = hb_astFEExprUse( pExpr->value.asOperator.pLeft, szVar ) ) != 0 )
+               return r;
+            return hb_astFEExprUse( pExpr->value.asOperator.pRight, szVar );
+         }
+         return 0;
+   }
+}
+
+/* Does a FOR EACH's variable list name szVar? */
+static HB_BOOL hb_astFENamesVar( PHB_EXPR pVar, const char * szVar )
+{
+   if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+   {
+      PHB_EXPR pI;
+      for( pI = pVar->value.asList.pExprList; pI; pI = pI->pNext )
+         if( hb_astFENamesVar( pI, szVar ) )
+            return HB_TRUE;
+      return HB_FALSE;
+   }
+   return pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) &&
+          pVar->value.asSymbol.name &&
+          hb_stricmp( pVar->value.asSymbol.name, szVar ) == 0;
+}
+
+static int hb_astFEStmtsUse( PHB_AST_NODE pStmt, const char * szVar, int * piLine );
+
+static int hb_astFEBlockUse( PHB_AST_NODE pBlock, const char * szVar, int * piLine )
+{
+   return pBlock && pBlock->type == HB_AST_BLOCK
+          ? hb_astFEStmtsUse( pBlock->value.asBlock.pFirst, szVar, piLine ) : 0;
+}
+
+/* The first use of szVar in pStmt and the statements after it, in the
+   order they are written; *piLine is the line of a read. */
+static int hb_astFEStmtsUse( PHB_AST_NODE pStmt, const char * szVar, int * piLine )
+{
+   for( ; pStmt; pStmt = pStmt->pNext )
+   {
+      int r = 0;
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+            r = hb_astFEExprUse( pStmt->value.asExprStmt.pExpr, szVar );
+            break;
+         case HB_AST_RETURN:
+            r = hb_astFEExprUse( pStmt->value.asReturn.pExpr, szVar );
+            break;
+         case HB_AST_BREAK:
+            r = hb_astFEExprUse( pStmt->value.asBreak.pExpr, szVar );
+            break;
+         case HB_AST_QOUT:
+         case HB_AST_QQOUT:
+         {
+            PHB_EXPR pI = pStmt->value.asQOut.pExprList;
+            if( pI && ( pI->ExprType == HB_ET_LIST || pI->ExprType == HB_ET_ARGLIST ) )
+               r = hb_astFEExprUse( pI, szVar );
+            else
+               for( ; pI && ! r; pI = pI->pNext )
+                  r = hb_astFEExprUse( pI, szVar );
+            break;
+         }
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+         case HB_AST_PUBLIC:
+         case HB_AST_PRIVATE:
+            r = hb_astFEExprUse( pStmt->value.asVar.pInit, szVar );
+            break;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pElseIf;
+            r = hb_astFEExprUse( pStmt->value.asIf.pCondition, szVar );
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asIf.pThen, szVar, piLine );
+            for( pElseIf = pStmt->value.asIf.pElseIfs; pElseIf && ! r;
+                 pElseIf = pElseIf->pNext )
+            {
+               r = hb_astFEExprUse( pElseIf->value.asElseIf.pCondition, szVar );
+               if( r == 1 && ! *piLine )
+                  *piLine = pElseIf->iLine;
+               if( ! r )
+                  r = hb_astFEBlockUse( pElseIf->value.asElseIf.pBody, szVar, piLine );
+            }
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asIf.pElse, szVar, piLine );
+            break;
+         }
+         case HB_AST_DOWHILE:
+            r = hb_astFEExprUse( pStmt->value.asWhile.pCondition, szVar );
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asWhile.pBody, szVar, piLine );
+            break;
+         case HB_AST_FOR:
+            r = hb_astFEExprUse( pStmt->value.asFor.pStart, szVar );
+            if( ! r && pStmt->value.asFor.szVar &&
+                hb_stricmp( pStmt->value.asFor.szVar, szVar ) == 0 )
+               r = 2;
+            if( ! r )
+               r = hb_astFEExprUse( pStmt->value.asFor.pEnd, szVar );
+            if( ! r )
+               r = hb_astFEExprUse( pStmt->value.asFor.pStep, szVar );
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asFor.pBody, szVar, piLine );
+            break;
+         case HB_AST_FOREACH:
+            r = hb_astFEExprUse( pStmt->value.asForEach.pEnum, szVar );
+            if( ! r && hb_astFENamesVar( pStmt->value.asForEach.pVar, szVar ) )
+               r = 2;
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asForEach.pBody, szVar, piLine );
+            break;
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asDoCase.pCases; pCase && ! r; pCase = pCase->pNext )
+            {
+               r = hb_astFEExprUse( pCase->value.asCase.pCondition, szVar );
+               if( r == 1 && ! *piLine )
+                  *piLine = pCase->iLine;
+               if( ! r )
+                  r = hb_astFEBlockUse( pCase->value.asCase.pBody, szVar, piLine );
+            }
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asDoCase.pOtherwise, szVar, piLine );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE pCase;
+            r = hb_astFEExprUse( pStmt->value.asSwitch.pSwitch, szVar );
+            for( pCase = pStmt->value.asSwitch.pCases; pCase && ! r; pCase = pCase->pNext )
+               r = hb_astFEBlockUse( pCase->value.asCase.pBody, szVar, piLine );
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asSwitch.pDefault, szVar, piLine );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            r = hb_astFEBlockUse( pStmt->value.asSeq.pBody, szVar, piLine );
+            if( ! r && pStmt->value.asSeq.szRecoverVar &&
+                hb_stricmp( pStmt->value.asSeq.szRecoverVar, szVar ) == 0 )
+               r = 2;
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asSeq.pRecover, szVar, piLine );
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asSeq.pAlways, szVar, piLine );
+            break;
+         case HB_AST_WITHOBJECT:
+            r = hb_astFEExprUse( pStmt->value.asWithObj.pObject, szVar );
+            if( ! r )
+               r = hb_astFEBlockUse( pStmt->value.asWithObj.pBody, szVar, piLine );
+            break;
+         default:
+            break;
+      }
+      if( r )
+      {
+         if( r == 1 && ! *piLine )
+            *piLine = pStmt->iLine;
+         return r;
+      }
+   }
+   return 0;
+}
+
+#define HB_FE_MAXDEPTH 64
+
+static void hb_astFEWarnVar( PHB_AST_NODE pStmt, const char * szVar,
+                             PHB_AST_NODE * aRest, int nRest,
+                             const char * szFile )
+{
+   int iLine = 0, r, k;
+
+   r = hb_astFEStmtsUse( pStmt->pNext, szVar, &iLine );
+   for( k = nRest - 1; ! r && k >= 0; k-- )
+      r = hb_astFEStmtsUse( aRest[ k ], szVar, &iLine );
+   if( r == 1 )
+   {
+      char szKey[ 64 ];
+      hb_snprintf( szKey, sizeof( szKey ), "W0038:%s", szVar );
+      if( ! hb_astHungSeen( iLine, szKey ) )
+         fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0038  "
+                  "'%s' is read after its FOR EACH (line %d): Harbour has "
+                  "restored its value from before the loop, C# keeps the "
+                  "last element - keep what the loop found in a variable "
+                  "of its own\n",
+                  hb_strCollapsePath( szFile ? szFile : "?" ), iLine,
+                  szVar, pStmt->iLine );
+   }
+}
+
+static void hb_astFECheckVars( PHB_AST_NODE pStmt, PHB_EXPR pVar,
+                               PHB_AST_NODE * aRest, int nRest,
+                               const char * szFile )
+{
+   if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+   {
+      PHB_EXPR pI;
+      for( pI = pVar->value.asList.pExprList; pI; pI = pI->pNext )
+         hb_astFECheckVars( pStmt, pI, aRest, nRest, szFile );
+   }
+   else if( pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) &&
+            pVar->value.asSymbol.name )
+      hb_astFEWarnVar( pStmt, pVar->value.asSymbol.name, aRest, nRest, szFile );
+}
+
+/* Walk a routine's statements for W0038. aRest holds, for each enclosing
+   statement, the statement written after it: where the routine goes on
+   once a nested FOR EACH's NEXT is passed and its own block runs out. */
+static void hb_astCheckForEachAfter( PHB_AST_NODE pBlock, PHB_AST_NODE * aRest,
+                                     int nRest, const char * szFile )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK || nRest >= HB_FE_MAXDEPTH )
+      return;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      aRest[ nRest ] = pStmt->pNext;
+      switch( pStmt->type )
+      {
+         case HB_AST_FOREACH:
+            hb_astFECheckVars( pStmt, pStmt->value.asForEach.pVar, aRest, nRest,
+                               szFile );
+            hb_astCheckForEachAfter( pStmt->value.asForEach.pBody, aRest,
+                                     nRest + 1, szFile );
+            break;
+         case HB_AST_FOR:
+            hb_astCheckForEachAfter( pStmt->value.asFor.pBody, aRest, nRest + 1, szFile );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astCheckForEachAfter( pStmt->value.asWhile.pBody, aRest, nRest + 1, szFile );
+            break;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pElseIf;
+            hb_astCheckForEachAfter( pStmt->value.asIf.pThen, aRest, nRest + 1, szFile );
+            for( pElseIf = pStmt->value.asIf.pElseIfs; pElseIf; pElseIf = pElseIf->pNext )
+               hb_astCheckForEachAfter( pElseIf->value.asElseIf.pBody, aRest,
+                                        nRest + 1, szFile );
+            hb_astCheckForEachAfter( pStmt->value.asIf.pElse, aRest, nRest + 1, szFile );
+            break;
+         }
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asDoCase.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckForEachAfter( pCase->value.asCase.pBody, aRest,
+                                        nRest + 1, szFile );
+            hb_astCheckForEachAfter( pStmt->value.asDoCase.pOtherwise, aRest,
+                                     nRest + 1, szFile );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asSwitch.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckForEachAfter( pCase->value.asCase.pBody, aRest,
+                                        nRest + 1, szFile );
+            hb_astCheckForEachAfter( pStmt->value.asSwitch.pDefault, aRest,
+                                     nRest + 1, szFile );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_astCheckForEachAfter( pStmt->value.asSeq.pBody, aRest, nRest + 1, szFile );
+            hb_astCheckForEachAfter( pStmt->value.asSeq.pRecover, aRest, nRest + 1, szFile );
+            hb_astCheckForEachAfter( pStmt->value.asSeq.pAlways, aRest, nRest + 1, szFile );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astCheckForEachAfter( pStmt->value.asWithObj.pBody, aRest, nRest + 1, szFile );
+            break;
+         default:
+            break;
+      }
+   }
+}
+
+/* ---- W0039: a FOR EACH variable that is an integer by inference only ----
+   A FOR EACH over a variable C# declares `long` casts each element to
+   long, dropping a fraction Harbour keeps: an integer loop variable acts
+   as an integer (Alex, 2026-09-29, plan C9). That is what the source says
+   for an `i` name. An `n` name the inference made integer from its other
+   uses (a key of an `hn` hash, At()'s result) never said so, and the scan
+   cannot see what the loop puts in it, since it does not type a FOR EACH
+   variable from the elements. Fixed in source (Alex): an `i` name when
+   the elements are whole numbers. */
+static void hb_astFEIntegerVar( PHB_AST_NODE pStmt, PHB_EXPR pVar,
+                                PHB_AST_NODE pBody, HB_TYPEENV * pEnv,
+                                const char * szFile )
+{
+   const char * szName;
+   const char * szType;
+   PHB_AST_NODE pDecl;
+
+   if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+   {
+      PHB_EXPR pI;
+      for( pI = pVar->value.asList.pExprList; pI; pI = pI->pNext )
+         hb_astFEIntegerVar( pStmt, pI, pBody, pEnv, szFile );
+      return;
+   }
+   if( ! pVar || ( pVar->ExprType != HB_ET_VARIABLE && pVar->ExprType != HB_ET_VARREF ) )
+      return;
+   szName = pVar->value.asSymbol.name;
+   if( ! szName || hb_astIsIntegerName( szName ) )
+      return;
+   szType = hb_typeEnvGet( pEnv, szName );
+   if( ! szType || strcmp( szType, "INTEGER" ) != 0 )
+      return;
+   /* a variable the routine declares: a parameter's type is its slot's */
+   for( pDecl = pBody->value.asBlock.pFirst; pDecl; pDecl = pDecl->pNext )
+      if( ( pDecl->type == HB_AST_LOCAL || pDecl->type == HB_AST_STATIC ) &&
+          pDecl->value.asVar.szName &&
+          hb_stricmp( pDecl->value.asVar.szName, szName ) == 0 )
+         break;
+   if( pDecl )
+   {
+      char szKey[ 64 ];
+      hb_snprintf( szKey, sizeof( szKey ), "W0039:%s", szName );
+      if( ! hb_astHungSeen( pStmt->iLine, szKey ) )
+         fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0039  "
+                  "FOR EACH '%s' is an integer only by inference: C# casts "
+                  "each element to long, dropping a fraction Harbour keeps "
+                  "- name it i<...> if the elements are whole numbers\n",
+                  hb_strCollapsePath( szFile ? szFile : "?" ), pStmt->iLine,
+                  szName );
+   }
+}
+
+static void hb_astCheckForEachInteger( PHB_AST_NODE pBlock, PHB_AST_NODE pBody,
+                                       HB_TYPEENV * pEnv, const char * szFile )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_FOREACH:
+            hb_astFEIntegerVar( pStmt, pStmt->value.asForEach.pVar, pBody, pEnv,
+                                szFile );
+            hb_astCheckForEachInteger( pStmt->value.asForEach.pBody, pBody, pEnv, szFile );
+            break;
+         case HB_AST_FOR:
+            hb_astCheckForEachInteger( pStmt->value.asFor.pBody, pBody, pEnv, szFile );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astCheckForEachInteger( pStmt->value.asWhile.pBody, pBody, pEnv, szFile );
+            break;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pElseIf;
+            hb_astCheckForEachInteger( pStmt->value.asIf.pThen, pBody, pEnv, szFile );
+            for( pElseIf = pStmt->value.asIf.pElseIfs; pElseIf; pElseIf = pElseIf->pNext )
+               hb_astCheckForEachInteger( pElseIf->value.asElseIf.pBody, pBody, pEnv,
+                                          szFile );
+            hb_astCheckForEachInteger( pStmt->value.asIf.pElse, pBody, pEnv, szFile );
+            break;
+         }
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asDoCase.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckForEachInteger( pCase->value.asCase.pBody, pBody, pEnv, szFile );
+            hb_astCheckForEachInteger( pStmt->value.asDoCase.pOtherwise, pBody, pEnv,
+                                       szFile );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asSwitch.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckForEachInteger( pCase->value.asCase.pBody, pBody, pEnv, szFile );
+            hb_astCheckForEachInteger( pStmt->value.asSwitch.pDefault, pBody, pEnv,
+                                       szFile );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_astCheckForEachInteger( pStmt->value.asSeq.pBody, pBody, pEnv, szFile );
+            hb_astCheckForEachInteger( pStmt->value.asSeq.pRecover, pBody, pEnv, szFile );
+            hb_astCheckForEachInteger( pStmt->value.asSeq.pAlways, pBody, pEnv, szFile );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astCheckForEachInteger( pStmt->value.asWithObj.pBody, pBody, pEnv, szFile );
+            break;
+         default:
+            break;
+      }
+   }
+}
+
 const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                               void * pRefTab, const char * szFuncKey,
                               const char * szFile )
@@ -4214,6 +4681,11 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       sees the strict initial typing, not the lenient post-propagation
       one. Non-halting; codegen continues. */
    hb_astCheckHungarianMismatch( pBody, &env, szFile );
+   {
+      /* W0038: a FOR EACH variable read after its loop */
+      PHB_AST_NODE aRest[ HB_FE_MAXDEPTH ];
+      hb_astCheckForEachAfter( pBody, aRest, 0, szFile );
+   }
 
    /* Pass 2: Walk assignments and propagate (iterate until stable).
       The hash-key observation walker runs in the same fixed point so
@@ -4313,6 +4785,10 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
          }
       }
    }
+
+   /* W0039: a FOR EACH variable Pass 2.5 made an integer, which its
+      name does not say */
+   hb_astCheckForEachInteger( pBody, pBody, &env, szFile );
 
    /* Pass 3: Update LOCAL/STATIC AST nodes whose propagated type is
       more specific than what Hungarian/initializer inference produced.

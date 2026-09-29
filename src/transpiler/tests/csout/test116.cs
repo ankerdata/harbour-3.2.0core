@@ -26,7 +26,7 @@ public static partial class Program
         hCopy["c"] = 3;
         HbRuntime.QOut("clone:", HbRuntime.hb_ntos(HbRuntime.Len(h)), HbRuntime.hb_ntos(HbRuntime.Len(hCopy)));
         HbRuntime.QOut("keys:");
-        foreach (dynamic __hb_fe_cKey in HbRuntime.HbEnumValues(aKeys))
+        foreach (string __hb_fe_cKey in HbRuntime.HbEnumValues(aKeys))
         {
             cKey = __hb_fe_cKey;
             HbRuntime.QQOut(" " + cKey);

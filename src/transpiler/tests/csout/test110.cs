@@ -91,7 +91,7 @@ public static partial class Program
         decimal nHits = 0;
         decimal nItem = default;
 
-        foreach (dynamic __hb_fe_nItem in HbRuntime.HbEnumValues(aItems))
+        foreach (decimal __hb_fe_nItem in HbRuntime.HbEnumValues(aItems))
         {
             nItem = __hb_fe_nItem;
             if (HbRuntime.Eval(bFor, nItem))
