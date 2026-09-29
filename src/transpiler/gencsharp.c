@@ -1311,6 +1311,25 @@ static HB_BOOL hb_csIsDeclaredMember( const char * szClass, const char * szName 
    return HB_FALSE;
 }
 
+/* Is szClass, or an ancestor, a dynamic class - one whose methods send
+   ::&(name), so an instance may hold members no declaration names
+   (SQLtTable's bag: an ad-hoc table's fields)? A send on such a receiver
+   to a member nothing declares goes through `((dynamic)recv)`. */
+static HB_BOOL hb_csClassIsDynamic( const char * szClass )
+{
+   int iDepth;
+
+   if( ! s_pRefTab )
+      return HB_FALSE;
+   for( iDepth = 0; szClass && *szClass && iDepth < 16; iDepth++ )
+   {
+      if( hb_refTabIsClassDynamic( s_pRefTab, szClass ) )
+         return HB_TRUE;
+      szClass = hb_refTabClassParent( s_pRefTab, szClass );
+   }
+   return HB_FALSE;
+}
+
 /* Inside a method, does the class being emitted - or an ancestor, here or
    in another file (the reftab's method and member rows) - have a member
    called szName? Harbour's `name( ... )` is always the function; C#'s
@@ -2462,12 +2481,13 @@ static const char * hb_csTypeMap( const char * szHbType )
           dynamic mapping as the reftab's BLOCK. */
        hb_stricmp( szHbType, "CODEBLOCK" ) == 0 )
       return "dynamic";
-   /* Class name — widen to `dynamic` when the class extends
-      HbDynamicObject so unknown member names compile. Applies to
-      ORM-style base classes (SQLtTable, Table, FUNCTIONS) whose
-      concrete subclasses define runtime-only columns. */
-   if( s_pRefTab && hb_refTabIsClassDynamic( s_pRefTab, szHbType ) )
-      return "dynamic";
+   /* A dynamic class (one that sends ::&(name), SQLtTable) is its own
+      type like any other: its declared members and methods are checked
+      when C# builds, and a member no declaration names goes through
+      `((dynamic)recv)` at the send (hb_csClassIsDynamic), reaching the
+      instance's HbDynamicObject bag. It was `dynamic` wherever it
+      appeared, which unchecked every use to let the few undeclared ones
+      compile. */
    /* TOleAuto is HbRuntime's COM-automation wrapper; its .New()
       returns a dynamic COM proxy whose member names (Fields, Open,
       CursorLocation, MoveNext, …) are defined by the instantiated
@@ -4697,9 +4717,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                subclass of it (`oLine:nFixedNo` read through a
                PrintableTranLine holding an FcnTranLine, a downcast
                Harbour never spells), in which case the access goes
-               through (dynamic) as an undeclared Self member does. A
-               member no class in the chain or below declares stays a
-               static access, so a real typo is still a C# error. */
+               through (dynamic) as an undeclared Self member does. So
+               does a member nothing declares on a receiver of a dynamic
+               class (hb_csClassIsDynamic), which its bag may hold.
+               Otherwise a member no class in the chain or below declares
+               stays a static access, so a real typo is still a C# error. */
             char szKeyBuf[ 256 ];
             const char * szMsgIn = pExpr->value.asMessage.szMessage;
             const char * szKey = szMsgIn
@@ -4737,8 +4759,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                }
                else if( pExpr->value.asMessage.pObject &&
                         ! hb_csIsDeclaredMember( szRecvClass, szMsgIn ) &&
-                        hb_refTabMemberOnSubclass( s_pRefTab, szRecvClass,
-                                                   szMsgIn ) )
+                        ( hb_refTabMemberOnSubclass( s_pRefTab, szRecvClass,
+                                                     szMsgIn ) ||
+                          hb_csClassIsDynamic( szRecvClass ) ) )
                   fViaDynamic = HB_TRUE;
             }
             else if( ! szRecvClass && s_pRefTab && szMsgIn &&
@@ -7300,8 +7323,10 @@ typedef struct _HB_CS_CLASS
    struct _HB_CS_CLASS * pNext;
 } HB_CS_CLASS;
 
-/* Check if an expression tree contains obj:&(name) macro send.
-   Used to flag classes whose instances need DynamicObject. */
+/* Check if an expression tree contains a ::&(name) macro send to Self.
+   Used to flag classes whose instances need DynamicObject; a macro send
+   to another object (`::oOrmTable:&(cField)`) is that object's business,
+   as hbreftab.c's detection says too. */
 static HB_BOOL hb_csExprHasMacroSend( PHB_EXPR pExpr )
 {
    if( ! pExpr ) return HB_FALSE;
@@ -7309,7 +7334,12 @@ static HB_BOOL hb_csExprHasMacroSend( PHB_EXPR pExpr )
    {
       case HB_ET_SEND:
          if( pExpr->value.asMessage.pMessage &&
-             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
+             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO &&
+             pExpr->value.asMessage.pObject &&
+             ( pExpr->value.asMessage.pObject->ExprType == HB_ET_SELF ||
+               ( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+                 hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name,
+                             "Self" ) == 0 ) ) )
             return HB_TRUE;
          if( hb_csExprHasMacroSend( pExpr->value.asMessage.pObject ) )
             return HB_TRUE;

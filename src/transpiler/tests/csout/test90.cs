@@ -23,7 +23,7 @@ public class Base
     public string cLabel = "";
     public bool lFlag = false;
 
-    public virtual dynamic New(string cLabel = default, decimal nUnused = 0, bool lFlag = false)
+    public virtual Base New(string cLabel = default, decimal nUnused = 0, bool lFlag = false)
     {
         this.cLabel = cLabel + HbRuntime.LTrim(HbRuntime.Str(nUnused));
         this.lFlag = lFlag;
@@ -60,7 +60,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic o = default;
+        Base o = default;
 
         o = (Base)new Base().New("base", lFlag: true);
         o.Show();

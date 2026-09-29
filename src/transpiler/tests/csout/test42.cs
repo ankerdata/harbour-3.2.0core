@@ -23,7 +23,7 @@ public class Record : HbDynamicObject
     public decimal nValue = 0;
     public bool lActive = false;
 
-    public virtual dynamic SetByName(string cField = default, dynamic xValue = default)
+    public virtual Record SetByName(string cField = default, dynamic xValue = default)
     {
         HbRuntime.SETMEMBER(this, cField, xValue);
         return this;
@@ -69,7 +69,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic oRec = new Record();
+        Record oRec = new Record();
         List<dynamic> aFields = new List<dynamic> { "cName", "nValue", "lActive" };
 
         // Direct property access — baseline

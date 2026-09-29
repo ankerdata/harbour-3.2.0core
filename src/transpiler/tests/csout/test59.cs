@@ -29,7 +29,7 @@ public class Base : HbDynamicObject
 {
 
     public dynamic Tag() => ((dynamic)this).cTag;
-    public virtual dynamic MacroPoke(string cName = default, dynamic xVal = default)
+    public virtual Base MacroPoke(string cName = default, dynamic xVal = default)
     {
         HbRuntime.SETMEMBER(this, cName, xVal);
         return this;

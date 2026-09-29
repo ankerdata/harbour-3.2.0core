@@ -1596,11 +1596,23 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
 static void hb_refTabScanStmt( PHB_REFTAB pTab, PHB_AST_NODE pStmt,
                                HB_SCANCTX * pCtx );
 
-/* Detect obj:&(name) macro-send anywhere in an expression tree. The
-   emitter uses this to flag classes that need an HbDynamicObject base
+/* Detect a ::&(name) macro send to Self anywhere in an expression tree.
+   The emitter uses this to flag classes that need an HbDynamicObject base
    (so runtime member resolution works for ::&(name) patterns). We run
-   the same detection at scan time and record the result in the reftab
-   so callers in OTHER .prg files see the class as `dynamic`-typed. */
+   the same detection at scan time and record the result in the reftab,
+   so that callers in OTHER .prg files send a member no declaration names
+   through `((dynamic)recv)`. A macro send to another object
+   (BrowseDialog's `::oOrmTable:&(cField)`) says nothing of the sender's
+   own class. */
+static HB_BOOL hb_refTabExprIsSelf( PHB_EXPR pExpr )
+{
+   return pExpr &&
+          ( pExpr->ExprType == HB_ET_SELF ||
+            ( pExpr->ExprType == HB_ET_VARIABLE &&
+              pExpr->value.asSymbol.name &&
+              hb_stricmp( pExpr->value.asSymbol.name, "Self" ) == 0 ) );
+}
+
 static HB_BOOL hb_refTabExprHasMacroSend( PHB_EXPR pExpr )
 {
    if( ! pExpr )
@@ -1609,7 +1621,8 @@ static HB_BOOL hb_refTabExprHasMacroSend( PHB_EXPR pExpr )
    {
       case HB_ET_SEND:
          if( pExpr->value.asMessage.pMessage &&
-             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO )
+             pExpr->value.asMessage.pMessage->ExprType == HB_ET_MACRO &&
+             hb_refTabExprIsSelf( pExpr->value.asMessage.pObject ) )
             return HB_TRUE;
          if( hb_refTabExprHasMacroSend( pExpr->value.asMessage.pObject ) )
             return HB_TRUE;
@@ -2759,9 +2772,10 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                }
 
                /* If this method body uses ::&(name) macro member access,
-                  mark the enclosing class as dynamic so cross-file
-                  callers emit references to it as `dynamic` (runtime
-                  dispatch covers the arbitrary member names). */
+                  mark the enclosing class as dynamic, so that cross-file
+                  callers send a member no declaration names through
+                  `((dynamic)recv)` (runtime dispatch covers the arbitrary
+                  member names). */
                if( szClass && pFunc->value.asFunc.pBody &&
                    hb_refTabBlockHasMacroSend( pFunc->value.asFunc.pBody ) )
                   hb_refTabMarkClassDynamic( pTab, szClass );
