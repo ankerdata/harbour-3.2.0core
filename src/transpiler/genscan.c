@@ -143,7 +143,7 @@ static void hb_csCheckBlock( HB_COMP_DECL, PHB_AST_NODE pBlock )
    }
 }
 
-static void hb_csCheckHungarian( HB_COMP_DECL )
+static void hb_csCheckHungarian( HB_COMP_DECL, PHB_REFTAB pTab )
 {
    PHB_AST_NODE pFunc;
    PHB_AST_NODE pFirst;
@@ -236,7 +236,13 @@ static void hb_csCheckHungarian( HB_COMP_DECL )
                      OBJECT (or nothing). Every send through it is
                      unchecked dynamic dispatch (CS1061 feed). */
                   if( hb_auditActive() && ! fInitTyped &&
-                      ! pMember->value.asClassData.szType )
+                      ! pMember->value.asClassData.szType &&
+                      /* a member named after a class is that class:
+                         the emitter declares `var oClerkTable` as
+                         `public ClerkTable oClerkTable;` */
+                      ! ( szName && ( szName[ 0 ] == 'o' || szName[ 0 ] == 'O' ) &&
+                          szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' &&
+                          hb_astObjectNameClass( pTab, szName ) ) )
                   {
                      const char * szHung =
                         hb_astInferType( szName, NULL );
@@ -296,7 +302,7 @@ void hb_compGenScan( HB_COMP_DECL, PHB_FNAME pFileName )
       declaration whose name doesn't follow Hungarian. scan.sh routes
       stderr through warnings.txt; gen-cs.sh refuses to run while that
       file is non-empty. */
-   hb_csCheckHungarian( HB_COMP_PARAM );
+   hb_csCheckHungarian( HB_COMP_PARAM, pTab );
 
    /* Persist. */
    if( ! hb_refTabSave( pTab, szPath ) )
