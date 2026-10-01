@@ -74,6 +74,8 @@ struct _HB_AST_NODE
          HB_SYMBOLSCOPE cScope;        /* HB_FS_PUBLIC, HB_FS_STATIC, etc. */
          PHB_HVAR       pParams;       /* parameter list (reuse compiler's var list) */
          PHB_AST_NODE   pBody;         /* statement list */
+         const char *   szDeclType;    /* `FUNCTION f( … ) AS <type>`: the declared
+                                          return type, or NULL */
       } asFunc;
 
       /* HB_AST_LOCAL, HB_AST_STATIC, HB_AST_FIELD, HB_AST_MEMVAR,
@@ -86,6 +88,8 @@ struct _HB_AST_NODE
          HB_BOOL        fArrayDim;     /* pInit is an HB_ET_ARGLIST of array dimensions — for `PUBLIC a[N]` and similar sized declarations. Emitter treats it as `new dynamic[N]` rather than a scalar init. */
          HB_BOOL        fThread;       /* THREAD STATIC: one per thread, [ThreadStatic] in C# */
          PHB_AST_NODE   pNext;         /* next variable in same declaration */
+         const char *   szDeclType;    /* `AS CLASS X` / `AS ARRAY OF …`: the declared
+                                          type (HB_HVAR.szDeclType), or NULL */
       } asVar;
 
       /* HB_AST_PARAMETERS */
@@ -230,6 +234,8 @@ struct _HB_AST_NODE
          int            iScope;        /* HB_AST_SCOPE_* */
          int            iKind;         /* HB_AST_DATA_* */
          HB_BOOL        fReadOnly;     /* READONLY flag */
+         HB_BOOL        fDeclType;     /* szType is a declaration's: `AS CLASS X`
+                                          ("X") or `AS ARRAY OF …` ("ARRAY<…>") */
       } asClassData;
 
       /* HB_AST_CLASSMETHOD */
@@ -243,6 +249,8 @@ struct _HB_AST_NODE
          int            iScope;        /* HB_AST_SCOPE_* */
          HB_BOOL        fProcedure;    /* PROCEDURE (no return value) vs METHOD */
          HB_BOOL        fMessageAlias; /* from `MESSAGE name METHOD target` */
+         const char *   szDeclType;    /* `METHOD M( … ) AS <type>` in the class body:
+                                          the declared return type, or NULL */
       } asClassMethod;
 
       /* HB_AST_INCLUDE */
@@ -324,6 +332,28 @@ extern void         hb_astAddPrivate( HB_COMP_DECL, const char * szName,
    `name[size]` array-dim form. pInit on that node is an
    HB_ET_ARGLIST of dim expressions. */
 extern void         hb_astMarkLastVarArrayDim( HB_COMP_DECL );
+
+/* Declared types (`AS CLASS X`, `AS ARRAY OF …`): the variable record
+   (hbmain.c) and the AST node may be made in either order, so each side
+   gives the type to the other. */
+extern const char * hb_compDeclaredType( HB_COMP_DECL, PHB_VARTYPE pVarType );
+
+/* Declared types in the type engine (hbtypes.c). An array type is ARRAY
+   or ARRAY<T>, T the element type a declaration gave it; a declared type
+   is canonical once its class is spelt as its definition spells it (C# is
+   case-sensitive): a reftab class, an ORM model. A class nothing defines
+   is kept as written, for W0040. */
+extern HB_BOOL      hb_astIsArrayType( const char * szType );
+extern const char * hb_astArrayElemType( const char * szType );
+extern const char * hb_astDeclCanon( void * pRefTab, const char * szDecl );
+extern HB_BOOL      hb_astDeclKnown( void * pRefTab, const char * szDecl );
+/* W0040 when szDecl names a class nothing defines (szName declared at
+   szFile(iLine)): a member, checked where the scan registers its row */
+extern void         hb_astDeclCheckKnown( void * pRefTab, const char * szDecl,
+                                          const char * szName, const char * szFile,
+                                          int iLine );
+extern void         hb_astSetLastVarDeclType( HB_COMP_DECL, const char * szName,
+                                              const char * szDeclType );
 
 /* IF / ELSEIF / ELSE / ENDIF */
 extern void         hb_astBeginIf( HB_COMP_DECL, PHB_EXPR pCondition, int iLine );
@@ -424,8 +454,12 @@ extern const char * hb_astObjectNameClass( void * pRefTab, const char * szName )
    signature table (PHB_REFTAB from hbreftab.h). It is consulted to
    resolve return types for calls to user-defined functions defined in
    other files. Pass NULL if no table is available; the type-inference
-   pass will simply fall back to "unknown" for cross-file calls. */
-extern const char * hb_astPropagate( PHB_AST_NODE pBody,
+   pass will simply fall back to "unknown" for cross-file calls.
+   pFunc is the function (HB_AST_FUNCTION): its body is walked, and its
+   declarations — a parameter's, a local's or a static's `AS CLASS X` /
+   `AS ARRAY OF …`, the function's own `AS <type>` — are types nothing
+   in the body moves; the result is the declared return type if any. */
+extern const char * hb_astPropagate( PHB_AST_NODE pFunc,
                                      PHB_AST_NODE pClassList,
                                      void * pRefTab,
                                      const char * szFuncKey,
@@ -443,6 +477,15 @@ extern HB_BOOL      hb_astReturnsSelfOrNil( PHB_AST_NODE pBody );
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
 extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );
+
+/* The type the tokens after an `AS` declare, in the transpiler's type
+   names ("X", "ARRAY<X>", "ARRAY<STRING>", "NUMERIC" …), with the number
+   of tokens it spans in *piUsed; NULL when they declare nothing a name's
+   prefix does not (OBJECT, BLOCK, USUAL …). Used where Harbour's grammar
+   has no place for a type, a member or a return (hbclsparse.c, the
+   lexer). */
+extern const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok,
+                                           int * piUsed );
 
 /* === Transpiler output (genhb.c) === */
 

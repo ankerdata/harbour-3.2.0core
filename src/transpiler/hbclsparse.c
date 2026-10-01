@@ -46,6 +46,64 @@ static const char * hb_clsSaveId( HB_COMP_DECL, PHB_PP_TOKEN pToken )
    return NULL;
 }
 
+/* A scalar type keyword in the transpiler's names, or NULL. */
+static const char * hb_clsScalarType( PHB_PP_TOKEN pToken )
+{
+   static const char * s_aNames[][ 2 ] = {
+      { "CHARACTER", "STRING"  }, { "STRING",  "STRING"  },
+      { "NUMERIC",   "NUMERIC" }, { "INTEGER", "INTEGER" },
+      { "LOGICAL",   "LOGICAL" }, { "DATE",    "DATE"    },
+      { "ARRAY",     "ARRAY"   }, { "HASH",    "HASH"    } };
+   int i;
+
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aNames ); i++ )
+      if( hb_clsTokenIs( pToken, s_aNames[ i ][ 0 ] ) )
+         return s_aNames[ i ][ 1 ];
+   return NULL;
+}
+
+/* The type the tokens after an `AS` declare: `CLASS X` is "X", `ARRAY OF
+   CLASS X` "ARRAY<X>", `ARRAY OF CHARACTER` "ARRAY<STRING>", a scalar its
+   name (CHARACTER is STRING). OBJECT, BLOCK, USUAL and an array of them
+   declare nothing the name's prefix does not: NULL, the tokens still
+   counted. */
+const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUsed )
+{
+   char szBuf[ 160 ];
+
+   *piUsed = 0;
+   if( ! pTok || HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_KEYWORD )
+      return NULL;
+   if( hb_clsTokenIs( pTok, "CLASS" ) && pTok->pNext &&
+       HB_PP_TOKEN_TYPE( pTok->pNext->type ) == HB_PP_TOKEN_KEYWORD )
+   {
+      *piUsed = 2;
+      return hb_compIdentifierNew( HB_COMP_PARAM, pTok->pNext->value, HB_IDENT_COPY );
+   }
+   if( hb_clsTokenIs( pTok, "ARRAY" ) && hb_clsTokenIs( pTok->pNext, "OF" ) )
+   {
+      PHB_PP_TOKEN pElem = pTok->pNext->pNext;
+      const char * szElem = NULL;
+      if( hb_clsTokenIs( pElem, "CLASS" ) && pElem->pNext &&
+          HB_PP_TOKEN_TYPE( pElem->pNext->type ) == HB_PP_TOKEN_KEYWORD )
+      {
+         szElem = pElem->pNext->value;
+         *piUsed = 4;
+      }
+      else if( pElem && HB_PP_TOKEN_TYPE( pElem->type ) == HB_PP_TOKEN_KEYWORD )
+      {
+         szElem = hb_clsScalarType( pElem );
+         *piUsed = 3;
+      }
+      if( ! szElem || hb_stricmp( szElem, "HASH" ) == 0 )
+         return *piUsed ? "ARRAY" : NULL;
+      hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szElem );
+      return hb_compIdentifierNew( HB_COMP_PARAM, szBuf, HB_IDENT_COPY );
+   }
+   *piUsed = 1;
+   return hb_clsScalarType( pTok );
+}
+
 /* Collect remaining tokens on current line into a string */
 static const char * hb_clsCollectLine( HB_COMP_DECL, PHB_PP_TOKEN * ppToken )
 {
@@ -103,6 +161,40 @@ static void hb_clsAddMember( PHB_AST_NODE pClass, PHB_AST_NODE pMember )
    pClass->value.asClass.pMembersLast = pMember;
 }
 
+/* The return type a class body declares for one of its methods (`METHOD
+   M() AS CLASS X`), or NULL. The class body is parsed before the method's
+   implementation, into the startup function's body (or the current block,
+   before that body exists: hb_astAppendToStartup). */
+static const char * hb_clsMethodDeclType( HB_COMP_DECL, const char * szClass,
+                                          const char * szMethod )
+{
+   PHB_AST_NODE pStartup = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pFuncList;
+   PHB_AST_NODE aBlocks[ 2 ];
+   int i;
+
+   aBlocks[ 0 ] = pStartup ? pStartup->value.asFunc.pBody : NULL;
+   aBlocks[ 1 ] = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pCurrBlock;
+   for( i = 0; i < 2; i++ )
+   {
+      PHB_AST_NODE pNode;
+      if( ! aBlocks[ i ] || aBlocks[ i ]->type != HB_AST_BLOCK )
+         continue;
+      for( pNode = aBlocks[ i ]->value.asBlock.pFirst; pNode; pNode = pNode->pNext )
+      {
+         PHB_AST_NODE pMember;
+         if( pNode->type != HB_AST_CLASS || ! pNode->value.asClass.szName ||
+             hb_stricmp( pNode->value.asClass.szName, szClass ) != 0 )
+            continue;
+         for( pMember = pNode->value.asClass.pMembers; pMember; pMember = pMember->pNext )
+            if( pMember->type == HB_AST_CLASSMETHOD &&
+                pMember->value.asClassMethod.szName &&
+                hb_stricmp( pMember->value.asClassMethod.szName, szMethod ) == 0 )
+               return pMember->value.asClassMethod.szDeclType;
+      }
+   }
+   return NULL;
+}
+
 /*
  * Called from the lexer when a METHOD keyword is detected in LOOKUP state.
  * Checks if this is a method implementation (METHOD name(...) CLASS classname).
@@ -117,6 +209,7 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
    const char * szMethodName;
    const char * szClassName = NULL;
    const char * szParams[ 32 ];
+   const char * szParamTypes[ 32 ];
    int nParams = 0;
    int iLine = hb_clsCurrLine( HB_COMP_PARAM );
 
@@ -128,7 +221,8 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
 
    pToken = hb_clsNextToken( HB_COMP_PARAM );
 
-   /* Capture parameters between ( and ) */
+   /* Capture parameters between ( and ), each with the type an `AS`
+      after it declares */
    if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_LEFT_PB )
    {
       pToken = hb_clsNextToken( HB_COMP_PARAM );
@@ -136,9 +230,18 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
              HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_RIGHT_PB &&
              ! hb_clsTokenIsEOL( pToken ) )
       {
-         if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD &&
-             nParams < 32 )
+         if( hb_clsTokenIs( pToken, "AS" ) && nParams > 0 )
          {
+            int iUsed, i;
+            szParamTypes[ nParams - 1 ] =
+               hb_compDeclTypeTokens( HB_COMP_PARAM, pToken->pNext, &iUsed );
+            for( i = 0; i < iUsed; i++ )
+               pToken = hb_clsNextToken( HB_COMP_PARAM );
+         }
+         else if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD &&
+                  nParams < 32 )
+         {
+            szParamTypes[ nParams ] = NULL;
             szParams[ nParams++ ] = hb_clsSaveId( HB_COMP_PARAM, pToken );
          }
          /* Skip commas and other tokens */
@@ -178,6 +281,9 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
       size_t nLen = strlen( szClassName ) + 2 + strlen( szMethodName ) + 1;
       char * szKey = ( char * ) hb_xgrab( nLen );
       hb_snprintf( szKey, nLen, "%s__%s", szClassName, szMethodName );
+      /* the class body's `METHOD M() AS <type>`, for hb_astBeginFunc */
+      HB_COMP_PARAM->ast.szPendingRetType =
+         hb_clsMethodDeclType( HB_COMP_PARAM, szClassName, szMethodName );
       hb_compFunctionAdd( HB_COMP_PARAM,
                           hb_compIdentifierNew( HB_COMP_PARAM, szKey, HB_IDENT_COPY ),
                           HB_FS_PUBLIC,
@@ -194,6 +300,15 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
       {
          hb_compVariableAdd( HB_COMP_PARAM, szParams[ i ],
                              hb_compVarTypeNew( HB_COMP_PARAM, 0, NULL ) );
+         if( szParamTypes[ i ] )
+         {
+            /* the record just added: the last of the function's locals */
+            PHB_HVAR pVar = HB_COMP_PARAM->functions.pLast->pLocals;
+            while( pVar && pVar->pNext )
+               pVar = pVar->pNext;
+            if( pVar )
+               pVar->szDeclType = szParamTypes[ i ];
+         }
       }
       HB_COMP_PARAM->iVarScope = HB_VSCOMP_NONE;
    }
@@ -361,6 +476,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             const char * szType = NULL;
             const char * szInit = NULL;
             const char * szParams = NULL;
+            HB_BOOL fDeclType = HB_FALSE;
             int iKind = HB_AST_DATA_INSTANCE;
             int iMemberScope = iScope;
             HB_BOOL fReadOnly = HB_FALSE;
@@ -427,8 +543,24 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                else if( hb_clsTokenIs( pToken, "AS" ) )
                {
                   pToken = hb_clsNextToken( HB_COMP_PARAM );
-                  szType = hb_clsSaveId( HB_COMP_PARAM, pToken );
-                  pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  /* `AS CLASS X` and `AS ARRAY OF …` name more than one word
+                     (hb_compDeclTypeTokens); any other type is one word, kept
+                     as written (`AS INTEGER`, the legacy `as int`) */
+                  if( hb_clsTokenIs( pToken, "CLASS" ) ||
+                      ( hb_clsTokenIs( pToken, "ARRAY" ) &&
+                        hb_clsTokenIs( pToken->pNext, "OF" ) ) )
+                  {
+                     int iUsed, i;
+                     szType = hb_compDeclTypeTokens( HB_COMP_PARAM, pToken, &iUsed );
+                     fDeclType = szType != NULL;
+                     for( i = 0; i < iUsed; i++ )
+                        pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  }
+                  else
+                  {
+                     szType = hb_clsSaveId( HB_COMP_PARAM, pToken );
+                     pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  }
                }
                else if( hb_clsTokenIs( pToken, "INIT" ) )
                {
@@ -471,6 +603,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             pData->value.asClassData.iScope    = iMemberScope;
             pData->value.asClassData.iKind     = iKind;
             pData->value.asClassData.fReadOnly = fReadOnly;
+            pData->value.asClassData.fDeclType = fDeclType;
             hb_clsAddMember( pClass, pData );
          }
          else if( hb_clsTokenIs( pToken, "METHOD" ) ||
@@ -480,6 +613,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             const char * szMethodName;
             const char * szParams = NULL;
             const char * szInline = NULL;
+            const char * szDeclType = NULL;
             int iMemberScope = iScope;
             HB_BOOL fProcedure = hb_clsTokenIs( pToken, "PROCEDURE" );
 
@@ -487,7 +621,9 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             szMethodName = hb_clsSaveId( HB_COMP_PARAM, pToken );
             pToken = hb_clsNextToken( HB_COMP_PARAM );
 
-            /* Capture parameters between ( and ) */
+            /* Capture parameters between ( and ). A parameter's declared
+               type is read from the implementation (hb_compMethodParse);
+               here its words are only skipped. */
             if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_LEFT_PB )
             {
                char szBuf[ 256 ];
@@ -497,7 +633,14 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                       HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_RIGHT_PB &&
                       ! hb_clsTokenIsEOL( pToken ) )
                {
-                  if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD )
+                  if( hb_clsTokenIs( pToken, "AS" ) )
+                  {
+                     int iUsed, i;
+                     hb_compDeclTypeTokens( HB_COMP_PARAM, pToken->pNext, &iUsed );
+                     for( i = 0; i < iUsed; i++ )
+                        pToken = hb_clsNextToken( HB_COMP_PARAM );
+                  }
+                  else if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD )
                   {
                      if( n > 0 && n < sizeof( szBuf ) - 3 )
                      {
@@ -548,6 +691,14 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                   pToken = hb_clsNextToken( HB_COMP_PARAM );
                   szInline = hb_clsCollectLine( HB_COMP_PARAM, &pToken );
                }
+               else if( hb_clsTokenIs( pToken, "AS" ) )
+               {
+                  /* `METHOD M( … ) AS <type>`: the declared return type */
+                  int iUsed, i;
+                  szDeclType = hb_compDeclTypeTokens( HB_COMP_PARAM, pToken->pNext, &iUsed );
+                  for( i = 0; i <= iUsed; i++ )
+                     pToken = hb_clsNextToken( HB_COMP_PARAM );
+               }
                else
                   pToken = hb_clsNextToken( HB_COMP_PARAM );
             }
@@ -560,6 +711,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
             pMethod->value.asClassMethod.szInline     = szInline;
             pMethod->value.asClassMethod.iScope       = iMemberScope;
             pMethod->value.asClassMethod.fProcedure   = fProcedure;
+            pMethod->value.asClassMethod.szDeclType   = szDeclType;
             hb_clsAddMember( pClass, pMethod );
          }
          else if( hb_clsTokenIs( pToken, "MESSAGE" ) )

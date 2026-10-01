@@ -1455,7 +1455,7 @@ static HB_BOOL hb_csParamElidesArrayRef( const char * szFunc, int iPos )
 {
    const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
    return pP && pP->fByRef && ! pP->fReassigned &&
-          pP->szType && hb_stricmp( pP->szType, "ARRAY" ) == 0;
+          hb_astIsArrayType( pP->szType );   /* ARRAY, or ARRAY<T> declared */
 }
 
 /* Whether parameter iPos of szFunc is actually emitted as `ref` — the
@@ -2044,6 +2044,8 @@ static const char * hb_csClassMethodKey( const char * szClass,
    not) — the send emitter's member-name decisions read it. */
 static const char * s_szSendRecvClass = NULL;
 
+static const char * hb_csElemClass( PHB_EXPR pElem );   /* defined below */
+
 static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
                                      char * szBuf, HB_SIZE nBuf )
 {
@@ -2069,6 +2071,15 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
             pObj->value.asMessage.szMessage )
    {
       const char * szT = hb_csArgVarType( pObj->value.asMessage.szMessage );
+      if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
+         szClass = szT;
+   }
+   else if( pObj->ExprType == HB_ET_ARRAYAT )
+   {
+      /* an element of a declared array (`AS ARRAY OF CLASS X`): X, so a
+         member only a subclass declares goes through (dynamic) as for any
+         other receiver of X, rather than through the cast to X */
+      const char * szT = hb_csElemClass( pObj );
       if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
          szClass = szT;
    }
@@ -2456,8 +2467,9 @@ static const char * hb_csTypeMap( const char * szHbType )
          `oX` parameters work without the reftab having to refine
          every slot to a concrete class. */
       return "dynamic";
-   if( hb_stricmp( szHbType, "ARRAY" ) == 0 )
-      /* One object every holder shares, grown in place by AAdd() and
+   if( hb_astIsArrayType( szHbType ) )
+      /* ARRAY, and ARRAY<T> (a declared element type, which only types
+         the reads: hb_csExprElemType). One object every holder shares, grown in place by AAdd() and
          ASize() as Harbour's is (HbRuntime.Arrays.cs); a C# array was
          reallocated, and a holder other than the one passed by ref
          never saw the change. */
@@ -3748,7 +3760,9 @@ static const char * hb_csMemberHbType( const char * szMember )
                 pMember->value.asClassData.szName &&
                 hb_stricmp( pMember->value.asClassData.szName,
                             szMember ) == 0 )
-               return pMember->value.asClassData.szType;
+               /* `VAR o AS CLASS X` in X's own spelling */
+               return hb_astDeclCanon( s_pRefTab,
+                                       pMember->value.asClassData.szType );
          return NULL;
       }
    }
@@ -3765,6 +3779,127 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr );
    the probe resolves the receiver expression to: a typed local or
    parameter, a member of a typed receiver, a function returning the
    class, or the class constructor itself. */
+/* The same in Harbour's type names: what keeps an ARRAY<T> member's
+   element type (hb_csExprElemType), which the C# name has lost. */
+static const char * hb_csSendHbType( PHB_EXPR pSend )
+{
+   PHB_EXPR pRecv;
+   const char * szMsg;
+   const char * szCls;
+   char szKey[ 256 ];
+
+   if( ! pSend || pSend->ExprType != HB_ET_SEND )
+      return NULL;
+   szMsg = pSend->value.asMessage.szMessage;
+   pRecv = pSend->value.asMessage.pObject;
+   if( ! szMsg || ! pRecv )
+      return NULL;
+   if( pRecv->ExprType == HB_ET_VARIABLE &&
+       hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
+   {
+      const char * szT = hb_csMemberHbType( szMsg );
+      if( szT )
+         return szT;
+      szCls = s_szCurrentClass[ 0 ] ? s_szCurrentClass : NULL;
+   }
+   else if( pRecv->ExprType == HB_ET_FUNCALL &&
+            pRecv->value.asFunCall.pFunName &&
+            pRecv->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+            pRecv->value.asFunCall.pFunName->value.asSymbol.name &&
+            s_pRefTab &&
+            hb_refTabIsClass( s_pRefTab,
+               pRecv->value.asFunCall.pFunName->value.asSymbol.name ) )
+      szCls = pRecv->value.asFunCall.pFunName->value.asSymbol.name;
+   else
+      szCls = hb_csExprCsType( pRecv );  /* a class name passes the map through */
+
+   if( ! szCls )
+      return NULL;
+   if( hb_fieldTypesClassCanon( szCls ) )
+   {
+      const char * szTok = hb_fieldTypesMember( szCls, szMsg, NULL );
+      if( szTok )
+         return hb_fieldTypesHbType( szTok );
+   }
+   if( s_pRefTab && hb_refTabIsClass( s_pRefTab, szCls ) )
+   {
+      const char * szRow =
+         hb_csClassMethodKey( szCls, szMsg, szKey, sizeof( szKey ) );
+      if( szRow )
+         return hb_refTabReturnType( s_pRefTab, szRow );
+   }
+   return NULL;
+}
+
+/* A called function's return type, Harbour's name: its reftab row (the
+   file-static one first, as every other resolver here), else the
+   builtin table */
+static const char * hb_csFuncHbType( const char * szFn )
+{
+   const char * szRet = NULL;
+   if( ! szFn )
+      return NULL;
+   if( s_pRefTab )
+   {
+      if( hb_csIsFileStaticFunc( szFn ) && s_szFileBase[ 0 ] )
+      {
+         char szKey[ 256 ];
+         hb_snprintf( szKey, sizeof( szKey ), "%s::%s", s_szFileBase, szFn );
+         szRet = hb_refTabReturnType( s_pRefTab, szKey );
+      }
+      if( ! szRet )
+         szRet = hb_refTabReturnType( s_pRefTab, szFn );
+   }
+   return szRet ? szRet : hb_funcTabReturnType( szFn );
+}
+
+/* T, when pArr is a declared array (ARRAY<T>, `AS ARRAY OF …`): a
+   variable, a member, a call. Harbour's type name; NULL otherwise. */
+static const char * hb_csExprElemType( PHB_EXPR pArr )
+{
+   const char * szHb = NULL;
+   if( ! pArr )
+      return NULL;
+   switch( pArr->ExprType )
+   {
+      case HB_ET_VARIABLE:
+      case HB_ET_VARREF:
+         szHb = hb_csArgVarType( pArr->value.asSymbol.name );
+         break;
+      case HB_ET_ALIASVAR:   /* a file static read in a body (MEMVAR->name) */
+         if( pArr->value.asAlias.pVar &&
+             pArr->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+            szHb = hb_csArgVarType( pArr->value.asAlias.pVar->value.asSymbol.name );
+         break;
+      case HB_ET_SEND:
+         szHb = hb_csSendHbType( pArr );
+         break;
+      case HB_ET_FUNCALL:
+         if( pArr->value.asFunCall.pFunName &&
+             pArr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+            szHb = hb_csFuncHbType( pArr->value.asFunCall.pFunName->value.asSymbol.name );
+         break;
+      default:
+         break;
+   }
+   return hb_astArrayElemType( szHb );
+}
+
+/* The class of an element of a declared array — the cast its sends need
+   (`((TranLine)aBuffer[i]).nType`) — or NULL */
+static const char * hb_csElemClass( PHB_EXPR pElem )
+{
+   const char * szT;
+   if( ! pElem || pElem->ExprType != HB_ET_ARRAYAT )
+      return NULL;
+   szT = hb_csExprElemType( pElem->value.asList.pExprList );
+   if( ! szT )
+      return NULL;
+   if( s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
+      return szT;
+   return hb_fieldTypesModelCanon( szT );
+}
+
 static const char * hb_csSendCsType( PHB_EXPR pSend )
 {
    PHB_EXPR pRecv;
@@ -3839,6 +3974,10 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr )
 
       case HB_ET_SEND:
          return hb_csSendCsType( pExpr );
+
+      case HB_ET_ARRAYAT:
+         /* an element of a declared array is its element type */
+         return hb_csKnownCsType( hb_csExprElemType( pExpr->value.asList.pExprList ) );
 
       case HB_ET_FUNCALL:
          if( pExpr->value.asFunCall.pFunName &&
@@ -4822,12 +4961,19 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      : hb_csIsConstructor( pExpr->value.asMessage.pObject );
                   HB_BOOL fCtorRecv = szRecvCtor != NULL &&
                      hb_csCtorEmitsCast( pExpr->value.asMessage.pObject, szRecvCtor );
+                  /* an element of a declared array (`AS ARRAY OF CLASS X`):
+                     its List<dynamic> slot is cast to X, so the send is
+                     checked when C# builds */
+                  const char * szElemCls = fViaDynamic ? NULL
+                     : hb_csElemClass( pExpr->value.asMessage.pObject );
                   if( fViaDynamic )
                      fprintf( yyc, "((dynamic)" );
+                  else if( szElemCls )
+                     fprintf( yyc, "((%s)", szElemCls );
                   else if( fCtorRecv )
                      fprintf( yyc, "(" );
                   hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_TRUE );
-                  if( fViaDynamic || fCtorRecv )
+                  if( fViaDynamic || fCtorRecv || szElemCls )
                      fprintf( yyc, ")" );
                }
             }
@@ -8032,7 +8178,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       szKeyBuf[ 0 ] = '\0';
       if( szKey )
          hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab,
+      szRetType = hb_astPropagate( pFunc, s_pClassList, s_pRefTab,
                                    szKeyBuf[ 0 ] ? szKeyBuf : NULL,
                                    s_pCompCtx ? s_pCompCtx->currModule : NULL );
    }
@@ -8074,7 +8220,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          site reads it too (hb_csSendCsType, hbtypes' SEND inference).
          `X():New()` is unaffected: the emitter already casts it to X,
          which is what makes an inherited New() safe here. */
-      if( ! fProcedure && szClass &&
+      if( ! fProcedure && szClass && ! pFunc->value.asFunc.szDeclType &&
           hb_astReturnsSelfOrNil( pFunc->value.asFunc.pBody ) )
       {
          const char * szCanon = s_pRefTab
@@ -8382,7 +8528,8 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
          const char * szScope = hb_csScopeStr( pMember->value.asClassData.iScope );
 
          if( pMember->value.asClassData.szType )
-            szType = pMember->value.asClassData.szType;
+            /* `VAR o AS CLASS X`: X as its definition spells it */
+            szType = hb_astDeclCanon( s_pRefTab, pMember->value.asClassData.szType );
          else if( pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
                   pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )
             szType = hb_astInferTypeFromInit( pMember->value.asClassData.szName,
@@ -9096,7 +9243,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( pFunc->value.asFunc.pBody )
    {
       char szKeyBuf[ 256 ];
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab,
+      szRetType = hb_astPropagate( pFunc, s_pClassList, s_pRefTab,
                                    hb_csFuncRefKey( pFunc->value.asFunc.szName,
                                                     szKeyBuf, sizeof( szKeyBuf ) ),
                                    s_pCompCtx ? s_pCompCtx->currModule : NULL );
@@ -9790,7 +9937,13 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      const char * szT = hb_astInferType(
                         pStmt->value.asVar.szName,
                         pStmt->value.asVar.pInit );
-                     if( hb_astIsHashFamily( szT ) ||
+                     /* a declared static (`STATIC s_a AS ARRAY OF CLASS
+                        X`) is its declaration's type from the start, so a
+                        function reading it sees the element type */
+                     if( pStmt->value.asVar.szDeclType )
+                        hb_csSetFileStaticType( pStmt->value.asVar.szName,
+                           hb_astDeclCanon( s_pRefTab, pStmt->value.asVar.szDeclType ) );
+                     else if( hb_astIsHashFamily( szT ) ||
                          ( szT && hb_stricmp( szT, "INTEGER" ) == 0 ) )
                         hb_csSetFileStaticType(
                            pStmt->value.asVar.szName, szT );
@@ -9932,7 +10085,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                   if( pStmt->type == HB_AST_STATIC )
                   {
                      char szFld[ 256 ];
-                     const char * szType = pStmt->value.asVar.szAlias ?
+                     /* `STATIC s_o AS CLASS X`: the declaration's type */
+                     const char * szType = pStmt->value.asVar.szDeclType ?
+                        hb_astDeclCanon( s_pRefTab, pStmt->value.asVar.szDeclType ) :
+                        pStmt->value.asVar.szAlias ?
                         pStmt->value.asVar.szAlias :
                         hb_astInferType( pStmt->value.asVar.szName,
                                           pStmt->value.asVar.pInit );

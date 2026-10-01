@@ -177,7 +177,7 @@ static HB_BOOL hb_refTabIsScalarType( const char * sz )
       hb_stricmp( sz, "LOGICAL"   ) == 0 ||
       hb_stricmp( sz, "DATE"      ) == 0 ||
       hb_stricmp( sz, "TIMESTAMP" ) == 0 ||
-      hb_stricmp( sz, "ARRAY"     ) == 0 ||
+      hb_astIsArrayType( sz ) ||               /* ARRAY, or ARRAY<T> declared */
       hb_stricmp( sz, "HASH"      ) == 0 ||
       hb_stricmp( sz, "HASHC"     ) == 0 ||   /* string-keyed hash */
       hb_stricmp( sz, "HASHN"     ) == 0 ||   /* numeric-keyed hash */
@@ -524,6 +524,42 @@ HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos 
           e->pParams[ iPos ].fDeclDefault;
 }
 
+/* `p AS CLASS X` / `p AS ARRAY OF …`: the slot is what the declaration
+   says, and stays so — hb_refTabRefineParamType leaves it alone, as a
+   conflict-frozen slot is left alone, and a conflict recorded before the
+   declaration was added no longer stands. */
+void hb_refTabMarkDeclType( PHB_REFTAB pTab, const char * szFunc, int iPos,
+                            const char * szType )
+{
+   PHB_REFENTRY e;
+   HB_REFPARAM * pParam;
+
+   if( ! pTab || ! szFunc || ! szType || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( ! e || ! e->pParams || iPos >= e->nParams )
+      return;
+   pParam = &e->pParams[ iPos ];
+   if( ! pParam->szType || strcmp( pParam->szType, szType ) != 0 )
+   {
+      hb_refTabDefer( pTab, pParam->szType );
+      pParam->szType = hb_refTabDup( szType );
+   }
+   pParam->fDeclType = HB_TRUE;
+   pParam->fConflict = HB_FALSE;
+}
+
+HB_BOOL hb_refTabHasDeclType( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   return e && e->pParams && iPos < e->nParams &&
+          e->pParams[ iPos ].fDeclType;
+}
+
 /* Value-typed Hungarian prefixes — n (numeric), l (logical), d (date),
    t (datetime). Per Alex's strict-typing preference: a Hungarian-typed
    value parameter is non-nullable by intent, even if the body has an
@@ -613,6 +649,12 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
 
    if( pParam->fConflict )
       return HB_REFINE_ALREADY_CONFLICT;
+
+   /* A declared slot (`o AS CLASS X`) is what its declaration says; a
+      caller passing something else is W0041's business, not a reason to
+      move the slot. */
+   if( pParam->fDeclType )
+      return HB_REFINE_OK;
 
    /* Agreement check runs BEFORE the mutation branches so that
       szNewType pointing into pParam->szType itself (recursive call:
@@ -1250,7 +1292,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
    fprintf( fp, "#           P = public var, A = public var with array-dim, - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown; for P entries this slot holds the owning .prg basename\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
-   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, - = none\n" );
+   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, T = declared type, - = none\n" );
    fprintf( fp, "#\n" );
    fprintf( fp, "# THIS FILE IS GENERATED — see `hbtranspiler -GF`\n" );
 
@@ -1320,6 +1362,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                HB_BOOL fConflict = e->pParams[ p ].fConflict;
                HB_BOOL fReassigned = e->pParams[ p ].fReassigned;
                HB_BOOL fDeclDefault = e->pParams[ p ].fDeclDefault;
+               HB_BOOL fDeclType = e->pParams[ p ].fDeclType;
                char flags[ 8 ];
                int  k = 0;
                if( fByRef )     flags[ k++ ] = 'R';
@@ -1327,6 +1370,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                if( fConflict )  flags[ k++ ] = 'C';
                if( fReassigned) flags[ k++ ] = 'W';
                if( fDeclDefault) flags[ k++ ] = 'D';
+               if( fDeclType )  flags[ k++ ] = 'T';
                if( k == 0 )     flags[ k++ ] = '-';
                flags[ k ] = '\0';
                fprintf( fp, "\t%s:%s:%s",
@@ -1404,6 +1448,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       HB_BOOL cons[ HB_REFTAB_MAXPARAM ];
       HB_BOOL reas[ HB_REFTAB_MAXPARAM ];
       HB_BOOL decl[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL dtyp[ HB_REFTAB_MAXPARAM ];
       int i;
 
       if( line[ 0 ] == '#' || line[ 0 ] == '\n' || line[ 0 ] == '\0' )
@@ -1499,6 +1544,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          cons[ i ]  = HB_FALSE;
          reas[ i ]  = HB_FALSE;
          decl[ i ]  = HB_FALSE;
+         dtyp[ i ]  = HB_FALSE;
          for( c = pf; *c; c++ )
          {
             if( *c == 'R' || *c == 'r' )
@@ -1511,6 +1557,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                reas[ i ] = HB_TRUE;
             else if( *c == 'D' || *c == 'd' )
                decl[ i ] = HB_TRUE;
+            else if( *c == 'T' || *c == 't' )
+               dtyp[ i ] = HB_TRUE;
          }
       }
 
@@ -1527,6 +1575,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             hb_refTabMarkReassigned( pTab, fields[ 0 ], i );
          if( decl[ i ] )
             hb_refTabMarkDeclDefault( pTab, fields[ 0 ], i );
+         if( dtyp[ i ] )
+            hb_refTabMarkDeclType( pTab, fields[ 0 ], i, types[ i ] );
       }
       /* Rehydrate conflict flags by reaching into the entry directly;
          there is no public setter because conflicts are meant to be
@@ -2560,8 +2610,18 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                      if( szClassOfName )
                         szTag = szClassOfName;
                   }
-                  /* other tags (CODEBLOCK, class names, ...) add no
-                     inference value yet — skip rather than guess */
+                  /* `VAR o AS CLASS X` / `VAR a AS ARRAY OF …`: the declared
+                     type, its class as its definition spells it; one naming
+                     a class nothing defines is W0040. Other tags (CODEBLOCK,
+                     USUAL, ...) add no inference value — skipped. */
+                  else if( pMember->value.asClassData.fDeclType )
+                  {
+                     hb_astDeclCheckKnown( pTab, szT,
+                                           pMember->value.asClassData.szName,
+                                           HB_COMP_PARAM->szFile, pMember->iLine );
+                     if( hb_astDeclKnown( pTab, szT ) )
+                        szTag = hb_astDeclCanon( pTab, szT );
+                  }
 
                   if( szTag )
                   {
@@ -2639,10 +2699,15 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                szKey = hb_refTabMethodKey( szClass, szName );
             }
 
+            HB_BOOL aDeclared[ HB_REFTAB_MAXPARAM ];
             while( pVar && nParams < nCount && nParams < HB_REFTAB_MAXPARAM )
             {
                names[ nParams ] = pVar->szName;
-               types[ nParams ] = hb_astInferType( pVar->szName, NULL );
+               /* `p AS CLASS X` / `p AS ARRAY OF …` is the slot's type */
+               aDeclared[ nParams ] = pVar->szDeclType != NULL;
+               types[ nParams ] = pVar->szDeclType ?
+                  hb_astDeclCanon( pTab, pVar->szDeclType ) :
+                  hb_astInferType( pVar->szName, NULL );
                nParams++;
                pVar = pVar->pNext;
             }
@@ -2657,7 +2722,9 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                hb_strncpy( szParamKey, szKey, sizeof( szParamKey ) - 1 );
                for( iP = 0; iP < nParams; iP++ )
                {
-                  if( types[ iP ] && hb_stricmp( types[ iP ], "OBJECT" ) == 0 )
+                  if( aDeclared[ iP ] )
+                     hb_refTabMarkDeclType( pTab, szParamKey, iP, types[ iP ] );
+                  else if( types[ iP ] && hb_stricmp( types[ iP ], "OBJECT" ) == 0 )
                   {
                      const char * szNameClass =
                         hb_astObjectNameClass( pTab, names[ iP ] );
@@ -2843,13 +2910,13 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             hb_strncpy( szKeyBuf, szKey, sizeof( szKeyBuf ) - 1 );
             {
                const char * szRetType =
-                  hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab,
+                  hb_astPropagate( pFunc, NULL, pTab,
                                    szKeyBuf, HB_COMP_PARAM->szFile );
                /* A method that returns Self, or Self and NIL, returns
                   its own class — the emitter types the C# method that
                   way, so the row has to agree or a call site would read
                   OBJECT (dynamic) for a value C# has typed. */
-               if( szClass &&
+               if( szClass && ! pFunc->value.asFunc.szDeclType &&
                    hb_astReturnsSelfOrNil( pFunc->value.asFunc.pBody ) )
                {
                   const char * szCanon =
@@ -2864,7 +2931,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
          {
             /* Startup function — still walk for call-site refinement,
                but we're not interested in its return type. */
-            hb_astPropagate( pFunc->value.asFunc.pBody, NULL, pTab, NULL,
+            hb_astPropagate( pFunc, NULL, pTab, NULL,
                              HB_COMP_PARAM->szFile );
          }
 

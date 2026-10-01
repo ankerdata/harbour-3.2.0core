@@ -566,6 +566,43 @@ static HB_BOOL hb_comp_isByRefSkipComment( const char * s )
 #define HB_COMP_PEEK2( t )  ( ( t )->pNext ? ( t )->pNext->pNext : NULL )
 #endif
 
+#ifdef HB_TRANSPILER
+/* `[STATIC] FUNCTION f( … ) AS <type>`: Harbour's grammar has no place for
+   a function's return type, and EasiPOS's include/astype.ch removes it
+   before Harbour sees the line. pFunc is the FUNCTION token: the type after
+   the parameter list's `)` is read for hb_astBeginFunc, and its `AS` marked
+   for hb_comp_yylex to skip with the rest of the line. */
+static void hb_comp_funcRetType( HB_COMP_DECL, PHB_PP_TOKEN pFunc )
+{
+   PHB_PP_TOKEN pTok;
+   int iDepth = 0;
+
+   for( pTok = pFunc ? pFunc->pNext : NULL;
+        pTok && ! HB_PP_TOKEN_ISEOC( pTok ); pTok = pTok->pNext )
+   {
+      if( HB_PP_TOKEN_TYPE( pTok->type ) == HB_PP_TOKEN_LEFT_PB )
+         ++iDepth;
+      else if( HB_PP_TOKEN_TYPE( pTok->type ) == HB_PP_TOKEN_RIGHT_PB &&
+               --iDepth == 0 )
+      {
+         PHB_PP_TOKEN pAs = pTok->pNext;
+         if( pAs && HB_PP_TOKEN_TYPE( pAs->type ) == HB_PP_TOKEN_KEYWORD &&
+             hb_stricmp( pAs->value, "AS" ) == 0 )
+         {
+            int iUsed;
+            const char * szType = hb_compDeclTypeTokens( HB_COMP_PARAM, pAs->pNext, &iUsed );
+            if( iUsed > 0 )   /* AS OBJECT declares nothing, but is skipped too */
+            {
+               HB_COMP_PARAM->ast.szPendingRetType = szType;
+               HB_COMP_PARAM->pLex->pRetTypeAs = pAs;
+            }
+         }
+         return;
+      }
+   }
+}
+#endif
+
 int hb_comp_yylex( YYSTYPE * yylval_ptr, HB_COMP_DECL )
 {
    PHB_COMP_LEX pLex = HB_COMP_PARAM->pLex;
@@ -597,6 +634,22 @@ int hb_comp_yylex( YYSTYPE * yylval_ptr, HB_COMP_DECL )
 
 hb_comp_yylex_restart:
    pToken = hb_pp_tokenGet( pLex->pPP );
+
+#ifdef HB_TRANSPILER
+   if( pLex->pRetTypeAs )
+   {
+      /* a function's declared return type (hb_comp_funcRetType): its
+         tokens end the line, and the grammar never sees them */
+      if( pToken == pLex->pRetTypeAs )
+      {
+         while( pToken && ! HB_PP_TOKEN_ISEOC( pToken ) )
+            pToken = hb_pp_tokenGet( pLex->pPP );
+         pLex->pRetTypeAs = NULL;
+      }
+      else if( ! pToken || HB_PP_TOKEN_ISEOC( pToken ) )
+         pLex->pRetTypeAs = NULL;     /* never reached: no stale pointer */
+   }
+#endif
 
    if( pLex->fEol )
    {
@@ -1039,6 +1092,10 @@ hb_comp_yylex_restart:
                {
                   pLex->iScope = HB_FS_PUBLIC;
                   pLex->iState = iType;
+#ifdef HB_TRANSPILER
+                  if( iType == FUNCTION )
+                     hb_comp_funcRetType( HB_COMP_PARAM, pToken );
+#endif
                   return hb_comp_funcStart( HB_COMP_PARAM, yylval_ptr );
                }
                iType = IDENTIFIER;
@@ -1059,6 +1116,10 @@ hb_comp_yylex_restart:
                                  ( iType == EXIT ? HB_FS_EXIT : HB_FS_STATIC );
                   pLex->iState = HB_TOUPPER( pToken->pNext->value[ 0 ] ) == 'F' ?
                                  FUNCTION : PROCEDURE;
+#ifdef HB_TRANSPILER
+                  if( pLex->iState == FUNCTION )
+                     hb_comp_funcRetType( HB_COMP_PARAM, pToken->pNext );
+#endif
                   hb_pp_tokenGet( pLex->pPP );
                   return hb_comp_funcStart( HB_COMP_PARAM, yylval_ptr );
                }

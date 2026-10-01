@@ -157,6 +157,9 @@ PHB_AST_NODE hb_astBeginFunc( HB_COMP_DECL,
    pFunc->value.asFunc.cScope     = cScope;
    pFunc->value.asFunc.pParams    = NULL;
    pFunc->value.asFunc.pBody      = NULL;
+   /* `FUNCTION f( … ) AS <type>`: read off the line by the lexer */
+   pFunc->value.asFunc.szDeclType = HB_COMP_PARAM->ast.szPendingRetType;
+   HB_COMP_PARAM->ast.szPendingRetType = NULL;
 
    /* Add to function list */
    if( HB_COMP_PARAM->ast.pFuncLast )
@@ -220,6 +223,40 @@ void hb_astAddReturn( HB_COMP_DECL, PHB_EXPR pExpr, int iLine )
    }
 }
 
+/* The declared type of a variable the current function already holds a
+   record of (hb_compVariableAdd ran first: a declaration with an
+   initializer), or NULL. */
+static const char * hb_astVarDeclType( HB_COMP_DECL, const char * szName,
+                                       HB_BOOL fStatic )
+{
+   PHB_HFUNC pFunc = HB_COMP_PARAM->functions.pLast;
+   PHB_HVAR pVar;
+   const char * szType = NULL;
+
+   if( ! pFunc || ! szName )
+      return NULL;
+   for( pVar = fStatic ? pFunc->pStatics : pFunc->pLocals; pVar; pVar = pVar->pNext )
+      if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+         szType = pVar->szDeclType;    /* the last record of the name */
+   return szType;
+}
+
+/* The other order: the AST node was made first (a declaration without an
+   initializer), and hb_compVariableAdd hands over the type. */
+void hb_astSetLastVarDeclType( HB_COMP_DECL, const char * szName,
+                               const char * szDeclType )
+{
+   PHB_AST_NODE pBlock = ( PHB_AST_NODE ) HB_COMP_PARAM->ast.pCurrBlock;
+   if( HB_COMP_ISAST( HB_COMP_PARAM ) && pBlock && pBlock->value.asBlock.pLast )
+   {
+      PHB_AST_NODE pNode = pBlock->value.asBlock.pLast;
+      if( ( pNode->type == HB_AST_LOCAL || pNode->type == HB_AST_STATIC ) &&
+          pNode->value.asVar.szName &&
+          hb_stricmp( pNode->value.asVar.szName, szName ) == 0 )
+         pNode->value.asVar.szDeclType = szDeclType;
+   }
+}
+
 /* Add a LOCAL variable declaration to the current block */
 void hb_astAddLocal( HB_COMP_DECL, const char * szName,
                      PHB_EXPR pInit, int iLine )
@@ -230,6 +267,8 @@ void hb_astAddLocal( HB_COMP_DECL, const char * szName,
       pNode->value.asVar.szName = szName;
       pNode->value.asVar.pInit  = pInit;
       pNode->value.asVar.szAlias = NULL;
+      pNode->value.asVar.szDeclType = pInit ?
+         hb_astVarDeclType( HB_COMP_PARAM, szName, HB_FALSE ) : NULL;
       hb_astAppend( HB_COMP_PARAM, pNode );
    }
 }
@@ -244,6 +283,8 @@ void hb_astAddStatic( HB_COMP_DECL, const char * szName,
       pNode->value.asVar.szName = szName;
       pNode->value.asVar.pInit  = pInit;
       pNode->value.asVar.szAlias = NULL;
+      pNode->value.asVar.szDeclType = pInit ?
+         hb_astVarDeclType( HB_COMP_PARAM, szName, HB_TRUE ) : NULL;
       /* THREAD STATIC: the grammar's scope says which */
       pNode->value.asVar.fThread =
          ( HB_COMP_PARAM->iVarScope & HB_VSCOMP_THREAD ) != 0;

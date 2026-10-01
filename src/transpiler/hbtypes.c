@@ -486,6 +486,114 @@ const char * hb_astHashFamilyMerge( const char * szA, const char * szB )
    return NULL;               /* HASHC vs HASHN — real conflict */
 }
 
+/* ---- Declared types (`AS CLASS X`, `AS ARRAY OF …`) ----
+   An array type is ARRAY, or ARRAY<T> where a declaration gave its
+   elements a type: storage stays List<dynamic>, a read of an element is
+   T. The element type lives only where the source declared it; into
+   anything undeclared (an assignment, an argument to an undeclared
+   parameter, the RETURN of an undeclared function) an ARRAY<T> is plain
+   ARRAY again (hb_astUndeclared), or one later assignment of an untyped
+   array would leave a name claiming T. */
+HB_BOOL hb_astIsArrayType( const char * szType )
+{
+   return szType && hb_strnicmp( szType, "ARRAY", 5 ) == 0 &&
+          ( szType[ 5 ] == '\0' || szType[ 5 ] == '<' );
+}
+
+/* One copy of each type string built here, for the life of the run. */
+static const char * hb_astIntern( const char * szText, HB_SIZE nLen )
+{
+   static char * s_aPool[ 512 ];
+   static int    s_nPool = 0;
+   int i;
+
+   for( i = 0; i < s_nPool; i++ )
+      if( strlen( s_aPool[ i ] ) == nLen && memcmp( s_aPool[ i ], szText, nLen ) == 0 )
+         return s_aPool[ i ];
+   if( s_nPool >= ( int ) HB_SIZEOFARRAY( s_aPool ) )
+   {
+      fprintf( stderr, "hbtranspiler: fatal: more than %d declared types. "
+               "Raise the pool in hbtypes.c (hb_astIntern).\n",
+               ( int ) HB_SIZEOFARRAY( s_aPool ) );
+      exit( 1 );
+   }
+   s_aPool[ s_nPool ] = ( char * ) hb_xgrab( nLen + 1 );
+   memcpy( s_aPool[ s_nPool ], szText, nLen );
+   s_aPool[ s_nPool ][ nLen ] = '\0';
+   return s_aPool[ s_nPool++ ];
+}
+
+/* T of ARRAY<T>, or NULL */
+const char * hb_astArrayElemType( const char * szType )
+{
+   HB_SIZE nLen;
+   if( ! szType || hb_strnicmp( szType, "ARRAY<", 6 ) != 0 )
+      return NULL;
+   nLen = strlen( szType );
+   if( nLen < 8 || szType[ nLen - 1 ] != '>' )
+      return NULL;
+   return hb_astIntern( szType + 6, nLen - 7 );
+}
+
+/* An ARRAY<T> going somewhere undeclared is an ARRAY */
+static const char * hb_astUndeclared( const char * szType )
+{
+   return hb_astArrayElemType( szType ) ? "ARRAY" : szType;
+}
+
+static HB_BOOL hb_astIsDeclScalar( const char * szType )
+{
+   static const char * s_aScalars[] = { "STRING", "NUMERIC", "INTEGER", "LOGICAL",
+                                        "DATE", "ARRAY", "HASH" };
+   int i;
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aScalars ); i++ )
+      if( hb_stricmp( szType, s_aScalars[ i ] ) == 0 )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+/* The class a declaration names, in its definition's spelling: a reftab
+   class, else an ORM model; NULL when nothing defines it. */
+static const char * hb_astDeclClass( void * pRefTab, const char * szClass )
+{
+   const char * szCanon = NULL;
+   if( pRefTab )
+      szCanon = hb_refTabClassCanonName( ( PHB_REFTAB ) pRefTab, szClass );
+   if( ! szCanon )
+      szCanon = hb_fieldTypesModelCanon( szClass );
+   return szCanon;
+}
+
+const char * hb_astDeclCanon( void * pRefTab, const char * szDecl )
+{
+   const char * szElem;
+   if( ! szDecl )
+      return NULL;
+   if( ( szElem = hb_astArrayElemType( szDecl ) ) != NULL )
+   {
+      char szBuf[ 160 ];
+      const char * szCanon = hb_astIsDeclScalar( szElem ) ? szElem :
+                             hb_astDeclClass( pRefTab, szElem );
+      hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szCanon ? szCanon : szElem );
+      return hb_astIntern( szBuf, strlen( szBuf ) );
+   }
+   if( hb_astIsDeclScalar( szDecl ) )
+      return szDecl;
+   {
+      const char * szCanon = hb_astDeclClass( pRefTab, szDecl );
+      return szCanon ? szCanon : szDecl;
+   }
+}
+
+/* HB_TRUE when every class the declaration names is defined (W0040) */
+HB_BOOL hb_astDeclKnown( void * pRefTab, const char * szDecl )
+{
+   const char * szElem = hb_astArrayElemType( szDecl );
+   const char * szClass = szElem ? szElem : szDecl;
+   return ! szClass || hb_astIsDeclScalar( szClass ) ||
+          hb_astDeclClass( pRefTab, szClass ) != NULL;
+}
+
 /* Definite value-type tags — the types where a disagreement between a
    call-site argument and a declared slot is a real contradiction (a
    class name vs OBJECT is just uncertainty; NUMERIC vs STRING is not). */
@@ -893,6 +1001,8 @@ typedef struct
    const char * szName;
    const char * szType;
    HB_BOOL      fFrozen;   /* conflict-widened — refuse re-refinement */
+   HB_BOOL      fDeclared; /* `AS CLASS X` / `AS ARRAY OF …`: the declaration's
+                              type, which nothing changes (hb_typeEnvDeclare) */
 } HB_TYPEENV_ENTRY;
 
 typedef struct
@@ -1011,6 +1121,7 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
       pEnv->entries[ pEnv->count ].szName = szName;
       pEnv->entries[ pEnv->count ].szType = szType;
       pEnv->entries[ pEnv->count ].fFrozen = HB_FALSE;
+      pEnv->entries[ pEnv->count ].fDeclared = HB_FALSE;
       pEnv->count++;
       return HB_TRUE;
    }
@@ -1041,7 +1152,10 @@ static HB_BOOL hb_typeEnvFreeze( HB_TYPEENV * pEnv, const char * szName,
    {
       if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
       {
-         HB_BOOL fChanged = ! pEnv->entries[ i ].fFrozen ||
+         HB_BOOL fChanged;
+         if( pEnv->entries[ i ].fDeclared )
+            return HB_FALSE;   /* a declaration is not widened */
+         fChanged = ! pEnv->entries[ i ].fFrozen ||
             hb_stricmp( pEnv->entries[ i ].szType, szType ) != 0;
          pEnv->entries[ i ].szType  = szType;
          pEnv->entries[ i ].fFrozen = HB_TRUE;
@@ -1053,6 +1167,53 @@ static HB_BOOL hb_typeEnvFreeze( HB_TYPEENV * pEnv, const char * szName,
       pEnv->entries[ pEnv->count - 1 ].fFrozen = HB_TRUE;
       return HB_TRUE;
    }
+   return HB_FALSE;
+}
+
+/* szName is declared szType (`AS CLASS X`, `AS ARRAY OF …`): set and
+   frozen, and not even hb_typeEnvFreeze moves it — unrelated classes
+   assigned to it are W0041's business, not a reason to widen it. */
+static void hb_typeEnvDeclare( HB_TYPEENV * pEnv, const char * szName,
+                               const char * szType )
+{
+   int i;
+
+   for( i = 0; i < pEnv->count; i++ )
+   {
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
+      {
+         pEnv->entries[ i ].szType    = szType;
+         pEnv->entries[ i ].fFrozen   = HB_TRUE;
+         pEnv->entries[ i ].fDeclared = HB_TRUE;
+         return;
+      }
+   }
+   if( hb_typeEnvSet( pEnv, szName, szType ) )
+   {
+      pEnv->entries[ pEnv->count - 1 ].fFrozen   = HB_TRUE;
+      pEnv->entries[ pEnv->count - 1 ].fDeclared = HB_TRUE;
+   }
+}
+
+/* szName's entry, or NULL */
+static HB_TYPEENV_ENTRY * hb_typeEnvEntry( HB_TYPEENV * pEnv, const char * szName )
+{
+   int i;
+
+   for( i = 0; i < pEnv->count; i++ )
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
+         return &pEnv->entries[ i ];
+   return NULL;
+}
+
+/* HB_TRUE when szName carries a declared type */
+static HB_BOOL hb_typeEnvIsDeclared( HB_TYPEENV * pEnv, const char * szName )
+{
+   int i;
+
+   for( i = 0; i < pEnv->count; i++ )
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
+         return pEnv->entries[ i ].fDeclared;
    return HB_FALSE;
 }
 
@@ -1100,6 +1261,8 @@ static HB_BOOL hb_astIsClassType( const char * sz );
    stays cheap. The recursive FULL-inference form once blew scan from
    0.08s to 60s; the depth cap and lean body are what keep this safe. */
 static HB_BOOL hb_astIsClassType( const char * sz );  /* fwd, defined below */
+static const char * hb_astLeanArrayType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                         int iDepth );  /* fwd, defined below */
 
 static const char * hb_astResolveRecvClass( PHB_EXPR pRecv,
                                             HB_TYPEENV * pEnv, int iDepth )
@@ -1134,6 +1297,52 @@ static const char * hb_astResolveRecvClass( PHB_EXPR pRecv,
          szInner = hb_refTabClassParent( pEnv->pRefTab, szInner );
       }
    }
+
+   /* an element of a declared array (`aBuffer[ i ]:nType`, aBuffer AS
+      ARRAY OF CLASS TranLine): its element class */
+   if( pRecv->ExprType == HB_ET_ARRAYAT )
+   {
+      const char * szElem = hb_astArrayElemType(
+         hb_astLeanArrayType( pRecv->value.asList.pExprList, pEnv, iDepth + 1 ) );
+      return szElem && hb_astIsClassType( szElem ) ? szElem : NULL;
+   }
+   return NULL;
+}
+
+/* The type of an expression that holds an array, as cheaply as
+   hb_astResolveRecvClass reads a receiver: a variable's env type, a
+   member's reftab row (`::aBuffer`, `oTrans:aBuffer`, along the INHERIT
+   chain), a call's return type. NULL when none of those says. */
+static const char * hb_astLeanArrayType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                         int iDepth )
+{
+   if( ! pExpr || iDepth > 3 || ! pEnv )
+      return NULL;
+   if( pExpr->ExprType == HB_ET_VARIABLE )
+      return hb_typeEnvGet( pEnv, pExpr->value.asSymbol.name );
+   if( pExpr->ExprType == HB_ET_SEND && pExpr->value.asMessage.szMessage )
+   {
+      PHB_EXPR pObj = pExpr->value.asMessage.pObject;
+      const char * szCls = hb_astResolveRecvClass( pObj, pEnv, iDepth + 1 );
+      int iUp;
+      for( iUp = 0; pEnv->pRefTab && szCls && iUp < 16; iUp++ )
+      {
+         const char * szMT = hb_refTabReturnType( pEnv->pRefTab,
+            hb_refTabMethodKey( szCls, pExpr->value.asMessage.szMessage ) );
+         if( szMT )
+            return szMT;
+         szCls = hb_refTabClassParent( pEnv->pRefTab, szCls );
+      }
+      /* Self's members are in the env too, seeded from the class (Pass 0) */
+      if( pObj && pObj->ExprType == HB_ET_VARIABLE &&
+          hb_stricmp( pObj->value.asSymbol.name, "Self" ) == 0 )
+         return hb_typeEnvGet( pEnv, pExpr->value.asMessage.szMessage );
+      return NULL;
+   }
+   if( pExpr->ExprType == HB_ET_FUNCALL && pExpr->value.asFunCall.pFunName &&
+       pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+      return hb_typeEnvFuncReturnType( pEnv,
+                pExpr->value.asFunCall.pFunName->value.asSymbol.name );
    return NULL;
 }
 
@@ -1400,6 +1609,8 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             return NULL;
          if( strcmp( szTrue, szFalse ) == 0 )
             return szTrue;
+         if( hb_astIsArrayType( szTrue ) && hb_astIsArrayType( szFalse ) )
+            return "ARRAY";   /* element types that differ say nothing */
          if( ( strcmp( szTrue, "INTEGER" ) == 0 || strcmp( szTrue, "NUMERIC" ) == 0 ) &&
              ( strcmp( szFalse, "INTEGER" ) == 0 || strcmp( szFalse, "NUMERIC" ) == 0 ) )
             return "NUMERIC";
@@ -1407,6 +1618,15 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             return szHash;
          return NULL;
       }
+
+      case HB_ET_ARRAYAT:
+         /* an element of a declared array (ARRAY<T>) is a T; of any
+            other array, or of a hash, nothing is known. The array is read
+            as cheaply as a receiver is (hb_astLeanArrayType): EasiPOS
+            has some 7,000 element reads, and full inference of each one's
+            operand slowed the scan. */
+         return hb_astArrayElemType(
+            hb_astLeanArrayType( pExpr->value.asList.pExprList, pEnv, 0 ) );
 
       case HB_ET_FUNCALL:
          /* Infer return types for known functions:
@@ -1480,14 +1700,109 @@ static HB_BOOL hb_astIsClassType( const char * sz )
       hb_stricmp( sz, "BLOCK"     ) != 0 && hb_stricmp( sz, "CODEBLOCK" ) != 0 &&
       hb_stricmp( sz, "NIL"       ) != 0 && hb_stricmp( sz, "SYMBOL"    ) != 0 &&
       hb_stricmp( sz, "POINTER"   ) != 0 && hb_stricmp( sz, "OBJECT"    ) != 0 &&
-      hb_stricmp( sz, "USUAL"     ) != 0 && hb_stricmp( sz, "FUNREF"    ) != 0;
+      hb_stricmp( sz, "USUAL"     ) != 0 && hb_stricmp( sz, "FUNREF"    ) != 0 &&
+      ! hb_astIsArrayType( sz );     /* ARRAY<T>: an array, not a class */
 }
 
-/* Try to propagate type for a variable assignment */
-static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
-                                HB_TYPEENV * pEnv, HB_BOOL * pfChanged )
+/* W0041: may a value of type szActual go where szDecl was declared?
+   Unknown values (no type, USUAL, OBJECT, NIL) may: C# converts them at
+   run time, as it does today. A class is accepted by itself and its
+   ancestors; two classes the reftab cannot relate (an ORM model, whose
+   parents are in the fieldtypes map) are let through rather than guessed
+   at. An ARRAY<T> takes any plain array and an ARRAY<U> of a T. */
+static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
 {
-   const char * szCurType = hb_typeEnvGet( pEnv, szVarName );
+   const char * szDeclElem;
+
+   if( ! szDecl || ! szActual || hb_stricmp( szActual, "USUAL" ) == 0 ||
+       hb_stricmp( szActual, "OBJECT" ) == 0 || hb_stricmp( szActual, "NIL" ) == 0 ||
+       hb_stricmp( szDecl, szActual ) == 0 )
+      return HB_TRUE;
+   if( ( szDeclElem = hb_astArrayElemType( szDecl ) ) != NULL )
+   {
+      const char * szActElem = hb_astArrayElemType( szActual );
+      if( ! hb_astIsArrayType( szActual ) )
+         return HB_FALSE;
+      return ! szActElem || hb_astDeclAccepts( szDeclElem, szActElem );
+   }
+   if( hb_astIsClassType( szDecl ) )
+   {
+      if( ! hb_astIsClassType( szActual ) )
+         return HB_FALSE;
+      if( ! s_pPropRefTab || ! hb_refTabIsClass( s_pPropRefTab, szDecl ) ||
+          ! hb_refTabIsClass( s_pPropRefTab, szActual ) )
+         return HB_TRUE;
+      return hb_refTabIsKindOf( s_pPropRefTab, szActual, szDecl );
+   }
+   /* a declared scalar (a function's or an element's): the numbers agree,
+      and an array type is an array */
+   if( ( hb_stricmp( szDecl, "NUMERIC" ) == 0 || hb_stricmp( szDecl, "INTEGER" ) == 0 ) &&
+       ( hb_stricmp( szActual, "NUMERIC" ) == 0 || hb_stricmp( szActual, "INTEGER" ) == 0 ) )
+      return HB_TRUE;
+   if( hb_stricmp( szDecl, "ARRAY" ) == 0 && hb_astIsArrayType( szActual ) )
+      return HB_TRUE;
+   if( hb_astHashFamilyMerge( szDecl, szActual ) )
+      return HB_TRUE;
+   return HB_FALSE;
+}
+
+/* W0040 / W0041, once per file, line and name (hb_astOrmSeen; its table
+   lives as long as the process, which scans a batch of files) */
+static void hb_astDeclWarn( const char * szCode, const char * szFile, int iLine,
+                            const char * szName, const char * szMsg )
+{
+   char szKey[ 192 ];
+   const char * szBase = szFile ? szFile : "?";
+   const char * p;
+   for( p = szBase; *p; p++ )
+      if( *p == '/' || *p == '\\' )
+         szBase = p + 1;
+   hb_snprintf( szKey, sizeof( szKey ), "%s %s %s", szCode, szBase, szName ? szName : "?" );
+   if( hb_astOrmSeen( iLine, szKey ) )
+      return;
+   fprintf( stderr, "hbtranspiler: %s(%d): warning %s  %s\n",
+            hb_strCollapsePath( szFile ? szFile : "?" ), iLine, szCode, szMsg );
+}
+
+/* W0041 for a value of type szActual going into something declared
+   szDecl, at iLine. szWhat says what, with a %s where the value's type
+   goes: "assigning %s to 'oX'", "passing %s as 'oX' to 'F'". */
+static void hb_astDeclCheck( const char * szDecl, const char * szActual,
+                             const char * szFile, int iLine,
+                             const char * szName, const char * szWhat )
+{
+   char szDone[ 256 ];
+   char szMsg[ 320 ];
+   if( hb_astDeclAccepts( szDecl, szActual ) )
+      return;
+   hb_snprintf( szDone, sizeof( szDone ), szWhat, szActual );
+   hb_snprintf( szMsg, sizeof( szMsg ), "%s, declared %s", szDone, szDecl );
+   hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+}
+
+/* The type an assignment brings: szGiven when the caller knows it (a
+   FOR EACH variable takes its array's element type), else the right
+   side's — an ARRAY<T> plain ARRAY, since the target is undeclared. */
+static const char * hb_astRhsType( PHB_EXPR pRHS, const char * szGiven,
+                                   HB_TYPEENV * pEnv )
+{
+   return szGiven ? szGiven :
+          hb_astUndeclared( hb_astInferExprType( pRHS, pEnv ) );
+}
+
+/* Try to propagate type for a variable assignment: of pRHS, or of a
+   value of type szGiven */
+static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
+                                  const char * szGiven,
+                                  HB_TYPEENV * pEnv, HB_BOOL * pfChanged )
+{
+   HB_TYPEENV_ENTRY * pEntry = hb_typeEnvEntry( pEnv, szVarName );
+   const char * szCurType = pEntry ? pEntry->szType : NULL;
+
+   /* a declared variable is what its declaration says (W0041 checks
+      what is assigned to it) */
+   if( pEntry && pEntry->fDeclared )
+      return;
 
    /* `x` (and easipos `sx`) is the explicit USUAL marker: the author
       chose it because the variable legitimately holds different types
@@ -1512,7 +1827,7 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
        strcmp( szCurType, "OBJECT" ) == 0 ||
        hb_astIsNameSeededClass( szVarName, szCurType ) )
    {
-      const char * szNewType = hb_astInferExprType( pRHS, pEnv );
+      const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
       /* OBJECT is the generic `o`-prefix fallback, strictly weaker than
          a concrete class: refining OBJECT -> Transaction is an upgrade,
          the reverse is not. Without this guard a name-seeded class is
@@ -1544,7 +1859,7 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
       the key type is open). */
    else if( strcmp( szCurType, "HASH" ) == 0 )
    {
-      const char * szNewType = hb_astInferExprType( pRHS, pEnv );
+      const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
       const char * szMerged  = hb_astHashFamilyMerge( szCurType, szNewType );
       if( szMerged && strcmp( szMerged, szCurType ) != 0 )
       {
@@ -1563,7 +1878,7 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
       hash / scalar locals keep their own merge rules above. */
    else if( s_pPropRefTab && hb_astIsClassType( szCurType ) )
    {
-      const char * szNewType = hb_astInferExprType( pRHS, pEnv );
+      const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
       if( szNewType && hb_astIsClassType( szNewType ) &&
           hb_stricmp( szCurType, szNewType ) != 0 )
       {
@@ -1599,6 +1914,12 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
          }
       }
    }
+}
+
+static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
+                                HB_TYPEENV * pEnv, HB_BOOL * pfChanged )
+{
+   hb_astPropagateVarAs( szVarName, pRHS, NULL, pEnv, pfChanged );
 }
 
 /* Recursively walk a block and its nested structures for assignments */
@@ -1682,7 +2003,30 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
             break;
 
          case HB_AST_FOREACH:
-            /* FOR EACH variable — type is USUAL (element type unknown) */
+            /* FOR EACH variable: over a declared array (ARRAY<T>) it takes
+               T, as an assignment of an element would; over anything else
+               its type is unknown */
+            {
+               /* the variable and the array: one each (a list of one, the
+                  variable a reference) */
+               PHB_EXPR pVar = pStmt->value.asForEach.pVar;
+               PHB_EXPR pEnum = pStmt->value.asForEach.pEnum;
+               if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+                  pVar = pVar->value.asList.pExprList && ! pVar->value.asList.pExprList->pNext ?
+                         pVar->value.asList.pExprList : NULL;
+               if( pEnum && ( pEnum->ExprType == HB_ET_ARGLIST || pEnum->ExprType == HB_ET_LIST ) )
+                  pEnum = pEnum->value.asList.pExprList && ! pEnum->value.asList.pExprList->pNext ?
+                          pEnum->value.asList.pExprList : NULL;
+               if( pVar && pEnum &&
+                   ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) )
+               {
+                  const char * szElem = hb_astArrayElemType(
+                     hb_astInferExprType( pEnum, pEnv ) );
+                  if( szElem )
+                     hb_astPropagateVarAs( pVar->value.asSymbol.name, NULL, szElem,
+                                           pEnv, pfChanged );
+               }
+            }
             hb_astPropagateBlock( pStmt->value.asForEach.pBody, pEnv, pfChanged );
             break;
 
@@ -2568,7 +2912,10 @@ static void hb_astCollectReturnTypes( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
    {
       if( pStmt->type == HB_AST_RETURN && pStmt->value.asReturn.pExpr )
       {
-         const char * szType = hb_astInferExprType( pStmt->value.asReturn.pExpr, pEnv );
+         /* an undeclared function's result: an ARRAY<T> returns an ARRAY
+            (a declared one's result is its declaration, hb_astPropagate) */
+         const char * szType = hb_astUndeclared(
+            hb_astInferExprType( pStmt->value.asReturn.pExpr, pEnv ) );
          if( szType )
          {
             if( *pszRetType == NULL )
@@ -2961,8 +3308,22 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
          {
             const char * szArgType =
                hb_astInferExprType( pEffective, pEnv );
-            HB_REFINE_RESULT r = hb_refTabRefineParamType(
-               pEnv->pRefTab, szCallee, iPos, szArgType );
+            const HB_REFPARAM * pDecl =
+               hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+            HB_REFINE_RESULT r;
+
+            /* W0041: an argument for a declared parameter (`o AS CLASS X`) */
+            if( pDecl && pDecl->fDeclType )
+            {
+               char szWhat[ 192 ];
+               hb_snprintf( szWhat, sizeof( szWhat ), "passing %%s as '%s' to '%s'",
+                            pDecl->szName ? pDecl->szName : "?", szCallee );
+               hb_astDeclCheck( pDecl->szType, szArgType, pEnv->szFile, iLine,
+                                pDecl->szName, szWhat );
+            }
+            /* an ARRAY<T> refines an undeclared slot as a plain ARRAY */
+            r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos,
+                                          hb_astUndeclared( szArgType ) );
 
             /* ARG-DYNAMIC (audit only; Alex, 2026-09-29, plan C10): an
                untyped argument into a parameter its typed callers made a
@@ -3898,6 +4259,17 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
 
    if( ! szName || ! pRHS )
       return;
+   /* A declared variable's contract is its declaration, not its prefix:
+      what is assigned must be what it declares (W0041). */
+   if( hb_typeEnvIsDeclared( pEnv, szName ) )
+   {
+      char szWhat[ 160 ];
+      hb_snprintf( szWhat, sizeof( szWhat ), "assigning %%s to '%s'", szName );
+      hb_astDeclCheck( hb_typeEnvGet( pEnv, szName ),
+                       hb_astInferExprType( pRHS, pEnv ),
+                       szFile, iLine, szName, szWhat );
+      return;
+   }
    szLhs = hb_astInferType( szName, NULL );    /* prefix only */
    szRhs = hb_astInferExprType( pRHS, pEnv );
    if( ! szLhs || ! szRhs )
@@ -3915,6 +4287,9 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
        hb_stricmp( szRhs, "OBJECT" ) == 0 )
       return;
    if( hb_stricmp( szLhs, szRhs ) == 0 )
+      return;
+   /* an `a` name commits to an array: a declared one (ARRAY<T>) is one */
+   if( hb_astIsArrayType( szLhs ) && hb_astIsArrayType( szRhs ) )
       return;
    /* `h<X>` commits to hash-ness only — a key-typed HASHC/HASHN RHS
       against the prefix's plain HASH is agreement, not a W0024. Same
@@ -3978,6 +4353,31 @@ static void hb_astCheckIntegerCompound( PHB_EXPR pExpr, const char * szFile,
             s_szOp[ pExpr->ExprType - HB_EO_PLUSEQ ], szName );
 }
 
+/* W0041 for x put into an element of pArr, a declared array (ARRAY<T>):
+   by `pArr[ i ] := x` or `AAdd( pArr, x )`. */
+static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pVal,
+                                  HB_TYPEENV * pEnv, const char * szFile,
+                                  int iLine )
+{
+   const char * szElem;
+   const char * szName = NULL;
+   char szWhat[ 160 ];
+
+   if( ! pArr || ! pVal )
+      return;
+   szElem = hb_astArrayElemType( hb_astInferExprType( pArr, pEnv ) );
+   if( ! szElem )
+      return;
+   if( pArr->ExprType == HB_ET_VARIABLE )
+      szName = pArr->value.asSymbol.name;
+   else if( pArr->ExprType == HB_ET_SEND )
+      szName = pArr->value.asMessage.szMessage;
+   hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into '%s'",
+                szName ? szName : "an array" );
+   hb_astDeclCheck( szElem, hb_astInferExprType( pVal, pEnv ), szFile, iLine,
+                    szName, szWhat );
+}
+
 static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                                           HB_TYPEENV * pEnv,
                                           const char * szFile )
@@ -4003,6 +4403,28 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                      pExpr->value.asOperator.pLeft->value.asSymbol.name,
                      pExpr->value.asOperator.pRight,
                      pEnv, szFile, pStmt->iLine );
+               }
+               /* `a[ i ] := x` into a declared array (W0041) */
+               else if( pExpr->ExprType == HB_EO_ASSIGN &&
+                        pExpr->value.asOperator.pLeft &&
+                        pExpr->value.asOperator.pLeft->ExprType == HB_ET_ARRAYAT )
+                  hb_astCheckElemWrite(
+                     pExpr->value.asOperator.pLeft->value.asList.pExprList,
+                     pExpr->value.asOperator.pRight, pEnv, szFile, pStmt->iLine );
+               /* `AAdd( a, x )` into a declared array (W0041) */
+               else if( pExpr->ExprType == HB_ET_FUNCALL &&
+                        pExpr->value.asFunCall.pFunName &&
+                        pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+                        hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name,
+                                    "AADD" ) == 0 )
+               {
+                  PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+                  PHB_EXPR pArr = ( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                                                pParms->ExprType == HB_ET_ARGLIST ) ) ?
+                                  pParms->value.asList.pExprList : pParms;
+                  if( pArr && pArr->pNext )
+                     hb_astCheckElemWrite( pArr, pArr->pNext, pEnv, szFile,
+                                           pStmt->iLine );
                }
                else if( pExpr->ExprType >= HB_EO_PLUSEQ &&
                         pExpr->ExprType <= HB_EO_EXPEQ &&
@@ -4537,10 +4959,104 @@ static void hb_astCheckForEachInteger( PHB_AST_NODE pBlock, PHB_AST_NODE pBody,
    }
 }
 
-const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
+/* W0041 for each RETURN of a function declared szDecl */
+static void hb_astCheckDeclReturns( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
+                                    const char * szDecl, const char * szFile,
+                                    const char * szFunc )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      PHB_AST_NODE pCase;
+      switch( pStmt->type )
+      {
+         case HB_AST_RETURN:
+            if( pStmt->value.asReturn.pExpr )
+            {
+               char szWhat[ 160 ];
+               hb_snprintf( szWhat, sizeof( szWhat ), "returning %%s from '%s'",
+                            szFunc ? szFunc : "?" );
+               hb_astDeclCheck( szDecl,
+                  hb_astInferExprType( pStmt->value.asReturn.pExpr, pEnv ),
+                  szFile, pStmt->iLine, szFunc, szWhat );
+            }
+            break;
+         case HB_AST_IF:
+            hb_astCheckDeclReturns( pStmt->value.asIf.pThen, pEnv, szDecl, szFile, szFunc );
+            for( pCase = pStmt->value.asIf.pElseIfs; pCase; pCase = pCase->pNext )
+               hb_astCheckDeclReturns( pCase->value.asElseIf.pBody, pEnv, szDecl, szFile, szFunc );
+            hb_astCheckDeclReturns( pStmt->value.asIf.pElse, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astCheckDeclReturns( pStmt->value.asWhile.pBody, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_FOR:
+            hb_astCheckDeclReturns( pStmt->value.asFor.pBody, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_FOREACH:
+            hb_astCheckDeclReturns( pStmt->value.asForEach.pBody, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_DOCASE:
+            for( pCase = pStmt->value.asDoCase.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckDeclReturns( pCase->value.asCase.pBody, pEnv, szDecl, szFile, szFunc );
+            hb_astCheckDeclReturns( pStmt->value.asDoCase.pOtherwise, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_SWITCH:
+            for( pCase = pStmt->value.asSwitch.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckDeclReturns( pCase->value.asCase.pBody, pEnv, szDecl, szFile, szFunc );
+            hb_astCheckDeclReturns( pStmt->value.asSwitch.pDefault, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_BEGINSEQ:
+            hb_astCheckDeclReturns( pStmt->value.asSeq.pBody, pEnv, szDecl, szFile, szFunc );
+            hb_astCheckDeclReturns( pStmt->value.asSeq.pRecover, pEnv, szDecl, szFile, szFunc );
+            hb_astCheckDeclReturns( pStmt->value.asSeq.pAlways, pEnv, szDecl, szFile, szFunc );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astCheckDeclReturns( pStmt->value.asWithObj.pBody, pEnv, szDecl, szFile, szFunc );
+            break;
+         default:
+            break;
+      }
+   }
+}
+
+/* W0040: a declaration naming a class nothing defines — decided by the
+   scan's last pass, when the reftab holds every class (scan.py's
+   LAST_PASS_CODES) */
+void hb_astDeclCheckKnown( void * pRefTab, const char * szDecl,
+                           const char * szName, const char * szFile, int iLine )
+{
+   if( pRefTab && szDecl && ! hb_astDeclKnown( pRefTab, szDecl ) )
+   {
+      char szMsg[ 256 ];
+      hb_snprintf( szMsg, sizeof( szMsg ),
+                   "'%s' is declared %s, a class nothing defines",
+                   szName ? szName : "?", szDecl );
+      hb_astDeclWarn( "W0040", szFile, iLine, szName, szMsg );
+   }
+}
+
+/* A declared variable (`AS CLASS X`, `AS ARRAY OF …`): its type, in its
+   class's spelling, is fixed in the env */
+static void hb_astDeclareVar( HB_TYPEENV * pEnv, const char * szName,
+                              const char * szDecl, void * pRefTab,
+                              const char * szFile, int iLine )
+{
+   if( ! szName || ! szDecl )
+      return;
+   hb_typeEnvDeclare( pEnv, szName, hb_astDeclCanon( pRefTab, szDecl ) );
+   hb_astDeclCheckKnown( pRefTab, szDecl, szName, szFile, iLine );
+}
+
+const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                               void * pRefTab, const char * szFuncKey,
                               const char * szFile )
 {
+   PHB_AST_NODE pBody = pFunc ? pFunc->value.asFunc.pBody : NULL;
+   const char * szDeclRet = NULL;
    HB_TYPEENV env;
    PHB_AST_NODE pStmt;
    HB_BOOL fChanged;
@@ -4616,6 +5132,58 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
       }
    }
 
+   /* The file's declared statics (`STATIC saShelf AS ARRAY OF CLASS X` at
+      file level, in the body of the file's first function), so a body
+      reading or writing one knows its type — unless a local or parameter
+      of the same name hides it. */
+   if( s_pFileFuncs && s_pFileFuncs != pFunc &&
+       s_pFileFuncs->type == HB_AST_FUNCTION &&
+       s_pFileFuncs->value.asFunc.pBody &&
+       s_pFileFuncs->value.asFunc.pBody->type == HB_AST_BLOCK &&
+       pFunc && pFunc->type == HB_AST_FUNCTION )
+   {
+      PHB_AST_NODE pDecl;
+      for( pDecl = s_pFileFuncs->value.asFunc.pBody->value.asBlock.pFirst;
+           pDecl; pDecl = pDecl->pNext )
+      {
+         PHB_HVAR pVar;
+         if( pDecl->type != HB_AST_STATIC || ! pDecl->value.asVar.szDeclType )
+            continue;
+         for( pVar = pFunc->value.asFunc.pParams; pVar; pVar = pVar->pNext )
+            if( pVar->szName && hb_stricmp( pVar->szName, pDecl->value.asVar.szName ) == 0 )
+               break;
+         if( ! pVar )
+            hb_typeEnvDeclare( &env, pDecl->value.asVar.szName,
+                               hb_astDeclCanon( pRefTab, pDecl->value.asVar.szDeclType ) );
+      }
+   }
+
+   /* Declared parameters and locals (`p AS CLASS X`, `a AS ARRAY OF …`;
+      the function's variable records list both): what the declaration
+      says, and nothing in the body moves it. */
+   if( pFunc && pFunc->type == HB_AST_FUNCTION )
+   {
+      PHB_HVAR pVar;
+      for( pVar = pFunc->value.asFunc.pParams; pVar; pVar = pVar->pNext )
+         if( pVar->szDeclType )
+            hb_astDeclareVar( &env, pVar->szName, pVar->szDeclType, pRefTab,
+                              szFile, pVar->iDeclLine );
+      if( pFunc->value.asFunc.szDeclType )
+      {
+         szDeclRet = hb_astDeclCanon( pRefTab, pFunc->value.asFunc.szDeclType );
+         if( pRefTab && ! hb_astDeclKnown( pRefTab, pFunc->value.asFunc.szDeclType ) )
+         {
+            char szMsg[ 256 ];
+            hb_snprintf( szMsg, sizeof( szMsg ),
+                         "'%s' is declared to return %s, a class nothing defines",
+                         pFunc->value.asFunc.szName ? pFunc->value.asFunc.szName : "?",
+                         pFunc->value.asFunc.szDeclType );
+            hb_astDeclWarn( "W0040", szFile, pFunc->iLine,
+                            pFunc->value.asFunc.szName, szMsg );
+         }
+      }
+   }
+
    /* Pass 0: Seed class DATA member types from all class definitions.
       This allows SELF:member expressions to resolve to specific types. */
    {
@@ -4631,7 +5199,9 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
                {
                   const char * szType;
                   if( pMember->value.asClassData.szType )
-                     szType = pMember->value.asClassData.szType;
+                     /* a declared class in its definition's spelling */
+                     szType = hb_astDeclCanon( pRefTab,
+                                 pMember->value.asClassData.szType );
                   else
                      szType = hb_astInferTypeFromInit(
                         pMember->value.asClassData.szName,
@@ -4654,7 +5224,21 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    pStmt = pBody->value.asBlock.pFirst;
    while( pStmt )
    {
-      if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
+      if( ( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC ) &&
+          pStmt->value.asVar.szDeclType )
+      {
+         /* declared (a static is not among the function's locals, so it
+            is declared here; a local again, harmlessly); the initializer
+            is checked against the declaration (W0041) */
+         hb_astDeclareVar( &env, pStmt->value.asVar.szName,
+                           pStmt->value.asVar.szDeclType, pRefTab, szFile,
+                           pStmt->iLine );
+         if( pStmt->value.asVar.pInit )
+            hb_astCheckOneAssign( pStmt->value.asVar.szName,
+                                  pStmt->value.asVar.pInit, &env, szFile,
+                                  pStmt->iLine );
+      }
+      else if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
       {
          const char * szType = NULL;
          /* W0024: an initializer whose type contradicts the variable's
@@ -4800,7 +5384,11 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    pStmt = pBody->value.asBlock.pFirst;
    while( pStmt )
    {
-      if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
+      if( ( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC ) &&
+          pStmt->value.asVar.szDeclType )
+         /* declared: the emitter declares it as the declaration says */
+         pStmt->value.asVar.szAlias = hb_typeEnvGet( &env, pStmt->value.asVar.szName );
+      else if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC || pStmt->type == HB_AST_PUBLIC || pStmt->type == HB_AST_PRIVATE )
       {
          const char * szCurType = hb_astInferType( pStmt->value.asVar.szName,
                                                    pStmt->value.asVar.pInit );
@@ -4871,6 +5459,13 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
    /* Pass 4: Infer return type from RETURN statements */
    hb_astCollectReturnTypes( pBody, &env, &szRetType, &fConflict, &fSawUnknown );
 
+   /* A declared return type (`FUNCTION f() AS CLASS X`, the class body's
+      `METHOD M() AS …`) is the function's type whatever the RETURNs say;
+      each RETURN is checked against it (W0041). */
+   if( szDeclRet )
+      hb_astCheckDeclReturns( pBody, &env, szDeclRet, szFile,
+                              pFunc->value.asFunc.szName );
+
    /* Pass 5: Refine callee parameter types from call sites in this
       body. Only runs when the refTab is available (the scanner in
       -GF mode always supplies it; legacy callers that don't have a
@@ -4880,7 +5475,9 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
 
    {
       const char * szResult;
-      if( fConflict )
+      if( szDeclRet )
+         szResult = szDeclRet;
+      else if( fConflict )
          szResult = "USUAL";
       /* Mixed: at least one RETURN was uninferrable. The function is
          effectively polymorphic at the call site — don't pin it to the
@@ -4899,7 +5496,9 @@ const char * hb_astPropagate( PHB_AST_NODE pBody, PHB_AST_NODE pClassList,
          const char * szFn = szFuncKey ? szFuncKey : "?";
          int iBodyLine = pBody->iLine;
          int i;
-         if( fConflict )
+         if( szDeclRet )
+            ;   /* a declared return type: the RETURNs do not decide it */
+         else if( fConflict )
             hb_auditEmit( "RET-SENTINEL", szFile, iBodyLine, szFn,
                "RETURN types conflict — function degrades to USUAL",
                "return NIL for no-result, or split the function" );

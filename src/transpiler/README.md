@@ -304,6 +304,9 @@ NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
                W = reassigned as a whole in the body (`p := expr`)
                D = declared default — a top-level `DEFAULT p TO v` /
                    `hb_default(@p, v)` in the body (see NIL semantics)
+               T = declared type — `p AS CLASS X` / `p AS ARRAY OF …`:
+                   the slot's type is the declaration's, and no caller
+                   refines it (see the ladder's declaration rung)
              Letters can combine in any order, e.g. "RN" or "NR".
 ```
 
@@ -506,6 +509,8 @@ can reach zero. Things that are merely *type debt* go to the
 | W0037 | scan  | `Self` sends a message neither its class nor an ancestor declares (an ancestor in another file included), on a class that keeps no members in a dynamic bag: Harbour raises "No exported method" when the line runs, C# would go through `((dynamic)this)` and throw there. HBObject's and the VM's own messages (`Init`, `ClassName`, `Super`, `__enum*` …) and ancestors the reftab does not know say nothing; the scan's last pass decides, as for W0018. First found easipos easizvt.prg sending to `::oEasiZVT` for its member oEasiZVTProxy in four methods |
 | W0038 | scan  | A FOR EACH variable read after its loop, before it is assigned again: Harbour has restored its value from before the loop, C# keeps the last element — keep what the loop found in a variable of its own (tests/errors/foreach_after.prg) |
 | W0039 | scan  | A FOR EACH variable that is an integer by inference only (an `n` name keying an `hn` hash, set from `At()`): C# casts each element to long, dropping a fraction Harbour keeps — name it `i<...>` if the elements are whole numbers. Decided by the scan's last pass, since the types it reads settle over the passes (tests/errors/foreach_integer.prg) |
+| W0040 | scan  | A declaration (`AS CLASS X`, `AS ARRAY OF CLASS X`) names a class nothing defines — a program class or an ORM model. Decided by the scan's last pass, when the reftab holds every class (tests/errors/declared_types.prg) |
+| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`), passed to a declared parameter, returned from a declared function. A subclass is accepted where its parent is declared, and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -876,6 +881,31 @@ strongest. Later rungs override earlier ones.
    is the only integral annotation; `AS <type>`; a `VAR o<Class>`
    member is name-seeded to that class, and so is an `o<Class>`
    parameter that no caller refines (test133).
+   **`AS CLASS X` and `AS ARRAY OF …`** (plan C11, Alex, 2026-10-01) are
+   declarations where the name cannot say more — a generic `oLine`, a
+   member holding TranLines. They go on a local, a parameter, a file or
+   routine static, a class member (`VAR`), a function's return
+   (`FUNCTION f( … ) AS CLASS X`) and a method's (`METHOD M() AS …` in the
+   class body), and nothing in the body moves them: an assignment, a
+   caller's argument (pflag `T`), a RETURN. `AS ARRAY OF CLASS X` (not `AS
+   ARRAY OF X`: Harbour's syntax) and `AS ARRAY OF CHARACTER` (NUMERIC,
+   LOGICAL, DATE, ARRAY) type an array's elements: storage stays
+   `List<dynamic>`, a read of an element is an X, so a send on one is cast
+   (`((TranLine)aBuffer[i]).nType`) and checked when C# builds, and a FOR
+   EACH variable over it is an X. The element type lives only where the
+   source declares it: into anything undeclared (an assignment, an
+   argument to an undeclared parameter, an undeclared function's RETURN)
+   an ARRAY OF X is a plain array again, or one later assignment of an
+   untyped array would leave a name claiming X. A class nothing defines is
+   W0040; a value of another type put where a declaration says otherwise
+   is W0041 (a subclass is accepted, and a value of unknown type passes,
+   converted at run time as before) (test136). Harbour accepts the
+   declarations on locals, parameters and statics only, and wants a
+   forward declaration (`_HB_CLASS X`) of a class from another file;
+   EasiPOS's include/astype.ch removes them for it, as hbclass.ch's
+   HB_CLS_NO_DECLARATIONS does, and the generated C is the same (members
+   keep `AS ARRAY`). The transpiler never reads that header (includes are
+   off), so it sees the declarations as written.
 3. **Initialisers and defines**: a `#define` with an integer value is
    integer tier (the defines map), and a LOCAL or STATIC initialised
    from an integer literal, such a define, or another integer variable
@@ -1527,6 +1557,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
+| 136       | Declared types, `AS CLASS X` and `AS ARRAY OF …`, in every position: locals, parameters, file and routine statics, members, a function's and a method's return; element sends cast to the declared class, FOR EACH variables typed by the array's element type, the round trip writing the declarations back as written |
 | 134       | A class that sends `::&( name )` to itself (a dynamic class, `HbDynamicObject`) is its own C# type: a parameter, member, local and Self return of it are typed, its declared members and methods are sent statically, a member no class declares goes through `((dynamic)o)`; a class that sends a macro to another object is not dynamic |
 | 133       | The ORM models are named `<Stem>Table` after their factories (`=model` rows); an `o<Class>` or `o<Model>` parameter no caller refines is declared as that class |
 | 132       | A method's return type reaches its caller through a send (`RETURN oObj:Label132()`, `x := oObj:Reading132()`), as a function's does through a call |
@@ -1575,6 +1606,7 @@ the errors, where the file fails and the test asserts the error line:
 | `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
+| `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass and a value of unknown type quiet (two `-GF` passes on a private reftab) |
 
 ### The runtime library — `rtltest/`
 

@@ -21,3 +21,12 @@
 #xtranslate AS DATE      =>
 #xtranslate AS TIMESTAMP =>
 #xtranslate AS USUAL     =>
+
+/* Declared classes and element types (`LOCAL o AS CLASS X`, `VAR a AS
+   ARRAY OF CLASS X`, `FUNCTION f() AS ARRAY OF CHARACTER`), removed as
+   hbclass.ch's HB_CLS_NO_DECLARATIONS removes them. Harbour tries the
+   most recently defined rule first, so the longer forms come last. */
+#xtranslate AS CHARACTER          =>
+#xtranslate AS CLASS <!name!>      =>
+#xtranslate AS ARRAY OF <!type!>   =>
+#xtranslate AS ARRAY OF CLASS <!name!> =>

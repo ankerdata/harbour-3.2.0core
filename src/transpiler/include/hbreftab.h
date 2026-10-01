@@ -86,6 +86,11 @@ struct HB_REFPARAM_
                                sit there), so a caller that omits it must
                                pass null, not the value-type zero. Written
                                as pflag `D`. */
+   HB_BOOL fDeclType;       /* szType is what a declaration gives the slot
+                               (`o AS CLASS X`, `a AS ARRAY OF …`): callers
+                               do not refine it, the name does not seed it.
+                               Re-derived from the source at every
+                               registration. Written as pflag `T`. */
 };
 
 /* Result of hb_refTabRefineParamType. Distinguishing these lets the
@@ -180,6 +185,14 @@ extern void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int 
 
 /* Returns HB_TRUE if iPos carries a declared default. */
 extern HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* Parameter iPos of szFunc is declared szType (`AS CLASS X`, `AS ARRAY OF
+   …`): the slot takes it, and no caller refines it. */
+extern void hb_refTabMarkDeclType( PHB_REFTAB pTab, const char * szFunc, int iPos,
+                                   const char * szType );
+
+/* Returns HB_TRUE if iPos's type is a declaration's. */
+extern HB_BOOL hb_refTabHasDeclType( PHB_REFTAB pTab, const char * szFunc, int iPos );
 /* An o<Class> parameter slot still at the generic OBJECT (unrefined, not
    conflict-frozen) takes szType, the class its name names. */
 extern void hb_refTabDefaultParamType( PHB_REFTAB pTab, const char * szFunc, int iPos,

@@ -399,6 +399,36 @@ static HB_USHORT hb_compVarListAdd( PHB_HVAR * pVarLst, PHB_HVAR pVar )
    return uiVar;
 }
 
+#ifdef HB_TRANSPILER
+/* The type a declaration gives a variable, in the transpiler's type names:
+   `AS CLASS X` is "X", `AS ARRAY OF CLASS X` "ARRAY<X>", `AS ARRAY OF
+   CHARACTER` (NUMERIC, LOGICAL, DATE, ARRAY) "ARRAY<STRING>" and so on.
+   Another declaration says nothing a name's prefix does not, so NULL. */
+const char * hb_compDeclaredType( HB_COMP_DECL, PHB_VARTYPE pVarType )
+{
+   const char * szElem;
+   char szBuf[ 160 ];
+
+   if( ! pVarType )
+      return NULL;
+   switch( pVarType->cVarType )
+   {
+      case 'S': return pVarType->szFromClass;
+      case 's': szElem = pVarType->szFromClass; break;
+      case 'c': szElem = "STRING";  break;
+      case 'n': szElem = "NUMERIC"; break;
+      case 'l': szElem = "LOGICAL"; break;
+      case 'd': szElem = "DATE";    break;
+      case 'a': szElem = "ARRAY";   break;
+      default:  return NULL;
+   }
+   if( ! szElem )
+      return NULL;
+   hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szElem );
+   return hb_compIdentifierNew( HB_COMP_PARAM, szBuf, HB_IDENT_COPY );
+}
+#endif
+
 void hb_compVariableAdd( HB_COMP_DECL, const char * szVarName, PHB_VARTYPE pVarType )
 {
    PHB_HFUNC pFunc = HB_COMP_PARAM->functions.pLast;
@@ -493,6 +523,16 @@ void hb_compVariableAdd( HB_COMP_DECL, const char * szVarName, PHB_VARTYPE pVarT
    pVar->pNext = NULL;
    pVar->iDeclLine = HB_COMP_PARAM->currLine;
 
+#ifdef HB_TRANSPILER
+   /* `AS CLASS X` names a class hbclsparse or the reftab knows, not one a
+      DECLARE CLASS registered, so Harbour's lookup (and its W0025) does not
+      apply: the declared type is kept by name, and checked where it is
+      used (W0040). */
+   pVar->pClass = NULL;
+   pVar->szDeclType = hb_compDeclaredType( HB_COMP_PARAM, pVarType );
+   if( pVar->szDeclType )
+      hb_astSetLastVarDeclType( HB_COMP_PARAM, szVarName, pVar->szDeclType );
+#else
    if( HB_TOUPPER( pVarType->cVarType ) == 'S' )
    {
       #if 0
@@ -505,6 +545,7 @@ void hb_compVariableAdd( HB_COMP_DECL, const char * szVarName, PHB_VARTYPE pVarT
          pVar->cType = 'O';
       }
    }
+#endif
 
    if( HB_COMP_PARAM->iVarScope & HB_VSCOMP_PARAMETER )
       pVar->iUsed = HB_VU_INITIALIZED;
@@ -797,6 +838,10 @@ PHB_HVAR hb_compVariableFind( HB_COMP_DECL, const char * szVarName, int * piPos,
                   pVar->iUsed = HB_VU_NOT_USED;
                   pVar->pNext  = NULL;
                   pVar->iDeclLine = HB_COMP_PARAM->currLine;
+#ifdef HB_TRANSPILER
+                  pVar->pClass = NULL;
+                  pVar->szDeclType = NULL;
+#endif
                   /* Use negative order to signal that we are accessing a local
                    * variable from a codeblock
                    */

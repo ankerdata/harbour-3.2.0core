@@ -115,6 +115,41 @@ else
    fail=$((fail+1))
 fi
 
+# W0040 / W0041 read the class rows too (a class's parents, its members):
+# two -GF passes on a private reftab, the second converged, as the scan's
+# last pass decides them (scan.py's LAST_PASS_CODES).
+TAB="$SCRIPT_DIR/declared_types.tab"
+rm -f "$TAB"
+"$TRANS" -I"$INC" --reftab="$TAB" "$SCRIPT_DIR/declared_types.prg" -GF > /dev/null 2>&1
+out=$("$TRANS" -I"$INC" --reftab="$TAB" "$SCRIPT_DIR/declared_types.prg" -GF 2>&1)
+rm -f "$TAB"
+for expect in "W0040  'oPart' is declared Missing40" \
+              "W0040  'oGhost' is declared Ghost40" \
+              "W0041  assigning Other40 to 'oShape', declared Shape40" \
+              "W0041  assigning STRING to 'oShape', declared Shape40" \
+              "W0041  putting NUMERIC into 'aShapes', declared Shape40" \
+              "W0041  putting Other40 into 'aShapes', declared Shape40" \
+              "W0041  passing STRING as 'oShape' to 'Take40', declared Shape40" \
+              "W0041  returning STRING from 'Make40', declared Shape40"; do
+   if echo "$out" | grep -qF "$expect"; then
+      echo "PASS: declared_types ($expect)"
+      pass=$((pass+1))
+   else
+      echo "FAIL: declared_types (expected: $expect)"
+      echo "$out" | sed 's|^|  |'
+      fail=$((fail+1))
+   fi
+done
+count=$(echo "$out" | grep -c "warning W004[01]")
+if [ "$count" -eq 8 ]; then
+   echo "PASS: declared_types (8 warnings, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: declared_types (expected 8 warnings, got $count)"
+   echo "$out" | grep "warning" | sed 's|^|  |'
+   fail=$((fail+1))
+fi
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 [ $fail -eq 0 ]

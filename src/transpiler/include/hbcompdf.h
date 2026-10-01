@@ -114,6 +114,11 @@ typedef struct _HB_HVAR
    HB_USHORT      uiFlags;          /* optional flags, f.e. THREAD STATIC */
    HB_BYTE        cType;            /* optional strong typing */
    PHB_HCLASS     pClass;
+#ifdef HB_TRANSPILER
+   const char *   szDeclType;       /* the type a declaration gives it: `AS CLASS X` is
+                                       "X", `AS ARRAY OF CLASS X` "ARRAY<X>", `AS ARRAY
+                                       OF CHARACTER` "ARRAY<STRING>"; NULL otherwise */
+#endif
    struct _HB_HVAR * pNext;            /* pointer to next defined variable */
 } HB_HVAR, * PHB_HVAR;
 
@@ -760,6 +765,10 @@ typedef struct _HB_COMP_LEX
    int            iScope;
    HB_BOOL        fEol;
    const char *   lasttok;
+#ifdef HB_TRANSPILER
+   PHB_PP_TOKEN   pRetTypeAs;       /* the `AS` of `FUNCTION f( … ) AS <type>`: it and
+                                       the rest of the line never reach the grammar */
+#endif
 } HB_COMP_LEX, * PHB_COMP_LEX;
 
 typedef struct _HB_EXPRLST
@@ -886,6 +895,9 @@ typedef struct _HB_COMP
       int                   iBlockTop;
       struct _HB_AST_NODE * pCurrBlock;
       HB_BOOL               fSuppressExprStmt;  /* suppress next expression statement capture */
+      const char *          szPendingRetType;   /* `FUNCTION f( … ) AS <type>`: the lexer
+                                                   reads the type off the line, the next
+                                                   hb_astBeginFunc takes it */
    } ast;
    /* Armed by the lexer when it sees a call-site by-value marker comment
       (block comment whose content is `@`); consumed by the next

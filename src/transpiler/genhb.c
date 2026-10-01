@@ -74,6 +74,25 @@ static const char * hb_astStandardTypeOrObject( const char * szType )
    return szT;
 }
 
+/* A declared type as its declaration is written: "X" is `CLASS X`,
+   "ARRAY<X>" `ARRAY OF CLASS X`, "ARRAY<STRING>" `ARRAY OF CHARACTER` —
+   the forms include/astype.ch removes for Harbour, so the round trip
+   keeps the declaration. */
+static const char * hb_astDeclText( const char * szDecl, char * szBuf, HB_SIZE nBuf )
+{
+   const char * szElem = hb_astArrayElemType( szDecl );
+   const char * szType = szElem ? szElem : szDecl;
+   HB_BOOL fScalar = hb_astStandardType( szType ) != NULL;
+
+   if( fScalar && hb_stricmp( szType, "STRING" ) == 0 )
+      szType = "CHARACTER";
+   if( szElem )
+      hb_snprintf( szBuf, nBuf, fScalar ? "ARRAY OF %s" : "ARRAY OF CLASS %s", szType );
+   else
+      hb_snprintf( szBuf, nBuf, fScalar ? "%s" : "CLASS %s", szType );
+   return szBuf;
+}
+
 /* Track last seen source line for blank line preservation */
 static int s_iLastLine = 0;
 static PHB_AST_NODE s_pClassList = NULL;
@@ -779,6 +798,14 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          /* Use propagated type if available, otherwise infer. Class
             names degrade to the generic OBJECT (astype.ch doesn't know
             user class names, but it does know OBJECT). */
+         if( pNode->value.asVar.szDeclType )
+         {
+            /* a declaration goes back as it was written */
+            char szDecl[ 192 ];
+            fprintf( yyc, " AS %s", hb_astDeclText( pNode->value.asVar.szDeclType,
+                                                    szDecl, sizeof( szDecl ) ) );
+         }
+         else
          {
             const char * szT =
                pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias
@@ -826,6 +853,14 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             fprintf( yyc, " := " );
             hb_astEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
          }
+         if( pNode->value.asVar.szDeclType )
+         {
+            /* a declaration goes back as it was written */
+            char szDecl[ 192 ];
+            fprintf( yyc, " AS %s", hb_astDeclText( pNode->value.asVar.szDeclType,
+                                                    szDecl, sizeof( szDecl ) ) );
+         }
+         else
          {
             const char * szT =
                pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias
@@ -1096,7 +1131,15 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   }
                   fprintf( yyc, "%s", pMember->value.asClassData.szName );
                   if( pMember->value.asClassData.szType )
-                     fprintf( yyc, " AS %s", pMember->value.asClassData.szType );
+                  {
+                     /* `AS CLASS X` / `AS ARRAY OF …` as declared; a one-word
+                        type as written */
+                     const char * szMT = pMember->value.asClassData.szType;
+                     char szDecl[ 192 ];
+                     fprintf( yyc, " AS %s",
+                              hb_astArrayElemType( szMT ) || ! hb_astStandardType( szMT )
+                              ? hb_astDeclText( szMT, szDecl, sizeof( szDecl ) ) : szMT );
+                  }
                   else if( pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
                            pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )
                   {
@@ -1145,6 +1188,14 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                               pMember->value.asClassMethod.szParams );
                   else
                      fprintf( yyc, "()" );
+                  /* `METHOD M() AS CLASS X`: the declared return type */
+                  if( pMember->value.asClassMethod.szDeclType )
+                  {
+                     char szDecl[ 192 ];
+                     fprintf( yyc, " AS %s",
+                              hb_astDeclText( pMember->value.asClassMethod.szDeclType,
+                                              szDecl, sizeof( szDecl ) ) );
+                  }
                   /* An INLINE method carries its body on the
                      declaration. Dropping the clause leaves the
                      method declared but never implemented — the
@@ -1239,7 +1290,7 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
 
    /* Run type propagation before emitting */
    if( pFunc->value.asFunc.pBody )
-      szRetType = hb_astPropagate( pFunc->value.asFunc.pBody, s_pClassList, s_pRefTab, NULL, NULL );
+      szRetType = hb_astPropagate( pFunc, s_pClassList, s_pRefTab, NULL, NULL );
 
    /* Emit blank line if there's a gap from previous output */
    if( pFunc->iLine > 0 && s_iLastLine > 0 && pFunc->iLine > s_iLastLine + 1 )
@@ -1343,7 +1394,10 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
                      OBJECT tag in .hb output (astype.ch doesn't know
                      about user class names); the .cs path keeps the
                      concrete type via its own emitter. */
-                  const char * szT = hb_astStandardTypeOrObject( szSlotType );
+                  char szDecl[ 192 ];
+                  const char * szT = pVar->szDeclType ?
+                     hb_astDeclText( pVar->szDeclType, szDecl, sizeof( szDecl ) ) :
+                     hb_astStandardTypeOrObject( szSlotType );
                   if( szT )
                      fprintf( yyc, "%s%s AS %s",
                               fByRef ? "/*@*/" : "",
@@ -1379,7 +1433,14 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
 
       /* Emit return type for FUNCTIONs and METHODs (not PROCEDUREs).
          Class-typed returns degrade to the generic OBJECT tag. */
-      if( szRetType && ! pFunc->value.asFunc.fProcedure )
+      if( pFunc->value.asFunc.szDeclType && ! szClassName )
+      {
+         /* `FUNCTION f() AS CLASS X`, as declared */
+         char szDecl[ 192 ];
+         fprintf( yyc, " AS %s", hb_astDeclText( pFunc->value.asFunc.szDeclType,
+                                                 szDecl, sizeof( szDecl ) ) );
+      }
+      else if( szRetType && ! pFunc->value.asFunc.fProcedure )
       {
          const char * szT = hb_astStandardTypeOrObject( szRetType );
          if( szT )
