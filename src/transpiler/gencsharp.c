@@ -39,6 +39,7 @@ static HB_BOOL hb_csEmitEnumPairMsg( PHB_EXPR pExpr, FILE * yyc );
 static void hb_csEmitForEachSource( PHB_EXPR pEnum, int iDir, FILE * yyc );
 static HB_BOOL hb_csSendHasArgs( PHB_EXPR pExpr );
 static void hb_csEmitIndent( FILE * yyc, int iIndent );
+static const char * hb_csDowncastTo( const char * szTarget, PHB_EXPR pVal );
 
 /* A declared array (`LOCAL a[3]`, `STATIC a[2][3]`, `PUBLIC a[n]`): every
    dimension, as Harbour allocates it, by HbRuntime.Array(), which builds
@@ -80,6 +81,8 @@ static int s_iCurrentStmtLine = 0;
 static PHB_COMP s_pCompCtx = NULL;
 static PHB_AST_NODE s_pClassList = NULL;
 static HB_BOOL s_fVoidFunc = HB_FALSE;  /* suppress return expr in void functions */
+static const char * s_szRetHbType = NULL;  /* the function's return type, Harbour's
+                                              name: a RETURN of its ancestor is cast */
 static PHB_EXPR s_pWithObject = NULL;   /* current WITH OBJECT expression */
 static PHB_REFTAB s_pRefTab = NULL;     /* by-ref parameter table for current run */
 static char s_szCurrentFunc[ 256 ] = "";  /* keyed name of the function currently
@@ -2422,6 +2425,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                pItem = pItem->pNext;
                continue;
             }
+            /* a parameter named or declared a subclass given its parent
+               (by value only: a `ref` slot cannot take a cast) */
+            if( pP && ! pP->fByRef )
+            {
+               const char * szDown = hb_csDowncastTo( pP->szType, pArg );
+               if( szDown )
+                  fprintf( yyc, "(%s)", szDown );
+            }
          }
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
          pItem = pItem->pNext;
@@ -4051,6 +4062,63 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr )
       default:
          return NULL;
    }
+}
+
+/* A class of the program or an ORM model */
+static HB_BOOL hb_csIsClassOrModel( const char * sz )
+{
+   return sz && ( hb_csIsClassName( sz ) || hb_fieldTypesClassCanon( sz ) );
+}
+
+/* A downcast (plan C11): pVal is statically a class - a typed variable, a
+   member, a call's result - and a proper ancestor of szTarget, the class
+   of the slot it goes into: a name or a declaration of a subclass given
+   its parent (`oItemTranLine := oLine`, oLine a TranLine). C# converts a
+   base to a derived class only by a cast, and Harbour has none to write;
+   the slot's name or declaration is the claim. Returns the C# type to cast
+   to, or NULL. An element of a declared array is `dynamic` in C# (the list
+   is List<dynamic>), so it converts by itself and gets no cast. */
+static const char * hb_csDowncastTo( const char * szTarget, PHB_EXPR pVal )
+{
+   const char * szVal;
+
+   if( ! szTarget || ! pVal || ! s_pRefTab )
+      return NULL;
+   while( ( pVal->ExprType == HB_ET_LIST || pVal->ExprType == HB_ET_ARGLIST ) &&
+          pVal->value.asList.pExprList && ! pVal->value.asList.pExprList->pNext )
+      pVal = pVal->value.asList.pExprList;
+   if( pVal->ExprType != HB_ET_VARIABLE && pVal->ExprType != HB_ET_SEND &&
+       pVal->ExprType != HB_ET_FUNCALL )
+      return NULL;
+   /* `Class():New( … )` is emitted as the class itself (`new Class()`,
+      `(Class)new Class().New( … )`, HbRuntime.Initialised()), whatever
+      its method's row says: an inherited New() returns the parent */
+   szVal = hb_csIsConstructor( pVal );
+   if( ! szVal )
+      szVal = hb_csExprCsType( pVal );
+   if( ! szVal || hb_stricmp( szVal, szTarget ) == 0 ||
+       ! hb_csIsClassOrModel( szTarget ) || ! hb_csIsClassOrModel( szVal ) ||
+       ! hb_refTabIsKindOf( s_pRefTab, szTarget, szVal ) )
+      return NULL;
+   return hb_csTypeMap( szTarget );
+}
+
+/* The downcast an assignment needs: into a variable by its type, into a
+   member (`::oItem := oLine`, `oX:oItem := oLine`) by the member's */
+static const char * hb_csAssignDowncast( PHB_EXPR pLeft, PHB_EXPR pRight )
+{
+   const char * szTarget = NULL;
+   if( ! pLeft || ! pRight )
+      return NULL;
+   if( pLeft->ExprType == HB_ET_VARIABLE )
+      szTarget = hb_csArgVarType( pLeft->value.asSymbol.name );
+   else if( pLeft->ExprType == HB_ET_SEND )
+      szTarget = hb_csSendHbType( pLeft );
+   else if( pLeft->ExprType == HB_ET_ALIASVAR &&
+            pLeft->value.asAlias.pVar &&
+            pLeft->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+      szTarget = hb_csArgVarType( pLeft->value.asAlias.pVar->value.asSymbol.name );
+   return hb_csDowncastTo( szTarget, pRight );
 }
 
 /* Date arithmetic. C# DateOnly has none of Harbour's operators
@@ -5915,6 +5983,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   fprintf( yyc, "(" );
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_TRUE );
                fprintf( yyc, "%s", hb_csOperatorStr( pExpr->ExprType ) );
+               if( pExpr->ExprType == HB_EO_ASSIGN )
+               {
+                  /* a subclass's name or declaration given its parent */
+                  const char * szDown = hb_csAssignDowncast(
+                     pExpr->value.asOperator.pLeft, pExpr->value.asOperator.pRight );
+                  if( szDown )
+                     fprintf( yyc, "(%s)", szDown );
+               }
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_TRUE );
                if( fNeedParen )
                   fprintf( yyc, ")" );
@@ -6495,6 +6571,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             hb_csEmitIndent( yyc, iRetInd );
             fprintf( yyc, "return " );
+            {
+               /* a function declared (or typed) a subclass returning its parent */
+               const char * szDown =
+                  hb_csDowncastTo( s_szRetHbType, pNode->value.asReturn.pExpr );
+               if( szDown )
+                  fprintf( yyc, "(%s)", szDown );
+            }
             hb_csEmitExpr( pNode->value.asReturn.pExpr, yyc, HB_FALSE );
             fprintf( yyc, ";\n" );
             s_pHoistCall = NULL;
@@ -6606,9 +6689,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   HB_BOOL fIntCast = szType &&
                      hb_stricmp( szType, "INTEGER" ) == 0 &&
                      hb_csNeedsIntCast( pNode->value.asVar.pInit );
+                  const char * szDown =
+                     hb_csDowncastTo( szType, pNode->value.asVar.pInit );
                   s_szHashKeyCs = hb_csHashKeyCsFor( szType );
                   if( fIntCast )
                      fprintf( yyc, "(long)(" );
+                  else if( szDown )
+                     fprintf( yyc, "(%s)", szDown );
                   hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
                   if( fIntCast )
                      fprintf( yyc, ")" );
@@ -8245,6 +8332,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          object spells it and returning string (CS0114, posclass.prg). */
       fprintf( yyc, "override string ToString(" );
       s_fVoidFunc = HB_FALSE;
+      s_szRetHbType = NULL;
    }
    else
    {
@@ -8259,6 +8347,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       {
          fprintf( yyc, "void" );
          s_fVoidFunc = HB_TRUE;
+         s_szRetHbType = NULL;
       }
       else
       {
@@ -8267,6 +8356,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          else
             fprintf( yyc, "dynamic" );
          s_fVoidFunc = HB_FALSE;
+         s_szRetHbType = szRetType;
       }
       fprintf( yyc, " %s(", szDeclName ? szDeclName : pFunc->value.asFunc.szName );
    }
@@ -9300,6 +9390,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    {
       fprintf( yyc, "void" );
       s_fVoidFunc = HB_TRUE;
+      s_szRetHbType = NULL;
    }
    else
    {
@@ -9308,6 +9399,7 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       else
          fprintf( yyc, "dynamic" );
       s_fVoidFunc = HB_FALSE;
+      s_szRetHbType = szRetType;
    }
 
    {

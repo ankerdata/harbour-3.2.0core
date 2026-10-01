@@ -795,6 +795,15 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       {
          if( hb_stricmp( pParam->szType, szAnc ) == 0 )
             return HB_REFINE_OK;   /* incoming is (or descends from) slot */
+         /* A parameter named for its class (`oItemTranLine`) keeps it
+            when a caller passes an ancestor: the name claims the subclass,
+            as a local's does, and the call casts (plan C11's downcasts;
+            an ARG-DOWNCAST audit row). */
+         if( hb_stricmp( szAnc, szNewType ) == 0 && pParam->szName &&
+             hb_astObjectNameClass( pTab, pParam->szName ) &&
+             hb_stricmp( hb_astObjectNameClass( pTab, pParam->szName ),
+                         pParam->szType ) == 0 )
+            return HB_REFINE_OK;
          {
             char * szDup = hb_refTabDup( szAnc );
             hb_refTabDefer( pTab, pParam->szType );

@@ -50,3 +50,14 @@ PROCEDURE Show40( oShape AS CLASS Shape40 )
    LOCAL nSide := oShape:nSide                // quiet
    HB_SYMBOL_UNUSED( nSide )
    RETURN
+
+// A downcast: a Shape40 where a Square40 is declared. The declaration is
+// the claim (the emitter casts), so it is not W0041.
+FUNCTION Narrow40( oShape AS CLASS Shape40 ) AS CLASS Square40
+   LOCAL oSquare AS CLASS Square40 := oShape  // quiet: a downcast
+   oSquare := oShape                          // quiet
+   Take40Square( oShape )                     // quiet
+   RETURN oShape                              // quiet
+
+FUNCTION Take40Square( oSquare AS CLASS Square40 )
+   RETURN oSquare:nSide

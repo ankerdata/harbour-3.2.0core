@@ -840,7 +840,8 @@ static const char * hb_astInferFromPrefix( const char * szName )
    return NULL;
 }
 
-/* Where the name says more than the initializer, the name wins. An `i`
+/* Where the name says more than the initializer, the name wins: an
+   o<Class> name given its class's parent (a downcast). An `i`
    name is a whole number whatever number initialises it: `local iCount :=
    0` and `local iLen := Len( a )` are INTEGER (C# long), where for any
    other name the initializer's NUMERIC wins; the emitter casts a decimal
@@ -848,9 +849,18 @@ static const char * hb_astInferFromPrefix( const char * szName )
    whatever hash initialises it: `local hnById := { => }` is HASHN, where
    the empty literal says nothing of its keys (a literal keyed by strings
    is W0035). */
+static HB_BOOL hb_astIsDowncast( const char * szTo, const char * szFrom );
+
 static const char * hb_astNameOverInit( const char * szName,
                                         const char * szType )
 {
+   /* An o<Class> name initialised with its class's parent keeps its class:
+      a downcast, as for an assignment (hb_astPropagateVarAs) */
+   {
+      const char * szNamed = hb_astClassFromObjectName( szName );
+      if( szNamed && hb_astIsDowncast( szNamed, szType ) )
+         return szNamed;
+   }
    /* A USUAL initializer - a call whose RETURNs disagree, as flags.prg's
       TypedFlag() returns GetFlag()'s value - says the value could be
       anything, which is no evidence against a name that commits to a
@@ -1746,6 +1756,21 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
    return HB_FALSE;
 }
 
+/* A downcast (plan C11): szFrom, a class, is a proper ancestor of szTo,
+   the class a name or a declaration gives the slot it goes into
+   (`oItemTranLine := oLine`, oLine a TranLine). The name or the
+   declaration is the claim, as a cast is in C#, which the emitter writes
+   (hb_csDowncastTo); a wrong one throws there, at the claim, where Harbour
+   goes on until the first message the object does not answer. Two
+   classes neither of which inherits from the other are not one. */
+static HB_BOOL hb_astIsDowncast( const char * szTo, const char * szFrom )
+{
+   return szTo && szFrom && s_pPropRefTab &&
+          hb_astIsClassType( szTo ) && hb_astIsClassType( szFrom ) &&
+          hb_stricmp( szTo, szFrom ) != 0 &&
+          hb_refTabIsKindOf( s_pPropRefTab, szTo, szFrom );
+}
+
 /* W0040 / W0041, once per file, line and name (hb_astOrmSeen; its table
    lives as long as the process, which scans a batch of files) */
 static void hb_astDeclWarn( const char * szCode, const char * szFile, int iLine,
@@ -1773,7 +1798,10 @@ static void hb_astDeclCheck( const char * szDecl, const char * szActual,
 {
    char szDone[ 256 ];
    char szMsg[ 320 ];
-   if( hb_astDeclAccepts( szDecl, szActual ) )
+   /* a subclass, or a parent going into a declared subclass (a downcast:
+      the declaration claims it, and C# casts) */
+   if( hb_astDeclAccepts( szDecl, szActual ) ||
+       hb_astIsDowncast( szDecl, szActual ) )
       return;
    hb_snprintf( szDone, sizeof( szDone ), szWhat, szActual );
    hb_snprintf( szMsg, sizeof( szMsg ), "%s, declared %s", szDone, szDecl );
@@ -1841,6 +1869,13 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
       if( szNewType && szCurType &&
           strcmp( szNewType, "OBJECT" ) == 0 &&
           hb_astIsClassType( szCurType ) )
+         szNewType = NULL;
+      /* A name naming a subclass given its parent keeps its class: the
+         typed view (`oItemTranLine := oLine` after `oLine:nType ==
+         ITEM`), a downcast the emitter casts. Any other class assigned
+         still wins over the name (`oServer := TCPClient():New()`). */
+      if( szNewType && hb_astIsNameSeededClass( szVarName, szCurType ) &&
+          hb_astIsDowncast( szCurType, szNewType ) )
          szNewType = NULL;
       if( szNewType && ( ! szCurType || strcmp( szCurType, szNewType ) != 0 ) )
       {
@@ -3358,6 +3393,33 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                      szDetail,
                      "type the argument (an o<Class> name), or confirm a "
                      "guard makes its class certain" );
+               }
+            }
+
+            /* ARG-DOWNCAST (audit only, as ARG-DYNAMIC): a parent passed
+               to a parameter named or declared one of its subclasses.
+               The call casts it in C# and throws there if it holds
+               another subclass; a guard before the call (`nType ==
+               ITEM`) is what makes it safe, and the scan cannot see it. */
+            if( hb_auditActive() && szArgType )
+            {
+               const HB_REFPARAM * pP =
+                  hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+               if( pP && pP->szType && ! pP->fConflict && ! pP->fByRef &&
+                   hb_astIsDowncast( pP->szType, szArgType ) )
+               {
+                  char szSym[ 192 ];
+                  char szDetail[ 192 ];
+                  hb_snprintf( szSym, sizeof( szSym ), "%s:%s", szCallee,
+                               pP->szName ? pP->szName : "?" );
+                  hb_snprintf( szDetail, sizeof( szDetail ),
+                               "%s argument into a %s parameter: cast at the "
+                               "call, throws if it holds another class",
+                               szArgType, pP->szType );
+                  hb_auditEmit( "ARG-DOWNCAST", pEnv->szFile, iLine, szSym,
+                     szDetail,
+                     "pass a view of the subclass, or confirm a guard makes "
+                     "its class certain" );
                }
             }
 

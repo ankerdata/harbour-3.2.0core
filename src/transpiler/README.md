@@ -510,7 +510,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0038 | scan  | A FOR EACH variable read after its loop, before it is assigned again: Harbour has restored its value from before the loop, C# keeps the last element — keep what the loop found in a variable of its own (tests/errors/foreach_after.prg) |
 | W0039 | scan  | A FOR EACH variable that is an integer by inference only (an `n` name keying an `hn` hash, set from `At()`): C# casts each element to long, dropping a fraction Harbour keeps — name it `i<...>` if the elements are whole numbers. Decided by the scan's last pass, since the types it reads settle over the passes (tests/errors/foreach_integer.prg) |
 | W0040 | scan  | A declaration (`AS CLASS X`, `AS ARRAY OF CLASS X`) names a class nothing defines — a program class or an ORM model. Decided by the scan's last pass, when the reftab holds every class (tests/errors/declared_types.prg) |
-| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`), passed to a declared parameter, returned from a declared function. A subclass is accepted where its parent is declared, and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg) |
+| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`), passed to a declared parameter, returned from a declared function. A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -899,7 +899,22 @@ strongest. Later rungs override earlier ones.
    untyped array would leave a name claiming X. A class nothing defines is
    W0040; a value of another type put where a declaration says otherwise
    is W0041 (a subclass is accepted, and a value of unknown type passes,
-   converted at run time as before) (test136). Harbour accepts the
+   converted at run time as before) (test136).
+   **A downcast** (test137): a name or a declaration of a subclass given a
+   value of its parent keeps its class. That is the typed view, `oItemTranLine
+   := oLine` after `oLine:nType == ITEM`, in every position: a local, its
+   initialiser, a parameter named (`oItemTranLine`) or declared (`AS CLASS
+   ItemTranLine`) the subclass, a member declared it, a function declared
+   returning it. The name or the declaration is the claim, and C# needs the
+   cast Harbour has no way to write, so the emitter writes it (`oItemTranLine
+   = (ItemTranLine)oLine;`, `Price( (ItemTranLine)oLine )`, `return
+   (ItemTranLine)oLine;`); an element of a declared array is `dynamic` in C#
+   and needs none. A wrong claim throws InvalidCastException at the cast,
+   where Harbour goes on to the first message the object does not answer. A
+   parameter named for its class keeps it when a caller passes the parent,
+   as a local does, rather than widen to the parent; each such call is an
+   `ARG-DOWNCAST` audit row. Any other class still beats a name (`oServer :=
+   TCPClient():New()`), and is W0041 against a declaration. Harbour accepts the
    declarations on locals, parameters and statics only, and wants a
    forward declaration (`_HB_CLASS X`) of a class from another file;
    EasiPOS's include/astype.ch removes them for it, as hbclass.ch's
@@ -951,7 +966,10 @@ strongest. Later rungs override earlier ones.
    holds another class. Each such call is an `ARG-DYNAMIC` audit row, for
    review rather than a gate: most pass the right object untyped (a table
    out of `hORMTables`), some rely on a guard the scan cannot see
-   (`aBuffer[i]` after `aBuffer[i]:nType == ITEM`).
+   (`aBuffer[i]` after `aBuffer[i]:nType == ITEM`). A call passing a parent
+   into a parameter named or declared one of its subclasses is a downcast:
+   the slot keeps its class, the call casts, and the call is an
+   `ARG-DOWNCAST` row.
    The scan and the emitter infer a body from the same start: its
    parameters seeded with their slot types — an OBJECT slot, which no
    caller refined, with the class its name gives (`oTransaction`) — and,
@@ -981,7 +999,9 @@ fraction" so anything fractional flowing into one needs `Int()` or
   integer", per site; MEMBER-TYPE rows say what evidence a member's
   type rests on; ARG-DYNAMIC rows are the calls that pass an untyped
   value into a class-typed parameter, converted (or refused) at run
-  time. It is a leaderboard, not a gate.
+  time, and ARG-DOWNCAST rows the calls that pass a parent into a
+  parameter of its subclass, cast at the call. It is a leaderboard, not a
+  gate.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.
@@ -1557,6 +1577,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
+| 137       | Downcasts: a subclass's name or declaration given its parent keeps its class and the C# casts, for a view by name and by declaration, a local's initialiser, a parameter named and one declared, a declared member and a declared return; an element of a declared array is not cast |
 | 136       | Declared types, `AS CLASS X` and `AS ARRAY OF …`, in every position: locals, parameters, file and routine statics, members, a function's and a method's return; element sends cast to the declared class, FOR EACH variables typed by the array's element type, the round trip writing the declarations back as written |
 | 134       | A class that sends `::&( name )` to itself (a dynamic class, `HbDynamicObject`) is its own C# type: a parameter, member, local and Self return of it are typed, its declared members and methods are sent statically, a member no class declares goes through `((dynamic)o)`; a class that sends a macro to another object is not dynamic |
 | 133       | The ORM models are named `<Stem>Table` after their factories (`=model` rows); an `o<Class>` or `o<Model>` parameter no caller refines is declared as that class |
@@ -1606,7 +1627,7 @@ the errors, where the file fails and the test asserts the error line:
 | `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
-| `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass and a value of unknown type quiet (two `-GF` passes on a private reftab) |
+| `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass, a parent (a downcast) and a value of unknown type quiet, and a PROCEDURE with a declared parameter parses (two `-GF` passes on a private reftab) |
 
 ### The runtime library — `rtltest/`
 
