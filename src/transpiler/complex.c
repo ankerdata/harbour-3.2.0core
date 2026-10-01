@@ -601,6 +601,28 @@ static void hb_comp_funcRetType( HB_COMP_DECL, PHB_PP_TOKEN pFunc )
       }
    }
 }
+
+/* Does the line from pTok on carry the CLASS of `METHOD m( … ) CLASS X` /
+   `PROCEDURE m( … ) CLASS X`? Only one outside the parentheses counts: a
+   parameter declared `o AS CLASS Y` has its own CLASS, and taking that one
+   sent an ordinary `PROCEDURE p( o AS CLASS Y )` down the method path. */
+static HB_BOOL hb_comp_lineHasClass( PHB_PP_TOKEN pTok )
+{
+   int iDepth = 0;
+
+   for( ; pTok && HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_EOL &&
+          HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_EOC; pTok = pTok->pNext )
+   {
+      if( HB_PP_TOKEN_TYPE( pTok->type ) == HB_PP_TOKEN_LEFT_PB )
+         ++iDepth;
+      else if( HB_PP_TOKEN_TYPE( pTok->type ) == HB_PP_TOKEN_RIGHT_PB )
+         --iDepth;
+      else if( iDepth == 0 && HB_PP_TOKEN_TYPE( pTok->type ) == HB_PP_TOKEN_KEYWORD &&
+               hb_stricmp( pTok->value, "CLASS" ) == 0 )
+         return HB_TRUE;
+   }
+   return HB_FALSE;
+}
 #endif
 
 int hb_comp_yylex( YYSTYPE * yylval_ptr, HB_COMP_DECL )
@@ -1026,21 +1048,8 @@ hb_comp_yylex_restart:
          if( iType == IDENTIFIER && pLex->iState == LOOKUP &&
              hb_stricmp( pToken->value, "METHOD" ) == 0 )
          {
-            HB_BOOL fHasClass = HB_FALSE;
-            PHB_PP_TOKEN pPeek = pToken->pNext;
-            while( pPeek &&
-                   HB_PP_TOKEN_TYPE( pPeek->type ) != HB_PP_TOKEN_EOL &&
-                   HB_PP_TOKEN_TYPE( pPeek->type ) != HB_PP_TOKEN_EOC )
-            {
-               if( HB_PP_TOKEN_TYPE( pPeek->type ) == HB_PP_TOKEN_KEYWORD &&
-                   hb_stricmp( pPeek->value, "CLASS" ) == 0 )
-               {
-                  fHasClass = HB_TRUE;
-                  break;
-               }
-               pPeek = pPeek->pNext;
-            }
-            if( fHasClass && hb_compMethodParse( HB_COMP_PARAM, HB_FALSE ) )
+            if( hb_comp_lineHasClass( pToken->pNext ) &&
+                hb_compMethodParse( HB_COMP_PARAM, HB_FALSE ) )
             {
                /* Same resync as the CLASS interception above — the
                   consumed METHOD ... CLASS X header (often multi-line
@@ -1061,29 +1070,15 @@ hb_comp_yylex_restart:
             case PROCEDURE:
 #ifdef HB_TRANSPILER
                /* Check if PROCEDURE is a class method: PROCEDURE name(...) CLASS classname */
-               if( iType == PROCEDURE && pLex->iState == LOOKUP && pToken->pNext )
+               if( iType == PROCEDURE && pLex->iState == LOOKUP && pToken->pNext &&
+                   hb_comp_lineHasClass( pToken->pNext ) &&
+                   hb_compMethodParse( HB_COMP_PARAM, HB_TRUE ) )
                {
-                  PHB_PP_TOKEN pPeek = pToken->pNext;
-                  /* Skip past: name ( params ) looking for CLASS */
-                  while( pPeek &&
-                         HB_PP_TOKEN_TYPE( pPeek->type ) != HB_PP_TOKEN_EOL &&
-                         HB_PP_TOKEN_TYPE( pPeek->type ) != HB_PP_TOKEN_EOC )
-                  {
-                     if( HB_PP_TOKEN_TYPE( pPeek->type ) == HB_PP_TOKEN_KEYWORD &&
-                         hb_stricmp( pPeek->value, "CLASS" ) == 0 )
-                     {
-                        if( hb_compMethodParse( HB_COMP_PARAM, HB_TRUE ) )
-                        {
-                           /* Same resync as the CLASS interception. */
-                           HB_COMP_PARAM->currLine =
-                              hb_pp_line( pLex->pPP ) + 1;
-                           pLex->iState = LOOKUP;
-                           goto hb_comp_yylex_restart;
-                        }
-                        break;
-                     }
-                     pPeek = pPeek->pNext;
-                  }
+                  /* Same resync as the CLASS interception. */
+                  HB_COMP_PARAM->currLine =
+                     hb_pp_line( pLex->pPP ) + 1;
+                  pLex->iState = LOOKUP;
+                  goto hb_comp_yylex_restart;
                }
 #endif
                if( ! HB_SUPPORT_HARBOUR ||

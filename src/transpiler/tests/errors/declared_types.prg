@@ -43,3 +43,10 @@ FUNCTION Make40() AS CLASS Shape40
       RETURN Square40():New()                 // quiet
    ENDIF
    RETURN "not a shape"                       // fires W0041
+
+// A PROCEDURE's declared parameter: its CLASS is not the `CLASS X` of a
+// `PROCEDURE m( … ) CLASS X` method, which once made this a syntax error.
+PROCEDURE Show40( oShape AS CLASS Shape40 )
+   LOCAL nSide := oShape:nSide                // quiet
+   HB_SYMBOL_UNUSED( nSide )
+   RETURN
