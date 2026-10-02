@@ -1633,6 +1633,7 @@ the errors, where the file fails and the test asserts the error line:
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
 | `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass, a parent (a downcast) and a value of unknown type quiet, and a PROCEDURE with a declared parameter parses (two `-GF` passes on a private reftab) |
+| `rename_param_*.prg`          | (a row)  | a parameter renamed to a name that names a class (`oLine` → `oItemLineRn`) takes that class on a warm scan, where the reftab still holds the type its callers gave the old name (the two files scanned in turn on a private reftab; run.sh reads the row) |
 
 ### The runtime library — `rtltest/`
 

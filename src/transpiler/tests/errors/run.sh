@@ -115,6 +115,25 @@ else
    fail=$((fail+1))
 fi
 
+# A row, not a warning: a parameter renamed to a name that names a class
+# takes the class on a warm scan, where the reftab still holds the type the
+# callers gave the old name (rename_param_before.prg, then _after.prg, on
+# one private reftab, two passes each).
+TAB="$SCRIPT_DIR/rename_param.tab"
+rm -f "$TAB"
+for f in before before after after; do
+   "$TRANS" -I"$INC" --reftab="$TAB" "$SCRIPT_DIR/rename_param_$f.prg" -GF > /dev/null 2>&1
+done
+row=$(grep -a "^PriceRn	" "$TAB" | cut -f5)
+rm -f "$TAB"
+if [ "$row" = "oItemLineRn:ItemLineRn:-" ]; then
+   echo "PASS: rename_param (the renamed parameter is its name's class)"
+   pass=$((pass+1))
+else
+   echo "FAIL: rename_param (expected oItemLineRn:ItemLineRn:-, got '$row')"
+   fail=$((fail+1))
+fi
+
 # W0040 / W0041 read the class rows too (a class's parents, its members):
 # two -GF passes on a private reftab, the second converged, as the scan's
 # last pass decides them (scan.py's LAST_PASS_CODES).

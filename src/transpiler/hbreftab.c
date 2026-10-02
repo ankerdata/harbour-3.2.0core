@@ -406,11 +406,19 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
 
          /* Prefer the prior refined type over a fresh USUAL or OBJECT.
             OBJECT from Hungarian is just "some object" — a specific
-            class name from call-site refinement should survive. */
+            class name from call-site refinement should survive. Not
+            across a rename to a name that names a class: `oLine`
+            renamed `oItemTranLine` would keep the TranLine its callers
+            gave the old name (a warm scan loads that row from disk), and
+            hb_refTabDefaultParamType, which gives the slot its name's
+            class, only takes an OBJECT slot. */
+         HB_BOOL fRenamedToClass = pOld && i < nOld && pOld[ i ].szName &&
+            szPName && hb_stricmp( pOld[ i ].szName, szPName ) != 0 &&
+            hb_astObjectNameClass( pTab, szPName ) != NULL;
          if( ( ! szPType || ! *szPType ||
                hb_stricmp( szPType, "USUAL" ) == 0 ||
                hb_stricmp( szPType, "OBJECT" ) == 0 ) &&
-             szOldType &&
+             szOldType && ! fRenamedToClass &&
              hb_stricmp( szOldType, "USUAL" ) != 0 &&
              hb_stricmp( szOldType, "OBJECT" ) != 0 )
             e->pParams[ i ].szType = hb_refTabDup( szOldType );
