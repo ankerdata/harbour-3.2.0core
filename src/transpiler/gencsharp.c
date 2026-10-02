@@ -5779,9 +5779,24 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_EO_NOT:
-         fprintf( yyc, "!" );
-         hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_TRUE );
+      {
+         /* Harbour's `!` binds looser than every relational and
+            arithmetic operator, so `!Left( c, 3 ) == "TH-"` is
+            `!( Left( c, 3 ) == "TH-" )`; C#'s binds tighter than all of
+            them, and the AST keeps only the parentheses the source
+            wrote. A binary operand is wrapped; `$` and `^` emit as calls
+            and need nothing. */
+         PHB_EXPR pOperand = pExpr->value.asOperator.pLeft;
+         HB_BOOL fWrap = pOperand &&
+                         pOperand->ExprType >= HB_EO_EQUAL &&
+                         pOperand->ExprType <= HB_EO_MOD &&
+                         pOperand->ExprType != HB_EO_IN;
+         fprintf( yyc, fWrap ? "!(" : "!" );
+         hb_csEmitExpr( pOperand, yyc, ! fWrap );
+         if( fWrap )
+            fprintf( yyc, ")" );
          break;
+      }
 
       case HB_EO_PREINC:
          if( hb_csEmitDateStep( pExpr->value.asOperator.pLeft, 1, yyc ) )
