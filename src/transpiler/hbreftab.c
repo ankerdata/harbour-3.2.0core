@@ -656,6 +656,22 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->fDeclType )
       return HB_REFINE_OK;
 
+   /* A parameter named for a class (`oItemTranLine`) is that class when a
+      caller passes one of its ancestors: the name claims the subclass, as
+      a local's does, and the call casts (plan C11's downcasts; an
+      ARG-DOWNCAST audit row). The ancestor reads as the name's class
+      before the rules below, so the claim holds whatever the slot holds
+      yet: nothing, OBJECT, or the class. Taken only once the slot had the
+      class, a first caller passing a TranLine left GetPLULineColor's
+      oItemTranLine a TranLine. */
+   if( pParam->szName )
+   {
+      const char * szNamed = hb_astObjectNameClass( pTab, pParam->szName );
+      if( szNamed && hb_stricmp( szNamed, szNewType ) != 0 &&
+          hb_refTabIsKindOf( pTab, szNamed, szNewType ) )
+         szNewType = szNamed;
+   }
+
    /* Agreement check runs BEFORE the mutation branches so that
       szNewType pointing into pParam->szType itself (recursive call:
       env for function X was seeded from X's pParams, and the body
@@ -795,15 +811,6 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       {
          if( hb_stricmp( pParam->szType, szAnc ) == 0 )
             return HB_REFINE_OK;   /* incoming is (or descends from) slot */
-         /* A parameter named for its class (`oItemTranLine`) keeps it
-            when a caller passes an ancestor: the name claims the subclass,
-            as a local's does, and the call casts (plan C11's downcasts;
-            an ARG-DOWNCAST audit row). */
-         if( hb_stricmp( szAnc, szNewType ) == 0 && pParam->szName &&
-             hb_astObjectNameClass( pTab, pParam->szName ) &&
-             hb_stricmp( hb_astObjectNameClass( pTab, pParam->szName ),
-                         pParam->szType ) == 0 )
-            return HB_REFINE_OK;
          {
             char * szDup = hb_refTabDup( szAnc );
             hb_refTabDefer( pTab, pParam->szType );

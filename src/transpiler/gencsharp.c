@@ -4938,6 +4938,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             const char * szRecvClass = s_szSendRecvClass;
             const char * szMsgOut = szMsgIn;
             HB_BOOL fViaDynamic = HB_FALSE;
+            HB_BOOL fElemDynamic = HB_FALSE;  /* an element reaching a subclass's member */
             HB_BOOL fMethodRow  = HB_FALSE;
             HB_BOOL fDataRow    = HB_FALSE;
             HB_BOOL fBareMember = HB_FALSE;   /* Self:member written without this. */
@@ -4969,7 +4970,24 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                         ( hb_refTabMemberOnSubclass( s_pRefTab, szRecvClass,
                                                      szMsgIn ) ||
                           hb_csClassIsDynamic( szRecvClass ) ) )
-                  fViaDynamic = HB_TRUE;
+               {
+                  /* An element of a declared array is `dynamic` in C# (its
+                     List<dynamic> slot), so it reaches such a member as it
+                     stands, as a receiver of unknown class does, the
+                     parentheses settled the same way: a cast would add
+                     nothing (`((dynamic)aBuffer[i]).nFlags`) */
+                  if( hb_csElemClass( pExpr->value.asMessage.pObject ) )
+                  {
+                     int iKind = hb_refTabMemberNameKind( s_pRefTab, szMsgIn );
+                     fElemDynamic = HB_TRUE;
+                     if( iKind == 1 )
+                        fMethodRow = HB_TRUE;
+                     else if( iKind == 2 )
+                        fDataRow = HB_TRUE;
+                  }
+                  else
+                     fViaDynamic = HB_TRUE;
+               }
             }
             else if( ! szRecvClass && s_pRefTab && szMsgIn &&
                      pExpr->value.asMessage.pObject &&
@@ -5032,7 +5050,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   /* an element of a declared array (`AS ARRAY OF CLASS X`):
                      its List<dynamic> slot is cast to X, so the send is
                      checked when C# builds */
-                  const char * szElemCls = fViaDynamic ? NULL
+                  const char * szElemCls = ( fViaDynamic || fElemDynamic ) ? NULL
                      : hb_csElemClass( pExpr->value.asMessage.pObject );
                   if( fViaDynamic )
                      fprintf( yyc, "((dynamic)" );

@@ -892,7 +892,9 @@ strongest. Later rungs override earlier ones.
    LOGICAL, DATE, ARRAY) type an array's elements: storage stays
    `List<dynamic>`, a read of an element is an X, so a send on one is cast
    (`((TranLine)aBuffer[i]).nType`) and checked when C# builds, and a FOR
-   EACH variable over it is an X. The element type lives only where the
+   EACH variable over it is an X. A member only a subclass of X declares is
+   read off the element as it stands (`aBuffer[i].nFlags`): the element is
+   `dynamic` in C#, so a `(dynamic)` cast would add nothing (test138). The element type lives only where the
    source declares it: into anything undeclared (an assignment, an
    argument to an undeclared parameter, an undeclared function's RETURN)
    an ARRAY OF X is a plain array again, or one later assignment of an
@@ -912,7 +914,9 @@ strongest. Later rungs override earlier ones.
    and needs none. A wrong claim throws InvalidCastException at the cast,
    where Harbour goes on to the first message the object does not answer. A
    parameter named for its class keeps it when a caller passes the parent,
-   as a local does, rather than widen to the parent; each such call is an
+   as a local does, rather than widen to the parent, whatever its slot held
+   when that caller came (test138: a slot still untyped, its class in a file
+   the scan reaches later, had taken the parent); each such call is an
    `ARG-DOWNCAST` audit row. Any other class still beats a name (`oServer :=
    TCPClient():New()`), and is W0041 against a declaration. Harbour accepts the
    declarations on locals, parameters and statics only, and wants a
@@ -1577,6 +1581,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
+| 138       | (pair) Downcasts across files: a parameter named for its class keeps it although its first caller, scanned before the classes' file, passes the parent; a member only a subclass declares, read off an element of a declared array, is not cast |
 | 137       | Downcasts: a subclass's name or declaration given its parent keeps its class and the C# casts, for a view by name and by declaration, a local's initialiser, a parameter named and one declared, a declared member and a declared return; an element of a declared array is not cast |
 | 136       | Declared types, `AS CLASS X` and `AS ARRAY OF …`, in every position: locals, parameters, file and routine statics, members, a function's and a method's return; element sends cast to the declared class, FOR EACH variables typed by the array's element type, the round trip writing the declarations back as written |
 | 134       | A class that sends `::&( name )` to itself (a dynamic class, `HbDynamicObject`) is its own C# type: a parameter, member, local and Self return of it are typed, its declared members and methods are sent statically, a member no class declares goes through `((dynamic)o)`; a class that sends a macro to another object is not dynamic |

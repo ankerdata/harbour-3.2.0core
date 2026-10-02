@@ -39,7 +39,8 @@ METHOD Label() CLASS Gizmo136
    RETURN ::cName + "(" + hb_ntos( ::nSize ) + ")"
 
 // A member only a subclass declares, read through an element declared
-// Gizmo136, goes through (dynamic) as for any receiver of Gizmo136.
+// Gizmo136, is read as it stands: the element is `dynamic` in C# (a
+// List<dynamic> slot), so it needs no cast (test138).
 CLASS Bigizmo136 INHERIT Gizmo136
    VAR cColour INIT "red"
 ENDCLASS

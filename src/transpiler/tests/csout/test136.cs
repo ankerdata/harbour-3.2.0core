@@ -41,7 +41,8 @@ public class Gizmo136
         return cName + "(" + HbRuntime.hb_ntos(nSize) + ")";
 
         // A member only a subclass declares, read through an element declared
-        // Gizmo136, goes through (dynamic) as for any receiver of Gizmo136.
+        // Gizmo136, is read as it stands: the element is `dynamic` in C# (a
+        // List<dynamic> slot), so it needs no cast (test138).
     }
 }
 
@@ -104,7 +105,7 @@ public static partial class Program
             HbRuntime.QOut(((Gizmo136)oCrate.aGizmos[(int)iPos - 1]).cName, ((Gizmo136)oCrate.aGizmos[(int)iPos - 1]).nSize);
         }
 
-        HbRuntime.QOut(((dynamic)oCrate.aGizmos[3]).cColour, ((Gizmo136)oCrate.aGizmos[3]).nSize);
+        HbRuntime.QOut(oCrate.aGizmos[3].cColour, ((Gizmo136)oCrate.aGizmos[3]).nSize);
 
         oAny = oCrate.Largest();
         HbRuntime.QOut(oAny.Label());
