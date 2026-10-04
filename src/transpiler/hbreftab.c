@@ -2587,6 +2587,23 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                          pMember->value.asClassData.szName, NULL ),
                                   "INTEGER" ) == 0 )
                      szT = "INTEGER";
+                  /* an undeclared `VAR oX` with no INIT is the class its
+                     name names, as the emitter declares it (`var oFree`
+                     is `public Free oFree;`): name-seed it as AS OBJECT is
+                     below, or a chained read through it from another file
+                     (`oPOSStatus:oFree:nPanel`) resolves to nothing */
+                  if( ! szT && pMember->value.asClassData.szName &&
+                      ( ! pMember->value.asClassData.szInit ||
+                        ! pMember->value.asClassData.szInit[ 0 ] ) &&
+                      pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
+                      pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )
+                  {
+                     const char * szM = pMember->value.asClassData.szName;
+                     if( ( szM[ 0 ] == 'o' || szM[ 0 ] == 'O' ) &&
+                         szM[ 1 ] >= 'A' && szM[ 1 ] <= 'Z' &&
+                         hb_astObjectNameClass( pTab, szM ) )
+                        szT = "OBJECT";
+                  }
                   if( ! szT )
                      continue;
 

@@ -9,7 +9,11 @@
 // (ormtestsuite.prg's `::oTestOrmTable:nTestNo := nOrigTestNo`, once the
 // member was named for its table). The receiver probe also reads such a
 // member as its class now, so a division of the whole-number member
-// keeps its decimal.
+// keeps its decimal. From outside the class (`oPanel:oGauge140:nLevel`)
+// the probe reads the class's reftab row, which the scan leaves untyped
+// for a member typed by its name: it takes the name's class there too
+// (EasiPOS's `oPOSStatus:oFree:nFixedNo := nTran`, once POSStatus's
+// `oFree` lost its AS OBJECT).
 
 #include "hbclass.ch"
 
@@ -43,4 +47,6 @@ PROCEDURE Main()
    oPanel:FillGauge140( nAmount )
    ? Str( oPanel:oGauge140:nLevel, 4 )
    ? Str( oPanel:HalfLevel140(), 6, 2 )
+   oPanel:oGauge140:nLevel := nAmount + 1
+   ? Str( oPanel:oGauge140:nLevel, 4 )
    RETURN
