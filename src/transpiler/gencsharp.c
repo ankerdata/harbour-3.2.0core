@@ -411,8 +411,16 @@ static HB_BOOL hb_csSendMemberIsInteger( PHB_EXPR pSend )
        ! pSend->value.asMessage.szMessage )
       return HB_FALSE;
    pRecv = pSend->value.asMessage.pObject;
-   if( ! pRecv || pRecv->ExprType != HB_ET_VARIABLE )
+   if( ! pRecv )
       return HB_FALSE;
+   /* a receiver that is itself a send (`::oTestOrmTable:nTestNo`,
+      `oORMTables:oPLUTable:nNo`): the receiver probe's type of the
+      whole send, a long field taking the same coercion */
+   if( pRecv->ExprType != HB_ET_VARIABLE )
+   {
+      const char * szCs = hb_csExprCsType( pSend );
+      return szCs && strcmp( szCs, "long" ) == 0;
+   }
    if( hb_stricmp( pRecv->value.asSymbol.name, "Self" ) == 0 )
       return hb_csMemberIsInteger( pSend->value.asMessage.szMessage );
    szCls = hb_csLocalTypeGet( pRecv->value.asSymbol.name );
@@ -3771,9 +3779,22 @@ static const char * hb_csMemberHbType( const char * szMember )
                 pMember->value.asClassData.szName &&
                 hb_stricmp( pMember->value.asClassData.szName,
                             szMember ) == 0 )
+            {
                /* `VAR o AS CLASS X` in X's own spelling */
-               return hb_astDeclCanon( s_pRefTab,
-                                       pMember->value.asClassData.szType );
+               if( pMember->value.asClassData.szType )
+                  return hb_astDeclCanon( s_pRefTab,
+                                          pMember->value.asClassData.szType );
+               /* an undeclared `VAR oX` with no INIT is declared as the
+                  class its name names (hb_astInferTypeFromInit's name
+                  rule, oTestOrmTable a TestOrmTable): read it the same,
+                  so a send through it resolves */
+               if( pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
+                   pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN &&
+                   ( ! pMember->value.asClassData.szInit ||
+                     ! pMember->value.asClassData.szInit[ 0 ] ) )
+                  return hb_astObjectNameClass( s_pRefTab, szMember );
+               return NULL;
+            }
          return NULL;
       }
    }
