@@ -453,6 +453,9 @@ extern void         hb_astSetFileFuncs( PHB_AST_NODE pFuncList );
    the table is cleared when the file changes (not between a file's own
    collection and emission, which would print its warnings twice). */
 extern void         hb_astWarnScope( const char * szFile );
+/* A new file for the preprocessor (ppcomp.c): forget what the last one
+   #defined and #included, which `#ifdef` answers from */
+extern void         hb_compCondReset( void );
 /* The class an o<Class> / so<Class> name names - a program class of the
    reftab (opaque PHB_REFTAB) or an ORM model of the fieldtypes map - or
    NULL. */

@@ -842,6 +842,22 @@ void hb_pp_setDumpCsFunc( PHB_PP_DUMP_FUNC pFunc )
    s_pDumpCsFunc = pFunc;
 }
 
+/* Transpiler: a name a `#ifdef`, `#ifndef` or `defined()` asks about
+   that the state has no #define for goes to a callback before it counts
+   as undefined. In transpiler mode the state registers none of the
+   file's own #defines (pDirectiveFunc captures them for the emitter) and
+   opens none of its #includes, where Harbour knows both; ppcomp.c's
+   callback answers from them. File-static with a setter, as the C# dump
+   callback is. */
+typedef HB_BOOL ( * PHB_PP_CONDDEF_FUNC )( PHB_PP_STATE pState, const char * szName );
+
+static PHB_PP_CONDDEF_FUNC s_pCondDefFunc = NULL;
+
+void hb_pp_setCondDefFunc( PHB_PP_CONDDEF_FUNC pFunc )
+{
+   s_pCondDefFunc = pFunc;
+}
+
 static void hb_pp_dumpCsEnd( PHB_PP_STATE pState )
 {
    pState->iStreamDump = HB_PP_STREAM_OFF;
@@ -1977,6 +1993,16 @@ static PHB_PP_RULE hb_pp_defineFind( PHB_PP_STATE pState, PHB_PP_TOKEN pToken )
       pRule = pRule->pPrev;
 
    return pRule;
+}
+
+/* Transpiler: is the keyword pToken defined, for a `#ifdef`, `#ifndef` or
+   `defined()`: the state's own #define, else, when fAsk (the answer
+   decides the code), the callback's. */
+static HB_BOOL hb_pp_condDefined( PHB_PP_STATE pState, PHB_PP_TOKEN pToken,
+                                  HB_BOOL fAsk )
+{
+   return hb_pp_defineFind( pState, pToken ) != NULL ||
+          ( fAsk && s_pCondDefFunc && ( s_pCondDefFunc )( pState, pToken->value ) );
 }
 
 static void hb_pp_defineAdd( PHB_PP_STATE pState, HB_USHORT mode,
@@ -4599,7 +4625,10 @@ static void hb_pp_patternReplace( PHB_PP_STATE pState, PHB_PP_RULE pRule,
    hb_pp_patternClearResults( pRule );
 }
 
-static void hb_pp_processCondDefined( PHB_PP_STATE pState, PHB_PP_TOKEN pToken )
+/* Transpiler: fAsk is whether the expression decides the code, so that a
+   name the state does not know may go to hb_pp_condDefined()'s callback */
+static void hb_pp_processCondDefined( PHB_PP_STATE pState, PHB_PP_TOKEN pToken,
+                                      HB_BOOL fAsk )
 {
    PHB_PP_TOKEN pNext;
 
@@ -4653,7 +4682,7 @@ static void hb_pp_processCondDefined( PHB_PP_STATE pState, PHB_PP_TOKEN pToken )
             }
          }
          else
-            szValue = hb_pp_defineFind( pState, pNext->pNext ) != NULL ?
+            szValue = hb_pp_condDefined( pState, pNext->pNext, fAsk ) ?
                       "1" : "0";
 
          if( szValue )
@@ -5209,7 +5238,7 @@ static void hb_pp_condCompile( PHB_PP_STATE pState, PHB_PP_TOKEN pToken,
 
       if( pState->iCondCompile == 0 )
       {
-         fCond = hb_pp_defineFind( pState, pToken ) != NULL;
+         fCond = hb_pp_condDefined( pState, pToken, HB_TRUE );
          if( ! fNot )
             fCond = ! fCond;
       }
@@ -5220,7 +5249,7 @@ static void hb_pp_condCompile( PHB_PP_STATE pState, PHB_PP_TOKEN pToken,
 static void hb_pp_condCompileIf( PHB_PP_STATE pState, PHB_PP_TOKEN pToken )
 {
    /* preprocess all define(s) */
-   hb_pp_processCondDefined( pState, pToken->pNext );
+   hb_pp_processCondDefined( pState, pToken->pNext, pState->iCondCompile == 0 );
    hb_pp_processDefine( pState, &pToken->pNext );
    hb_pp_conditionPush( pState, hb_pp_calculateValue( pState, pToken->pNext,
                                              pState->iCondCompile != 0 ) != 0 );
@@ -5233,7 +5262,7 @@ static void hb_pp_condCompileElif( PHB_PP_STATE pState, PHB_PP_TOKEN pToken )
       if( pState->iCondCompile )
       {
          /* preprocess all define(s) */
-         hb_pp_processCondDefined( pState, pToken->pNext );
+         hb_pp_processCondDefined( pState, pToken->pNext, HB_TRUE );
          hb_pp_processDefine( pState, &pToken->pNext );
          if( hb_pp_calculateValue( pState, pToken->pNext, HB_FALSE ) != 0 )
             pState->iCondCompile ^= HB_PP_COND_ELSE;
@@ -5534,7 +5563,14 @@ static void hb_pp_preprocessToken( PHB_PP_STATE pState )
                 ! HB_PP_TOKEN_ISEOC( pToken->pNext ) )
                hb_pp_error( pState, 'E', HB_PP_ERR_DIRECTIVE_UNDEF, NULL );
             else
+            {
+               /* Transpiler: the file's own #defines are captured, not
+                  registered, so its #undef goes to the capture too */
+               if( pState->fNoInclude && pState->pDirectiveFunc )
+                  pState->pDirectiveFunc( pState->pDirectiveCargo,
+                     "UNDEF", pToken->value, pState->pFile->iCurrentLine );
                hb_pp_defineDel( pState, pToken );
+            }
          }
          else if( hb_pp_tokenValueCmp( pToken, "TRANSLATE", HB_PP_CMP_DBASE ) )
          {
@@ -6049,6 +6085,57 @@ void hb_pp_readRules( PHB_PP_STATE pState, const char * szRulesFile )
       if( fError )
          pState->fError = HB_TRUE;
    }
+}
+
+/* Transpiler: read rules from a buffer as hb_pp_readRules() reads them
+   from a file: its directives are processed, an #include opened along the
+   search path (a quoted one beside szFileName first, as for a source
+   file), and everything else dropped. */
+void hb_pp_readRulesBuffer( PHB_PP_STATE pState, const char * szFileName,
+                            const char * pBuffer, HB_SIZE nLen )
+{
+   PHB_PP_FILE pFile = pState->pFile;
+   HB_BOOL fError = HB_FALSE;
+
+   pState->pFile = hb_pp_FileBufNew( pBuffer, nLen );
+   if( szFileName )
+      pState->pFile->szFileName = hb_strdup( szFileName );
+   pState->iFiles++;
+   pState->usLastType = HB_PP_TOKEN_NUL;
+   while( hb_pp_tokenGet( pState ) )
+   {
+      if( pState->fError )
+         fError = HB_TRUE;
+   }
+   if( pState->pFile )
+   {
+      hb_pp_FileFree( pState, pState->pFile, pState->pCloseFunc );
+      pState->iFiles--;
+   }
+   pState->pFile = pFile;
+   if( fError )
+      pState->fError = HB_TRUE;
+}
+
+/* Transpiler: is szName #defined in pState, its own table only (no
+   hb_pp_condDefined() callback) */
+HB_BOOL hb_pp_isDefinedName( PHB_PP_STATE pState, const char * szName )
+{
+   PHB_PP_TOKEN pToken = hb_pp_tokenNew( szName, strlen( szName ), 0,
+                                         HB_PP_TOKEN_KEYWORD );
+   HB_BOOL fDefined = hb_pp_defineFind( pState, pToken ) != NULL;
+
+   hb_pp_tokenFree( pToken );
+   return fDefined;
+}
+
+/* Transpiler: give pDst the include search path pSrc has */
+void hb_pp_copySearchPath( PHB_PP_STATE pDst, PHB_PP_STATE pSrc )
+{
+   HB_PATHNAMES * pPath;
+
+   for( pPath = pSrc->pIncludePath; pPath; pPath = pPath->pNext )
+      hb_pp_addSearchPath( pDst, pPath->szPath, HB_FALSE );
 }
 
 /*

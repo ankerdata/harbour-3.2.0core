@@ -179,7 +179,7 @@ of the originals. Nothing under Harbour's own `include/`, `src/pp/`,
 
 | Vendored copy | Mirrors | How the build uses it |
 |---------------|---------|------------------------|
-| `src/transpiler/src/pp/ppcore.c`        | `src/pp/ppcore.c`        | compiled directly (build.sh) — carries `#pragma BEGINCSHARP` / `ENDCSHARP` and its callback setter (see [Embedding C#](#embedding-c--pragma-begincsharp)) |
+| `src/transpiler/src/pp/ppcore.c`        | `src/pp/ppcore.c`        | compiled directly (build.sh) — carries `#pragma BEGINCSHARP` / `ENDCSHARP` and its callback setter (see [Embedding C#](#embedding-c--pragma-begincsharp)), and the callback `#ifdef` asks about names the transpiler keeps out of the preprocessor (see [Preprocessor conditionals](#preprocessor-conditionals)) |
 | `src/transpiler/src/common/expropt2.c`  | `src/common/expropt2.c`  | compiled directly (build.sh) |
 | `src/transpiler/src/compiler/hbusage.c` | `src/compiler/hbusage.c` | compiled directly (build.sh) |
 | `src/transpiler/include/hbcompdf.h`     | `include/hbcompdf.h`     | `#include`d — adds the `ast` member + `HB_LANG_*` |
@@ -511,6 +511,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0039 | scan  | A FOR EACH variable that is an integer by inference only (an `n` name keying an `hn` hash, set from `At()`): C# casts each element to long, dropping a fraction Harbour keeps — name it `i<...>` if the elements are whole numbers. Decided by the scan's last pass, since the types it reads settle over the passes (tests/errors/foreach_integer.prg) |
 | W0040 | scan  | A declaration (`AS CLASS X`, `AS ARRAY OF CLASS X`) names a class nothing defines — a program class or an ORM model. Decided by the scan's last pass, when the reftab holds every class (tests/errors/declared_types.prg) |
 | W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`), passed to a declared parameter, returned from a declared function. A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg) |
+| W0042 | pp    | A `#ifdef`, `#ifndef` or `defined()` asks about a name a header the file includes might define, and the transpiler cannot find that header on its include path, so it cannot answer as Harbour would; it takes the name for undefined. Give the transpiler the directories the build finds headers in (see [Preprocessor conditionals](#preprocessor-conditionals); tests/errors/cond_unread.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -1582,6 +1583,8 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
+| 143       | `#ifdef`, `#ifndef` and `defined()` as Harbour answers them: the file's own define (with and without a value), a header's, one a header defines under its own `#ifdef __HARBOUR__`, one a nested header defines, the header seeing the file's define made before the `#include`, `#undef`, and a name nothing defines (test143.ch, test143b.ch) |
+| 142       | A member declared a dynamic class whose name says nothing (`VAR oHeld AS CLASS Bag142`) reaches the bag through `((dynamic)…)`; `X():New()` uncast when X's own New() answers X, an inherited one cast; a method sent an argument past its parameters through a receiver C# cannot type runs, the extra dropped |
 | 141       | Typed codeblocks: a parameter typed by its name (`nValue`, `iWhole`, `cWord`, `oParcel141`) or by the declared array AScan, AEval and ASort scan (`x`, both of ASort's), the result `bool` for a comparison and `string` for a string expression, a local initialised with a block declared with the lambda's signature; a number held as `long` reaching a `decimal` parameter and one held as `decimal` a `long` one through HbRuntime's InvokeBlock; a string parameter left out is NIL |
 | 138       | (pair) Downcasts across files: a parameter named for its class keeps it although its first caller, scanned before the classes' file, passes the parent; a member only a subclass declares, read off an element of a declared array, is not cast |
 | 137       | Downcasts: a subclass's name or declaration given its parent keeps its class and the C# casts, for a view by name and by declaration, a local's initialiser, a parameter named and one declared, a declared member and a declared return; an element of a declared array is not cast |
@@ -1635,6 +1638,7 @@ the errors, where the file fails and the test asserts the error line:
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
 | `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass, a parent (a downcast) and a value of unknown type quiet, and a PROCEDURE with a declared parameter parses (two `-GF` passes on a private reftab) |
+| `cond_unread.prg`             | `W0042` | a `#ifdef` after an `#include` of a header the transpiler cannot find; exactly that one warning |
 | `rename_param_*.prg`          | (a row)  | a parameter renamed to a name that names a class (`oLine` → `oItemLineRn`) takes that class on a warm scan, where the reftab still holds the type its callers gave the old name (the two files scanned in turn on a private reftab; run.sh reads the row) |
 
 ### The runtime library — `rtltest/`
@@ -1981,6 +1985,39 @@ parameter list, runs the body through the INLINE translator with those
 parameters declared, and emits the same explicit `Func<>` cast the AST
 emitter uses for `HB_ET_CODEBLOCK` (C# cannot infer a delegate type
 for a lambda assigned to a `dynamic` field).
+
+## Preprocessor conditionals
+
+In transpiler mode the preprocessor registers none of the file's own
+`#define`s (they are captured for the emitter, which writes the names)
+and opens none of its `#include`s, so on its own it would take every name
+they define for undefined, where Harbour knows them, and keep the other
+branch of a `#ifdef`. It answers `#ifdef`, `#ifndef` and `defined()` as
+Harbour does instead (`ppcomp.c`, `hb_compCondDefined()`):
+
+- a name the preprocessor has no `#define` for goes to a callback the
+  vendored `ppcore.c` calls (`hb_pp_setCondDefFunc()`), only where the
+  answer decides the code (not inside a branch already off);
+- the file's captured `#define`, `#undef` and `#include` lines are kept
+  in order, and replayed on the first such question into a second
+  preprocessor state that opens includes (`hb_pp_readRulesBuffer()`), so
+  each header is read as Harbour reads it, its own conditionals included
+  (a header's question about a `-D` flag or std.ch's names goes back to
+  the compile's preprocessor);
+- most questions are about names nothing defines (debug switches), so a
+  name that neither the file nor any header it includes (nested, any
+  branch) could define is answered undefined without the replay. The
+  headers' names are read once per process, and where each `#include`
+  resolves is cached, which keeps the scan at its old speed;
+- a header the transpiler cannot find (not on its include path) leaves a
+  question open: W0042 at the question, which takes the name for
+  undefined. An application gives the transpiler every directory its
+  build finds headers in.
+
+Only the answers change: the names a header defines still reach the
+emitter through the defines map, and a `#if` that uses a value (`#if X >
+1`) is the preprocessor's error as before. See
+[test143.prg](tests/test143.prg) and `tests/errors/cond_unread.prg`.
 
 ---
 

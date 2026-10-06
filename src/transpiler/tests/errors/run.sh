@@ -81,6 +81,7 @@ run_one "$SCRIPT_DIR/x_subscript.prg"   "W0036" "'xValue' is subscripted"
 run_one "$SCRIPT_DIR/foreach_after.prg" "W0038" "'cName' is read after its FOR EACH"
 run_one "$SCRIPT_DIR/foreach_after.prg" "W0038" "'cCell' is read after its FOR EACH"
 run_one "$SCRIPT_DIR/foreach_integer.prg" "W0039" "FOR EACH 'nId' is an integer only by inference"
+run_one "$SCRIPT_DIR/cond_unread.prg"   "W0042" "whether 'COND_UNREAD_FLAG' is defined.*could not read 'cond_unread_missing.ch'"
 
 # ...and nothing else: the quiet lines stay quiet
 for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer:1"; do
@@ -96,6 +97,17 @@ for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer
       fail=$((fail+1))
    fi
 done
+
+# W0042 once, for the one question; the unread header is no warning by itself
+count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/cond_unread.prg" -GS 2>&1 | grep -c "warning W")
+rm -f "$SCRIPT_DIR/cond_unread.cs"
+if [ "$count" -eq 1 ]; then
+   echo "PASS: cond_unread (1 warning, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: cond_unread (expected 1 warning, got $count)"
+   fail=$((fail+1))
+fi
 
 # A batch, as the pipeline runs it: one process, several files. The same
 # warning at the same line of two files is reported for each; the table

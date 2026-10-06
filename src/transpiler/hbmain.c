@@ -4352,6 +4352,7 @@ static int hb_compCompile( HB_COMP_DECL, const char * szPrg, const char * szBuff
 #ifdef HB_TRANSPILER
       /* Re-enable comment preservation after reset */
       hb_pp_setComments( HB_COMP_PARAM->pLex->pPP, HB_TRUE );
+      hb_compCondReset();
 #endif
       HB_COMP_PARAM->pLex->iState = HB_COMP_PARAM->pLex->iClose =
       HB_COMP_PARAM->pLex->iScope = 0;
