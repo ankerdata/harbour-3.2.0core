@@ -15,7 +15,7 @@ using static Program;
 // written; `!` still binds tighter than `.AND.` and `.OR.`.
 
 // #include "hbclass.ch"
-public class Ticket139
+public class Ticket139 : IHbObject
 {
     public string cRef = "";
     public decimal nCount = 0;
@@ -43,8 +43,8 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Ticket139 oFresh = (Ticket139)new Ticket139().New("AB-1", 2);
-        Ticket139 oHistory = (Ticket139)new Ticket139().New("TH-9", 0);
+        Ticket139 oFresh = new Ticket139().New("AB-1", 2);
+        Ticket139 oHistory = new Ticket139().New("TH-9", 0);
         decimal nCount = 3;
         string cName = "Lisbon";
         bool lOpen = false;

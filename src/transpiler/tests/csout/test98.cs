@@ -24,7 +24,7 @@ using static Program;
 // `<=` (CS0131).
 
 // #include "hbclass.ch"
-public class Ledger
+public class Ledger : IHbObject
 {
     public long nCovers = 0;
 

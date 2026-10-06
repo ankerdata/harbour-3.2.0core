@@ -23,7 +23,7 @@ using static Program;
 // function, exactly like the real orm.prg flow.
 
 // #include "hbclass.ch"
-public class TestOrmRec
+public class TestOrmRec : IHbObject
 {
     public decimal nNo;
     public decimal nClerkNo;
@@ -47,7 +47,7 @@ public static partial class Program
 
     public static TestOrmRec ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
-        return (TestOrmRec)new TestOrmRec().New();
+        return new TestOrmRec().New();
     }
 
     public static void Main(string[] args)

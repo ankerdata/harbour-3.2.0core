@@ -25,7 +25,7 @@ using static Program;
 //     nFixedNo in the corpus); an untyped VAR is invisible to both the
 //     spelling and the subclass lookups.
 // #include "hbclass.ch"
-public class Kettle
+public class Kettle : IHbObject
 {
     public decimal nWatts = 0;
     public bool lIsBoiling = false;
@@ -37,7 +37,7 @@ public class Kettle
     }
 }
 
-public class Teapot
+public class Teapot : IHbObject
 {
     public decimal nCups = 0;
 
@@ -53,7 +53,7 @@ public class Teapot
     }
 }
 
-public class Mug
+public class Mug : IHbObject
 {
     public decimal nSize = 1;
 
@@ -82,9 +82,9 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        decimal nServed = ((Teapot)new Teapot().New(2)).Serve();
+        decimal nServed = new Teapot().New(2).Serve();
         Kettle oKettle = HbRuntime.Initialised(new Kettle(), self => self.Init(1500));
-        BigMug oBigMug = (BigMug)new BigMug().New();
+        BigMug oBigMug = new BigMug().New();
         oKettle.lIsBoiling = true;
         HbRuntime.QOut("served=" + HbRuntime.LTrim(HbRuntime.Str(nServed)));
         HbRuntime.QOut("watts=" + HbRuntime.LTrim(HbRuntime.Str(oKettle.nWatts)) + " boiling=" + (oKettle.lIsBoiling ? "T" : "F"));

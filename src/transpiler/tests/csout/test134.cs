@@ -42,7 +42,7 @@ public class Bag134 : HbDynamicObject
     }
 }
 
-public class Viewer134
+public class Viewer134 : IHbObject
 {
     public Bag134 oBag134;
 
@@ -79,7 +79,7 @@ public static partial class Program
         Viewer134 oShow134 = default;
 
         oStore134.Put134("cLabel134", "tin");
-        oShow134 = (Viewer134)new Viewer134().New(oStore134);
+        oShow134 = new Viewer134().New(oStore134);
         HbRuntime.QOut(oShow134.Show134("cLabel134"));
         HbRuntime.QOut(Label134(oStore134));
         HbRuntime.QOut(oStore134.Get134("nCount134"));

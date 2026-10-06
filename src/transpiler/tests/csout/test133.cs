@@ -21,7 +21,7 @@ using static Program;
 // and ConstructORMTable() as plain functions.
 
 // #include "hbclass.ch"
-public class ShelfRec133
+public class ShelfRec133 : IHbObject
 {
     public decimal nNo;
     public string cName;
@@ -32,7 +32,7 @@ public class ShelfRec133
     }
 }
 
-public class Counter133
+public class Counter133 : IHbObject
 {
     public decimal nCount133 = 0;
 
@@ -47,7 +47,7 @@ public static partial class Program
 
     public static ShelfRec133 ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
-        return (ShelfRec133)new ShelfRec133().New();
+        return new ShelfRec133().New();
 
         // both parameters' callers pass values out of a hash: untyped
     }

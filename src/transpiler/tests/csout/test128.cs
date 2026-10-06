@@ -15,7 +15,7 @@ using static Program;
 // call names them too.
 
 // #include "hbclass.ch"
-public class Counter128
+public class Counter128 : IHbObject
 {
 
     public virtual string Tally128(string cLabel = default, decimal nStart = 1, decimal nStep = 10, bool lShout = false)

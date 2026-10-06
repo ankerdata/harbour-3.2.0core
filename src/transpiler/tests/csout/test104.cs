@@ -24,7 +24,7 @@ using static Program;
 // against the bare name once dropped 23 of rmio2700's 27 RoomCharge
 // arguments (the public RoomCharge takes four).
 // #include "hbclass.ch"
-public class Bursar
+public class Bursar : IHbObject
 {
     public decimal nTotal = 0;
 

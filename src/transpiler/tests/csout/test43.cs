@@ -6,13 +6,13 @@ using static Program;
 // Test 43: multiple classes in one .prg file.
 
 // #include "hbclass.ch"
-public class Foo
+public class Foo : IHbObject
 {
     public decimal nA = 1;
 
 }
 
-public class Bar
+public class Bar : IHbObject
 {
     public decimal nB = 2;
 

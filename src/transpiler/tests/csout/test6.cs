@@ -23,7 +23,7 @@ using static Program;
 //    casing path the emit was `HbRuntime.SPACE` / `HbRuntime.CTOD`
 //    which only compiled thanks to NIE stubs — throwing at runtime.
 // #include "hbclass.ch"
-public class Inherited
+public class Inherited : IHbObject
 {
     public static decimal nVersion = 1.0m;
 
@@ -63,7 +63,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Person oPerson = (Person)new Person().New();
+        Person oPerson = new Person().New();
         HbRuntime.QOut("oPerson created");
 
         oPerson.SetAge(25);

@@ -42,18 +42,18 @@ public static partial class HbRuntime
     internal static dynamic InvokeBlock(Delegate d, dynamic[] args)
     {
         var ps = d.Method.GetParameters();
-        object[] fitted;
+        object?[] fitted;
         // A varargs codeblock (`{|...|}`) is a single dynamic[] param —
         // hand it the whole args array as that one parameter.
         if (ps.Length == 1 && ps[0].ParameterType == typeof(object[]))
-            fitted = new object[] { args };
+            fitted = new object?[] { args };
         else
         {
             // Fixed-arity codeblock. A Harbour block tolerates being
             // called with more args than it declares (extras ignored) or
             // fewer (missing become NIL); reflection throws on any
             // mismatch, so fit the count to the real parameter list.
-            fitted = new object[ps.Length];
+            fitted = new object?[ps.Length];
             System.Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
             for (int i = 0; i < fitted.Length; i++)
                 fitted[i] = FitBlockArg(fitted[i], ps[i].ParameterType);
@@ -77,7 +77,7 @@ public static partial class HbRuntime
     // which reflection supplies, as an `n` name is never NIL. Anything
     // else is passed as it is, and a value of another type fails there as
     // it would at a typed call.
-    static object FitBlockArg(object v, Type t)
+    static object? FitBlockArg(object? v, Type t)
     {
         if (v is null || t == typeof(object) || t.IsInstanceOfType(v))
             return v;
@@ -140,7 +140,12 @@ public static partial class HbRuntime
         if (x is Delegate) return "B";
         if (x is System.Collections.IDictionary) return "H";
         if (IsPointer(x)) return "P";
-        return "O";
+        // An object: one of the program's classes, or an OLE object
+        // TOleAuto handed back. Anything else is a .NET value that reached
+        // Harbour code by mistake, which "O" would hide.
+        if (x is IHbObject || System.Runtime.InteropServices.Marshal.IsComObject(x)) return "O";
+        throw new InvalidOperationException(
+            "ValType(): a " + ((object)x).GetType().FullName + " is no Harbour value");
     }
 
     // A Harbour array: a List<dynamic>, one object every holder shares and

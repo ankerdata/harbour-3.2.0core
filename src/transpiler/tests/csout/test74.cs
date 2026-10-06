@@ -34,7 +34,7 @@ using static Program;
 // .hb pipelines are dynamic-typed throughout and run regardless.
 
 // #include "hbclass.ch"
-public class Test74Holder
+public class Test74Holder : IHbObject
 {
     public string cTag = "default";
 

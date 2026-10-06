@@ -446,6 +446,13 @@ extern void         hb_astSetPrefixReftab( void * pRefTab );
    functions, whose reftab row is `<FileBase>::<Name>`. Set with the
    reftab for the length of a file; NULL to clear. */
 extern void         hb_astSetFileFuncs( PHB_AST_NODE pFuncList );
+/* The file the type checks are warning about. A warning prints once per
+   line and name, and the table that remembers them lives as long as the
+   process, which scans or emits a batch of files: hb_refTabCollect(),
+   which the scan and the emission both run first, names the file, and
+   the table is cleared when the file changes (not between a file's own
+   collection and emission, which would print its warnings twice). */
+extern void         hb_astWarnScope( const char * szFile );
 /* The class an o<Class> / so<Class> name names - a program class of the
    reftab (opaque PHB_REFTAB) or an ORM model of the fieldtypes map - or
    NULL. */

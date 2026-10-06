@@ -27,7 +27,7 @@ using static Program;
 // (e.g. `IF Foo(@x)`) are out of scope — they need temp hoisting.
 
 // #include "hbclass.ch"
-public class Holder
+public class Holder : IHbObject
 {
     public decimal nField = 0;
 
@@ -44,7 +44,7 @@ public static partial class Program
         decimal nGot = 0;
         string cGot = "";
         bool lOk = default;
-        Holder oH = (Holder)new Holder().New();
+        Holder oH = new Holder().New();
 
         // bare call statement — typed numeric variable by-ref
         {

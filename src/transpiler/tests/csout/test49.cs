@@ -15,7 +15,7 @@ using static Program;
 // parent class's implementation" that C# spells as `base.Method(...)`.
 
 // #include "hbclass.ch"
-public class Animal
+public class Animal : IHbObject
 {
 
     public dynamic Kind() => "animal";

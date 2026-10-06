@@ -16,7 +16,7 @@ using static Program;
 // value discarded — and the last is returned. A `...` block runs them
 // all before its `return null`. -GT writes the whole list back.
 // #include "hbclass.ch"
-public class BlockTally
+public class BlockTally : IHbObject
 {
     public decimal nPunches = 0;
     public decimal nDayTotal = 5;

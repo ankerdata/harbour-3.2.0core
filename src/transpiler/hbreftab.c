@@ -2472,6 +2472,9 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
    PHB_AST_NODE pFunc;
    PHB_HFUNC    pCompFunc;
 
+   /* this file's warnings are its own, not the batch's last file's */
+   hb_astWarnScope( HB_COMP_PARAM->szFile );
+
    /* ----- Pass 0: mark every CLASS so cross-file callers can detect
       ClassName():New() patterns even when ClassName lives elsewhere.
       The class list is stored in the auto-generated startup function's

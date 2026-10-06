@@ -31,7 +31,7 @@ using static Program;
 // named-argument form so the canonical's own default applies.
 // #include "common.ch"
 // #include "hbclass.ch"
-public class Box
+public class Box : IHbObject
 {
     public decimal nSize = 1;
 

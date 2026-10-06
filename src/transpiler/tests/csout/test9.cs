@@ -5,7 +5,7 @@ using static Program;
 
 // Test 9: Type inference from initializers and Hungarian notation
 // #include "hbclass.ch"
-public class Inherited
+public class Inherited : IHbObject
 {
     public static decimal nVersion = 1.0m;
 

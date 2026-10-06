@@ -24,7 +24,7 @@ using static Program;
 // #include "hbclass.ch"
 // Bump exercises the AST SEND path: a CLASS VAR and an instance VAR
 // both written via `::`.
-public class Counter
+public class Counter : IHbObject
 {
     public static decimal nTotal = 0;
     public decimal nLocal = 0;

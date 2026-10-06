@@ -21,7 +21,7 @@ using static Program;
 // #ifndef __HB_TRANSPILER__ — the corpus's own convention for code one
 // side must not see.
 // #include "hbclass.ch"
-public class Beacon
+public class Beacon : IHbObject
 {
     public decimal nCode = 7;
 

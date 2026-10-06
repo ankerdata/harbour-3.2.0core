@@ -1771,8 +1771,8 @@ static HB_BOOL hb_astIsDowncast( const char * szTo, const char * szFrom )
           hb_refTabIsKindOf( s_pPropRefTab, szTo, szFrom );
 }
 
-/* W0040 / W0041, once per file, line and name (hb_astOrmSeen; its table
-   lives as long as the process, which scans a batch of files) */
+/* W0040 / W0041, once per file, line and name (hb_astOrmSeen, whose
+   table hb_astWarnScope clears per file) */
 static void hb_astDeclWarn( const char * szCode, const char * szFile, int iLine,
                             const char * szName, const char * szMsg )
 {
@@ -3484,8 +3484,8 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
    time (-GF: warnings.txt + --type-audit) instead of hours later as
    CS1061/CS0266/CS0037/CS0029 in the dotnet build. That keeps the
    scan phase alone viable as a CI contract-checker for the source
-   branch. Non-halting; dedup'd across the scan+emit passes (same
-   pattern as W0024). */
+   branch. Non-halting; dedup'd across a file's scan+emit passes (same
+   pattern as W0024), the table cleared per file (hb_astWarnScope). */
 #define HB_ORM_DEDUP 4096
 static struct { int iLine; char szKey[ 96 ]; } s_aOrmWarned[ HB_ORM_DEDUP ];
 static int s_iOrmWarned = 0;
@@ -3506,6 +3506,17 @@ static HB_BOOL hb_astOrmSeen( int iLine, const char * szKey )
       s_iOrmWarned++;
    }
    return HB_FALSE;
+}
+
+static char s_szWarnFile[ 512 ] = "";
+
+void hb_astWarnScope( const char * szFile )
+{
+   if( szFile && strcmp( s_szWarnFile, szFile ) != 0 )
+   {
+      hb_strncpy( s_szWarnFile, szFile, sizeof( s_szWarnFile ) - 1 );
+      s_iOrmWarned = 0;
+   }
 }
 
 /* The def-class name when pRecv is a VARIABLE env-typed as a mapped

@@ -14,7 +14,7 @@ using static Program;
 // anywhere: not at the call, and not on a parameter only passed to AAdd().
 
 // #include "hbclass.ch"
-public class Stock125
+public class Stock125 : IHbObject
 {
     public List<dynamic> aItems125;
 

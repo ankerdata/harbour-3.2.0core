@@ -17,7 +17,7 @@ using static Program;
 // it is; anything else is an array index, rebased.
 
 // #include "hbclass.ch"
-public class Shelf123
+public class Shelf123 : IHbObject
 {
     public List<dynamic> aSlots123;
     public List<dynamic> aGrid123;

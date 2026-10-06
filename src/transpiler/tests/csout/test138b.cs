@@ -8,7 +8,7 @@ using static Program;
 
 // #include "../include/astype.ch"
 // #include "hbclass.ch"
-public class Line138
+public class Line138 : IHbObject
 {
     public decimal nKind = 0;
 
@@ -42,7 +42,7 @@ public class GenLine138 : PrintLine138
     }
 }
 
-public class Till138
+public class Till138 : IHbObject
 {
     public List<dynamic> aLines = new List<dynamic>();
 
@@ -53,10 +53,10 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Till138 oTill138 = new Till138();
-        HbRuntime.AAdd(oTill138.aLines, (FcnLine138)new FcnLine138().New(5));
-        HbRuntime.AAdd(oTill138.aLines, (GenLine138)new GenLine138().New(7));
+        HbRuntime.AAdd(oTill138.aLines, new FcnLine138().New(5));
+        HbRuntime.AAdd(oTill138.aLines, new GenLine138().New(7));
         HbRuntime.QOut(FirstTotal138(oTill138), SumValues138(oTill138));
-        HbRuntime.QOut(LaterTotal138((FcnLine138)new FcnLine138().New(2), (GenLine138)new GenLine138().New(3)));
+        HbRuntime.QOut(LaterTotal138(new FcnLine138().New(2), new GenLine138().New(3)));
         return;
     }
 }

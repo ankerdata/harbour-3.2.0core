@@ -14,7 +14,7 @@ using static Program;
 // grows with it, so a routine that resizes its array parameter keeps
 // that parameter `ref`.
 // #include "hbclass.ch"
-public class SaleBuffer
+public class SaleBuffer : IHbObject
 {
     public List<dynamic> aLines = new List<dynamic>();
     public dynamic xQueue;

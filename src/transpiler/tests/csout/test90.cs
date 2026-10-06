@@ -18,7 +18,7 @@ using static Program;
 // Harbour's NIL — rather than dropped.
 // #include "common.ch"
 // #include "hbclass.ch"
-public class Base
+public class Base : IHbObject
 {
     public string cLabel = "";
     public bool lFlag = false;
@@ -62,13 +62,13 @@ public static partial class Program
     {
         Base o = default;
 
-        o = (Base)new Base().New("base", lFlag: true);
+        o = new Base().New("base", lFlag: true);
         o.Show();
-        o = (Derived)new Derived().New("derived");
+        o = new Derived().New("derived");
         o.Show();
         o = (Leaf)new Leaf().New("leaf", lFlag: true);
         o.Show();
-        o = (Base)new Base().New("all", 7);
+        o = new Base().New("all", 7);
         o.Show();
         return;
     }

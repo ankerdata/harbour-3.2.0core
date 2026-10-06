@@ -34,7 +34,7 @@ using static Program;
 // tests into one reftab, so these names are unique across it.
 // #include "hbclass.ch"
 // a method: the member written as the C# member
-public class Meter
+public class Meter : IHbObject
 {
     public decimal nCount = 0;
 

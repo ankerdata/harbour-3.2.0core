@@ -28,7 +28,7 @@ using static Program;
 // .hb, and .cs pipelines.
 
 // #include "hbclass.ch"
-public class Widget
+public class Widget : IHbObject
 {
     public string cLabel = "";
     public dynamic fHook;
@@ -67,7 +67,7 @@ public static partial class Program
         HbRuntime.QOut("sfPrint=>" + HbRuntime.Eval(test50_sfPrint, "hello"));
         HbRuntime.QOut("Apply=>" + Apply(HbRuntime.FuncPtr("AddOne"), 10, 20));
 
-        oWidget = (Widget)new Widget().New("OK", HbRuntime.FuncPtr("PrintTag"));
+        oWidget = new Widget().New("OK", HbRuntime.FuncPtr("PrintTag"));
         oWidget.Fire();
 
         Invoke(HbRuntime.FuncPtr("SayHello"), "param-passed");

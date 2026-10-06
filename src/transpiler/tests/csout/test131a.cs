@@ -17,7 +17,7 @@ using static Program;
 // This file declares the parent.
 
 // #include "hbclass.ch"
-public class Base131
+public class Base131 : IHbObject
 {
     public decimal nCount131 = 0;
 

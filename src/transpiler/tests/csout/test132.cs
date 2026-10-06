@@ -11,7 +11,7 @@ using static Program;
 // string and its local is decimal.
 
 // #include "hbclass.ch"
-public class Meter132
+public class Meter132 : IHbObject
 {
     public decimal nReading132 = 41;
 

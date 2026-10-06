@@ -97,6 +97,23 @@ for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer
    fi
 done
 
+# A batch, as the pipeline runs it: one process, several files. The same
+# warning at the same line of two files is reported for each; the table
+# that prints a warning once per line and name lived as long as the
+# process, so the second file's went unsaid.
+out=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/batch_dedup_a.prg" \
+      "$SCRIPT_DIR/batch_dedup_b.prg" -GS 2>&1)
+rm -f "$SCRIPT_DIR/batch_dedup_a.cs" "$SCRIPT_DIR/batch_dedup_b.cs"
+if [ "$(echo "$out" | grep -c "batch_dedup_a.prg(12): warning W0035")" -eq 1 ] &&
+   [ "$(echo "$out" | grep -c "batch_dedup_b.prg(12): warning W0035")" -eq 1 ]; then
+   echo "PASS: batch_dedup (each file of the batch has its warning)"
+   pass=$((pass+1))
+else
+   echo "FAIL: batch_dedup (expected one W0035 at line 12 of each file)"
+   echo "$out" | grep "warning" | sed 's|^|  |'
+   fail=$((fail+1))
+fi
+
 # W0037 reads the class rows a scan writes: -GF with a private reftab, so
 # the suite's hbreftab.tab is left alone. One warning, and the quiet lines
 # (HBObject's Init, a declared and an inherited member, a dynamic class)

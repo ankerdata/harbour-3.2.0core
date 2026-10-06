@@ -20,7 +20,7 @@ using static Program;
 //     shim temp is decimal and its write-back into the long takes the
 //     (long) an AS INTEGER member already got (CS0266).
 // #include "hbclass.ch"
-public class Brewer
+public class Brewer : IHbObject
 {
     public string cName = "tea";
 

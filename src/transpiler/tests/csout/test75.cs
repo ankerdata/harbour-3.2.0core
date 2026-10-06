@@ -16,7 +16,7 @@ using static Program;
 // IIF() helper function would throw where Harbour's iif does not.
 
 // #include "hbclass.ch"
-public class Test75Dialog
+public class Test75Dialog : IHbObject
 {
     public OrderedDictionary<string, dynamic> hResultData;
 

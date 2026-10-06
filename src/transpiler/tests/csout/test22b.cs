@@ -6,7 +6,7 @@ using static Program;
 // method, but with a STRING parameter instead of NUMERIC. Plus the
 // Main that exercises both. See test22a.prg for the rationale.
 // #include "hbclass.ch"
-public class Names
+public class Names : IHbObject
 {
     public string cAll = "";
 
@@ -33,8 +33,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Numbers oNums = (Numbers)new Numbers().New();
-        Names oNames = (Names)new Names().New();
+        Numbers oNums = new Numbers().New();
+        Names oNames = new Names().New();
 
         oNums.Add(10);
         oNums.Add(20);

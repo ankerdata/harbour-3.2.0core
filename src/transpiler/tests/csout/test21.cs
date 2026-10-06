@@ -18,7 +18,7 @@ using static Program;
 // The expected output is `40` because Adjust doubles its argument
 // in place, and we then double it again.
 // #include "hbclass.ch"
-public class Calculator
+public class Calculator : IHbObject
 {
 
     public virtual Calculator New()
@@ -37,7 +37,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Calculator oCalc = (Calculator)new Calculator().New();
+        Calculator oCalc = new Calculator().New();
         decimal n = 10;
 
         HbRuntime.QOut("before: n=" + HbRuntime.Str(n));

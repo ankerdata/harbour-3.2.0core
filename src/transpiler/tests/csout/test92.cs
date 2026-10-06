@@ -17,13 +17,13 @@ using static Program;
 // own type for a typed one. Concrete-typed arguments are left alone so
 // a real mismatch still reads as CS1503.
 // #include "hbclass.ch"
-public class Gadget
+public class Gadget : IHbObject
 {
     public string cName = "gadget";
 
 }
 
-public class Crate
+public class Crate : IHbObject
 {
     public dynamic oItem;
     public decimal nCount = 0;
@@ -60,7 +60,7 @@ public static partial class Program
         dynamic xItem = default;
         Tandem oTandem = default;
         xItem = new Gadget();
-        oTandem = (Tandem)new Tandem().New(xItem, 2);
+        oTandem = new Tandem().New(xItem, 2);
         HbRuntime.QOut("count=" + HbRuntime.LTrim(HbRuntime.Str(oTandem.nCount)) + " item=" + oTandem.oItem.cName);
         return;
     }

@@ -14,7 +14,7 @@ using static Program;
 // Typed, the two callers widen the slot to their common ancestor.
 
 // #include "hbclass.ch"
-public class Shape129
+public class Shape129 : IHbObject
 {
     public string cKind129;
 
@@ -34,7 +34,7 @@ public class Square129 : Shape129
 
 }
 
-public class Test129
+public class Test129 : IHbObject
 {
     public string cNote129 = "note";
 
@@ -103,7 +103,7 @@ public static partial class Program
 
     public static Shape129 test129_MakeShape129()
     {
-        return (Shape129)new Shape129().New("plain");
+        return new Shape129().New("plain");
 
         // A RETURN of a STATIC function's call takes its type too.
     }

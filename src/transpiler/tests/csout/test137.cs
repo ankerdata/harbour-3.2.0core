@@ -20,7 +20,7 @@ using static Program;
 
 // #include "../include/astype.ch"
 // #include "hbclass.ch"
-public class Line137
+public class Line137 : IHbObject
 {
     public decimal nKind = 0;
     public string cText = "";
@@ -60,7 +60,7 @@ public class ItemLine137 : Line137
     }
 }
 
-public class Till137
+public class Till137 : IHbObject
 {
     public List<dynamic> aLines = new List<dynamic>();
     public ItemLine137 oLastItem;
@@ -89,9 +89,9 @@ public static partial class Program
         decimal nTotal = 0;
         long iPos = default;
 
-        oTill137.Add((ItemLine137)new ItemLine137().New("tea", 3, 2));
-        oTill137.Add((FcnLine137)new FcnLine137().New("discount", 7));
-        oTill137.Add((ItemLine137)new ItemLine137().New("cake", 5, 1));
+        oTill137.Add(new ItemLine137().New("tea", 3, 2));
+        oTill137.Add(new FcnLine137().New("discount", 7));
+        oTill137.Add(new ItemLine137().New("cake", 5, 1));
 
         foreach (Line137 __hb_fe_oLine in HbRuntime.HbEnumValues(oTill137.aLines))
         {

@@ -22,7 +22,7 @@ using static Program;
 // typed receiver via its reftab row, a function's reftab return type
 // (DockDate) or its hbfuncs.tab one (Time).
 // #include "hbclass.ch"
-public class Voyage
+public class Voyage : IHbObject
 {
     public DateOnly dDepart;
     public string cPort;
@@ -52,7 +52,7 @@ public static partial class Program
         DateOnly dStart = HbRuntime.SToD("20260301");
         DateOnly dEnd = HbRuntime.SToD("20260310");
         decimal nSpan = (decimal)(dEnd.DayNumber - dStart.DayNumber);
-        Voyage oVoyage = (Voyage)new Voyage().New(dStart, "Lisbon");
+        Voyage oVoyage = new Voyage().New(dStart, "Lisbon");
         string cPort = "Lis";
         DateOnly dNext = default;
         HbRuntime.Set(_SET_EXACT, "ON");

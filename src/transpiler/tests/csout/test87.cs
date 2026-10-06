@@ -22,7 +22,7 @@ using static Program;
 // #include "common.ch"
 // #include "hbclass.ch"
 // #include "test87.ch"
-public class Thing
+public class Thing : IHbObject
 {
     public decimal nCount = 0;
 

@@ -24,7 +24,7 @@ using static Program;
 
 // #include "hbclass.ch"
 // #include "test73.ch"
-public class Test73Holder
+public class Test73Holder : IHbObject
 {
     public decimal nPanel = Test73Const.TEST73_BASE_PANEL;
     public string cName = Test73Const.TEST73_DEFAULT_NAME;

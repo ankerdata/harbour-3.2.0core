@@ -16,7 +16,7 @@ using static Program;
 // gets no parentheses; its body is a known gap — see gencsharp.c — so
 // none is exercised here.)
 // #include "hbclass.ch"
-public class Shelf
+public class Shelf : IHbObject
 {
     protected List<dynamic> aItems = new List<dynamic>();
 

@@ -6,7 +6,7 @@ using static Program;
 // Test 14: Two classes with inheritance, constructor params, method chaining
 
 // #include "hbclass.ch"
-public class Animal
+public class Animal : IHbObject
 {
     public string cName = "";
     public decimal nLegs = 4;
@@ -55,8 +55,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Animal oAnimal = (Animal)new Animal().New("Cat", "Meow");
-        Dog oDog = (Dog)new Dog().Init("Rex", "Labrador");
+        Animal oAnimal = new Animal().New("Cat", "Meow");
+        Dog oDog = new Dog().Init("Rex", "Labrador");
 
         HbRuntime.QOut("Speak=" + oAnimal.Speak());
         HbRuntime.QOut("Describe=" + oAnimal.Describe());

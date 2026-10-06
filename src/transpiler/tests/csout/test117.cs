@@ -26,7 +26,7 @@ using static Program;
 //   - Mixed117 returns Self and a string, so it is no identity: dynamic.
 
 // #include "hbclass.ch"
-public class Ledger117
+public class Ledger117 : IHbObject
 {
     public string cName = "";
     public decimal nTotal = 0;
@@ -96,8 +96,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Ledger117 oLedger = (Ledger117)new Ledger117().New("cash");
-        TaxLedger117 oTax = (TaxLedger117)new TaxLedger117().New("vat", 3);
+        Ledger117 oLedger = new Ledger117().New("cash");
+        TaxLedger117 oTax = new TaxLedger117().New("vat", 3);
         PlainLedger117 oPlain = (PlainLedger117)new PlainLedger117().New("plain");
 
         HbRuntime.QOut("chain:", oLedger.Add(5).Add(7).Describe());

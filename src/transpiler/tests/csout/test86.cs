@@ -18,7 +18,7 @@ using static Program;
 // throughout, so nothing but a prg/cs comparison catches it.
 
 // #include "hbclass.ch"
-public class Store
+public class Store : IHbObject
 {
 
     public virtual decimal Fill(ref List<dynamic> aOut)

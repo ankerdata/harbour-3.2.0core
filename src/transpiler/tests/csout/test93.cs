@@ -19,13 +19,13 @@ using static Program;
 // #include "hbclass.ch"
 /* oLight is OBJECT by name (no class named Light); Main's call refines
    it to Lantern, so `oLight:nLumens` is a typed member access. */
-public class Lantern
+public class Lantern : IHbObject
 {
     public decimal nLumens = 800;
 
 }
 
-public class Sconce
+public class Sconce : IHbObject
 {
     public dynamic oLight;
     public string cLabel = "";
@@ -43,7 +43,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Lantern oLantern = new Lantern();
-        Sconce oSconce = (Sconce)new Sconce().New(oLantern, "hall");
+        Sconce oSconce = new Sconce().New(oLantern, "hall");
         HbRuntime.QOut("label=" + oSconce.cLabel);
         return;
     }

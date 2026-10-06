@@ -2094,6 +2094,8 @@ static const char * s_szSendRecvClass = NULL;
 
 static const char * hb_csElemClass( PHB_EXPR pElem );   /* defined below */
 
+static const char * hb_csSendHbType( PHB_EXPR pSend );   /* defined below */
+
 static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
                                      char * szBuf, HB_SIZE nBuf )
 {
@@ -2121,6 +2123,17 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
       const char * szT = hb_csArgVarType( pObj->value.asMessage.szMessage );
       if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) )
          szClass = szT;
+      else
+      {
+         /* a member declared a dynamic class whose name says nothing
+            (`VAR oOrmTable AS CLASS SQLtTable`): its class, so a field no
+            class declares reaches the instance's bag through
+            ((dynamic)…), as off a local of that class */
+         szT = hb_csSendHbType( pObj );
+         if( szT && s_pRefTab && hb_refTabIsClass( s_pRefTab, szT ) &&
+             hb_csClassIsDynamic( szT ) )
+            szClass = szT;
+      }
    }
    else if( pObj->ExprType == HB_ET_ARRAYAT )
    {
@@ -2436,8 +2449,11 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
             to the parent slot's type — `object` for a dynamic slot, which
             binds statically and converts to `dynamic` for free. Only a
             variable can be typed here; a concrete-typed one is left
-            alone so a real mismatch still reads as CS1503. */
-         if( s_fBaseCallArgs && pArg->ExprType == HB_ET_VARIABLE )
+            alone so a real mismatch still reads as CS1503. A #define
+            (`DLGTYPEBMP`) is a variable to the AST but a typed constant
+            in C# (`DialogConst.DLGTYPEBMP`), and takes no cast. */
+         if( s_fBaseCallArgs && pArg->ExprType == HB_ET_VARIABLE &&
+             ! hb_defineMapLookupType( pArg->value.asSymbol.name ) )
          {
             const char * szArgT = hb_csArgVarType( pArg->value.asSymbol.name );
             if( ! szArgT || hb_stricmp( hb_csTypeMap( szArgT ), "dynamic" ) == 0 )
@@ -3750,14 +3766,41 @@ static HB_BOOL hb_csSendHasArgs( PHB_EXPR pExpr )
    return pArgs->ExprType != HB_ET_NONE;
 }
 
-/* Does the emission of this constructor call carry a `(Class)` cast —
-   arguments, or a New / Init body to run — so that as a receiver it
-   must be parenthesised? */
+/* Whether `X():M( … )`, emitted `new X().M( … )`, needs a `(X)` cast. It
+   does not when the row the call resolves to is X's own and answers X: a
+   method whose RETURNs are all Self is its class (test117). An inherited
+   M answers its declaring class, any other result is dynamic, and both
+   keep the cast. */
+static HB_BOOL hb_csCtorResultNeedsCast( const char * szCtor, const char * szMsg )
+{
+   char szKey[ 256 ], szOwn[ 256 ];
+   const char * szRow = hb_csClassMethodKey( szCtor, szMsg, szKey, sizeof( szKey ) );
+   const char * szRet;
+   if( ! szRow || ! s_pRefTab )
+      return HB_TRUE;
+   hb_snprintf( szOwn, sizeof( szOwn ), "%s::%s__%s", szCtor, szCtor, szMsg );
+   if( hb_stricmp( szRow, szOwn ) != 0 )
+      return HB_TRUE;
+   szRet = hb_refTabReturnType( s_pRefTab, szRow );
+   return ! szRet || hb_stricmp( szRet, szCtor ) != 0;
+}
+
+/* Does the emission of this constructor call carry a `(Class)` cast, or
+   HbRuntime.Initialised() for a class with only an Init, so that as a
+   receiver it must be parenthesised? */
 static HB_BOOL hb_csCtorEmitsCast( PHB_EXPR pExpr, const char * szCtor )
 {
-   return hb_csSendHasArgs( pExpr ) ||
-          hb_csCtorDeclares( szCtor, "New" ) ||
-          hb_csCtorDeclares( szCtor, "Init" );
+   const char * szMsg = pExpr->value.asMessage.szMessage;
+   if( hb_csSendHasArgs( pExpr ) && szMsg )
+   {
+      if( hb_stricmp( szMsg, "New" ) == 0 && ! hb_csCtorDeclares( szCtor, "New" ) &&
+          hb_csCtorDeclares( szCtor, "Init" ) )
+         return HB_TRUE;
+      return hb_csCtorResultNeedsCast( szCtor, szMsg );
+   }
+   if( hb_csCtorDeclares( szCtor, "New" ) )
+      return hb_csCtorResultNeedsCast( szCtor, "New" );
+   return hb_csCtorDeclares( szCtor, "Init" );
 }
 
 /* `dDate++` / `--dDate` is date arithmetic in Harbour; C# DateOnly and
@@ -4833,7 +4876,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
                   if( fHasArgs && pExpr->value.asMessage.szMessage )
                   {
-                     /* Cast needed: New()/Init() returns object.
+                     /* Cast unless the method answers the class itself
+                        (hb_csCtorResultNeedsCast): an inherited or untyped
+                        New()/Init() does not.
                         Capitalise the first letter of the method name:
                         Harbour is case-insensitive so some source uses
                         lowercase `:new(...)`, which would emit as the
@@ -4878,8 +4923,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                            fprintf( yyc, "HbRuntime.Initialised(new %s(), self => self.Init(",
                                     szCtor );
                         }
-                        else
+                        else if( hb_csCtorResultNeedsCast( szCtor,
+                                    pExpr->value.asMessage.szMessage ) )
                            fprintf( yyc, "(%s)new %s().%s(", szCtor, szCtor, szMsg );
+                        else
+                           fprintf( yyc, "new %s().%s(", szCtor, szMsg );
                         s_aRefShim = aSendShim;
                         s_iRefShimBase = iSendShimBase;
                         hb_csEmitCallArgs(
@@ -4900,8 +4948,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                         silently not. Only the hbclass default constructor
                         — no row at all — is plain `new X()`. Init's
                         result is not New's: see HbRuntime.Initialised(). */
-                     if( hb_csCtorDeclares( szCtor, "New" ) )
+                     if( hb_csCtorDeclares( szCtor, "New" ) &&
+                         hb_csCtorResultNeedsCast( szCtor, "New" ) )
                         fprintf( yyc, "(%s)new %s().New()", szCtor, szCtor );
+                     else if( hb_csCtorDeclares( szCtor, "New" ) )
+                        fprintf( yyc, "new %s().New()", szCtor );
                      else if( hb_csCtorDeclares( szCtor, "Init" ) )
                         fprintf( yyc, "HbRuntime.Initialised(new %s(), self => self.Init())",
                                  szCtor );
@@ -8794,10 +8845,14 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
             hb_csClassExtendedByBlock( pClassNode->value.asClass.szName )
                ? "partial " : "",
             pClassNode->value.asClass.szName );
+   /* a root class marks itself a Harbour object (IHbObject, what ValType()
+      answers "O" for); a subclass is one through its parent */
    if( pClass->fDynamic && ! pClassNode->value.asClass.szParent )
       fprintf( yyc, " : HbDynamicObject" );
    else if( pClassNode->value.asClass.szParent )
       fprintf( yyc, " : %s", pClassNode->value.asClass.szParent );
+   else
+      fprintf( yyc, " : IHbObject" );
    fprintf( yyc, "\n{\n" );
 
    /* Track the class for `Self:classvar` resolution. INLINE method

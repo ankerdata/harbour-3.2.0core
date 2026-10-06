@@ -4,7 +4,7 @@ using static Program;
 
 // Test 10: CLASS methods, STATIC local, WITH OBJECT
 // #include "hbclass.ch"
-public class MyObj
+public class MyObj : IHbObject
 {
     public decimal nValue = 0;
 
@@ -27,7 +27,7 @@ public static partial class Program
     public static decimal test10_Main_nCounter = 0;
     public static void Main(string[] args)
     {
-        MyObj oObj = (MyObj)new MyObj().New();
+        MyObj oObj = new MyObj().New();
 
         // WITH OBJECT test
         oObj.SetValue(42);

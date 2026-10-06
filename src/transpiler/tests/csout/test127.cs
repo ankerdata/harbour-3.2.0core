@@ -14,7 +14,7 @@ using static Program;
 // known type is taken as the name says.
 
 // #include "hbclass.ch"
-public class Ledger127
+public class Ledger127 : IHbObject
 {
     public OrderedDictionary<long, dynamic> hnRows127;
 

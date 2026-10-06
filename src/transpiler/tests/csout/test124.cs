@@ -17,7 +17,7 @@ using static Program;
 
 // #include "hbclass.ch"
 // NIL on failure, Self on success, as the device classes do
-public class Gadget124
+public class Gadget124 : IHbObject
 {
     public string cPort124;
     public bool lOpen124;
@@ -37,7 +37,7 @@ public class Gadget124
     }
 }
 
-public class Ledger124
+public class Ledger124 : IHbObject
 {
     public decimal nLines124;
 
@@ -58,7 +58,7 @@ public static partial class Program
         HbRuntime.QOut(oLedger == null, oLedger.nLines124);
         HbRuntime.QOut(oGadget == null, oGadget.lOpen124);
         HbRuntime.QOut((HbRuntime.Initialised(new Gadget124(), self => self.Init("COM1"))).cPort124);
-        HbRuntime.QOut((Gadget124)new Gadget124().Init("") == null, (Gadget124)new Gadget124().Init("COM2") == null);
+        HbRuntime.QOut(new Gadget124().Init("") == null, new Gadget124().Init("COM2") == null);
 
         return;
     }

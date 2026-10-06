@@ -18,7 +18,7 @@ using static Program;
 //
 // and the C# emits two strongly-typed methods on two distinct classes.
 // #include "hbclass.ch"
-public class Numbers
+public class Numbers : IHbObject
 {
     public decimal nTotal = 0;
 

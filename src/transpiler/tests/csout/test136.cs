@@ -24,7 +24,7 @@ using static Program;
 
 // #include "../include/astype.ch"
 // #include "hbclass.ch"
-public class Gizmo136
+public class Gizmo136 : IHbObject
 {
     public string cName = "";
     public decimal nSize = 0;
@@ -52,7 +52,7 @@ public class Bigizmo136 : Gizmo136
 
 }
 
-public class Crate136
+public class Crate136 : IHbObject
 {
     public List<dynamic> aGizmos = new List<dynamic>();
     public Gizmo136 oFirst;
@@ -87,9 +87,9 @@ public static partial class Program
         Gizmo136 oItem = default;
         long iPos = default;
 
-        oCrate.Add((Gizmo136)new Gizmo136().New("bolt", 3));
-        oCrate.Add((Gizmo136)new Gizmo136().New("beam", 9));
-        oCrate.Add((Gizmo136)new Gizmo136().New("nut", 1));
+        oCrate.Add(new Gizmo136().New("bolt", 3));
+        oCrate.Add(new Gizmo136().New("beam", 9));
+        oCrate.Add(new Gizmo136().New("nut", 1));
         oCrate.Add((Bigizmo136)new Bigizmo136().New("plate", 5));
 
         foreach (Gizmo136 __hb_fe_oItem in HbRuntime.HbEnumValues(oCrate.aGizmos))

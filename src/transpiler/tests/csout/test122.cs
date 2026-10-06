@@ -29,7 +29,7 @@ using static Program;
 // hSeekStmts): `protected internal` / `internal` in C#.
 
 // #include "hbclass.ch"
-public class Handle122
+public class Handle122 : IHbObject
 {
     public string cLabel122 { get; protected set; }
 
@@ -52,7 +52,7 @@ public class Handle122
     ~Handle122() => HbRuntime.RunDestructor(() => Release122());
 }
 
-public class Vault122
+public class Vault122 : IHbObject
 {
     protected internal decimal nInside122 = 0;
     protected internal string cSealed122 { get; set; }

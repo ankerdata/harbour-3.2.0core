@@ -18,7 +18,7 @@ using static Program;
 // does), which now maps a single-colon send (`::oProxy:member`); it
 // does not rebase a 1-based subscript, so those stay in a method.
 // #include "hbclass.ch"
-public class Bin
+public class Bin : IHbObject
 {
     protected List<dynamic> aItems = new List<dynamic>();
     public dynamic Peak { get { return Last(); } set { dynamic xNew = value; Pop(); Push( xNew ) ; } }

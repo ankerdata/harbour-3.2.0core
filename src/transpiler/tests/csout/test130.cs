@@ -14,7 +14,7 @@ using static Program;
 // from a subclass, where the inherited method would take it.
 
 // #include "hbclass.ch"
-public class Panel130
+public class Panel130 : IHbObject
 {
     public bool lOn130 = true;
 

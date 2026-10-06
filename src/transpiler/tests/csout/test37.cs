@@ -13,7 +13,7 @@ using static Program;
 // whitespace + comment meant the exact-string compare failed.
 
 // #include "hbclass.ch"
-public class Widget
+public class Widget : IHbObject
 {
     public decimal nCount = 0;
     public bool lEnabled = true;

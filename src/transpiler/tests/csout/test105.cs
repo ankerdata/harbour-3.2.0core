@@ -41,7 +41,7 @@ public static partial class Program
 // a second block, placed inside a function on purpose: it is still
 // hoisted to namespace level, so this comment lands beside the classes
 
-public partial class Torch
+public partial class Torch : IHbObject
 {
     public decimal nWatts = 60;
 

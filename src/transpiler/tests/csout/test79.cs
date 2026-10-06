@@ -17,7 +17,7 @@ using static Program;
 // Runtime behaviour is checked across prg/hb/cs as usual.
 
 // #include "hbclass.ch"
-public class Animal
+public class Animal : IHbObject
 {
     public string cName = "animal";
     public string cSound = "...";

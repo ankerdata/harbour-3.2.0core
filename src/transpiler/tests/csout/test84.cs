@@ -17,7 +17,7 @@ using static Program;
 // no cast (int%int is exact) and is pinned to prove we don't over-cast.
 
 // #include "hbclass.ch"
-public class TestOrmRec84
+public class TestOrmRec84 : IHbObject
 {
     public decimal nNo;
 
@@ -36,7 +36,7 @@ public static partial class Program
 
     public static TestOrmRec84 ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)
     {
-        return (TestOrmRec84)new TestOrmRec84().New();
+        return new TestOrmRec84().New();
     }
 
     public static void Main(string[] args)

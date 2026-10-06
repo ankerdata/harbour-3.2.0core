@@ -4,7 +4,7 @@ using static Program;
 
 // Test 11: CLASS with METHOD/PROCEDURE, standalone FUNCTIONs, constructor pattern
 // #include "hbclass.ch"
-public class Calculator
+public class Calculator : IHbObject
 {
     public decimal nResult = 0;
 
@@ -60,7 +60,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Calculator oCalc = (Calculator)new Calculator().New();
+        Calculator oCalc = new Calculator().New();
 
         oCalc.Add(10);
         oCalc.Add(20);

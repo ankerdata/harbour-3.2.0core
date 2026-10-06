@@ -19,7 +19,7 @@ using static Program;
 
 // #include "../include/astype.ch"
 // #include "hbclass.ch"
-public class Parcel141
+public class Parcel141 : IHbObject
 {
     public string cLabel = "";
     public decimal nWeight = 0;
@@ -37,7 +37,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aParcels = new List<dynamic> {  };
-        List<dynamic> aLoose = new List<dynamic> { (Parcel141)new Parcel141().New("Crate", 3) };
+        List<dynamic> aLoose = new List<dynamic> { new Parcel141().New("Crate", 3) };
         List<dynamic> aCounts = new List<dynamic> {  };
         long iCount = default;
         decimal nTotal = 0;
@@ -45,9 +45,9 @@ public static partial class Program
         Func<string, string> bShout = ((Func<string, string>)((cWord) => HbRuntime.Upper(cWord) + "!"));
         decimal nPos = default;
 
-        HbRuntime.AAdd(aParcels, (Parcel141)new Parcel141().New("Books", 4));
-        HbRuntime.AAdd(aParcels, (Parcel141)new Parcel141().New("Lamp", 2));
-        HbRuntime.AAdd(aParcels, (Parcel141)new Parcel141().New("Rug", 7));
+        HbRuntime.AAdd(aParcels, new Parcel141().New("Books", 4));
+        HbRuntime.AAdd(aParcels, new Parcel141().New("Lamp", 2));
+        HbRuntime.AAdd(aParcels, new Parcel141().New("Rug", 7));
 
         // an element of the declared array: x is a Parcel141, the result bool
         nPos = HbRuntime.AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));

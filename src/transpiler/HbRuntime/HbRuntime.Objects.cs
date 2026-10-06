@@ -10,13 +10,21 @@ using System.Linq;
 // One part of HbRuntime; HbRuntime.cs says what the whole is.
 
 /// <summary>
+/// What ValType() answers "O" for: a Harbour object. Every class the
+/// transpiler emits implements it, a root class directly and a subclass
+/// through its parent; so do HbDynamicObject, and with it HbError, and
+/// HbSuperRef.
+/// </summary>
+public interface IHbObject { }
+
+/// <summary>
 /// Base class for Harbour classes that use runtime member access
 /// (::&amp;(name) patterns). Backed by a Dictionary so that column
 /// names or dynamically-created properties resolve at runtime.
 /// Statically-declared properties (from DATA/VAR) take precedence
 /// via the reflection path in TryGetMember/TrySetMember.
 /// </summary>
-public class HbDynamicObject : System.Dynamic.DynamicObject
+public class HbDynamicObject : System.Dynamic.DynamicObject, IHbObject
 {
     private readonly Dictionary<string, dynamic> _bag =
         new Dictionary<string, dynamic>(StringComparer.OrdinalIgnoreCase);
@@ -77,13 +85,18 @@ public class HbDynamicObject : System.Dynamic.DynamicObject
         return true;
     }
 
+    // Reached only when C# could not bind the call to a declared method as
+    // it stands (the DLR binds a call that fits itself, optional parameters
+    // and numbers included): no method of that name, or arguments that do
+    // not fit. The method of that name is called with the arguments fitted
+    // to it as Harbour passes them (HbRuntime.FitArgs).
     public override bool TryInvokeMember(System.Dynamic.InvokeMemberBinder binder, object[] args, out object result)
     {
-        var method = GetType().GetMethod(binder.Name, HbRuntime.MemberFlags);
+        var method = HbRuntime.MostDerivedMethod(GetType(), binder.Name);
         if (method != null)
         {
             result = method.Invoke(this, System.Reflection.BindingFlags.DoNotWrapExceptions,
-                                   null, args, null);
+                                   null, HbRuntime.FitArgs(method, args, binder.Name), null);
             return true;
         }
         // Harbour answers an instance variable sent as a message with
@@ -162,10 +175,57 @@ public static partial class HbRuntime
     public static dynamic SENDMSG(object obj, string name, params dynamic[] args)
     {
         if (obj == null || string.IsNullOrEmpty(name)) return null;
-        var method = obj.GetType().GetMethod(name, MemberFlags);
+        var method = MostDerivedMethod(obj.GetType(), name);
         if (method == null) return null;
         return method.Invoke(obj, System.Reflection.BindingFlags.DoNotWrapExceptions,
-                             null, args, null);
+                             null, FitArgs(method, args, name), null);
+    }
+
+    // The method a message names on a type: the most derived of that name,
+    // as Harbour's method of that name overrides its parent's (a class's
+    // New() is a C# overload beside its parent's when the parameters
+    // differ, and GetMethod() refuses to choose between them)
+    internal static System.Reflection.MethodInfo? MostDerivedMethod(System.Type t, string cName)
+    {
+        System.Reflection.MethodInfo? best = null;
+        int iBest = -1;
+        foreach (var m in t.GetMethods(MemberFlags))
+        {
+            if (!string.Equals(m.Name, cName, StringComparison.OrdinalIgnoreCase))
+                continue;
+            int iDepth = 0;
+            for (var d = m.DeclaringType; d != null; d = d.BaseType)
+                iDepth++;
+            if (iDepth > iBest)
+                (best, iBest) = (m, iDepth);
+        }
+        return best;
+    }
+
+    // The arguments of a message sent through reflection, fitted to the
+    // method as Harbour passes them, which reflection does not: those past
+    // its parameters dropped, one left out its declared default (NIL, a
+    // value type's zero, when it has none), a number converted to a decimal
+    // or long parameter (FitBlockArg). A value the parameter cannot hold is
+    // Harbour's argument error on the message; reflection used to report
+    // "Parameter count mismatch" for this and for an extra argument alike.
+    internal static object?[] FitArgs(System.Reflection.MethodInfo method, object?[] args, string cMsg)
+    {
+        var aParams = method.GetParameters();
+        var aFitted = new object?[aParams.Length];
+        for (int i = 0; i < aParams.Length; i++)
+        {
+            var t = aParams[i].ParameterType;
+            if (t.IsByRef)
+                t = t.GetElementType()!;
+            var tValue = Nullable.GetUnderlyingType(t) ?? t;
+            object? v = i < args.Length ? FitBlockArg(args[i], tValue)
+                      : aParams[i].HasDefaultValue ? aParams[i].DefaultValue : null;
+            if (v != null && tValue != typeof(object) && !tValue.IsInstanceOfType(v))
+                throw new ArgumentException("Argument error (" + cMsg.ToUpperInvariant() + ")");
+            aFitted[i] = v;
+        }
+        return aFitted;
     }
 
     // Type( <cExpr> ): the type of an expression given as text, as
@@ -327,7 +387,7 @@ public static partial class HbRuntime
 }
 
 // Wrapper returned by `obj:Super()` — keeps the :className() chain working.
-public class HbSuperRef
+public class HbSuperRef : IHbObject
 {
     public Type? t;
     public string className() => t?.Name ?? "";

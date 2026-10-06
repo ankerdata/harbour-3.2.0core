@@ -21,13 +21,13 @@ using static Program;
 // `oFree` lost its AS OBJECT).
 
 // #include "hbclass.ch"
-public class Gauge140
+public class Gauge140 : IHbObject
 {
     public long nLevel = 0;
 
 }
 
-public class Panel140
+public class Panel140 : IHbObject
 {
     public Gauge140 oGauge140;
 
@@ -53,7 +53,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Panel140 oPanel = (Panel140)new Panel140().New();
+        Panel140 oPanel = new Panel140().New();
         decimal nTotal = 14;
         decimal nAmount = nTotal / 2;
 

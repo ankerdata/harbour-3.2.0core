@@ -19,7 +19,7 @@ using static Program;
 // body and in an INLINE one.
 
 // #include "hbclass.ch"
-public class Tally121
+public class Tally121 : IHbObject
 {
     public long iCount = 0;
     public long iTotal;

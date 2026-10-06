@@ -19,7 +19,7 @@ using static Program;
 // the same (long) coercion an ordinary assignment gets.
 // #include "hbclass.ch"
 /* USUAL slot, by-ref: a typed caller variable needs the shim. */
-public class Clicker
+public class Clicker : IHbObject
 {
     public long nCount = 0;
     public string cLabel = "";

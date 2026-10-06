@@ -24,7 +24,7 @@ using static Program;
 // DATAs), easiposx/spoolprt.prg (DLE+EOT CHR-string LOCALs).
 
 // #include "hbclass.ch"
-public class Bag
+public class Bag : IHbObject
 {
     public string cHello = "ab" + "cd";
     public OrderedDictionary<string, dynamic> hTable = new OrderedDictionary<string, dynamic>();
