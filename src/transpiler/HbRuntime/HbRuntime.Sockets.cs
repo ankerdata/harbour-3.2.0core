@@ -27,6 +27,12 @@ public sealed class HbSocket
     internal Socket? sd;            // null once closed
     internal bool lShutDown;        // connected: shut down before it is closed
 
+    // The .NET socket, null once closed, for an application's own C ports
+    // that set what Harbour's socket API does not (EasiPOS's keepalive.c);
+    // they reach it through `dynamic`, since HbRuntime is compiled into each
+    // application as source and its types cannot be named from a library.
+    public Socket? NetSocket => sd;
+
     public override string ToString() => "HbSocket";
 }
 
