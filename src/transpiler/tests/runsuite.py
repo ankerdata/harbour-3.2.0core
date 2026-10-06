@@ -23,8 +23,11 @@ Stages (default "all"):
 Builds are incremental: a Harbour exe is rebuilt only when it is older
 than its .prg sources or a local .ch they include, and a C# test only
 when the .cs it would be built from differ from what it was last built
-from, or when the runtime assembly (the HbRuntime/ sources plus the libraries)
-beside it is not the current one. gen always transpiles every test — the suite shares one
+from, or when the public surface of the runtime assembly (the HbRuntime/
+sources plus the libraries) differs from the one it was built against.
+A runtime change that keeps the surface (its reference assembly is byte
+for byte the same) copies the new HbRuntime.dll beside each test instead
+of rebuilding 144 projects. gen always transpiles every test — the suite shares one
 reftab, so one test's change can change another's output — and every
 test always runs. --full rebuilds everything: the occasional sweep, and
 the answer to a changed Harbour or .NET toolchain, which the
@@ -35,6 +38,7 @@ Usage: runsuite.py [all|gen|prg|cs|run] [--full]
 Environment:
   HBTRANSPILER  transpiler binary (default <root>/bin/hbtranspiler.exe)
 """
+import hashlib
 import os
 import re
 import shutil
@@ -287,12 +291,31 @@ def stage_prg(names):
 
 
 # ---------------------------------------------------------------- cs ----
-def build_cs(name, lib_dll):
+REF_STAMP = ".hbruntime-ref"   # the runtime surface a test was built against
+
+
+def runtime_surface(lib):
+    """A fingerprint of the runtime's public surface: its reference
+    assembly, which the compiler writes byte for byte the same while the
+    public API is unchanged. None when there is none."""
+    ref = os.path.join(lib, "obj", "Debug", "net10.0", "ref", "HbRuntime.dll")
+    if not os.path.isfile(ref):
+        return None
+    with open(ref, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def build_cs(name, lib_dll, surface):
     """(name, error or None, built?). Skipped when the staged .cs and
     .csproj are byte-identical to the last build's and the runtime
-    assembly that build copied beside it is the current one. (Not "newer
-    than the runtime": MSBuild copies a new HbRuntime.dll but leaves the
-    test's own dll alone when the runtime's public API did not change.)"""
+    assembly that build copied beside it is the current one. When only
+    the runtime changed and its public surface did not (the test was
+    built against the same reference assembly, REF_STAMP), the new
+    HbRuntime.dll is copied beside the test's own: nothing it compiled
+    against moved, so a build would only have copied it too, at the cost
+    of a dotnet process per test. (Not "newer than the runtime": MSBuild
+    copies a new HbRuntime.dll but leaves the test's own dll alone when
+    the runtime's public API did not change.)"""
     srcs = sources(name, ".cs", "csout")
     if not srcs:
         return name, "no source", False
@@ -309,11 +332,23 @@ def build_cs(name, lib_dll):
                                 CSPROJ % (name, name))
     dll = newest_file(os.path.join(d, "bin"), name + ".dll")
     rt = newest_file(os.path.join(d, "bin"), "HbRuntime.dll")
-    if not FULL and not changed and dll and rt and same_bytes(lib_dll, rt):
-        return name, None, False
+    stamp = os.path.join(d, REF_STAMP)
+    if not FULL and not changed and dll and rt:
+        if same_bytes(lib_dll, rt):
+            return name, None, False
+        if surface and os.path.isfile(stamp) and \
+                open(stamp, encoding="ascii").read().strip() == surface:
+            shutil.copy2(lib_dll, rt)
+            lib_pdb, rt_pdb = lib_dll[:-4] + ".pdb", rt[:-4] + ".pdb"
+            if os.path.isfile(lib_pdb):
+                shutil.copy2(lib_pdb, rt_pdb)
+            return name, None, False
     r = subprocess.run(["dotnet", "build", "--no-dependencies", "-v", "q",
                         "--nologo"], cwd=d, capture_output=True, text=True)
     if r.returncode == 0 and "error CS" not in r.stdout:
+        if surface:
+            with open(stamp, "w", encoding="ascii") as fh:
+                fh.write(surface + "\n")
         return name, None, True
     if dll and os.path.isfile(dll):        # never skip a failed build later
         os.remove(dll)
@@ -369,8 +404,9 @@ def stage_cs(names):
                 os.remove(lib_dll)
             return False
         print("dotnet: HbRuntime rebuilt")
+    surface = runtime_surface(lib)
     with ThreadPoolExecutor(max_workers=4) as ex:
-        res = list(ex.map(lambda n: build_cs(n, lib_dll), names))
+        res = list(ex.map(lambda n: build_cs(n, lib_dll, surface), names))
     bad = [(n, e) for n, e, _ in res if e]
     built = sum(1 for _, e, b in res if b and not e)
     print("dotnet: %d built, %d up to date, %d failed" %

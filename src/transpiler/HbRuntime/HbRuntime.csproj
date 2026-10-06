@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- HbRuntime, Harbour's core runtime library for transpiled C#, as an
+       assembly of its own (HbRuntime.cs says what it holds). An application
+       references this project instead of compiling the sources into itself,
+       so it is built once and skipped while unchanged, and a library or an
+       application's own native project can reference it too. It finds the
+       application's functions (macros, function references,
+       hb_ExecFromArray()) by looking for its `Program` class among the
+       loaded assemblies (HbRuntime.ProgramType). The settings are the ones
+       the applications compiled these sources with: `annotations` makes the
+       `?` legal without flow analysis. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>annotations</Nullable>
+    <AssemblyName>HbRuntime</AssemblyName>
+    <RootNamespace>HbRuntime</RootNamespace>
+  </PropertyGroup>
+
+</Project>
