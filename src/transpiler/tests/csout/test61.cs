@@ -26,7 +26,7 @@ public static partial class Program
         OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
 
         // AScan with a codeblock — 20 is at index 2
-        HbRuntime.QOut("ascan_blk=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.AScan(aData, ((Func<dynamic, dynamic>)((x) => x == 20))))));
+        HbRuntime.QOut("ascan_blk=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.AScan(aData, ((Func<dynamic, bool>)((x) => x == 20))))));
 
         // AClone must deep-copy the nested array
         aCopy = HbRuntime.AClone(aNested);

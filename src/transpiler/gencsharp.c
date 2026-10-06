@@ -322,6 +322,7 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember );
      - +,-,*,%,unary over integral operands (C# int arithmetic stays
        int); / and ^ excluded — they emit decimal-producing forms. */
 static const char * hb_csExprCsType( PHB_EXPR pExpr );
+static const char * hb_csExprElemType( PHB_EXPR pArr );
 static HB_BOOL hb_csCsTypeIs( const char * szCs, const char * szWant );
 
 static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
@@ -582,11 +583,54 @@ static void hb_csLocalTypeSet( const char * szName, const char * szType )
    s_pLocalTypes[ s_iLocalCount++ ] = szType;
 }
 
+/* The codeblock parameters in scope where an expression is being emitted:
+   `{|nX| ... }` is a lambda whose `nX` a bare member name would bind to.
+   Pushed and popped around each codeblock (HB_ET_CODEBLOCK), with each
+   parameter's type: what its name says, else the element type of the
+   declared array an AScan / AEval / ASort it is handed to scans, else
+   none (USUAL, `dynamic`). */
+#define HB_CS_MAXCBSCOPE  32
+#define HB_CS_MAXCBPARAMS 8
+static PHB_CBVAR    s_apCbScope[ HB_CS_MAXCBSCOPE ];
+static const char * s_aszCbType[ HB_CS_MAXCBSCOPE ][ HB_CS_MAXCBPARAMS ];
+static int          s_iCbScope = 0;
+
+/* Set by hb_csEmitCallArgs for the codeblock argument it is about to emit:
+   the element type of the array it scans and how many of its leading
+   parameters take an element (AScan / AEval 1, ASort 2); taken and
+   cleared by HB_ET_CODEBLOCK, so a block nested in it does not inherit
+   it. */
+static const char * s_szCbElemType = NULL;
+static int          s_nCbElemParams = 0;
+
+/* A codeblock parameter in scope, the innermost block first: its type,
+   USUAL when it has none, or NULL when szName is no block parameter. It
+   comes before the routine's locals, whose names it hides in the lambda. */
+static const char * hb_csCbParamType( const char * szName )
+{
+   int i = ( s_iCbScope < HB_CS_MAXCBSCOPE ? s_iCbScope : HB_CS_MAXCBSCOPE ) - 1;
+   for( ; i >= 0; i-- )
+   {
+      PHB_CBVAR pVar;
+      int j = 0;
+      for( pVar = s_apCbScope[ i ]; pVar; pVar = pVar->pNext, j++ )
+         if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+         {
+            const char * szType = j < HB_CS_MAXCBPARAMS ? s_aszCbType[ i ][ j ] : NULL;
+            return szType ? szType : "USUAL";
+         }
+   }
+   return NULL;
+}
+
 static const char * hb_csLocalTypeGet( const char * szName )
 {
    int i;
+   const char * szCb;
    if( ! szName )
       return NULL;
+   if( ( szCb = hb_csCbParamType( szName ) ) != NULL )
+      return szCb;
    for( i = 0; i < s_iLocalCount; i++ )
       if( hb_stricmp( s_pLocalNames[ i ], szName ) == 0 )
          return s_pLocalTypes[ i ];
@@ -886,13 +930,6 @@ static const char * hb_csResolveLocal( const char * szName )
    }
    return NULL;
 }
-
-/* The codeblock parameters in scope where an expression is being emitted:
-   `{|nX| ... }` is a lambda whose `nX` a bare member name would bind to.
-   Pushed and popped around each codeblock (HB_ET_CODEBLOCK). */
-#define HB_CS_MAXCBSCOPE 32
-static PHB_CBVAR s_apCbScope[ HB_CS_MAXCBSCOPE ];
-static int       s_iCbScope = 0;
 
 static HB_BOOL hb_csIsMethodLocal( const char * szName );
 
@@ -2442,7 +2479,27 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                   fprintf( yyc, "(%s)", szDown );
             }
          }
+         /* A block AScan / AEval / ASort hands each element to: its first
+            parameter (both of ASort's) is an element of the array scanned,
+            whose type a declared array gives (hb_csBlockSig) */
+         if( pArg->ExprType == HB_ET_CODEBLOCK && szFunc && pHead != pArg )
+         {
+            int nElem = 0;
+            if( iPos == 1 && ( hb_stricmp( szFunc, "AScan" ) == 0 ||
+                               hb_stricmp( szFunc, "hb_AScan" ) == 0 ||
+                               hb_stricmp( szFunc, "AEval" ) == 0 ) )
+               nElem = 1;
+            else if( iPos == 3 && hb_stricmp( szFunc, "ASort" ) == 0 )
+               nElem = 2;
+            if( nElem )
+            {
+               s_szCbElemType = hb_csExprElemType( pHead );
+               s_nCbElemParams = s_szCbElemType ? nElem : 0;
+            }
+         }
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
+         s_szCbElemType = NULL;
+         s_nCbElemParams = 0;
          pItem = pItem->pNext;
       }
    }
@@ -4085,6 +4142,93 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr )
    }
 }
 
+/* The C# signature of a codeblock (not `{|...|}`, whose shape is fixed),
+   as `Func<P1, ..., R>` into szFunc; each parameter's Harbour type, NULL
+   for none, into aszHb (HB_CS_MAXCBPARAMS entries). A parameter takes what
+   its name says (`aLine` an array, `oPLUTable` its model); a parameter
+   whose name says nothing, among the first nElem, takes szElem, the
+   element type of the declared array the block scans, unless that is a
+   value type, which would turn a NIL element into a zero. The result is
+   the body's last expression's type where it is certain: a comparison or
+   a logical operator yields a logical whatever its operands; otherwise
+   the probe's type of a statically typed scalar. An element of an array
+   is `dynamic` in C# and may be NIL, so it stays `dynamic`. The result is
+   probed with the parameters in scope, so `{|cName| cName}` is a string.
+   HbRuntime's InvokeBlock converts a number to a typed parameter. */
+static void hb_csBlockSig( PHB_EXPR pBlock, const char * szElem, int nElem,
+                           const char ** aszHb, char * szFunc, HB_SIZE nSize )
+{
+   PHB_CBVAR pVar;
+   PHB_EXPR pLast;
+   const char * szRes = NULL;
+   HB_SIZE nOff;
+   int n = 0, j;
+
+   for( j = 0; j < HB_CS_MAXCBPARAMS; j++ )
+      aszHb[ j ] = NULL;
+   if( szElem && hb_csIsValueType( szElem ) )
+      szElem = NULL;
+   for( pVar = pBlock->value.asCodeblock.pLocals; pVar; pVar = pVar->pNext, n++ )
+   {
+      const char * szType = hb_astInferType( pVar->szName, NULL );
+      if( strcmp( hb_csTypeMap( szType ), "dynamic" ) == 0 )
+         szType = ( szElem && n < nElem ) ? szElem : NULL;
+      if( n < HB_CS_MAXCBPARAMS )
+         aszHb[ n ] = szType;
+   }
+
+   /* the result, with the parameters in scope */
+   pLast = pBlock->value.asCodeblock.pExprList;
+   while( pLast && pLast->pNext )
+      pLast = pLast->pNext;
+   while( pLast && ( pLast->ExprType == HB_ET_LIST || pLast->ExprType == HB_ET_ARGLIST ) &&
+          pLast->value.asList.pExprList && ! pLast->value.asList.pExprList->pNext )
+      pLast = pLast->value.asList.pExprList;
+   if( pLast && s_iCbScope < HB_CS_MAXCBSCOPE )
+   {
+      s_apCbScope[ s_iCbScope ] = pBlock->value.asCodeblock.pLocals;
+      for( j = 0; j < HB_CS_MAXCBPARAMS; j++ )
+         s_aszCbType[ s_iCbScope ][ j ] = aszHb[ j ];
+      s_iCbScope++;
+      switch( pLast->ExprType )
+      {
+         case HB_ET_LOGICAL:
+         case HB_EO_OR:
+         case HB_EO_AND:
+         case HB_EO_NOT:
+         case HB_EO_EQUAL:
+         case HB_EO_EQ:
+         case HB_EO_NE:
+         case HB_EO_IN:
+         case HB_EO_LT:
+         case HB_EO_GT:
+         case HB_EO_LE:
+         case HB_EO_GE:
+            szRes = "bool";
+            break;
+         case HB_ET_ARRAYAT:
+            break;
+         default:
+         {
+            const char * szCs = hb_csExprCsType( pLast );
+            if( szCs && ( strcmp( szCs, "string" ) == 0 || strcmp( szCs, "decimal" ) == 0 ||
+                          strcmp( szCs, "long" ) == 0 || strcmp( szCs, "bool" ) == 0 ||
+                          strcmp( szCs, "DateOnly" ) == 0 || strcmp( szCs, "DateTime" ) == 0 ) )
+               szRes = szCs;
+            break;
+         }
+      }
+      s_iCbScope--;
+   }
+
+   nOff = hb_snprintf( szFunc, nSize, "Func<" );
+   for( j = 0; j < n && nOff < nSize; j++ )
+      nOff += hb_snprintf( szFunc + nOff, nSize - nOff, "%s, ",
+                           j < HB_CS_MAXCBPARAMS ? hb_csTypeMap( aszHb[ j ] ) : "dynamic" );
+   if( nOff < nSize )
+      hb_snprintf( szFunc + nOff, nSize - nOff, "%s>", szRes ? szRes : "dynamic" );
+}
+
 /* A class of the program or an ORM model */
 static HB_BOOL hb_csIsClassOrModel( const char * sz )
 {
@@ -5654,8 +5798,25 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             PHB_CBVAR pVar = pExpr->value.asCodeblock.pLocals;
             HB_BOOL fVParams =
                ( pExpr->value.asCodeblock.flags & HB_BLOCK_VPARAMS ) != 0;
+            const char * aszHb[ HB_CS_MAXCBPARAMS ];
+            char szFunc[ 512 ];
+            int j;
+            /* the element type the call around it gave, for this block only */
+            const char * szElem = s_szCbElemType;
+            int nElem = s_nCbElemParams;
+            s_szCbElemType = NULL;
+            s_nCbElemParams = 0;
+            if( fVParams )
+               for( j = 0; j < HB_CS_MAXCBPARAMS; j++ )
+                  aszHb[ j ] = NULL;
+            else
+               hb_csBlockSig( pExpr, szElem, nElem, aszHb, szFunc, sizeof( szFunc ) );
             if( s_iCbScope < HB_CS_MAXCBSCOPE )
+            {
                s_apCbScope[ s_iCbScope ] = pVar;
+               for( j = 0; j < HB_CS_MAXCBPARAMS; j++ )
+                  s_aszCbType[ s_iCbScope ][ j ] = aszHb[ j ];
+            }
             s_iCbScope++;
             if( fVParams )
             {
@@ -5700,22 +5861,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
-               /* Wrap the lambda in an explicit `(Func<dynamic, ..., dynamic>)`
-                  cast. C# can't infer a delegate type when the lambda is
-                  passed to a `dynamic`-typed parameter (CS1660), which is
-                  the common case for HbRuntime helpers like AScan / AEval
-                  that take an arbitrary code block. The arity is taken
-                  from the codeblock's pLocals chain. */
-               int iParamCount = 0;
-               PHB_CBVAR pCount = pExpr->value.asCodeblock.pLocals;
-               while( pCount ) { iParamCount++; pCount = pCount->pNext; }
-               fprintf( yyc, "((Func<" );
-               {
-                  int j;
-                  for( j = 0; j <= iParamCount; j++ )
-                     fprintf( yyc, "dynamic%s", j < iParamCount ? ", " : "" );
-               }
-               fprintf( yyc, ">)(" );
+               /* Wrap the lambda in an explicit `(Func<...>)` cast. C#
+                  can't infer a delegate type when the lambda is passed to
+                  a `dynamic`-typed parameter (CS1660), which is the common
+                  case for HbRuntime helpers like AScan / AEval that take
+                  an arbitrary code block. The signature is hb_csBlockSig's:
+                  a parameter typed by its name or the array it scans, the
+                  result by the body. */
+               fprintf( yyc, "((%s)(", szFunc );
                if( pVar )
                {
                   fprintf( yyc, "(" );
@@ -6722,14 +6875,12 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   }
                   else
                   {
-                     PHB_CBVAR pCBVar = pNode->value.asVar.pInit->value.asCodeblock.pLocals;
-                     int nParams = 0;
-                     int j;
-                     while( pCBVar ) { nParams++; pCBVar = pCBVar->pNext; }
-                     fprintf( yyc, "Func<" );
-                     for( j = 0; j < nParams; j++ )
-                        fprintf( yyc, "dynamic, " );
-                     fprintf( yyc, "dynamic> %s = ", pNode->value.asVar.szName );
+                     /* the lambda's own signature (HB_ET_CODEBLOCK) */
+                     const char * aszHb[ HB_CS_MAXCBPARAMS ];
+                     char szFunc[ 512 ];
+                     hb_csBlockSig( pNode->value.asVar.pInit, NULL, 0, aszHb,
+                                    szFunc, sizeof( szFunc ) );
+                     fprintf( yyc, "%s %s = ", szFunc, pNode->value.asVar.szName );
                   }
                }
                else

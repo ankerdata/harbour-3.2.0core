@@ -38,7 +38,7 @@ public static partial class Program
         List<dynamic> aNums = new List<dynamic> { 3, 1, 2 };
         decimal nCalls = 0;
         Func<dynamic, dynamic> bPair = ((Func<dynamic, dynamic>)((x) => { HbRuntime.AAdd(aSeen, x); return x * 10; }));
-        Func<dynamic> bThree = ((Func<dynamic>)(() => { nSum += 1; nSum += 10; return nSum; }));
+        Func<decimal> bThree = ((Func<decimal>)(() => { nSum += 1; nSum += 10; return nSum; }));
         BlockTally oTally = new BlockTally();
 
         HbRuntime.QOut(HbRuntime.Eval(bPair, 4));
@@ -49,13 +49,13 @@ public static partial class Program
         HbRuntime.QOut(nSum);
         HbRuntime.QOut(cTrail);
 
-        HbRuntime.ASort(aNums, null, null, ((Func<dynamic, dynamic, dynamic>)((a, b) => { nCalls++; return a < b; })));
+        HbRuntime.ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return a < b; })));
         HbRuntime.QOut(aNums[0], aNums[1], aNums[2]);
         HbRuntime.QOut(nCalls > 0);
 
         // a value that is only discarded; a value with no effect at all
         // (`nSum`, `nSum > 0`) is Harbour's own W0027, which -es2 rejects
-        HbRuntime.QOut(HbRuntime.Eval(((Func<dynamic>)(() => { _ = nSum > 0 && BlockSay("and"); return "kept"; }))));
+        HbRuntime.QOut(HbRuntime.Eval(((Func<string>)(() => { _ = nSum > 0 && BlockSay("and"); return "kept"; }))));
 
         // an IIF in the middle, a procedure, a member assigned through a send
         HbRuntime.AEval(aNums, ((Func<dynamic, dynamic>)((n) => { if (n > 1) { HbRuntime.AAdd(aSeen, n); } else { } BlockNote("n"); return n; })));
@@ -64,7 +64,7 @@ public static partial class Program
         HbRuntime.QOut(oTally.nPunches, oTally.nDayTotal);
 
         // a FOR-style condition: the block's value is its last expression
-        HbRuntime.QOut(BlockCount(aNums, ((Func<dynamic, dynamic>)((n) => { nCalls = 0; return n >= 2; }))));
+        HbRuntime.QOut(BlockCount(aNums, ((Func<dynamic, bool>)((n) => { nCalls = 0; return n >= 2; }))));
         HbRuntime.QOut(nCalls);
 
         // a `...` block runs every expression too

@@ -41,7 +41,7 @@ public static partial class Program
         Ledger127 oLedger127 = new Ledger127().Fill127();
         long nId = 7;
         // a key of no known type: Eval() answers whatever its block does
-        dynamic xKey = HbRuntime.Eval(((Func<dynamic>)(() => test127_Seven127() + 2)));
+        dynamic xKey = HbRuntime.Eval(((Func<decimal>)(() => test127_Seven127() + 2)));
 
         hnById[nId] = "seven";
         hnById[(long)(xKey)] = "nine";

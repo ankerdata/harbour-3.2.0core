@@ -28,10 +28,11 @@ public static partial class HbRuntime
     static readonly CultureInfo INV = CultureInfo.InvariantCulture;
 
     // ---- Codeblock dispatch ----
-    // Harbour codeblocks emit as Func<dynamic[], dynamic>, so Eval just
-    // packs the trailing args into the array and invokes. Delegate
-    // fallback covers blocks that survived as a plain delegate (e.g.
-    // typed fixed-arity lambdas) through reflection (InvokeBlock).
+    // A codeblock is a lambda: `{|...|}` a Func<dynamic[], dynamic>, any
+    // other a Func of one parameter per block parameter, each typed as its
+    // Hungarian name says or as the elements of a declared array it scans
+    // (`dynamic` when neither does), and its result typed when the body's
+    // is certain. Eval invokes it through reflection (InvokeBlock).
     public static dynamic Eval(dynamic block, params dynamic[] args) =>
         block is Delegate d ? InvokeBlock(d, args ?? System.Array.Empty<dynamic>()) : null;
 
@@ -54,6 +55,8 @@ public static partial class HbRuntime
             // mismatch, so fit the count to the real parameter list.
             fitted = new object[ps.Length];
             System.Array.Copy(args, fitted, Math.Min(args.Length, ps.Length));
+            for (int i = 0; i < fitted.Length; i++)
+                fitted[i] = FitBlockArg(fitted[i], ps[i].ParameterType);
         }
         // Invoked without reflection's TargetInvocationException wrapper:
         // a BREAK in the block must reach its BEGIN SEQUENCE as HbBreak,
@@ -64,6 +67,25 @@ public static partial class HbRuntime
             return d.DynamicInvoke(fitted);
         return d.Method.Invoke(d.Target, System.Reflection.BindingFlags.DoNotWrapExceptions,
                                null, fitted, null);
+    }
+
+    // An argument for a typed block parameter. Reflection converts only
+    // what C# would without a cast between primitives, and decimal is not
+    // one: a Harbour number held as long goes to a decimal parameter, and
+    // one held as decimal to a long (`i`) parameter, truncated as the
+    // emitter's (long) cast truncates. NIL to a value type is its zero,
+    // which reflection supplies, as an `n` name is never NIL. Anything
+    // else is passed as it is, and a value of another type fails there as
+    // it would at a typed call.
+    static object FitBlockArg(object v, Type t)
+    {
+        if (v is null || t == typeof(object) || t.IsInstanceOfType(v))
+            return v;
+        if (t == typeof(decimal) && IsNumeric(v))
+            return Convert.ToDecimal(v, INV);
+        if (t == typeof(long) && IsNumeric(v))
+            return v is decimal m ? (long)m : Convert.ToInt64(v, INV);
+        return v;
     }
 
     // ---- Logical functions ----

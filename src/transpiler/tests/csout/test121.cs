@@ -52,7 +52,7 @@ public class Tally121
     public virtual Tally121 Spread121(List<dynamic> aSteps = default)
     {
         // ...and a codeblock parameter named as one
-        HbRuntime.AEval(aSteps, ((Func<dynamic, dynamic>)((iCount) => iTotal += (long)(iCount + this.iCount))));
+        HbRuntime.AEval(aSteps, ((Func<long, dynamic>)((iCount) => iTotal += iCount + this.iCount)));
         return this;
     }
 }
