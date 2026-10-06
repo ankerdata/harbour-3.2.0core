@@ -26,9 +26,9 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("base=" + HbRuntime.AllTrim(HbRuntime.Str(100)));
+        HbRuntime.QOut("base=" + HbRuntime.AllTrim(HbRuntime.Str(Test47Const.TEST47_BASE)));
         HbRuntime.QOut("cond=" + HbRuntime.AllTrim(HbRuntime.Str(7)));
-        HbRuntime.QOut("label=" + "filtered");
+        HbRuntime.QOut("label=" + Test47Const.TEST47_LABEL);
         return;
     }
 }

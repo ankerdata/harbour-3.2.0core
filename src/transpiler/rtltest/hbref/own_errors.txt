@@ -73,4 +73,9 @@ own_errors:116 PASS
 own_errors:117 PASS
 own_errors:118 PASS
 own_errors:119 PASS
-passed         74 failed          0 errors          0
+own_errors:120 PASS
+own_errors:121 PASS
+own_errors:122 PASS
+own_errors:123 PASS
+own_errors:124 PASS
+passed         79 failed          0 errors          0

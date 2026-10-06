@@ -104,6 +104,11 @@ PROCEDURE Main_ERRORS()
    TEST_CALL( "own_errors:117", "OpMismatch():subCode", {|| OpMismatch():subCode }, 1083, .F., NIL )
    TEST_CALL( "own_errors:118", "OpMismatch():description", {|| OpMismatch():description }, "Argument error", .F., NIL )
    TEST_CALL( "own_errors:119", "OpMismatch():operation", {|| OpMismatch():operation }, "*", .F., NIL )
+   TEST_CALL( "own_errors:120", "NoSuchVar():genCode", {|| NoSuchVar():genCode }, 16, .F., NIL )
+   TEST_CALL( "own_errors:121", "NoSuchVar():subSystem", {|| NoSuchVar():subSystem }, "BASE", .F., NIL )
+   TEST_CALL( "own_errors:122", "NoSuchVar():subCode", {|| NoSuchVar():subCode }, 1005, .F., NIL )
+   TEST_CALL( "own_errors:123", "NoSuchVar():description", {|| NoSuchVar():description }, "No exported variable", .F., NIL )
+   TEST_CALL( "own_errors:124", "NoSuchVar():operation", {|| NoSuchVar():operation }, "NOSUCHVAR", .F., NIL )
 
    RETURN
 
@@ -290,6 +295,20 @@ STATIC FUNCTION NoValue()
    end
 
    ( ( xValue ) )
+
+   RETURN oError
+
+
+
+STATIC FUNCTION NoSuchVar()
+
+   LOCAL oError
+   LOCAL oTarget := ErrorNew()
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      oTarget:NoSuchVar := 1
+   RECOVER USING oError
+   end
 
    RETURN oError
 

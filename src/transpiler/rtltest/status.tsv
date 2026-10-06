@@ -114,7 +114,7 @@ __Quit	implemented	10	0	0	0	0	0	0
 hb_argv	implemented	9	4	0	0	0	0	0
 hb_base64Encode	implemented	9	6	0	0	0	0	0
 hb_BLeft	implemented	9	1	0	0	0	0	0
-ErrorNew	implemented	8	38	0	0	0	0	0
+ErrorNew	implemented	8	43	0	0	0	0	0
 hb_FCreate	implemented	8	1	0	0	0	0	0
 hb_socketOpen	implemented	8	12	0	0	0	0	0
 hb_socketRecv	implemented	8	0	0	0	0	0	0

@@ -20,7 +20,7 @@ procedures in file order.
 Every assertion gets a disposition in manifest.tsv:
 
   run-fn        runs; every core function it calls is one the
-                application needs (--needed)
+                application needs (--needed) or KEEP_IN_SCOPE names
   run-op        runs; it calls no core function (operators, the VM) —
                 the second tier, reported but not gating
   rte           not run: it expects a runtime error. Most pass the
@@ -29,7 +29,8 @@ Every assertion gets a disposition in manifest.tsv:
   unsupported:memvar|macro|alias|class|c-helper|get|equal
                 not run: needs something the C# side does not have
   out-of-scope  not run: calls a core function the application does not
-                use (whether or not HbRuntime has it)
+                use (whether or not HbRuntime has it), but for the few
+                KEEP_IN_SCOPE keeps
 
 The statements between the assertions get the same treatment: one that
 needs a macro, an alias, a memvar, the GET system, a single `=` or an
@@ -74,6 +75,13 @@ WORK = os.path.join(HERE, "work")
 MANIFEST = os.path.join(HERE, "manifest.tsv")
 RULINGS = os.path.join(HERE, "rulings.tsv")
 DEFAULT_NEEDED = os.path.join(ROOT, "..", "easipos-transpiled", "notes", "hbruntime.txt")
+
+# Core functions kept in scope although the application no longer calls
+# them (Alex, 2026-10-06: an explicit list, not everything HbRuntime
+# implements). AIns() / ADel() became hb_AIns() / hb_ADel() in EasiPOS but
+# HbRuntime still ships them; rt_misc's MemoRead() assertions read the
+# files its MemoWrit() assertions write, and fail without them.
+KEEP_IN_SCOPE = {"AINS", "ADEL", "MEMOWRIT"}
 
 # The Harbour whose behaviour is the reference: the one the application
 # is built with (easipos-9.0's mk2env.bat: %USERPROFILE%\dev\harbour-3.2.0dev).
@@ -462,7 +470,8 @@ def main():
     ap.add_argument("--needed", default=DEFAULT_NEEDED)
     ap.add_argument("names", nargs="*")
     a = ap.parse_args()
-    core, needed = hbx_core(), needed_names(a.needed)
+    core = hbx_core()
+    needed = needed_names(a.needed) | KEEP_IN_SCOPE
     rulings = load_rulings()
     names = a.names or sorted(os.path.splitext(os.path.basename(p))[0]
                               for p in glob.glob(os.path.join(HBTEST, "rt_*.prg"))

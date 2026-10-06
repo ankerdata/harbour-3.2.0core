@@ -52,6 +52,7 @@ map and for the file it is compiling:
 
     python3 gendefines.py \\
         --include-dir /path/to/include [--include-dir ...] \\
+        [--header     /path/to/harbour/include/error.ch ...] \\
         --src-dir     /path/to/src [--src-dir ...] \\
         --output-dir  /path/to/Defines \\
         [--class-suffix Const]
@@ -350,7 +351,8 @@ def resolve_cross_refs(
             break
 
 
-def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str]
+def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str],
+             header_files: Iterable[str] = ()
              ) -> Tuple[Dict[str, Dict[str, Tuple[str, object]]],
                         Dict[str, Dict[str, Tuple[str, object]]],
                         Set[str]]:
@@ -399,6 +401,10 @@ def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str]
                 bucket[n] = v
 
     for path in walk_files(include_dirs, ('.ch',)):
+        scan(path)
+    # Named headers after the include trees, so the program's own define
+    # of a name wins over a library header's (first wins)
+    for path in header_files:
         scan(path)
     for path in walk_files(src_dirs, ('.ch', '.prg')):
         scan(path)
@@ -569,6 +575,11 @@ def main() -> int:
                     "Harbour #define directives.")
     ap.add_argument('--include-dir', action='append', required=True,
                     help='Directory tree to walk for .ch files (repeatable)')
+    ap.add_argument('--header', action='append', default=[],
+                    help='A header file read as an include-dir header is '
+                         '(repeatable): the Harbour and contrib headers '
+                         'the transpiler preloads, whose defines it then '
+                         'leaves to this map instead of expanding them')
     ap.add_argument('--src-dir', action='append', required=True,
                     help='Directory tree to walk for .prg and .ch files — '
                          'used for token-usage filtering and to harvest '
@@ -591,7 +602,7 @@ def main() -> int:
         load_filename_casing(args.filename_casing)
 
     header_defines, prg_defines, tokens = scan_all(
-        args.include_dir, args.src_dir)
+        args.include_dir, args.src_dir, args.header)
     header_first, header_conflicts = resolve_header_globals(header_defines)
 
     total = (sum(len(v) for v in header_defines.values())

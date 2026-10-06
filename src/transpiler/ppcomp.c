@@ -56,6 +56,7 @@
 #  include <unistd.h>    /* getpid for preload scratch files */
 #endif
 #include "hbast.h"
+#include "hbdefinemap.h"
 
 #if defined( _MSC_VER )
 #  define HB_PRELOAD_GETPID()  _getpid()
@@ -163,7 +164,9 @@ static HB_BOOL hb_compPreloadResolve( PHB_PP_STATE pState,
 /* Read szPath and write a filtered copy to szFilteredPath containing
    only the directives that make sense for a preload context:
 
-     pass through:  #define NAME VALUE   (non-macro)
+     pass through:  #define NAME VALUE   (non-macro, and not a name the
+                                          defines map knows: that one
+                                          stays a name for the emitter)
                     #ifdef / #ifndef     (flow control)
                     #else / #elif / #endif
      dropped:       #xcommand / #xtranslate / #command / #translate
@@ -183,13 +186,38 @@ static HB_BOOL hb_compPreloadResolve( PHB_PP_STATE pState,
    own define table, so we don't need to track `#ifdef` state here —
    just preserve the directives. Returns HB_FALSE if the source can't
    be opened. */
+/* The identifier at p (after blanks) into szBuf, empty when there is none */
+static void hb_compPreloadName( const char * p, char * szBuf, size_t nBufSize )
+{
+   size_t n = 0;
+   while( *p == ' ' || *p == '\t' )
+      p++;
+   while( n + 1 < nBufSize &&
+          ( ( *p >= 'A' && *p <= 'Z' ) || ( *p >= 'a' && *p <= 'z' ) ||
+            ( *p >= '0' && *p <= '9' ) || *p == '_' ) )
+      szBuf[ n++ ] = *p++;
+   szBuf[ n ] = '\0';
+}
+
+#define HB_PRELOAD_MAXDEPTH 64
+
 static HB_BOOL hb_compPreloadFilter( const char * szPath,
                                      const char * szFilteredPath )
 {
    FILE * fpIn;
    FILE * fpOut;
    char   line[ 4096 ];
+   /* The conditionals open around the current line, each an include
+      guard (`#ifndef X` whose next directive is `#define X`) or not. A
+      define the defines map knows is left to the map only where every
+      open conditional is a guard: inside a real `#ifdef` the map holds
+      whichever branch gendefines met first, and the preprocessor here
+      picks the right one. */
+   HB_BOOL afGuard[ HB_PRELOAD_MAXDEPTH ];
+   int     iDepth = 0;
+   char    szPendingGuard[ 128 ];   /* the last #ifndef's name, until the next directive */
 
+   szPendingGuard[ 0 ] = '\0';
    fpIn = hb_fopen( szPath, "r" );
    if( ! fpIn )
       return HB_FALSE;
@@ -227,16 +255,47 @@ static HB_BOOL hb_compPreloadFilter( const char * szPath,
           strncmp( p, "elif",   4 ) == 0 ||
           strncmp( p, "endif",  5 ) == 0 )
       {
+         if( strncmp( p, "endif", 5 ) == 0 )
+         {
+            if( iDepth > 0 )
+               iDepth--;
+         }
+         else if( strncmp( p, "else", 4 ) == 0 || strncmp( p, "elif", 4 ) == 0 )
+         {
+            if( iDepth > 0 && iDepth <= HB_PRELOAD_MAXDEPTH )
+               afGuard[ iDepth - 1 ] = HB_FALSE;
+         }
+         else
+         {
+            iDepth++;
+            if( iDepth <= HB_PRELOAD_MAXDEPTH )
+               afGuard[ iDepth - 1 ] = HB_FALSE;
+         }
+         szPendingGuard[ 0 ] = '\0';
+         if( strncmp( p, "ifndef", 6 ) == 0 )
+            hb_compPreloadName( p + 6, szPendingGuard, sizeof( szPendingGuard ) );
          fputs( line, fpOut );
+         continue;
+      }
+      /* `#if <expr>` is not passed on, but opens a conditional all the same */
+      if( strncmp( p, "if", 2 ) == 0 && ( p[ 2 ] == ' ' || p[ 2 ] == '\t' || p[ 2 ] == '(' ) )
+      {
+         iDepth++;
+         if( iDepth <= HB_PRELOAD_MAXDEPTH )
+            afGuard[ iDepth - 1 ] = HB_FALSE;
+         szPendingGuard[ 0 ] = '\0';
          continue;
       }
       if( strncmp( p, "define", 6 ) == 0 &&
           ( p[ 6 ] == ' ' || p[ 6 ] == '\t' ) )
       {
          char * q = p + 6;
+         char * szName;
+         char   szDefName[ 128 ];
          while( *q == ' ' || *q == '\t' )
             q++;
          /* Skip the name to detect macro-shape `NAME(...)`. */
+         szName = q;
          while( ( *q >= 'A' && *q <= 'Z' ) ||
                 ( *q >= 'a' && *q <= 'z' ) ||
                 ( *q >= '0' && *q <= '9' ) ||
@@ -244,9 +303,31 @@ static HB_BOOL hb_compPreloadFilter( const char * szPath,
             q++;
          if( *q == '(' )
             continue;   /* macro define — the preload list forbids these */
+         /* A constant the defines map knows (gendefines --header), defined
+            outside any conditional but the include guard, stays a name,
+            which the emitter writes as its const class's member
+            (`ErrorConst.EG_OPEN`) and the inference types from the map;
+            expanded here it would be a bare number. */
+         if( q > szName && ( HB_SIZE ) ( q - szName ) < sizeof( szDefName ) )
+         {
+            HB_BOOL fGuarded = HB_TRUE;
+            int i;
+            memcpy( szDefName, szName, q - szName );
+            szDefName[ q - szName ] = '\0';
+            if( szPendingGuard[ 0 ] && iDepth > 0 && iDepth <= HB_PRELOAD_MAXDEPTH &&
+                strcmp( szDefName, szPendingGuard ) == 0 )
+               afGuard[ iDepth - 1 ] = HB_TRUE;
+            szPendingGuard[ 0 ] = '\0';
+            for( i = 0; i < iDepth; i++ )
+               if( i >= HB_PRELOAD_MAXDEPTH || ! afGuard[ i ] )
+                  fGuarded = HB_FALSE;
+            if( fGuarded && hb_defineMapLookup( szDefName ) )
+               continue;
+         }
          fputs( line, fpOut );
          continue;
       }
+      szPendingGuard[ 0 ] = '\0';
       /* Everything else dropped: #xcommand, #xtranslate, #command,
          #translate, #include, #pragma, #undef, ... */
    }

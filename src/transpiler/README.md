@@ -1512,7 +1512,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 44        | `--defines-map` → per-source `const` class           |
 | 45a + 45b | Short-overload emission — typed params, caller arities |
 | 46a + 46b | Short overload suppressed when no caller uses a short arity |
-| 47        | `--preload-list` header-rule injection               |
+| 47        | `--preload-list` header-rule injection; a define the defines map knows stays a name, unless it is conditional |
 | 48        | LOCAL used inside a `FOR` body and after it           |
 | 49        | `Super` / `className` (incl. `::Super:Method()` → `base.Method()`) |
 | 50        | Function-pointer typing via `f` prefix                |
@@ -1943,7 +1943,16 @@ LOCAL_FLAG   MyPrgPrgConst myprg  long
 
 The per-source `<Name>Const.cs` files and `defines_map.txt` are
 produced by [`tools/gendefines.py`](tools/gendefines.py) from any
-number of `--include-dir` and `--src-dir` paths.
+number of `--include-dir` and `--src-dir` paths, and of `--header`
+files: the Harbour and contrib headers a `--preload-list` loads
+(error.ch, hbsocket.ch, hbcurl.ch …), which an application's pipeline
+passes so their constants have a class and a type too
+(`ErrorConst.EG_OPEN`, `HbcurlConst.HB_CURLOPT_URL`). The preload then
+leaves a define the map knows unexpanded, so it reaches the emitter as
+a name rather than a bare number; only one defined outside any
+conditional but the include guard, since gendefines keeps a
+conditional define's first branch and the preprocessor picks the right
+one (test47).
 
 The module state lives in [`hbdefinemap.c`](hbdefinemap.c) /
 [`include/hbdefinemap.h`](../../include/hbdefinemap.h). `gencsharp.c`

@@ -81,8 +81,17 @@ public class HbDynamicObject : System.Dynamic.DynamicObject, IHbObject
             field.SetValue(this, coerced);
             return true;
         }
-        _bag[binder.Name] = value;
-        return true;
+        if (_bag.ContainsKey(binder.Name))
+        {
+            _bag[binder.Name] = value;
+            return true;
+        }
+        // A name the object has neither declared nor been given in its bag
+        // (SETMEMBER, BagSet: an ad-hoc table's fields, set as it is built,
+        // as addData() declares them) is Harbour's error 16/1005 on
+        // assignment (vm/classes.c), where the bag used to take it.
+        throw new MissingMemberException(
+            "No exported variable (" + binder.Name.ToUpperInvariant() + ", 1005)");
     }
 
     // Reached only when C# could not bind the call to a declared method as

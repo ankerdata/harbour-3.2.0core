@@ -149,15 +149,6 @@ rt_misc:596 PASS
 rt_misc:597 PASS
 rt_misc:598 PASS
 rt_misc:599 PASS
-rt_misc:714 PASS
-rt_misc:716 PASS
-rt_misc:717 PASS
-rt_misc:718 PASS
-rt_misc:719 PASS
-rt_misc:720 PASS
-rt_misc:721 PASS
-rt_misc:722 PASS
-rt_misc:723 PASS
 rt_misc:732 PASS
 rt_misc:734 PASS
 rt_misc:735 PASS
@@ -177,15 +168,6 @@ rt_misc:759 PASS
 rt_misc:760 PASS
 rt_misc:761 PASS
 rt_misc:762 PASS
-rt_misc:770 PASS
-rt_misc:771 PASS
-rt_misc:772 PASS
-rt_misc:773 PASS
-rt_misc:774 PASS
-rt_misc:775 PASS
-rt_misc:776 PASS
-rt_misc:777 PASS
-rt_misc:778 PASS
 rt_misc:786 PASS
 rt_misc:787 PASS
 rt_misc:788 PASS
@@ -206,4 +188,4 @@ rt_misc:886 PASS
 rt_misc:887 PASS
 rt_misc:888 PASS
 rt_misc:892 PASS
-passed        136 failed          0 errors         71
+passed        118 failed          0 errors         71

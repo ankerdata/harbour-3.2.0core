@@ -13,6 +13,11 @@
 //     change semantics — both would be caught by this test.
 //   - Drop macro-shaped `#define NAME(x) ...` (registered as rules
 //     by the PP).
+//   - Drop a define the defines map knows (the suite's gendefines reads
+//     this header too), so the name reaches the C# as its const class's
+//     member (`Test47Const.TEST47_BASE`), but only outside a conditional
+//     other than the include guard: TEST47_COND stays the 7 the
+//     preprocessor picks, where the map holds the first branch's 42.
 //
 // The .prg only uses the three plain defines; the other directives
 // are here purely to prove the filter strips them. If the filter

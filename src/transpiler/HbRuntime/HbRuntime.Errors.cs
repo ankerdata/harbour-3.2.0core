@@ -63,7 +63,8 @@ public class HbError : HbDynamicObject
 
     const int ES_ERROR = 2;                         // error.ch
     const int EG_ARG = 1, EG_BOUND = 2, EG_NUMOVERFLOW = 4, EG_ZERODIV = 5,
-              EG_MEM = 11, EG_NOMETHOD = 13, EG_OPEN = 21, EG_UNSUPPORTED = 30;
+              EG_MEM = 11, EG_NOMETHOD = 13, EG_NOVARMETHOD = 16, EG_OPEN = 21,
+              EG_UNSUPPORTED = 30;
 
     // The subCode Harbour's VM gives an operator's argument error
     // (vm/hvm.c), by the C# spelling the runtime binder names it in, with
@@ -89,9 +90,11 @@ public class HbError : HbDynamicObject
         new(@"^Operator '([^']+)' cannot be applied to (operands?)", RegexOptions.CultureInvariant);
 
     // HbRuntime's own errors say which Harbour error they are, and where
-    // Harbour gives one its subCode: "Argument error (HB_SOCKETCLOSE, 3012)"
+    // Harbour gives one its subCode: "Argument error (HB_SOCKETCLOSE, 3012)",
+    // "No exported variable (CNAME, 1005)"
     static readonly Regex s_ownError =
-        new(@"^(Argument error|Bound error) \((\w+)(?:, (\d+))?\)$", RegexOptions.CultureInvariant);
+        new(@"^(Argument error|Bound error|No exported variable) \((\w+)(?:, (\d+))?\)$",
+            RegexOptions.CultureInvariant);
 
     // What RECOVER USING gets under WITH { |e| break(e) }, and what the
     // error block at the entry point is handed: a BREAK's own value, or
@@ -114,7 +117,12 @@ public class HbError : HbDynamicObject
         var own = s_ownError.Match(ex.Message);
         if (own.Success)
         {
-            e.genCode = own.Groups[1].Value == "Argument error" ? EG_ARG : EG_BOUND;
+            e.genCode = own.Groups[1].Value switch
+            {
+                "Argument error" => EG_ARG,
+                "Bound error" => EG_BOUND,
+                _ => EG_NOVARMETHOD,
+            };
             e.description = own.Groups[1].Value;
             e.operation = own.Groups[2].Value;
             if (own.Groups[3].Success)

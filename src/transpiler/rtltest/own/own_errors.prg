@@ -117,6 +117,11 @@ PROCEDURE Main_ERRORS()
    HBTEST OpMismatch():subCode                        IS 1083
    HBTEST OpMismatch():description                    IS "Argument error"
    HBTEST OpMismatch():operation                      IS "*"
+   HBTEST NoSuchVar():genCode                         IS 16
+   HBTEST NoSuchVar():subSystem                       IS "BASE"
+   HBTEST NoSuchVar():subCode                         IS 1005
+   HBTEST NoSuchVar():description                     IS "No exported variable"
+   HBTEST NoSuchVar():operation                       IS "NOSUCHVAR"
 
    RETURN
 
@@ -303,6 +308,20 @@ STATIC FUNCTION NoValue()
    END SEQUENCE
 
    HB_SYMBOL_UNUSED( xValue )
+
+   RETURN oError
+
+   /* a member the object does not have, assigned: Harbour's 16/1005,
+      where C#'s dynamic object used to keep it in its bag */
+STATIC FUNCTION NoSuchVar()
+
+   LOCAL oError
+   LOCAL oTarget := ErrorNew()
+
+   BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
+      oTarget:NoSuchVar := 1
+   RECOVER USING oError
+   END SEQUENCE
 
    RETURN oError
 
