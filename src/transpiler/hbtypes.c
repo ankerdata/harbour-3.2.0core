@@ -3345,6 +3345,7 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                hb_astInferExprType( pEffective, pEnv );
             const HB_REFPARAM * pDecl =
                hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+            const char * szAuditType;
             HB_REFINE_RESULT r;
 
             /* W0041: an argument for a declared parameter (`o AS CLASS X`) */
@@ -3370,10 +3371,24 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                object reached untyped (a table out of hORMTables), and
                some rely on a guard the scan cannot see (`aBuffer[i]`
                after `aBuffer[i]:nType == ITEM`). A NIL passed is null
-               in C#, which converts to any class. */
+               in C#, which converts to any class. Two arguments C# binds
+               statically are typed here though the inference leaves them
+               OBJECT or untyped: `Self`, the class of the method
+               it is in (SQLtTable passing itself to its helpers), and
+               `@var`, the variable's type (a local declared `AS CLASS X`
+               passed by reference). Only the audit reads them so: the
+               inference is left as it is, so no parameter is refined. */
+            szAuditType = szArgType;
+            if( pEffective->ExprType == HB_ET_VARIABLE &&
+                hb_stricmp( pEffective->value.asSymbol.name, "Self" ) == 0 &&
+                pEnv->szSelfClass[ 0 ] )
+               szAuditType = pEnv->szSelfClass;
+            else if( pEffective->ExprType == HB_ET_VARREF &&
+                     pEffective->value.asSymbol.name )
+               szAuditType = hb_typeEnvGet( pEnv, pEffective->value.asSymbol.name );
             if( hb_auditActive() && pEffective->ExprType != HB_ET_NIL &&
-                ( ! szArgType || hb_stricmp( szArgType, "USUAL" ) == 0 ||
-                  hb_stricmp( szArgType, "OBJECT" ) == 0 ) )
+                ( ! szAuditType || hb_stricmp( szAuditType, "USUAL" ) == 0 ||
+                  hb_stricmp( szAuditType, "OBJECT" ) == 0 ) )
             {
                const HB_REFPARAM * pP =
                   hb_refTabParam( pEnv->pRefTab, szCallee, iPos );

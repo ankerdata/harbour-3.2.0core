@@ -1003,7 +1003,8 @@ fraction" so anything fractional flowing into one needs `Int()` or
   integer", per site; MEMBER-TYPE rows say what evidence a member's
   type rests on; ARG-DYNAMIC rows are the calls that pass an untyped
   value into a class-typed parameter, converted (or refused) at run
-  time, and ARG-DOWNCAST rows the calls that pass a parent into a
+  time (`Self` counts as its method's class and `@var` as the variable's
+  type, as C# binds them), and ARG-DOWNCAST rows the calls that pass a parent into a
   parameter of its subclass, cast at the call. It is a leaderboard, not a
   gate.
 - **The scan log**: W0026 names the site that demoted an index-used
