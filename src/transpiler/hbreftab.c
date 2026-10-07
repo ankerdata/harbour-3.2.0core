@@ -11,6 +11,7 @@
 #include "hbcomp.h"
 #include "hbast.h"
 #include "hbreftab.h"
+#include "hbown.h"
 #include "hbfieldtypes.h"
 
 #define HB_REFTAB_BUCKETS  1024  /* power of two */
@@ -43,6 +44,23 @@ typedef struct HB_REFENTRY_
                                            skip the short overload when every
                                            caller already uses the canonical full
                                            arity, avoiding dead methods. */
+   /* Ownership facts (hbown.c): what the routine may do with what it is
+      given. Recomputed from the body on every scan pass, never carried
+      forward, so a fact one pass found with a callee still unknown is
+      replaced by the next pass's; until a routine has been analysed
+      (fOwnKnown) a caller assumes the worst. Written as pflags K / O and
+      the tail field O=. */
+   HB_BOOL               fOwnKnown;
+   HB_U64                ownKept;      /* bit n: slot n may be kept (stored,
+                                          captured, passed on to something that
+                                          keeps it) */
+   HB_U64                ownReturned;  /* bit n: slot n may be returned */
+   HB_BOOL               fSelfKept;    /* a method's Self may be kept */
+   HB_BOOL               fSelfReturned;/* a method's Self may be returned */
+   HB_BOOL               fReturnsNew;  /* every value returned is a new object
+                                          (or NIL) nothing else holds */
+   HB_BOOL               fReturnsSelf; /* every RETURN is Self or NIL */
+   HB_BOOL               fDestructor;  /* fIsClass: the class has a DESTRUCTOR */
    struct HB_REFENTRY_ * pNext;
 } HB_REFENTRY, * PHB_REFENTRY;
 
@@ -67,6 +85,11 @@ struct HB_REFTAB_
    PHB_REFENTRY         buckets[ HB_REFTAB_BUCKETS ];
    HB_SIZE              nCount;
    PHB_REFTAB_DEFERRED  pDeferred;    /* freed on hb_refTabFree */
+   PHB_REFENTRY *       pMethods;     /* method rows sorted by message name
+                                         (hb_refTabForEachMethod), rebuilt
+                                         when nCount moves */
+   HB_SIZE              nMethods;
+   HB_SIZE              nMethodsAt;   /* nCount the index was built at */
 };
 
 static void hb_refTabDefer( PHB_REFTAB pTab, char * sz )
@@ -292,6 +315,8 @@ void hb_refTabFree( PHB_REFTAB pTab )
          e = pNext;
       }
    }
+   if( pTab->pMethods )
+      hb_xfree( pTab->pMethods );
    pDef = pTab->pDeferred;
    while( pDef )
    {
@@ -1288,6 +1313,199 @@ const HB_REFPARAM * hb_refTabParam( PHB_REFTAB pTab,
    return &e->pParams[ iPos ];
 }
 
+/* ---- ownership facts (hbown.c) ---- */
+
+/* TRUE when the facts are not what the row held */
+HB_BOOL hb_refTabSetOwnFacts( PHB_REFTAB pTab, const char * szFunc,
+                              HB_U64 kept, HB_U64 returned,
+                              HB_BOOL fSelfKept, HB_BOOL fSelfReturned,
+                              HB_BOOL fReturnsNew, HB_BOOL fReturnsSelf )
+{
+   PHB_REFENTRY e;
+   HB_BOOL fChanged;
+   if( ! pTab || ! szFunc )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( ! e )
+      return HB_FALSE;
+   fChanged = ! e->fOwnKnown || e->ownKept != kept ||
+              e->ownReturned != returned ||
+              ! e->fSelfKept != ! fSelfKept ||
+              ! e->fSelfReturned != ! fSelfReturned ||
+              ! e->fReturnsNew != ! fReturnsNew ||
+              ! e->fReturnsSelf != ! fReturnsSelf;
+   e->fOwnKnown     = HB_TRUE;
+   e->ownKept       = kept;
+   e->ownReturned   = returned;
+   e->fSelfKept     = fSelfKept;
+   e->fSelfReturned = fSelfReturned;
+   e->fReturnsNew   = fReturnsNew;
+   e->fReturnsSelf  = fReturnsSelf;
+   return fChanged;
+}
+
+HB_BOOL hb_refTabOwnFacts( PHB_REFTAB pTab, const char * szFunc,
+                           HB_U64 * pKept, HB_U64 * pReturned,
+                           HB_BOOL * pfSelfKept, HB_BOOL * pfSelfReturned,
+                           HB_BOOL * pfReturnsNew, HB_BOOL * pfReturnsSelf )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szFunc )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( ! e || ! e->fDefined || ! e->fOwnKnown )
+      return HB_FALSE;
+   if( pKept )          *pKept          = e->ownKept;
+   if( pReturned )      *pReturned      = e->ownReturned;
+   if( pfSelfKept )     *pfSelfKept     = e->fSelfKept;
+   if( pfSelfReturned ) *pfSelfReturned = e->fSelfReturned;
+   if( pfReturnsNew )   *pfReturnsNew   = e->fReturnsNew;
+   if( pfReturnsSelf )  *pfReturnsSelf  = e->fReturnsSelf;
+   return HB_TRUE;
+}
+
+/* A class's DESTRUCTOR, set from its own file at every scan, so removing
+   one clears it */
+void hb_refTabSetClassDestructor( PHB_REFTAB pTab, const char * szClass,
+                                  HB_BOOL fDestructor )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szClass )
+      return;
+   e = hb_refTabFindEntry( pTab, szClass, NULL );
+   if( e && e->fIsClass )
+      e->fDestructor = fDestructor;
+}
+
+HB_BOOL hb_refTabClassHasDestructor( PHB_REFTAB pTab, const char * szClass )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szClass )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szClass, NULL );
+   return e && e->fIsClass && e->fDestructor;
+}
+
+/* The message a method row answers: the tail of `Class::Class__Msg`, or
+   NULL for any other row (a member's `Class::member`, a function). */
+static const char * hb_refTabRowMessage( const char * szKey )
+{
+   const char * szSep = strstr( szKey, "::" );
+   HB_SIZE nClass;
+   if( ! szSep )
+      return NULL;
+   nClass = ( HB_SIZE ) ( szSep - szKey );
+   if( hb_strnicmp( szSep + 2, szKey, nClass ) != 0 ||
+       szSep[ 2 + nClass ] != '_' || szSep[ 3 + nClass ] != '_' ||
+       ! szSep[ 4 + nClass ] )
+      return NULL;
+   return szSep + 4 + nClass;
+}
+
+static int hb_refTabCmpMethod( const void * a, const void * b )
+{
+   const PHB_REFENTRY ea = *( const PHB_REFENTRY * ) a;
+   const PHB_REFENTRY eb = *( const PHB_REFENTRY * ) b;
+   int i = hb_stricmp( hb_refTabRowMessage( ea->szName ),
+                       hb_refTabRowMessage( eb->szName ) );
+   return i ? i : strcmp( ea->szName, eb->szName );
+}
+
+static void hb_refTabMethodIndex( PHB_REFTAB pTab );
+
+static void hb_refTabCallMethod( PHB_REFENTRY e, PHB_REFTAB_METHODFUNC pFunc,
+                                 void * cargo )
+{
+   char szClass[ 256 ];
+   const char * szSep = strstr( e->szName, "::" );
+   HB_SIZE n = ( HB_SIZE ) ( szSep - e->szName );
+   if( n >= sizeof( szClass ) )
+      n = sizeof( szClass ) - 1;
+   memcpy( szClass, e->szName, n );
+   szClass[ n ] = '\0';
+   pFunc( e->szName, szClass, cargo );
+}
+
+/* Calls pFunc for every defined method row of any message: what a macro
+   send `o:&( cMsg )` may run. */
+void hb_refTabForEachAnyMethod( PHB_REFTAB pTab, PHB_REFTAB_METHODFUNC pFunc,
+                                void * cargo )
+{
+   HB_SIZE i;
+   if( ! pTab || ! pFunc )
+      return;
+   hb_refTabMethodIndex( pTab );
+   for( i = 0; i < pTab->nMethods; i++ )
+      if( pTab->pMethods[ i ]->fDefined )
+         hb_refTabCallMethod( pTab->pMethods[ i ], pFunc, cargo );
+}
+
+/* Calls pFunc for every defined method row answering szMsg, in any
+   class: what a send to a receiver of unknown class may run. */
+void hb_refTabForEachMethod( PHB_REFTAB pTab, const char * szMsg,
+                             PHB_REFTAB_METHODFUNC pFunc, void * cargo )
+{
+   HB_SIZE lo, hi;
+
+   if( ! pTab || ! szMsg || ! pFunc )
+      return;
+   hb_refTabMethodIndex( pTab );
+
+   /* the first row answering szMsg */
+   lo = 0;
+   hi = pTab->nMethods;
+   while( lo < hi )
+   {
+      HB_SIZE mid = ( lo + hi ) / 2;
+      if( hb_stricmp( hb_refTabRowMessage( pTab->pMethods[ mid ]->szName ),
+                      szMsg ) < 0 )
+         lo = mid + 1;
+      else
+         hi = mid;
+   }
+   for( ; lo < pTab->nMethods; lo++ )
+   {
+      PHB_REFENTRY e = pTab->pMethods[ lo ];
+      if( hb_stricmp( hb_refTabRowMessage( e->szName ), szMsg ) != 0 )
+         break;
+      if( e->fDefined )
+         hb_refTabCallMethod( e, pFunc, cargo );
+   }
+}
+
+/* The method rows sorted by message, rebuilt when rows were added */
+static void hb_refTabMethodIndex( PHB_REFTAB pTab )
+{
+   if( ! pTab->pMethods || pTab->nMethodsAt != pTab->nCount )
+   {
+      HB_SIZE i, nCap = 0;
+      if( pTab->pMethods )
+         hb_xfree( pTab->pMethods );
+      pTab->pMethods = NULL;
+      pTab->nMethods = 0;
+      for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
+      {
+         PHB_REFENTRY e;
+         for( e = pTab->buckets[ i ]; e; e = e->pNext )
+         {
+            if( ! hb_refTabRowMessage( e->szName ) )
+               continue;
+            if( pTab->nMethods == nCap )
+            {
+               nCap = nCap ? nCap * 2 : 1024;
+               pTab->pMethods = ( PHB_REFENTRY * ) hb_xrealloc(
+                  pTab->pMethods, nCap * sizeof( PHB_REFENTRY ) );
+            }
+            pTab->pMethods[ pTab->nMethods++ ] = e;
+         }
+      }
+      if( pTab->nMethods > 1 )
+         qsort( pTab->pMethods, pTab->nMethods, sizeof( PHB_REFENTRY ),
+                hb_refTabCmpMethod );
+      pTab->nMethodsAt = pTab->nCount;
+   }
+}
+
 /* ---- persistence ---- */
 
 static int hb_refTabCmpEntryByName( const void * a, const void * b )
@@ -1313,10 +1531,13 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
    fprintf( fp, "# Harbour transpiler user-function signature table\n" );
    fprintf( fp, "# Format: NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...\n" );
    fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, D = dynamic class (extends HbDynamicObject),\n" );
-   fprintf( fp, "#           P = public var, A = public var with array-dim, - = none\n" );
+   fprintf( fp, "#           X = class with a DESTRUCTOR, P = public var, A = public var with array-dim, - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown; for P entries this slot holds the owning .prg basename\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
-   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, T = declared type, - = none\n" );
+   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, T = declared type,\n" );
+   fprintf( fp, "#                  K = may be kept, O = may be returned, - = none\n" );
+   fprintf( fp, "# tail O=<letters>: the routine's ownership facts (hbown.c): K = Self may be kept, R = Self may be returned,\n" );
+   fprintf( fp, "#                  N = returns a new object, I = returns only Self or NIL, - = none of these\n" );
    fprintf( fp, "#\n" );
    fprintf( fp, "# THIS FILE IS GENERATED — see `hbtranspiler -GF`\n" );
 
@@ -1358,13 +1579,14 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
          if( e->fDefined )
          {
             int p;
-            char fnFlags[ 8 ];
+            char fnFlags[ 12 ];
             int  fnK = 0;
             const char * szRet;
             if( e->fVariadic )      fnFlags[ fnK++ ] = 'V';
             if( e->fCalledVarargs ) fnFlags[ fnK++ ] = 'S';
             if( e->fIsClass )       fnFlags[ fnK++ ] = 'K';
             if( e->fClassDynamic )  fnFlags[ fnK++ ] = 'D';
+            if( e->fDestructor )    fnFlags[ fnK++ ] = 'X';
             if( e->fIsPublic )      fnFlags[ fnK++ ] = 'P';
             if( e->fPublicArrayDim) fnFlags[ fnK++ ] = 'A';
             if( fnK == 0 )          fnFlags[ fnK++ ] = '-';
@@ -1387,7 +1609,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                HB_BOOL fReassigned = e->pParams[ p ].fReassigned;
                HB_BOOL fDeclDefault = e->pParams[ p ].fDeclDefault;
                HB_BOOL fDeclType = e->pParams[ p ].fDeclType;
-               char flags[ 8 ];
+               char flags[ 12 ];
                int  k = 0;
                if( fByRef )     flags[ k++ ] = 'R';
                if( fNilable )   flags[ k++ ] = 'N';
@@ -1395,6 +1617,12 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                if( fReassigned) flags[ k++ ] = 'W';
                if( fDeclDefault) flags[ k++ ] = 'D';
                if( fDeclType )  flags[ k++ ] = 'T';
+               if( e->fOwnKnown && p < 64 &&
+                   ( e->ownKept & ( ( ( HB_U64 ) 1 ) << p ) ) )
+                  flags[ k++ ] = 'K';
+               if( e->fOwnKnown && p < 64 &&
+                   ( e->ownReturned & ( ( ( HB_U64 ) 1 ) << p ) ) )
+                  flags[ k++ ] = 'O';
                if( k == 0 )     flags[ k++ ] = '-';
                flags[ k ] = '\0';
                fprintf( fp, "\t%s:%s:%s",
@@ -1415,6 +1643,20 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                convention as A=. */
             if( e->fIsClass && e->szClassParent )
                fprintf( fp, "\tI=%s", e->szClassParent );
+            /* "O=<letters>" carries the ownership facts; its presence
+               says the routine has been analysed */
+            if( e->fOwnKnown )
+            {
+               char own[ 8 ];
+               int  k = 0;
+               if( e->fSelfKept )     own[ k++ ] = 'K';
+               if( e->fSelfReturned ) own[ k++ ] = 'R';
+               if( e->fReturnsNew )   own[ k++ ] = 'N';
+               if( e->fReturnsSelf )  own[ k++ ] = 'I';
+               if( k == 0 )           own[ k++ ] = '-';
+               own[ k ] = '\0';
+               fprintf( fp, "\tO=%s", own );
+            }
             fprintf( fp, "\n" );
          }
       }
@@ -1473,6 +1715,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       HB_BOOL reas[ HB_REFTAB_MAXPARAM ];
       HB_BOOL decl[ HB_REFTAB_MAXPARAM ];
       HB_BOOL dtyp[ HB_REFTAB_MAXPARAM ];
+      HB_U64  ownKept = 0, ownReturned = 0;
+      HB_BOOL fDestructor = HB_FALSE;
       int i;
 
       if( line[ 0 ] == '#' || line[ 0 ] == '\n' || line[ 0 ] == '\0' )
@@ -1523,6 +1767,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                fPub = HB_TRUE;
             else if( *c == 'A' || *c == 'a' )
                fPubArr = HB_TRUE;
+            else if( *c == 'X' || *c == 'x' )
+               fDestructor = HB_TRUE;
          }
          if( fPub )
          {
@@ -1539,6 +1785,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
          else if( fIsClass )
             hb_refTabMarkClass( pTab, fields[ 0 ], NULL );
+         if( fDestructor )
+            hb_refTabSetClassDestructor( pTab, fields[ 0 ], HB_TRUE );
          if( fSpread )
             hb_refTabMarkCalledVarargs( pTab, fields[ 0 ] );
       }
@@ -1583,6 +1831,10 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                decl[ i ] = HB_TRUE;
             else if( *c == 'T' || *c == 't' )
                dtyp[ i ] = HB_TRUE;
+            else if( *c == 'K' || *c == 'k' )
+               ownKept |= ( ( HB_U64 ) 1 ) << i;
+            else if( *c == 'O' || *c == 'o' )
+               ownReturned |= ( ( HB_U64 ) 1 ) << i;
          }
       }
 
@@ -1631,6 +1883,15 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          else if( fields[ i ][ 0 ] == 'I' && fields[ i ][ 1 ] == '=' &&
                   fields[ i ][ 2 ] )
             hb_refTabMarkClass( pTab, fields[ 0 ], fields[ i ] + 2 );
+         else if( fields[ i ][ 0 ] == 'O' && fields[ i ][ 1 ] == '=' )
+         {
+            const char * c = fields[ i ] + 2;
+            hb_refTabSetOwnFacts( pTab, fields[ 0 ], ownKept, ownReturned,
+                                  strchr( c, 'K' ) != NULL,
+                                  strchr( c, 'R' ) != NULL,
+                                  strchr( c, 'N' ) != NULL,
+                                  strchr( c, 'I' ) != NULL );
+         }
       }
    }
 
@@ -2492,8 +2753,12 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             later in source order than the class that references it. */
          for( ; p; p = p->pNext )
             if( p->type == HB_AST_CLASS && p->value.asClass.szName )
+            {
                hb_refTabMarkClass( pTab, p->value.asClass.szName,
                                    p->value.asClass.szParent );
+               hb_refTabSetClassDestructor( pTab, p->value.asClass.szName,
+                  p->value.asClass.szDestructor != NULL );
+            }
          p = pFirst->value.asFunc.pBody->value.asBlock.pFirst;
          while( p )
          {
@@ -2985,4 +3250,89 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
       pFunc = pFunc->pNext;
    }
    hb_astSetFileFuncs( NULL );
+
+   /* ----- Pass 4: ownership facts (hbown.c) - what each routine may do
+      with its parameters and Self, and whether it returns new objects.
+      Recomputed from the body on every pass, after the types settled
+      above; then the INLINE methods, whose text reads the facts of the
+      methods it calls. Repeated until the file's facts stop moving, so a
+      class whose methods call one another settles in one pass of the
+      scan rather than one per link. */
+ {
+   int iRound;
+   for( iRound = 0; iRound < 16; iRound++ )
+   {
+   HB_BOOL fChanged = HB_FALSE;
+   pFunc     = HB_COMP_PARAM->ast.pFuncList;
+   pCompFunc = HB_COMP_PARAM->functions.pFirst;
+   while( pFunc )
+   {
+      if( pFunc->type == HB_AST_FUNCTION )
+      {
+         while( pCompFunc && ( pCompFunc->funFlags & HB_FUNF_FILE_DECL ) )
+            pCompFunc = pCompFunc->pNext;
+
+         if( pCompFunc && ! ( pCompFunc->funFlags & HB_FUNF_FILE_FIRST ) &&
+             pFunc->value.asFunc.pBody )
+         {
+            const char * szClass = hb_refTabFuncClass( pFunc );
+            const char * szFileBase = HB_COMP_PARAM->pFileName ?
+                                      HB_COMP_PARAM->pFileName->szName : NULL;
+            char szKeyBuf[ 256 ];
+            HB_OWNINFO * pInfo;
+            if( ! szClass && ( pCompFunc->cScope & HB_FS_STATIC ) && szFileBase )
+               hb_snprintf( szKeyBuf, sizeof( szKeyBuf ), "%s::%s",
+                            szFileBase, pFunc->value.asFunc.szName );
+            else
+               hb_strncpy( szKeyBuf, hb_refTabMethodKey(
+                  szClass, pFunc->value.asFunc.szName ), sizeof( szKeyBuf ) - 1 );
+            pInfo = hb_ownAnalyse( pTab, pFunc, pCompFunc->wParamCount, szClass,
+                                   HB_COMP_PARAM->ast.pFuncList, szFileBase );
+            if( hb_ownRecordFacts( pTab, szKeyBuf, pInfo, pFunc, szClass ) )
+               fChanged = HB_TRUE;
+            hb_ownFree( pInfo );
+         }
+
+         if( pCompFunc )
+            pCompFunc = pCompFunc->pNext;
+      }
+      pFunc = pFunc->pNext;
+   }
+   {
+      PHB_AST_NODE pFirst = HB_COMP_PARAM->ast.pFuncList;
+      if( pFirst && pFirst->type == HB_AST_FUNCTION &&
+          pFirst->value.asFunc.pBody &&
+          pFirst->value.asFunc.pBody->type == HB_AST_BLOCK )
+      {
+         PHB_AST_NODE p;
+         for( p = pFirst->value.asFunc.pBody->value.asBlock.pFirst; p;
+              p = p->pNext )
+         {
+            PHB_AST_NODE pMember;
+            if( p->type != HB_AST_CLASS || ! p->value.asClass.szName )
+               continue;
+            for( pMember = p->value.asClass.pMembers; pMember;
+                 pMember = pMember->pNext )
+            {
+               char szMKey[ 256 ];
+               if( pMember->type != HB_AST_CLASSMETHOD ||
+                   ! pMember->value.asClassMethod.szName ||
+                   ! pMember->value.asClassMethod.szInline )
+                  continue;
+               hb_snprintf( szMKey, sizeof( szMKey ), "%s::%s__%s",
+                            p->value.asClass.szName, p->value.asClass.szName,
+                            pMember->value.asClassMethod.szName );
+               if( hb_refTabParamCount( pTab, szMKey ) >= 0 &&
+                   hb_ownInlineFacts( pTab, szMKey, p->value.asClass.szName,
+                                      pMember->value.asClassMethod.szInline,
+                                      pMember->value.asClassMethod.szParams ) )
+                  fChanged = HB_TRUE;
+            }
+         }
+      }
+   }
+   if( ! fChanged )
+      break;
+   }
+ }
 }

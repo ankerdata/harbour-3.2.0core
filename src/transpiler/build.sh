@@ -18,7 +18,7 @@ clang -Isrc/transpiler/include -I./include -Isrc/transpiler -DHB_TRANSPILER -fno
   src/transpiler/gencsharp.c src/transpiler/genscan.c src/transpiler/genstubs.c \
   src/transpiler/hbast.c src/transpiler/hbclsparse.c \
   src/transpiler/hbcomp.c src/transpiler/hbmain.c \
-  src/transpiler/hbtypes.c src/transpiler/hbreftab.c \
+  src/transpiler/hbtypes.c src/transpiler/hbreftab.c src/transpiler/hbown.c \
   src/transpiler/hbdefinemap.c src/transpiler/hbfieldtypes.c \
   src/transpiler/hbhbxcanon.c \
   src/transpiler/hbfilecase.c \

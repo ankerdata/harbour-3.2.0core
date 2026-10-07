@@ -330,6 +330,32 @@ extern const HB_REFPARAM * hb_refTabParam( PHB_REFTAB pTab,
    by the C# emitter to skip short overloads no caller actually uses. */
 extern HB_U64 hb_refTabCallArities( PHB_REFTAB pTab, const char * szFunc );
 
+/* ---- ownership facts (hbown.c) ----
+   What a routine may do with what it is given: bit n of kept / returned
+   for slot n, and for a method its Self. hbown.c computes them from the
+   body on every scan pass; hb_refTabOwnFacts answers FALSE for a routine
+   not analysed yet, which a caller must take as "may keep anything". */
+extern HB_BOOL hb_refTabSetOwnFacts( PHB_REFTAB pTab, const char * szFunc,
+                                     HB_U64 kept, HB_U64 returned,
+                                     HB_BOOL fSelfKept, HB_BOOL fSelfReturned,
+                                     HB_BOOL fReturnsNew, HB_BOOL fReturnsSelf );
+extern HB_BOOL hb_refTabOwnFacts( PHB_REFTAB pTab, const char * szFunc,
+                                  HB_U64 * pKept, HB_U64 * pReturned,
+                                  HB_BOOL * pfSelfKept, HB_BOOL * pfSelfReturned,
+                                  HB_BOOL * pfReturnsNew, HB_BOOL * pfReturnsSelf );
+extern void    hb_refTabSetClassDestructor( PHB_REFTAB pTab, const char * szClass,
+                                            HB_BOOL fDestructor );
+extern HB_BOOL hb_refTabClassHasDestructor( PHB_REFTAB pTab, const char * szClass );
+
+/* Every defined method row answering szMsg, in any class. */
+typedef void ( * PHB_REFTAB_METHODFUNC )( const char * szKey,
+                                          const char * szClass, void * cargo );
+extern void hb_refTabForEachMethod( PHB_REFTAB pTab, const char * szMsg,
+                                    PHB_REFTAB_METHODFUNC pFunc, void * cargo );
+/* Every defined method row, of any message: what `o:&( cMsg )` may run. */
+extern void hb_refTabForEachAnyMethod( PHB_REFTAB pTab,
+                                       PHB_REFTAB_METHODFUNC pFunc, void * cargo );
+
 /* ---- AST scanner ---- */
 
 /* Walk the program (AST function list + compiler function list, walked

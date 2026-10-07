@@ -29,7 +29,7 @@ using static Program;
 // hSeekStmts): `protected internal` / `internal` in C#.
 
 // #include "hbclass.ch"
-public class Handle122 : IHbObject
+public class Handle122 : IHbObject, IDisposable
 {
     public string cLabel122 { get; protected set; }
 
@@ -49,7 +49,23 @@ public class Handle122 : IHbObject
         // spelled otherwise than its declaration: the definition takes the declared Peek122
     }
 
-    ~Handle122() => HbRuntime.RunDestructor(() => Release122());
+    protected bool disposed;
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposed)
+            return;
+        disposed = true;
+        HbRuntime.RunDestructor(() => Release122(), disposing);
+    }
+
+    ~Handle122() => Dispose(false);
 }
 
 public class Vault122 : IHbObject
@@ -93,7 +109,7 @@ public static partial class Program
     }
     public static void test122_Open122(string cLabel = default)
     {
-        Handle122 oHandle = new Handle122();
+        using Handle122 oHandle = new Handle122();
 
         oHandle.Label122(cLabel);
         HbRuntime.QOut("label:", oHandle.cLabel122);

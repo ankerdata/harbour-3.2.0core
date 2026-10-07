@@ -274,13 +274,20 @@ public static partial class HbRuntime
     // The thread runs under RunEntry, which a QUIT unwinds to
     [ThreadStatic] static bool t_inEntry;
 
-    // A DESTRUCTOR run by a C# finalizer (the emitter's `~Class()`), on the
-    // collector's thread: it has no error block, and an exception leaving a
-    // finalizer ends the process, so an error is reported as on a thread
-    // with no error block, and the object goes.
+    // A DESTRUCTOR, from the emitted Dispose(bool). Disposed by the program
+    // (disposing), where Harbour's reference count reaches zero, it runs as
+    // Harbour runs it there, and an error goes to the error block. From the
+    // finalizer, on the collector's thread, it has no error block, and an
+    // exception leaving a finalizer ends the process, so an error is
+    // reported as on a thread with no error block, and the object goes.
     [System.Diagnostics.StackTraceHidden]
-    public static void RunDestructor(Action destructor)
+    public static void RunDestructor(Action destructor, bool disposing = false)
     {
+        if (disposing)
+        {
+            destructor();
+            return;
+        }
         try
         {
             destructor();
@@ -289,6 +296,17 @@ public static partial class HbRuntime
         {
             Console.Error.WriteLine("Error in a destructor: " + ex);
         }
+    }
+
+    // A local that holds the only reference to what it is given (the
+    // transpiler's ownership analysis) given another value: Harbour lets
+    // the old one go once the new one is stored, running its destructor,
+    // and the C# disposes it. The new value is built before this runs.
+    public static T? Replace<T>(T? old, T? value) where T : class
+    {
+        if (old is IDisposable disposable && !ReferenceEquals(old, value))
+            disposable.Dispose();
+        return value;
     }
 
     // hb_errLaunch() for an error that reached the top: the error block

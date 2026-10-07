@@ -48,6 +48,7 @@
 #include "hbset.h"
 #ifdef HB_TRANSPILER
 #include "hbreftab.h"
+#include "hbown.h"
 #include "hbdefinemap.h"
 #include "hbfieldtypes.h"
 #include "hbhbxcanon.h"
@@ -215,6 +216,23 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
             signature table. The path applies to load AND save. */
          hb_refTabSetPath( szSwPtr + 9 );
          szSwPtr += strlen( szSwPtr );  /* consume rest of switch */
+      }
+      else if( strncmp( szSwPtr + 2, "own-first-pass", 14 ) == 0 )
+      {
+         /* --own-first-pass: a cold scan's first pass, whose reftab does
+            not yet know the routines in the files after the one it
+            reads. The ownership analysis (hbown.c) takes a name it does
+            not know for one that keeps nothing, this pass only. */
+         hb_ownSetFirstPass( HB_TRUE );
+         szSwPtr += 16;
+      }
+      else if( strncmp( szSwPtr + 2, "own-facts=", 10 ) == 0 )
+      {
+         /* --own-facts=<path>: what the program's C functions keep of
+            the arguments they are given, which the scan cannot read
+            (hbown.c) */
+         hb_ownSetFactsPath( szSwPtr + 12 );
+         szSwPtr += strlen( szSwPtr );
       }
       else if( strncmp( szSwPtr + 2, "defines-map=", 12 ) == 0 )
       {

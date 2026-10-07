@@ -13,6 +13,7 @@
 #include "hbast.h"
 #include "hbdate.h"
 #include "hbreftab.h"
+#include "hbown.h"
 #include "hbfunctab.h"
 #include "hbdefinemap.h"
 #include "hbfieldtypes.h"
@@ -96,6 +97,20 @@ static PHB_AST_NODE s_pCurrentFuncNode = NULL;  /* AST node of function currentl
                                                    when resolving identifier
                                                    references the parser wrapped
                                                    as implicit memvar aliases. */
+static HB_OWNINFO * s_pOwn = NULL;  /* the routine being emitted: which of its
+                                       locals hold the only reference to what
+                                       they are given, and how the C# disposes
+                                       it (hbown.c, hb_csOwnPrepare) */
+
+/* The owned local an assignment gives a value to, owned as iOwned says */
+static HB_OWNVAR * hb_csOwnedVar( PHB_EXPR pLeft, int iOwned )
+{
+   HB_OWNVAR * v;
+   if( ! s_pOwn || ! pLeft || pLeft->ExprType != HB_ET_VARIABLE )
+      return NULL;
+   v = hb_ownFindVar( s_pOwn, pLeft->value.asSymbol.name );
+   return v && v->iOwned == iOwned ? v : NULL;
+}
 /* Boundary-defaulted parameters of the function being emitted: a strict
    value slot whose declared default is not a C# constant goes nullable
    at the boundary (`decimal? nIndex = null`) and is normalised into a
@@ -6103,7 +6118,28 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
 
             /* Handle special operators */
-            if( pExpr->ExprType == HB_EO_POWER )
+            if( pExpr->ExprType == HB_EO_ASSIGN &&
+                hb_csOwnedVar( pExpr->value.asOperator.pLeft, HB_OWN_FINALLY ) &&
+                ! hb_ownFindsEmpty( hb_csOwnedVar( pExpr->value.asOperator.pLeft,
+                                                   HB_OWN_FINALLY ), pExpr ) )
+            {
+               /* a local holding the only reference to what it is given
+                  (hbown.c): Harbour lets the old value go once the new one
+                  is stored, the new one built first, and runs its
+                  destructor; HbRuntime.Replace disposes it. Where the local
+                  holds nothing on every path the assignment is plain. */
+               if( fParen )
+                  fprintf( yyc, "(" );
+               hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+               fprintf( yyc, " = HbRuntime.Replace(" );
+               hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+               fprintf( yyc, ", " );
+               hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
+               fprintf( yyc, ")" );
+               if( fParen )
+                  fprintf( yyc, ")" );
+            }
+            else if( pExpr->ExprType == HB_EO_POWER )
             {
                /* a ^ b → HbRuntime.Pow(a, b). Not Math.Pow: that
                   returns double, which then poisons surrounding
@@ -6586,6 +6622,21 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       return;
    }
 
+   /* An owned local (hbown.c) given its one new object by a later
+      statement is declared there, `using`: nothing here, not even its
+      line, but its type, which that declaration takes */
+   if( pNode->type == HB_AST_LOCAL && ! pNode->value.asVar.pInit && s_pOwn )
+   {
+      HB_OWNVAR * v = hb_ownFindVar( s_pOwn, pNode->value.asVar.szName );
+      if( v && v->iOwned == HB_OWN_USING && v->pOnlyNew )
+      {
+         hb_csLocalTypeSet( pNode->value.asVar.szName,
+                            pNode->value.asVar.szAlias ? pNode->value.asVar.szAlias :
+                            hb_astInferType( pNode->value.asVar.szName, NULL ) );
+         return;
+      }
+   }
+
    if( pNode->iLine > 0 )
       s_iCurrentStmtLine = pNode->iLine;
 
@@ -6716,6 +6767,37 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             if( fValueless )
             {
                s_iLastLine = pNode->iLine;
+               break;
+            }
+         }
+         /* An owned local (hbown.c) given its one new object here is
+            declared here, `using`: C# disposes it as the routine returns,
+            where Harbour's count reaches zero. One disposed at reassignment
+            lets its value go at `:= NIL`. */
+         if( pStmtExpr && pStmtExpr->ExprType == HB_EO_ASSIGN )
+         {
+            PHB_EXPR pLeft = pStmtExpr->value.asOperator.pLeft;
+            PHB_EXPR pRight = pStmtExpr->value.asOperator.pRight;
+            HB_OWNVAR * v = hb_csOwnedVar( pLeft, HB_OWN_USING );
+            if( v && v->pOnlyNew == pStmtExpr )
+            {
+               hb_csEmitIndent( yyc, iIndent );
+               fprintf( yyc, "using %s %s = ",
+                        hb_csTypeMap( hb_csLocalTypeGet( v->szName ) ),
+                        pLeft->value.asSymbol.name );
+               hb_csEmitExpr( pRight, yyc, HB_FALSE );
+               fprintf( yyc, ";\n" );
+               break;
+            }
+            if( hb_csOwnedVar( pLeft, HB_OWN_FINALLY ) && pRight &&
+                pRight->ExprType == HB_ET_NIL )
+            {
+               hb_csEmitIndent( yyc, iIndent );
+               hb_csEmitExpr( pLeft, yyc, HB_FALSE );
+               fprintf( yyc, "?.Dispose();\n" );
+               hb_csEmitIndent( yyc, iIndent );
+               hb_csEmitExpr( pLeft, yyc, HB_FALSE );
+               fprintf( yyc, " = null;\n" );
                break;
             }
          }
@@ -6930,6 +7012,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
                /* Type name = value; */
                hb_csEmitIndent( yyc, iIndent );
+               {
+                  /* an owned local given its one new object here (hbown.c) */
+                  HB_OWNVAR * v = s_pOwn ?
+                     hb_ownFindVar( s_pOwn, pNode->value.asVar.szName ) : NULL;
+                  if( v && v->iOwned == HB_OWN_USING && ! v->pOnlyNew )
+                     fprintf( yyc, "using " );
+               }
                /* Codeblock initializers need explicit Func<> type */
                if( pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK )
                {
@@ -8511,6 +8600,117 @@ static const char * hb_csDeclaredMethodName( const char * szClass,
    return szMethod;
 }
 
+/* A declaration, which a routine's try (hb_csEmitBodyStmts) begins after */
+static HB_BOOL hb_csIsDeclStmt( PHB_AST_NODE pStmt )
+{
+   switch( pStmt->type )
+   {
+      case HB_AST_LOCAL:
+      case HB_AST_STATIC:
+      case HB_AST_MEMVAR:
+      case HB_AST_FIELD:
+      case HB_AST_COMMENT:
+      case HB_AST_CLASSMETHOD:
+         return HB_TRUE;
+      default:
+         return HB_FALSE;
+   }
+}
+
+/* The routine's owned locals (hbown.c), as far as the C# can dispose them:
+   the local's type must have a Dispose() (dynamic, or a class with a
+   DESTRUCTOR), a `using` one's new object must not need a ref-shim, and
+   one disposed at the routine's exit must be declared before the
+   routine's first statement, where the try begins. */
+static void hb_csOwnPrepare( PHB_AST_NODE pFunc, int nParams,
+                             const char * szClass )
+{
+   PHB_AST_NODE pStmt;
+   HB_BOOL fLead = HB_TRUE;
+   int i;
+
+   s_pOwn = NULL;
+   if( ! s_pRefTab || ! pFunc->value.asFunc.pBody ||
+       pFunc->value.asFunc.pBody->type != HB_AST_BLOCK )
+      return;
+   s_pOwn = hb_ownAnalyse( s_pRefTab, pFunc, nParams, szClass,
+                           s_pCompCtx ? s_pCompCtx->ast.pFuncList : NULL,
+                           s_szFileBase[ 0 ] ? s_szFileBase : NULL );
+   for( pStmt = pFunc->value.asFunc.pBody->value.asBlock.pFirst; pStmt;
+        pStmt = pStmt->pNext )
+   {
+      HB_OWNVAR * v;
+      const char * szType;
+      if( ! hb_csIsDeclStmt( pStmt ) )
+         fLead = HB_FALSE;
+      if( pStmt->type != HB_AST_LOCAL ||
+          ( v = hb_ownFindVar( s_pOwn, pStmt->value.asVar.szName ) ) == NULL ||
+          v->iOwned == HB_OWN_NOT )
+         continue;
+      /* its type, as the LOCAL's emission gives it */
+      szType = pStmt->value.asVar.szAlias ? pStmt->value.asVar.szAlias :
+               hb_astInferType( pStmt->value.asVar.szName, pStmt->value.asVar.pInit );
+      if( pStmt->value.asVar.pInit && hb_csIsConstructor( pStmt->value.asVar.pInit ) )
+         szType = hb_csIsConstructor( pStmt->value.asVar.pInit );
+      if( strcmp( hb_csTypeMap( szType ), "dynamic" ) != 0 &&
+          ! hb_ownClassDisposable( s_pRefTab, szType ) )
+         v->iOwned = HB_OWN_NOT;
+      else if( v->iOwned == HB_OWN_USING && v->pOnlyNew &&
+               hb_csFindShimCall( v->pOnlyNew, 0 ) )
+         v->iOwned = HB_OWN_FINALLY;
+      if( v->iOwned == HB_OWN_FINALLY && ! fLead )
+         v->iOwned = HB_OWN_NOT;
+   }
+   s_pOwn->fFinally = HB_FALSE;
+   for( i = 0; i < s_pOwn->nVars; i++ )
+      if( s_pOwn->pVars[ i ].iOwned == HB_OWN_FINALLY )
+         s_pOwn->fFinally = HB_TRUE;
+}
+
+static void hb_csOwnDone( void )
+{
+   hb_ownFree( s_pOwn );
+   s_pOwn = NULL;
+}
+
+/* A routine's statements from pStmt on. When a local is disposed at the
+   routine's exit, those after the declarations go in a try whose finally
+   disposes it, as Harbour lets a routine's locals go when it returns. */
+static void hb_csEmitBodyStmts( PHB_AST_NODE pStmt, FILE * yyc, int iIndent )
+{
+   int i;
+
+   if( ! s_pOwn || ! s_pOwn->fFinally )
+   {
+      for( ; pStmt; pStmt = pStmt->pNext )
+         hb_csEmitNode( pStmt, yyc, iIndent );
+      return;
+   }
+   for( ; pStmt && hb_csIsDeclStmt( pStmt ); pStmt = pStmt->pNext )
+      hb_csEmitNode( pStmt, yyc, iIndent );
+   hb_csEmitIndent( yyc, iIndent );
+   fprintf( yyc, "try\n" );
+   hb_csEmitIndent( yyc, iIndent );
+   fprintf( yyc, "{\n" );
+   s_iLastLine = 0;
+   for( ; pStmt; pStmt = pStmt->pNext )
+      hb_csEmitNode( pStmt, yyc, iIndent + 1 );
+   hb_csEmitIndent( yyc, iIndent );
+   fprintf( yyc, "}\n" );
+   hb_csEmitIndent( yyc, iIndent );
+   fprintf( yyc, "finally\n" );
+   hb_csEmitIndent( yyc, iIndent );
+   fprintf( yyc, "{\n" );
+   for( i = s_pOwn->nVars - 1; i >= 0; i-- )
+      if( s_pOwn->pVars[ i ].iOwned == HB_OWN_FINALLY )
+      {
+         hb_csEmitIndent( yyc, iIndent + 1 );
+         fprintf( yyc, "%s?.Dispose();\n", s_pOwn->pVars[ i ].szName );
+      }
+   hb_csEmitIndent( yyc, iIndent );
+   fprintf( yyc, "}\n" );
+}
+
 static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                                   FILE * yyc, int iIndent )
 {
@@ -8754,6 +8954,9 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    }
    if( pFunc->value.asFunc.pBody )
    {
+      hb_csOwnPrepare( pFunc, pCompFunc->wParamCount,
+                       ( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD )
+                          ? pFirstStmt->value.asClassMethod.szClass : NULL );
       if( pFirstStmt && pFirstStmt->type == HB_AST_CLASSMETHOD &&
           pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
       {
@@ -8761,13 +8964,15 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             dropped here too (it was only on the marker-less path, so a
             method ending in a `return`/`throw` BEGINCSHARP block kept
             an unreachable `return this;`, CS0162 — test107's Tenfold). */
-         PHB_AST_NODE pStmt = pFirstStmt->pNext;
          s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
-         while( pStmt )
-         {
-            hb_csEmitNode( pStmt, yyc, iIndent + 1 );
-            pStmt = pStmt->pNext;
-         }
+         hb_csEmitBodyStmts( pFirstStmt->pNext, yyc, iIndent + 1 );
+         s_pUnreachableReturn = NULL;
+      }
+      else if( pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
+      {
+         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
+         hb_csEmitBodyStmts( pFunc->value.asFunc.pBody->value.asBlock.pFirst,
+                             yyc, iIndent + 1 );
          s_pUnreachableReturn = NULL;
       }
       else
@@ -8776,6 +8981,7 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
          s_pUnreachableReturn = NULL;
       }
+      hb_csOwnDone();
    }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );
@@ -8872,6 +9078,11 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
       fprintf( yyc, " : %s", pClassNode->value.asClass.szParent );
    else
       fprintf( yyc, " : IHbObject" );
+   /* a DESTRUCTOR makes the class IDisposable, unless a parent's did */
+   if( pClassNode->value.asClass.szDestructor &&
+       ! ( pClassNode->value.asClass.szParent && s_pRefTab &&
+           hb_ownClassDisposable( s_pRefTab, pClassNode->value.asClass.szParent ) ) )
+      fprintf( yyc, ", IDisposable" );
    fprintf( yyc, "\n{\n" );
 
    /* Track the class for `Self:classvar` resolution. INLINE method
@@ -9197,15 +9408,44 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 
    /* DESTRUCTOR <method>: Harbour runs it when the object is freed, at
       once when its last reference goes (reference counting) or when the
-      collector finds it; C# runs a finalizer when the collector reclaims
-      the object, and hb_gcAll() waits for them. RunDestructor keeps an
-      error inside it from ending the process, as .NET would. The method
-      itself is emitted with the others; the lambda lets one that returns
-      a value (ApiWebSocket's Cleanup, a test suite's Teardown) be called
-      as an Action. */
+      collector finds it. The C# class is IDisposable: Dispose() runs it
+      where the transpiler proves a variable held the only reference
+      (hbown.c), once, and the finalizer when the collector reclaims an
+      object nothing disposed; hb_gcAll() waits for finalizers.
+      RunDestructor keeps an error inside it from ending the process, as
+      .NET would. The method itself is emitted with the others; the lambda
+      lets one that returns a value (ApiWebSocket's Cleanup, a test
+      suite's Teardown) be called as an Action. */
    if( pClass->pClassNode && pClass->pClassNode->value.asClass.szDestructor )
-      fprintf( yyc, "\n    ~%s() => HbRuntime.RunDestructor(() => %s());\n",
-               pClass->szName, pClass->pClassNode->value.asClass.szDestructor );
+   {
+      const char * szDestructor = pClass->pClassNode->value.asClass.szDestructor;
+      const char * szParent = pClass->pClassNode->value.asClass.szParent;
+      if( szParent && s_pRefTab && hb_ownClassDisposable( s_pRefTab, szParent ) )
+         fprintf( yyc,
+                  "\n    protected override void Dispose(bool disposing)\n"
+                  "    {\n"
+                  "        if (!disposed)\n"
+                  "            HbRuntime.RunDestructor(() => %s(), disposing);\n"
+                  "        base.Dispose(disposing);\n"
+                  "    }\n", szDestructor );
+      else
+         fprintf( yyc,
+                  "\n    protected bool disposed;\n"
+                  "\n    public void Dispose()\n"
+                  "    {\n"
+                  "        Dispose(true);\n"
+                  "        GC.SuppressFinalize(this);\n"
+                  "    }\n"
+                  "\n    protected virtual void Dispose(bool disposing)\n"
+                  "    {\n"
+                  "        if (disposed)\n"
+                  "            return;\n"
+                  "        disposed = true;\n"
+                  "        HbRuntime.RunDestructor(() => %s(), disposing);\n"
+                  "    }\n"
+                  "\n    ~%s() => Dispose(false);\n",
+                  szDestructor, pClass->szName );
+   }
 
    fprintf( yyc, "}\n" );
    s_szCurrentClass[ 0 ] = '\0';
@@ -9846,7 +10086,13 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( pFunc->value.asFunc.pBody )
       {
          s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
-         hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
+         hb_csOwnPrepare( pFunc, pCompFunc->wParamCount, NULL );
+         if( pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
+            hb_csEmitBodyStmts( pFunc->value.asFunc.pBody->value.asBlock.pFirst,
+                                yyc, iIndent + 1 );
+         else
+            hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
+         hb_csOwnDone();
          s_pUnreachableReturn = NULL;
       }
    hb_csEmitIndent( yyc, iIndent );
