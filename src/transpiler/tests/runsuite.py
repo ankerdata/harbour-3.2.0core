@@ -297,11 +297,18 @@ REF_STAMP = ".hbruntime-ref"   # the runtime surface a test was built against
 def runtime_surface(lib):
     """A fingerprint of the runtime's public surface: its reference
     assembly, which the compiler writes byte for byte the same while the
-    public API is unchanged. None when there is none."""
-    ref = os.path.join(lib, "obj", "Debug", "net10.0", "ref", "HbRuntime.dll")
-    if not os.path.isfile(ref):
+    public API is unchanged. None when there is none. The newest one under
+    obj/, wherever the platform put it, as newest_file() finds the dll: it
+    read obj/Debug/net10.0/ref/ only, which runtests.bat's x86 vcvarsall
+    never writes (obj/x86/Debug/...), so it hashed a stale copy, the surface
+    never moved, and a runtime whose API changed was copied beside tests
+    compiled against the old one (MissingFieldException at run time)."""
+    refs = [os.path.join(dp, "HbRuntime.dll")
+            for dp, _, fns in os.walk(os.path.join(lib, "obj"))
+            if os.path.basename(dp) == "ref" and "HbRuntime.dll" in fns]
+    if not refs:
         return None
-    with open(ref, "rb") as fh:
+    with open(max(refs, key=os.path.getmtime), "rb") as fh:
         return hashlib.sha256(fh.read()).hexdigest()
 
 
@@ -333,11 +340,15 @@ def build_cs(name, lib_dll, surface):
     dll = newest_file(os.path.join(d, "bin"), name + ".dll")
     rt = newest_file(os.path.join(d, "bin"), "HbRuntime.dll")
     stamp = os.path.join(d, REF_STAMP)
+    stamped = bool(surface) and os.path.isfile(stamp) and \
+        open(stamp, encoding="ascii").read().strip() == surface
     if not FULL and not changed and dll and rt:
-        if same_bytes(lib_dll, rt):
+        # the current runtime beside a test is not enough: it may have been
+        # copied there by a run that misread the surface, beside a test
+        # compiled against the old one, so the stamp must agree too
+        if same_bytes(lib_dll, rt) and (stamped or not surface):
             return name, None, False
-        if surface and os.path.isfile(stamp) and \
-                open(stamp, encoding="ascii").read().strip() == surface:
+        if stamped:
             shutil.copy2(lib_dll, rt)
             lib_pdb, rt_pdb = lib_dll[:-4] + ".pdb", rt[:-4] + ".pdb"
             if os.path.isfile(lib_pdb):

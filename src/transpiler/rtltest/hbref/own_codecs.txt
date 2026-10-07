@@ -55,4 +55,6 @@ own_codecs:98 PASS
 own_codecs:99 PASS
 own_codecs:100 PASS
 own_codecs:101 PASS
-passed         55 failed          1 errors          0
+own_codecs:105 PASS
+own_codecs:106 PASS
+passed         57 failed          1 errors          0

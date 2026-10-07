@@ -319,7 +319,12 @@ public static partial class HbRuntime
 // semantics say their variable is untouched:
 //
 //   * omitted slot (Foo(a, , c)) or literal -> `ref HbDiscard<T>.Value`
-//     — no input to preserve; the write-back is discarded.
+//     — the callee gets Harbour's NIL, C#'s default, as its input: Value
+//     hands out a fresh default every time it is passed, and the
+//     write-back is discarded. It was a plain field, so a callee that
+//     reads its parameter before writing it (Plu()'s `DEFAULT
+//     nRFOrVoidIndex TO 0`) read whatever the last call through the slot
+//     had written back: a voided line's index reached the next sale.
 //   * bare variable  (Foo(x) into a by-ref param) -> the callee still
 //     sees x's VALUE as input, but the write-back must NOT reach the
 //     caller's x. `ref HbDiscard<T>.Seed(x)` seeds the throwaway with
@@ -328,10 +333,12 @@ public static partial class HbRuntime
 //     both correct).
 //
 // [ThreadStatic] so concurrent calls (the app builds with
-// -DMULTITHREAD) don't race on the shared slot; Seed always assigns
-// before the ref is read within the same call expression.
+// -DMULTITHREAD) don't race on the shared slot; Value and Seed both
+// assign before the ref is read within the same call expression. Two
+// omitted ref slots of one call still share the slot.
 public static class HbDiscard<T>
 {
-   [System.ThreadStatic] public static T Value;
-   public static ref T Seed(T v) { Value = v; return ref Value; }
+   [System.ThreadStatic] static T t_value;
+   public static ref T Value { get { t_value = default!; return ref t_value; } }
+   public static ref T Seed(T v) { t_value = v; return ref t_value; }
 }

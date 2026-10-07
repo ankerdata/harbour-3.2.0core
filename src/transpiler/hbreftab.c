@@ -30,6 +30,7 @@ typedef struct HB_REFENTRY_
    int                   nParams;      /* declared parameter count, -1 = unknown */
    HB_BOOL               fVariadic;    /* function uses PCount/HB_PValue */
    HB_BOOL               fCalledVarargs; /* some call site forwards `...` to this function */
+   HB_BOOL               fProcedure;   /* a PROCEDURE: no value, C# void (flag N) */
    HB_BOOL               fDefined;     /* set once a real definition has been seen */
    HB_BOOL               fIsClass;     /* this is a CLASS marker, not a function */
    HB_BOOL               fClassDynamic;/* fIsClass + class uses ::&(name) — emit as `dynamic` */
@@ -1218,6 +1219,27 @@ HB_BOOL hb_refTabIsCalledVarargs( PHB_REFTAB pTab, const char * szName )
    return e && e->fCalledVarargs;
 }
 
+/* A PROCEDURE, or a method declared as one, has no value: C# void. Set
+   at every definition, not only marked, so a routine that became a
+   FUNCTION loses the flag a loaded table gave it. */
+void hb_refTabSetProcedure( PHB_REFTAB pTab, const char * szName, HB_BOOL fProcedure )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return;
+   e = hb_refTabFindOrCreate( pTab, szName );
+   e->fProcedure = fProcedure;
+}
+
+HB_BOOL hb_refTabIsProcedure( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fProcedure;
+}
+
 const char * hb_refTabReturnType( PHB_REFTAB pTab, const char * szFunc )
 {
    PHB_REFENTRY e;
@@ -1313,7 +1335,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
    fprintf( fp, "# Harbour transpiler user-function signature table\n" );
    fprintf( fp, "# Format: NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...\n" );
    fprintf( fp, "# FLAGS:    V = variadic, S = called-with-spread, K = class, D = dynamic class (extends HbDynamicObject),\n" );
-   fprintf( fp, "#           P = public var, A = public var with array-dim, - = none\n" );
+   fprintf( fp, "#           P = public var, A = public var with array-dim, N = procedure (no value), - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown; for P entries this slot holds the owning .prg basename\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
    fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, T = declared type, - = none\n" );
@@ -1367,6 +1389,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
             if( e->fClassDynamic )  fnFlags[ fnK++ ] = 'D';
             if( e->fIsPublic )      fnFlags[ fnK++ ] = 'P';
             if( e->fPublicArrayDim) fnFlags[ fnK++ ] = 'A';
+            if( e->fProcedure )     fnFlags[ fnK++ ] = 'N';
             if( fnK == 0 )          fnFlags[ fnK++ ] = '-';
             fnFlags[ fnK ] = '\0';
             /* For P entries we overload the RETTYPE slot with the owning
@@ -1501,13 +1524,14 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       {
          /* FLAGS is a string of letters: V (variadic), S (called with
             `...` spread), K (klass), D (dynamic klass), P (public
-            var), A (public array-dim), - */
+            var), A (public array-dim), N (procedure), - */
          char * c;
          HB_BOOL fIsClass   = HB_FALSE;
          HB_BOOL fSpread    = HB_FALSE;
          HB_BOOL fClassDyn  = HB_FALSE;
          HB_BOOL fPub       = HB_FALSE;
          HB_BOOL fPubArr    = HB_FALSE;
+         HB_BOOL fProc      = HB_FALSE;
          fVariadic = HB_FALSE;
          for( c = fields[ 1 ]; *c; c++ )
          {
@@ -1523,6 +1547,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                fPub = HB_TRUE;
             else if( *c == 'A' || *c == 'a' )
                fPubArr = HB_TRUE;
+            else if( *c == 'N' || *c == 'n' )
+               fProc = HB_TRUE;
          }
          if( fPub )
          {
@@ -1541,6 +1567,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             hb_refTabMarkClass( pTab, fields[ 0 ], NULL );
          if( fSpread )
             hb_refTabMarkCalledVarargs( pTab, fields[ 0 ] );
+         if( fProc )
+            hb_refTabSetProcedure( pTab, fields[ 0 ], HB_TRUE );
       }
       /* fields[2] is RETTYPE, possibly "-" */
       nParams = atoi( fields[ 3 ] );
@@ -2756,6 +2784,17 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                pVar = pVar->pNext;
             }
             hb_refTabAddFunc( pTab, szKey, nParams, names, types, HB_FALSE );
+            /* a PROCEDURE, or a method declared PROCEDURE ... CLASS X, has
+               no value (C# void): a block ending in a call to it cannot
+               return the call (gencsharp.c, hb_csIsProcedureCall) */
+            {
+               PHB_AST_NODE pFirst = ( pFunc->value.asFunc.pBody &&
+                                       pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
+                  ? pFunc->value.asFunc.pBody->value.asBlock.pFirst : NULL;
+               hb_refTabSetProcedure( pTab, szKey, pFunc->value.asFunc.fProcedure ||
+                  ( pFirst && pFirst->type == HB_AST_CLASSMETHOD &&
+                    pFirst->value.asClassMethod.fProcedure ) );
+            }
 
             /* an o<Class> parameter nothing refined is its name's class
                (hb_refTabDefaultParamType); the key is copied, as

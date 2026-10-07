@@ -100,6 +100,11 @@ PROCEDURE Main_CODECS()
    HBTEST Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) ) IS 1
    HBTEST hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]   IS "DEF"
 
+   /* --- JSON: a decoded array grows like any other, an empty one too
+          (the component tests' expected "BufferLines": []) --- */
+   HBTEST GrowDecoded( "[]" )                        IS 1
+   HBTEST GrowDecoded( "[7]" )                       IS 2
+
    RETURN
 
 /* A message through the wire and back: what the other end reads. */
@@ -118,3 +123,8 @@ STATIC FUNCTION ZRoundTrip( cText )
 
 STATIC FUNCTION ZSmaller( cText )
    RETURN hb_BLen( hb_ZCompress( cText ) ) < hb_BLen( cText )
+
+STATIC FUNCTION GrowDecoded( cJSON )
+   LOCAL aValues := hb_jsonDecode( cJSON )
+   AAdd( aValues, "x" )
+   RETURN Len( aValues )

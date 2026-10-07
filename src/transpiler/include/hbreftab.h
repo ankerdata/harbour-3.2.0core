@@ -296,6 +296,10 @@ extern void hb_refTabForEachPublic( PHB_REFTAB pTab,
 extern void    hb_refTabMarkCalledVarargs( PHB_REFTAB pTab, const char * szName );
 extern HB_BOOL hb_refTabIsCalledVarargs ( PHB_REFTAB pTab, const char * szName );
 
+/* A PROCEDURE, or a method declared as one: no value, C# void (flag N). */
+extern void    hb_refTabSetProcedure( PHB_REFTAB pTab, const char * szName, HB_BOOL fProcedure );
+extern HB_BOOL hb_refTabIsProcedure ( PHB_REFTAB pTab, const char * szName );
+
 /* Returns the recorded return type for szFunc (e.g. "NUMERIC"), or
    NULL if the function isn't registered or has no known return type.
    The returned pointer is owned by the table — do not free. */

@@ -112,6 +112,8 @@ own_codecs:98	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% 
 own_codecs:99	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )
 own_codecs:100	run-fn	LEN	HB_REGEX,HB_REGEXCOMP,LEN	Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )
 own_codecs:101	run-fn	HB_REGEX	HB_REGEX,HB_REGEXCOMP	hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]
+own_codecs:105	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[]" )
+own_codecs:106	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[7]" )
 own_dates:14	run-fn	DTOS	DTOS,STOD	DToS( SToD( "19840325" ) )
 own_dates:15	run-fn	STOD	HB_STOD,STOD	SToD( "19840325" ) == hb_SToD( "19840325" )
 own_dates:16	run-fn	EMPTY	EMPTY,STOD	Empty( SToD( "" ) )

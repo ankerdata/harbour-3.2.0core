@@ -90,6 +90,11 @@ PROCEDURE Main_CODECS()
    TEST_CALL( "own_codecs:100", 'Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )', {|| Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) ) }, 1, .F., NIL )
    TEST_CALL( "own_codecs:101", 'hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]', {|| hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ] }, "DEF", .F., NIL )
 
+
+
+   TEST_CALL( "own_codecs:105", 'GrowDecoded( "[]" )', {|| GrowDecoded( "[]" ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:106", 'GrowDecoded( "[7]" )', {|| GrowDecoded( "[7]" ) }, 2, .F., NIL )
+
    RETURN
 
 
@@ -108,6 +113,11 @@ STATIC FUNCTION ZRoundTrip( cText )
 
 STATIC FUNCTION ZSmaller( cText )
    RETURN hb_BLen( hb_ZCompress( cText ) ) < hb_BLen( cText )
+
+STATIC FUNCTION GrowDecoded( cJSON )
+   LOCAL aValues := hb_jsonDecode( cJSON )
+   AAdd( aValues, "x" )
+   RETURN Len( aValues )
 
 
 PROCEDURE Main()

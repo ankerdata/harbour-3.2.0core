@@ -1619,6 +1619,36 @@ static const char * hb_csSendCallKey( PHB_EXPR pExpr, char * szBuf, HB_SIZE nBuf
    return szKey;
 }
 
+/* Does pExpr call a routine with no value, a PROCEDURE or a method declared
+   as one (C# void)? A codeblock whose last expression is such a call yields
+   NIL in Harbour; in C# it is a statement lambda returning null. As an
+   expression lambda it would compile only while the call binds at run time
+   (an argument dynamic), and then fail, void having no value. */
+static HB_BOOL hb_csIsProcedureCall( PHB_EXPR pExpr )
+{
+   char szBuf[ 256 ];
+   while( pExpr && pExpr->ExprType == HB_ET_LIST &&
+          pExpr->value.asList.pExprList &&
+          ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( ! pExpr || ! s_pRefTab )
+      return HB_FALSE;
+   if( pExpr->ExprType == HB_ET_FUNCALL )
+   {
+      PHB_EXPR pName = pExpr->value.asFunCall.pFunName;
+      if( ! pName || pName->ExprType != HB_ET_FUNNAME || ! pName->value.asSymbol.name )
+         return HB_FALSE;
+      return hb_refTabIsProcedure( s_pRefTab,
+         hb_csFuncRefKey( pName->value.asSymbol.name, szBuf, sizeof( szBuf ) ) );
+   }
+   if( pExpr->ExprType == HB_ET_SEND && pExpr->value.asMessage.szMessage )
+   {
+      const char * szKey = hb_csSendCallKey( pExpr, szBuf, sizeof( szBuf ) );
+      return szKey && szKey[ 0 ] && hb_refTabIsProcedure( s_pRefTab, szKey );
+   }
+   return HB_FALSE;
+}
+
 /* A call site whose by-ref slots may need shims — a FUNCALL, or a SEND
    with a resolvable callee — as (reftab key, argument-list head). */
 static HB_BOOL hb_csCallView( PHB_EXPR pCall, const char ** pszFunc,
@@ -2270,8 +2300,9 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
       for a callee with any by-ref param we PAD every omitted slot up
       to the last ref instead of dropping it (CS7036) or emitting a
       named arg that skips it: an omitted ref becomes
-      `ref HbDiscard<T>.Value` (a shared throwaway whose write-back the
-      Harbour caller discarded anyway), an omitted by-value becomes
+      `ref HbDiscard<T>.Value` (a throwaway that is C#'s default, Harbour's
+      NIL, each time it is passed, and whose write-back the Harbour
+      caller discarded anyway), an omitted by-value becomes
       `default` — or `default(T?)`, i.e. null, when the callee declares
       a default for that value slot (reftab `D`): it then takes the slot
       nullable at the boundary and normalises, and the value-type zero
@@ -4161,6 +4192,22 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr )
             return hb_csExprCsType( pExpr->value.asList.pExprList );
          return NULL;
 
+      case HB_ET_IIF:
+      {
+         /* the type its two branches share, as hbtypes.c reads an IIF:
+            a concatenation ending `+ iif( l, "1", "0" )` is a string, so
+            ordering two of them takes StrCmp (buffcons.prg's ASort block),
+            where `<` on two dynamics found no operator at run time */
+         PHB_EXPR pCond = pExpr->value.asList.pExprList;
+         PHB_EXPR pThen = pCond ? pCond->pNext : NULL;
+         PHB_EXPR pElse = pThen ? pThen->pNext : NULL;
+         const char * szThen = hb_csExprCsType( pThen );
+         const char * szElse = hb_csExprCsType( pElse );
+         if( szThen && szElse && strcmp( szThen, szElse ) == 0 )
+            return szThen;
+         return NULL;
+      }
+
       case HB_EO_PLUS:
       case HB_EO_MINUS:
       {
@@ -4268,7 +4315,9 @@ static void hb_csBlockSig( PHB_EXPR pBlock, const char * szElem, int nElem,
             break;
          default:
          {
-            const char * szCs = hb_csExprCsType( pLast );
+            /* a procedure's value is NIL: the result stays dynamic */
+            const char * szCs = hb_csIsProcedureCall( pLast ) ? NULL
+                                : hb_csExprCsType( pLast );
             if( szCs && ( strcmp( szCs, "string" ) == 0 || strcmp( szCs, "decimal" ) == 0 ||
                           strcmp( szCs, "long" ) == 0 || strcmp( szCs, "bool" ) == 0 ||
                           strcmp( szCs, "DateOnly" ) == 0 || strcmp( szCs, "DateTime" ) == 0 ) )
@@ -4556,17 +4605,32 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             HB_SIZE nLen = pExpr->nLength;
             HB_SIZE n;
 
+            /* A Harbour string is bytes, and EasiPOS's sources are not all
+               one encoding: prtinit.prg's printer tables and fmde.prg's
+               "Signaturz\xE4hler" are Windows-1252, testsetup.prg's "\u20AC" is
+               UTF-8's three bytes. Copied raw, the bytes were read back by
+               the C# compiler as UTF-8: a single high byte became U+FFFD,
+               three became one char, and lengths, truncation and padding
+               moved. Each byte is its own char instead, \u00XX, as file,
+               socket and serial I/O carry one char per byte (Latin-1), so
+               what Harbour writes the C# writes too. */
             fputc( '"', yyc );
             for( n = 0; n < nLen; n++ )
             {
-               switch( s[ n ] )
+               unsigned char c = ( unsigned char ) s[ n ];
+               switch( c )
                {
                   case '"':  fprintf( yyc, "\\\"" ); break;
                   case '\\': fprintf( yyc, "\\\\" ); break;
                   case '\n': fprintf( yyc, "\\n" ); break;
                   case '\r': fprintf( yyc, "\\r" ); break;
                   case '\t': fprintf( yyc, "\\t" ); break;
-                  default:   fputc( s[ n ], yyc ); break;
+                  default:
+                     if( c < 0x20 || c > 0x7E )
+                        fprintf( yyc, "\\u%04X", ( unsigned int ) c );
+                     else
+                        fputc( c, yyc );
+                     break;
                }
             }
             fputc( '"', yyc );
@@ -5967,9 +6031,27 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   fprintf( yyc, "{ " );
                   for( ; pBody->pNext; pBody = pBody->pNext )
                      hb_csEmitBlockStmt( pBody, yyc );
-                  fprintf( yyc, "return " );
-                  hb_csEmitExpr( pBody, yyc, HB_FALSE );
-                  fprintf( yyc, "; }" );
+                  if( hb_csIsProcedureCall( pBody ) )
+                  {
+                     /* the last a PROCEDURE: the block's value is NIL */
+                     hb_csEmitBlockStmt( pBody, yyc );
+                     fprintf( yyc, "return null; }" );
+                  }
+                  else
+                  {
+                     fprintf( yyc, "return " );
+                     hb_csEmitExpr( pBody, yyc, HB_FALSE );
+                     fprintf( yyc, "; }" );
+                  }
+               }
+               else if( pExpr->value.asCodeblock.pExprList &&
+                        hb_csIsProcedureCall( pExpr->value.asCodeblock.pExprList ) )
+               {
+                  /* `{|x| Proc( x )}`: a PROCEDURE has no value, so the
+                     block calls it and yields NIL */
+                  fprintf( yyc, "{ " );
+                  hb_csEmitBlockStmt( pExpr->value.asCodeblock.pExprList, yyc );
+                  fprintf( yyc, "return null; }" );
                }
                else if( pExpr->value.asCodeblock.pExprList )
                   hb_csEmitExpr( pExpr->value.asCodeblock.pExprList, yyc, HB_FALSE );

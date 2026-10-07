@@ -10,7 +10,8 @@
 // need a real implementation. wapi_CreateMutex and wapi_GetLastError,
 // EasiPOS's single-instance check, are real since 2026-09-22, and
 // wapi_FormatMessage, Windows' text for an error code, since 2026-09-24,
-// as is the performance counter pair EasiPOS's MonotonicSeconds() reads.
+// as is the performance counter pair EasiPOS's MonotonicSeconds() reads;
+// wapi_GetCurrentProcessId and win_UuidCreateString since 2026-10-07.
 
 public static partial class HbWin
 {
@@ -36,6 +37,17 @@ public static partial class HbWin
         nCounter = System.Diagnostics.Stopwatch.GetTimestamp();
         return true;
     }
+
+    // wapi_GetCurrentProcessId() (wapi_winbase_2.c): this process's id, which
+    // EasiPOS keeps as POSStatus's cPID
+    public static long wapi_GetCurrentProcessId() => System.Environment.ProcessId;
+
+    // win_UuidCreateString( [@<nStatus>] ) (win_rpc.c): a new UUID as
+    // UuidToString() writes it, lower-case hex in 8-4-4-4-12 groups without
+    // braces, which is Guid's "D" form; .NET's NewGuid() is the same
+    // UuidCreate() underneath on Windows. The status out-parameter is not
+    // ported: EasiPOS's GetGUID() passes none.
+    public static string win_UuidCreateString() => System.Guid.NewGuid().ToString("D");
 
     // Stand-in: prints instead of showing a message box.
     public static decimal wapi_MessageBox(dynamic hWnd, string cText, string cCaption = "", decimal nType = 0)

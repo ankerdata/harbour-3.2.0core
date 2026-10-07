@@ -390,7 +390,7 @@ public static partial class HbRuntime
         if (i < c.Length && c[i] == ']')
         {
             i++;
-            return System.Array.Empty<dynamic>();
+            return aValues;     // a Harbour array like any other, which can grow
         }
         while (i < c.Length)
         {

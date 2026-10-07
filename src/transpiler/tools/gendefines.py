@@ -375,7 +375,12 @@ def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str],
 
     def scan(path: str) -> None:
         try:
-            with open(path, encoding='utf-8', errors='replace') as fh:
+            # Latin-1, a char per byte: a Harbour string is bytes, and the
+            # sources are not all one encoding (a Windows-1252 byte read as
+            # UTF-8 became U+FFFD, UTF-8's three bytes for a euro sign one
+            # char). cs_escape_string() then writes each byte as \u00XX, as
+            # gencsharp.c does a string literal.
+            with open(path, encoding='latin-1') as fh:
                 content = fh.read()
         except Exception as e:
             print(f"warn: {path}: {e}", file=sys.stderr)
@@ -449,9 +454,29 @@ def resolve_header_globals(header_defines: Dict[str, Dict[str, Tuple[str, object
 # Emission
 # ---------------------------------------------------------------------------
 
+CS_CHAR_ESCAPES = {'\0': '\\0', '\a': '\\a', '\b': '\\b', '\f': '\\f', '\n': '\\n',
+                   '\r': '\\r', '\t': '\\t', '\v': '\\v', '"': '\\"', '\\': '\\\\'}
+
+
 def cs_escape_string(s: str) -> str:
-    # Verbatim strings preserve Harbour no-escape semantics; double any `"`.
-    return '@"' + s.replace('"', '""') + '"'
+    """A C# literal for a Harbour string define. Verbatim strings preserve
+    Harbour's no-escape semantics (double any `"`), so printable ASCII stays
+    `@"..."`. Anything else (`chr(13) + chr(10)`, a control character, a byte
+    above 127) is a regular literal with escapes: written raw, a line break in
+    the literal took the line ending the file was written with (CRLF became
+    CR CR LF, LF became CR LF), and a high byte the code page it was written
+    in, where the C# compiler reads the source as UTF-8."""
+    if all(' ' <= ch <= '~' for ch in s):
+        return '@"' + s.replace('"', '""') + '"'
+    out = []
+    for ch in s:
+        if ch in CS_CHAR_ESCAPES:
+            out.append(CS_CHAR_ESCAPES[ch])
+        elif ' ' <= ch <= '~':
+            out.append(ch)
+        else:
+            out.append('\\u%04X' % ord(ch))
+    return '"' + ''.join(out) + '"'
 
 
 def cs_type_token(t: str, val: object) -> str:

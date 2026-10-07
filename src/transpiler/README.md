@@ -293,8 +293,14 @@ cross-file static analysis results live.
 ```
 NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
 
-  FLAGS    = "V" if variadic (uses PCount/HB_PValue/HB_Parameter/HB_AParams),
-             "-" otherwise
+  FLAGS    = a string of flag letters, or "-" for none:
+               V = variadic (uses PCount/HB_PValue/HB_Parameter/HB_AParams)
+               S = some call site forwards `...` to it
+               K = a class marker, D = a dynamic class (`::&( name )`)
+               P = a PUBLIC variable (RETTYPE holds its owning .prg),
+                   A = a PUBLIC declared with a size
+               N = a PROCEDURE, or a method declared as one: no value,
+                   C# void (a block ending in a call to it yields NIL)
   RETTYPE  = inferred return type (NUMERIC/STRING/...) or "-" if unknown
   PARAM    = name:type:pflags
   pflags   = a string of flag letters, or "-" for none:
@@ -1022,6 +1028,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `LOCAL x := 5`                   | `decimal x = 5;`                                         |
 | `:=` / `==` / `=`                | `=` / `==` / `==` (assignment vs equality)               |
 | `.T.` / `.F.` / `NIL`            | `true` / `false` / `null`                                |
+| `"€/kg"`, `"Signaturzähler"` — a string literal | `"\u00E2\u0082\u00AC/kg"`, `"Signaturz\u00E4hler"` — a Harbour string is bytes, and a source may hold them in any encoding (EasiPOS has Windows-1252 beside UTF-8): every byte above 0x7E, and every control byte but `\n` `\r` `\t`, is its own char, `\u00XX`, as file, socket and serial I/O carry one char per byte (Latin-1). Copied raw, the C# compiler read them as UTF-8: a lone high byte became U+FFFD, a UTF-8 euro sign one char, and lengths and truncation moved. String `#define`s alike (gendefines.py reads Latin-1 and escapes; it had written `chr(13) + chr(10)` raw, which the file's line endings made CR CR LF). test147 |
 | `.AND.` / `.OR.` / `.NOT.`       | `&&` / `\|\|` / `!`                                      |
 | `^` / `$`                        | `HbRuntime.Pow()` (decimal) / `HbRuntime.HbIn()` (substring or hash-key) |
 | `IIF(c, a, b)` in expression pos | `(c ? a : b)`                                            |
@@ -1031,6 +1038,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `FOR i := 1 TO n STEP k`         | `for (i = 1; i <= n; i += k)` — `>=` for a negative constant step; a step that is not a constant is `HbRuntime.ForTest(i, n, k)`, its sign tested on every pass as HB_P_FORTEST does (test111) |
 | `FOR EACH cLine IN aLines`       | `foreach (string __hb_fe_cLine in HbRuntime.HbEnumValues(aLines)) { cLine = __hb_fe_cLine; … }`: Harbour's loop variable is a local of the routine, and a C# foreach cannot loop on one, so it runs on a temporary of the local's type and assigns the local (test135). An integer local's temporary is `long`, so each element is cast as a decimal written into an `i` name is anywhere (Alex, 2026-09-29). Two differences are scan warnings, fixed in source: Harbour restores the variable when the loop ends, where C# keeps the last element (W0038 on a read after the loop), and a variable integer by inference only drops a fraction Harbour keeps (W0039) |
 | `{\|a, b\| expr}`                | `((Func<dynamic, dynamic, dynamic>)((a, b) => expr))` — a parameter is typed by its Hungarian name (`{\|cName\| …}` a `string`, `oPLUTable` its model), or, when its name says nothing, by the element type of the declared array an AScan / AEval / ASort hands it (`{\|x\| x:nType == ITEM}` over an `AS ARRAY OF CLASS TranLine` is `Func<TranLine, bool>`; not a value type, which would make a NIL element a zero); the result by the body where it is certain (a comparison or logical operator `bool`, a statically typed scalar its type; an array element stays `dynamic`). A local initialised with a block is declared with the same signature. HbRuntime calls a block through reflection and converts a number to a `decimal` or `long` parameter, which reflection does not; NIL to a value-typed parameter is its zero (test141) |
+| `{\|x\| Proc(x)}`, `Proc` a PROCEDURE | `((x) => { Proc(x); return null; })` — a PROCEDURE is `void`, and Harbour's block yields NIL: written `=> Proc(x)` it compiled only while an argument was `dynamic` (the call bound at run time) and then failed, void having no value (EasiPOS's XZFirst(), rwparse's RWLine() loops). The scan records a PROCEDURE in the reftab (flag `N`), a method declared one too, so a call into another file is known; the block's result stays `dynamic`. A last expression of several alike (test145) |
 | `{\|x\| f(x), n := 0, x > 1}`    | `((x) => { f(x); n = 0; return x > 1; })` — every expression runs, the last is the value; a middle one that is not a call, assignment or step is `_ = …;`, an IIF is if/else (test110) |
 | `X():New(a)` where X's chain declares `Init` and no `New` | `HbRuntime.Initialised(new X(), self => self.Init(a))` — Harbour's `New()` runs `Init()` and answers the object whatever `Init()` returned (a `(X)new X().Init(a)` answered NIL for easipos's Transaction and POSStatus); `X():Init(a)` is `new X().Init(a)` and answers `Init()`'s result (test124). With or without arguments, any message but `New` is sent to the new instance and answers its own result: `X():Init()` is `new X().Init()`, `X():Initialise()` is `new X().Initialise()` (test144) |
 | `Self` / `::`                    | `this`; a member bare (`nCount`), `this.nCount` only where a parameter, local, codeblock parameter, PUBLIC or MEMVAR of the same name needs it (Alex; in INLINE bodies too, where any free use of the name keeps it) — `Class.var` for a `CLASS VAR`; `((dynamic)this).m` for a member neither the class nor an ancestor declares — an ancestor in another file included, read from the reftab (test131; TestSuite's oTestAssert had gone through the DLR 505 times in ormtestsuite.cs) — which on a dynamic class reaches its bag; `this.Super()` and the other built-in object messages keep `this.` (extension methods need a receiver) |
@@ -1057,7 +1065,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `Foo(a, b, extra)` against `PROCEDURE Foo(a, b)` | `Foo(a, b)` — the extras are dropped as Harbour drops them at run time; the scan's W0018 is what stops the pipeline (test104) |
 | `PCount()` / `hb_AParams()` in a function that reads them | `hbva.Length` / `hbva` — the signature widens to `params dynamic[] hbva` and the named parameters are re-bound from it, file-static functions included (test102) |
 | `d1 - d2`, `d + n`, `n + d`, `d - n`, `d += n` on DATE operands | `(decimal)(d1.DayNumber - d2.DayNumber)` (decimal, so a later `/` stays float), `d.AddDays((int)(n))`, `d = d.AddDays(...)` — `DateOnly` has no operators; TIMESTAMP is left alone (test101) |
-| `c1 < c2` (`<=`, `>`, `>=`) on string operands | `HbRuntime.StrCmp(c1, c2) < 0` — an exact, ordinal comparison; Harbour's SET EXACT OFF rule (a longer LEFT operand with an equal prefix is EQUAL) is deliberately not reproduced (Alex, 2026-09-19); `==` stays `==`, and `=` is refused (E0100) (test101) |
+| `c1 < c2` (`<=`, `>`, `>=`) on string operands | `HbRuntime.StrCmp(c1, c2) < 0` — a concatenation counts as a string when its parts do, an IIF when both branches do (buffcons.prg's sort key ends `+ iif( l, "1", "0" )`); an exact, ordinal comparison; Harbour's SET EXACT OFF rule (a longer LEFT operand with an equal prefix is EQUAL) is deliberately not reproduced (Alex, 2026-09-19); `==` stays `==`, and `=` is refused (E0100) (test101) |
 | `METHOD ToString()`              | `public override string ToString()` — it is object.ToString (test103) |
 | `METHOD M(...)` in a class, and a subclass that redeclares it | `public virtual ... M(...)` on every class method; `public override ... M(...)` when the nearest ancestor declaring `M` has the identical signature — arity, varargs spread, per-slot ref / nilable / type and return type. Harbour dispatches on the receiver's own class, so a hide would call the base method through a base-typed reference (CS0108, the test suites' parameterless `New()`); a redeclaration with different parameters is an overload and gets neither (test49's `Speak()`) |
 | `TOleAuto():New("ADODB.Recordset")` | `Xhb.TOleAuto().New("ADODB.Recordset")` — xhb's class function is a static factory; `New` creates the COM object through `Type.GetTypeFromProgID` |
@@ -1157,8 +1165,9 @@ to hold the reasoning.
 ```csharp
 public static class HbDiscard<T>
 {
-    [System.ThreadStatic] public static T Value;
-    public static ref T Seed(T v) { Value = v; return ref Value; }
+    [System.ThreadStatic] static T t_value;
+    public static ref T Value { get { t_value = default!; return ref t_value; } }
+    public static ref T Seed(T v) { t_value = v; return ref t_value; }
 }
 ```
 
@@ -1174,8 +1183,13 @@ storage location:
   match the parameter exactly, nullable included
   (`HbDiscard<decimal?>`).
 - **`Value`** serves an omitted slot or a literal:
-  `Foo(a, ref HbDiscard<decimal>.Value)`. There is no input to
-  preserve; the write-back lands in the throwaway.
+  `Foo(a, ref HbDiscard<decimal>.Value)`. The callee's input is
+  Harbour's NIL, C#'s default, fresh each time the slot is passed; the
+  write-back lands in the throwaway. It was a plain field until
+  2026-10-07, so a callee that reads the parameter before writing it
+  read what the last call through the slot had written back: EasiPOS's
+  Plu(), whose `DEFAULT nRFOrVoidIndex TO 0` is NIL's reading, took a
+  line index an earlier call had left (test146).
 - **`Seed`** serves a bare variable passed without `@`:
   `Foo(ref HbDiscard<decimal>.Seed(nX))`. It is a ref-returning
   method, so the whole expression is a legal `ref` argument: the
@@ -1186,7 +1200,9 @@ storage location:
   the slot is shared.
 - **The trade-off.** The slot is shared per type: two `Seed` calls of
   the same type nested inside one call expression would overwrite
-  each other before the outer callee reads its input. The emitter
+  each other before the outer callee reads its input, and two omitted
+  slots of one call are the same storage (easipos-transpiled's plan,
+  D21). The emitter
   does not produce that shape; the ref shim, with its own temps, is
   the fallback if it ever must.
 
