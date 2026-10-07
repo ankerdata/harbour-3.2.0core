@@ -12,6 +12,7 @@
 #include "hbast.h"
 #include "hbreftab.h"
 #include "hbfieldtypes.h"
+#include "hbdefinemap.h"
 
 #define HB_REFTAB_BUCKETS  1024  /* power of two */
 #define HB_REFTAB_MAXPARAM 64    /* hard cap; matches the by-ref bitmap width */
@@ -343,6 +344,9 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
       HB_BOOL        fOldConflict[ HB_REFTAB_MAXPARAM ];
       HB_BOOL        fOldReassigned[ HB_REFTAB_MAXPARAM ];
       HB_BOOL        fOldDeclDefault[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL        fOldOmitted[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL        fOldConstDefault[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL        fOldZeroDefault[ HB_REFTAB_MAXPARAM ];
 
       /* Remember the conflict / reassigned bits before we free pOld. */
       for( i = 0; i < HB_REFTAB_MAXPARAM; i++ )
@@ -350,6 +354,9 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
          fOldConflict[ i ] = HB_FALSE;
          fOldReassigned[ i ] = HB_FALSE;
          fOldDeclDefault[ i ] = HB_FALSE;
+         fOldOmitted[ i ] = HB_FALSE;
+         fOldConstDefault[ i ] = HB_FALSE;
+         fOldZeroDefault[ i ] = HB_FALSE;
       }
       if( pOld )
       {
@@ -358,6 +365,9 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
             fOldConflict[ i ] = pOld[ i ].fConflict;
             fOldReassigned[ i ] = pOld[ i ].fReassigned;
             fOldDeclDefault[ i ] = pOld[ i ].fDeclDefault;
+            fOldOmitted[ i ] = pOld[ i ].fOmitted;
+            fOldConstDefault[ i ] = pOld[ i ].fConstDefault;
+            fOldZeroDefault[ i ] = pOld[ i ].fZeroDefault;
          }
       }
 
@@ -434,6 +444,9 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
          e->pParams[ i ].fConflict = fOldConflict[ i ];
          e->pParams[ i ].fReassigned = fOldReassigned[ i ];
          e->pParams[ i ].fDeclDefault = fOldDeclDefault[ i ];
+         e->pParams[ i ].fOmitted = fOldOmitted[ i ];
+         e->pParams[ i ].fConstDefault = fOldConstDefault[ i ];
+         e->pParams[ i ].fZeroDefault = fOldZeroDefault[ i ];
       }
 
       /* Free the old parameter array now that we've pulled what we
@@ -496,6 +509,90 @@ void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
    e = hb_refTabFindOrCreate( pTab, szFunc );
    if( e->pParams && iPos < e->nParams )
       e->pParams[ iPos ].fDeclDefault = HB_TRUE;
+}
+
+void hb_refTabMarkOmitted( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( e && e->pParams && iPos < e->nParams )
+      e->pParams[ iPos ].fOmitted = HB_TRUE;
+}
+
+void hb_refTabMarkConstDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( e && e->pParams && iPos < e->nParams )
+      e->pParams[ iPos ].fConstDefault = HB_TRUE;
+}
+
+void hb_refTabMarkZeroDefault( PHB_REFTAB pTab, const char * szFunc, int iPos )
+{
+   PHB_REFENTRY e;
+
+   if( ! pTab || ! szFunc || iPos < 0 || iPos >= HB_REFTAB_MAXPARAM )
+      return;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( e && e->pParams && iPos < e->nParams )
+      e->pParams[ iPos ].fZeroDefault = HB_TRUE;
+}
+
+/* A declared default that is its type's zero, a literal 0 or .F., which
+   C# gives an omitted value anyway. A #define is not read for its value:
+   the defines map does not keep it. */
+static HB_BOOL hb_refTabIsZeroDefault( PHB_EXPR pVal )
+{
+   if( ! pVal )
+      return HB_FALSE;
+   if( pVal->ExprType == HB_EO_NEGATE )
+      pVal = pVal->value.asOperator.pLeft;
+   if( ! pVal )
+      return HB_FALSE;
+   if( pVal->ExprType == HB_ET_LOGICAL )
+      return ! pVal->value.asLogical;
+   if( pVal->ExprType == HB_ET_NUMERIC )
+      return pVal->value.asNum.NumType == HB_ET_LONG ?
+             pVal->value.asNum.val.l == 0 : pVal->value.asNum.val.d == 0.0;
+   return HB_FALSE;
+}
+
+/* A declared default the emitter can put on the C# signature as a
+   constant, as gencsharp.c's hb_csIsCsConstExpr reads it: a number, a
+   logical, a negated number, or a #define the defines map knows (not the
+   name of one of the routine's own parameters). */
+static HB_BOOL hb_refTabIsConstDefault( PHB_EXPR pVal, const char ** ppNames,
+                                        int nParams )
+{
+   const char * szCanon = NULL;
+   int i;
+
+   if( ! pVal )
+      return HB_FALSE;
+   switch( pVal->ExprType )
+   {
+      case HB_ET_LOGICAL:
+      case HB_ET_NUMERIC:
+         return HB_TRUE;
+      case HB_EO_NEGATE:
+         return pVal->value.asOperator.pLeft &&
+                pVal->value.asOperator.pLeft->ExprType == HB_ET_NUMERIC;
+      case HB_ET_VARIABLE:
+         if( ! pVal->value.asSymbol.name )
+            return HB_FALSE;
+         for( i = 0; i < nParams; i++ )
+            if( ppNames[ i ] && hb_stricmp( ppNames[ i ], pVal->value.asSymbol.name ) == 0 )
+               return HB_FALSE;
+         return hb_defineMapLookupCanon( pVal->value.asSymbol.name, &szCanon ) != NULL;
+      default:
+         return HB_FALSE;
+   }
 }
 
 /* An o<Class> parameter slot that is still the prefix's generic OBJECT -
@@ -1338,7 +1435,9 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
    fprintf( fp, "#           P = public var, A = public var with array-dim, N = procedure (no value), - = none\n" );
    fprintf( fp, "# RETTYPE:  inferred return type, or - if unknown; for P entries this slot holds the owning .prg basename\n" );
    fprintf( fp, "# PARAM:    name:type:pflags\n" );
-   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, T = declared type, - = none\n" );
+   fprintf( fp, "# pflags letters:  R = byref, N = nilable, C = conflict, W = reassigned, D = declared default, T = declared type,\n" );
+   fprintf( fp, "#                  O = a caller leaves it empty, L = the declared default is a C# constant,\n" );
+   fprintf( fp, "#                  Z = the declared default is 0 or .F., - = none\n" );
    fprintf( fp, "#\n" );
    fprintf( fp, "# THIS FILE IS GENERATED — see `hbtranspiler -GF`\n" );
 
@@ -1410,7 +1509,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                HB_BOOL fReassigned = e->pParams[ p ].fReassigned;
                HB_BOOL fDeclDefault = e->pParams[ p ].fDeclDefault;
                HB_BOOL fDeclType = e->pParams[ p ].fDeclType;
-               char flags[ 8 ];
+               char flags[ 12 ];
                int  k = 0;
                if( fByRef )     flags[ k++ ] = 'R';
                if( fNilable )   flags[ k++ ] = 'N';
@@ -1418,6 +1517,9 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
                if( fReassigned) flags[ k++ ] = 'W';
                if( fDeclDefault) flags[ k++ ] = 'D';
                if( fDeclType )  flags[ k++ ] = 'T';
+               if( e->pParams[ p ].fOmitted )      flags[ k++ ] = 'O';
+               if( e->pParams[ p ].fConstDefault ) flags[ k++ ] = 'L';
+               if( e->pParams[ p ].fZeroDefault )  flags[ k++ ] = 'Z';
                if( k == 0 )     flags[ k++ ] = '-';
                flags[ k ] = '\0';
                fprintf( fp, "\t%s:%s:%s",
@@ -1496,6 +1598,9 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       HB_BOOL reas[ HB_REFTAB_MAXPARAM ];
       HB_BOOL decl[ HB_REFTAB_MAXPARAM ];
       HB_BOOL dtyp[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL omit[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL cdef[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL zdef[ HB_REFTAB_MAXPARAM ];
       int i;
 
       if( line[ 0 ] == '#' || line[ 0 ] == '\n' || line[ 0 ] == '\0' )
@@ -1597,6 +1702,9 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          reas[ i ]  = HB_FALSE;
          decl[ i ]  = HB_FALSE;
          dtyp[ i ]  = HB_FALSE;
+         omit[ i ]  = HB_FALSE;
+         cdef[ i ]  = HB_FALSE;
+         zdef[ i ]  = HB_FALSE;
          for( c = pf; *c; c++ )
          {
             if( *c == 'R' || *c == 'r' )
@@ -1611,6 +1719,12 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                decl[ i ] = HB_TRUE;
             else if( *c == 'T' || *c == 't' )
                dtyp[ i ] = HB_TRUE;
+            else if( *c == 'O' || *c == 'o' )
+               omit[ i ] = HB_TRUE;
+            else if( *c == 'L' || *c == 'l' )
+               cdef[ i ] = HB_TRUE;
+            else if( *c == 'Z' || *c == 'z' )
+               zdef[ i ] = HB_TRUE;
          }
       }
 
@@ -1629,6 +1743,12 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
             hb_refTabMarkDeclDefault( pTab, fields[ 0 ], i );
          if( dtyp[ i ] )
             hb_refTabMarkDeclType( pTab, fields[ 0 ], i, types[ i ] );
+         if( omit[ i ] )
+            hb_refTabMarkOmitted( pTab, fields[ 0 ], i );
+         if( cdef[ i ] )
+            hb_refTabMarkConstDefault( pTab, fields[ 0 ], i );
+         if( zdef[ i ] )
+            hb_refTabMarkZeroDefault( pTab, fields[ 0 ], i );
       }
       /* Rehydrate conflict flags by reaching into the entry directly;
          there is no public setter because conflicts are meant to be
@@ -2897,9 +3017,10 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                   for( ; pStmt; pStmt = pStmt->pNext )
                   {
                      const char * szDefName = NULL;
+                     PHB_EXPR pDefVal;
                      int k;
-                     if( ! hb_refTabStmtDeclaredDefault( pStmt, &szDefName ) ||
-                         ! szDefName )
+                     pDefVal = hb_refTabStmtDeclaredDefault( pStmt, &szDefName );
+                     if( ! pDefVal || ! szDefName )
                         continue;
                      for( k = 0; k < nParams; k++ )
                      {
@@ -2907,6 +3028,10 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                             hb_stricmp( names[ k ], szDefName ) == 0 )
                         {
                            hb_refTabMarkDeclDefault( pTab, szKeyBuf, k );
+                           if( hb_refTabIsConstDefault( pDefVal, names, nParams ) )
+                              hb_refTabMarkConstDefault( pTab, szKeyBuf, k );
+                           if( hb_refTabIsZeroDefault( pDefVal ) )
+                              hb_refTabMarkZeroDefault( pTab, szKeyBuf, k );
                            break;
                         }
                      }

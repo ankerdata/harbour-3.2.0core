@@ -1024,6 +1024,9 @@ typedef struct
    char         szSelfClass[ 128 ]; /* owning class when walking a method
                                        body (parsed from the func key
                                        `Class::Class__Method`), else "" */
+   char         szFuncKey[ 256 ];   /* the reftab key of the routine being
+                                       walked (W0043 reads its parameters),
+                                       else "" */
 } HB_TYPEENV;
 
 static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
@@ -1033,6 +1036,7 @@ static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
    pEnv->pRefTab = pRefTab;
    pEnv->szFile  = szFile;
    pEnv->szSelfClass[ 0 ] = '\0';
+   pEnv->szFuncKey[ 0 ] = '\0';
 }
 
 /* The current file's function list (the compiler's ast.pFuncList),
@@ -3183,46 +3187,58 @@ HB_BOOL hb_astReturnsSelfOrNil( PHB_AST_NODE pBody )
    later file) is silent this pass and fires on the next; the pipeline
    treats the LAST pass as authoritative for W0018, because the
    multi-definition arity fold can make an early-pass hit transient. */
+/* The row a call's arguments go to: the callee's own, or for a method
+   the receiver's class only inherits, the declaring ancestor's, found
+   through the parent links (copied into szBuf); NULL while the scan has
+   no row for it (the first pass, a callee in a later file). */
+static const char * hb_astCallRowKey( const char * szCallee, HB_TYPEENV * pEnv,
+                                      char * szBuf, HB_SIZE nBuf )
+{
+   const char * szSep;
+   const char * szM;
+   const char * szC;
+   char szCls[ 128 ];
+   HB_SIZE nCls;
+   int i;
+
+   if( ! szCallee || ! pEnv || ! pEnv->pRefTab )
+      return NULL;
+   if( hb_refTabParamCount( pEnv->pRefTab, szCallee ) >= 0 )
+      return szCallee;
+   szSep = strstr( szCallee, "::" );
+   szM = szSep ? strstr( szSep + 2, "__" ) : NULL;
+   if( ! szSep || ! szM )
+      return NULL;
+   nCls = ( HB_SIZE ) ( szSep - szCallee );
+   if( nCls >= sizeof( szCls ) )
+      return NULL;
+   memcpy( szCls, szCallee, nCls );
+   szCls[ nCls ] = '\0';
+   szC = hb_refTabClassParent( pEnv->pRefTab, szCls );
+   for( i = 0; szC && i < 16; i++ )
+   {
+      hb_snprintf( szBuf, nBuf, "%s::%s__%s", szC, szC, szM + 2 );
+      if( hb_refTabParamCount( pEnv->pRefTab, szBuf ) >= 0 )
+         return szBuf;
+      szC = hb_refTabClassParent( pEnv->pRefTab, szC );
+   }
+   return NULL;
+}
+
 static void hb_astCheckArity( const char * szCallee, PHB_EXPR pParms,
                               HB_TYPEENV * pEnv, int iLine )
 {
-   const char * szKey = szCallee;
+   const char * szKey;
    char szChain[ 256 ];
    int iDeclared, iPassed = 0, iPos = 0;
    PHB_EXPR pArg;
 
    if( ! szCallee || ! pParms || ! pEnv || ! pEnv->pRefTab )
       return;
+   szKey = hb_astCallRowKey( szCallee, pEnv, szChain, sizeof( szChain ) );
+   if( ! szKey )
+      return;
    iDeclared = hb_refTabParamCount( pEnv->pRefTab, szKey );
-   if( iDeclared < 0 )
-   {
-      const char * szSep = strstr( szCallee, "::" );
-      const char * szM = szSep ? strstr( szSep + 2, "__" ) : NULL;
-      if( szSep && szM )
-      {
-         char szCls[ 128 ];
-         HB_SIZE nCls = ( HB_SIZE ) ( szSep - szCallee );
-         const char * szC;
-         int i;
-         if( nCls >= sizeof( szCls ) )
-            return;
-         memcpy( szCls, szCallee, nCls );
-         szCls[ nCls ] = '\0';
-         szC = hb_refTabClassParent( pEnv->pRefTab, szCls );
-         for( i = 0; szC && i < 16 && iDeclared < 0; i++ )
-         {
-            hb_snprintf( szChain, sizeof( szChain ), "%s::%s__%s",
-                         szC, szC, szM + 2 );
-            iDeclared = hb_refTabParamCount( pEnv->pRefTab, szChain );
-            if( iDeclared >= 0 )
-               szKey = szChain;
-            else
-               szC = hb_refTabClassParent( pEnv->pRefTab, szC );
-         }
-      }
-      if( iDeclared < 0 )
-         return;
-   }
    if( hb_refTabIsVariadic( pEnv->pRefTab, szKey ) ||
        hb_refTabIsCalledVarargs( pEnv->pRefTab, szKey ) )
       return;
@@ -3250,14 +3266,158 @@ static void hb_astCheckArity( const char * szCallee, PHB_EXPR pParms,
    }
 }
 
+/* A slot's type is a C# value type (decimal, long, bool, DateOnly,
+   DateTime): its row's type, or its name's when the row has none. */
+static HB_BOOL hb_astIsValueSlot( const HB_REFPARAM * pP )
+{
+   const char * sz;
+
+   if( ! pP )
+      return HB_FALSE;
+   sz = ( pP->szType && *pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+        ? pP->szType : hb_astInferType( pP->szName, NULL );
+   return sz && ( hb_stricmp( sz, "NUMERIC" ) == 0 || hb_stricmp( sz, "INTEGER" ) == 0 ||
+                  hb_stricmp( sz, "LOGICAL" ) == 0 || hb_stricmp( sz, "DATE" ) == 0 ||
+                  hb_stricmp( sz, "TIMESTAMP" ) == 0 );
+}
+
+/* `xValue`, `sxValue`: a name the Hungarian contract calls polymorphic,
+   which may hold NIL. */
+static HB_BOOL hb_astIsPolymorphicName( const char * sz )
+{
+   if( sz && ( sz[ 0 ] == 's' || sz[ 0 ] == 'S' ) && sz[ 1 ] == 'x' )
+      sz++;
+   return sz && sz[ 0 ] == 'x' && sz[ 1 ] >= 'A' && sz[ 1 ] <= 'Z';
+}
+
+/* The slots of row szKey a call leaves empty: past its last argument, a
+   gap, an explicit NIL. Harbour passes NIL there, which the callee's
+   DEFAULT takes; C# passes a value slot's zero, which W0043 watches
+   for when the callee hands the slot on. A call that spreads `...`, or
+   to a variadic row, says nothing. */
+static void hb_astNoteOmitted( const char * szKey, PHB_EXPR pParms,
+                               HB_TYPEENV * pEnv )
+{
+   PHB_EXPR pArg = NULL;
+   int nDeclared, iPos = 0;
+
+   if( ! szKey || ! pEnv->pRefTab ||
+       hb_refTabIsVariadic( pEnv->pRefTab, szKey ) ||
+       hb_refTabIsCalledVarargs( pEnv->pRefTab, szKey ) )
+      return;
+   nDeclared = hb_refTabParamCount( pEnv->pRefTab, szKey );
+   if( nDeclared <= 0 )
+      return;
+   if( pParms && pParms->ExprType == HB_ET_MACROARGLIST )
+      return;
+   if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                   pParms->ExprType == HB_ET_ARGLIST ) )
+      pArg = pParms->value.asList.pExprList;
+   else
+      pArg = pParms;
+   for( ; pArg; pArg = pArg->pNext, iPos++ )
+   {
+      if( pArg->ExprType == HB_ET_ARGLIST && pArg->value.asList.reference )
+         return;   /* `...` */
+      if( iPos < nDeclared &&
+          ( pArg->ExprType == HB_ET_NONE || pArg->ExprType == HB_ET_NIL ) )
+         hb_refTabMarkOmitted( pEnv->pRefTab, szKey, iPos );
+   }
+   for( ; iPos < nDeclared; iPos++ )
+      hb_refTabMarkOmitted( pEnv->pRefTab, szKey, iPos );
+}
+
+/* Argument iPos of a call to row szKey, against the slot's declared
+   default, the two shapes in which Harbour's NIL reaches a DEFAULT and
+   C#'s cannot (plan D20):
+   W0043  the argument is a parameter of the routine being walked, a value
+          slot with no default of its own that some caller leaves empty
+          (pflag O) and the routine never reassigns: Harbour hands the
+          callee NIL and its default applies, C# hands it the zero
+          (MCNameNumber() gave MCNumber() 0, the receipt said POS 00).
+          The fix is the same default declared on this parameter.
+   W0044  the argument is an `x` name, which may hold NIL, and the slot's
+          default is a constant the emitter puts on the C# signature (a
+          by-value slot after the last by-ref one, pflag L): a NIL
+          fails the run-time conversion there (FnOpenTable()'s xPanel to
+          FSMTender()). The fix is to pass the value meant.
+   Both are decided by the scan's last pass: O gathers over every caller,
+   D and L arrive with the callee's own file. */
+static void hb_astCheckOmittedDefault( const char * szKey, PHB_EXPR pArg,
+                                       int iPos, HB_TYPEENV * pEnv, int iLine )
+{
+   const HB_REFPARAM * pSlot;
+   const char * szName;
+   char szDedup[ 320 ];
+   int i, n;
+
+   if( ! szKey || ! pArg || pArg->ExprType != HB_ET_VARIABLE || ! pEnv->pRefTab ||
+       ! ( szName = pArg->value.asSymbol.name ) ||
+       hb_refTabIsVariadic( pEnv->pRefTab, szKey ) )
+      return;
+   pSlot = hb_refTabParam( pEnv->pRefTab, szKey, iPos );
+   if( ! pSlot || ! pSlot->fDeclDefault || ! hb_astIsValueSlot( pSlot ) )
+      return;
+
+   if( pEnv->szFuncKey[ 0 ] )
+   {
+      n = hb_refTabParamCount( pEnv->pRefTab, pEnv->szFuncKey );
+      for( i = 0; i < n; i++ )
+      {
+         const HB_REFPARAM * pMine =
+            hb_refTabParam( pEnv->pRefTab, pEnv->szFuncKey, i );
+         if( ! pMine || ! pMine->szName || hb_stricmp( pMine->szName, szName ) != 0 )
+            continue;
+         /* a default of 0 or .F. is what C#'s zero gives anyway */
+         if( pMine->fOmitted && ! pMine->fDeclDefault && ! pMine->fNilable &&
+             ! pMine->fReassigned && ! pSlot->fZeroDefault &&
+             hb_astIsValueSlot( pMine ) )
+         {
+            hb_snprintf( szDedup, sizeof( szDedup ), "W0043 %s %s %d",
+                         szName, szKey, iPos );
+            if( ! hb_astOrmSeen( iLine, szDedup ) )
+               fprintf( stderr,
+                        "hbtranspiler: %s(%d): warning W0043  "
+                        "'%s' goes to '%s' (parameter %d), which declares a default, "
+                        "but has none of its own and a caller leaves it out: C# "
+                        "passes its zero where Harbour passed NIL and the default "
+                        "applied; declare the same default here\n",
+                        pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                        iLine, szName, szKey, iPos + 1 );
+         }
+         return;
+      }
+   }
+
+   if( hb_astIsPolymorphicName( szName ) && pSlot->fConstDefault &&
+       ! pSlot->fByRef )
+   {
+      for( i = iPos + 1, n = hb_refTabParamCount( pEnv->pRefTab, szKey ); i < n; i++ )
+         if( hb_refTabIsRef( pEnv->pRefTab, szKey, i ) )
+            return;   /* before a by-ref slot: nullable, NIL reaches it */
+      hb_snprintf( szDedup, sizeof( szDedup ), "W0044 %s %s %d",
+                   szName, szKey, iPos );
+      if( ! hb_astOrmSeen( iLine, szDedup ) )
+         fprintf( stderr,
+                  "hbtranspiler: %s(%d): warning W0044  "
+                  "'%s' may hold NIL and goes to '%s' (parameter %d), whose "
+                  "declared default C# puts on the signature, where NIL cannot "
+                  "reach it; pass the value meant\n",
+                  pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                  iLine, szName, szKey, iPos + 1 );
+   }
+}
+
 static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                  HB_TYPEENV * pEnv, int iLine )
 {
    PHB_EXPR pArg;
    int      iPos = 0;
    char     szStaticKey[ 256 ];
+   char     szRowBuf[ 256 ];
+   const char * szRow;
 
-   if( ! szCallee || ! pParms || ! pEnv->pRefTab )
+   if( ! szCallee || ! pEnv->pRefTab )
       return;
 
    /* STATIC functions are registered as `<FileBase>::<Name>` in the
@@ -3286,6 +3446,12 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
       if( pSplit )
          hb_xfree( pSplit );
    }
+
+   /* the slots this call leaves empty, a call with no arguments too */
+   szRow = hb_astCallRowKey( szCallee, pEnv, szRowBuf, sizeof( szRowBuf ) );
+   hb_astNoteOmitted( szRow, pParms, pEnv );
+   if( ! pParms )
+      return;
 
    hb_astCheckArity( szCallee, pParms, pEnv, iLine );
 
@@ -3473,6 +3639,7 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
             }
          }
       }
+      hb_astCheckOmittedDefault( szRow, pArg, iPos, pEnv, iLine );
       pArg = pArg->pNext;
       iPos++;
    }
@@ -5167,6 +5334,8 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
    s_iIntCand = 0;   /* per-function int-candidate audit tracking */
 
    hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab, szFile );
+   if( szFuncKey )
+      hb_strncpy( env.szFuncKey, szFuncKey, sizeof( env.szFuncKey ) - 1 );
 
    /* Method bodies carry their class in the reftab func key
       (`Class::Class__Method`) — keep it in the env so member-level

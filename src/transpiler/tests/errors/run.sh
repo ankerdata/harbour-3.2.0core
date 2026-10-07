@@ -198,6 +198,34 @@ else
    fail=$((fail+1))
 fi
 
+# W0043 / W0044 (plan D20): two scan passes, as the pipeline decides them
+# on its last (a slot's O gathers over every caller), and exactly the two
+TAB="$SCRIPT_DIR/omitted_default.tab"
+rm -f "$TAB"
+"$TRANS" -I"$INC" --reftab="$TAB" "$SCRIPT_DIR/omitted_default.prg" -GF > /dev/null 2>&1
+out=$("$TRANS" -I"$INC" --reftab="$TAB" "$SCRIPT_DIR/omitted_default.prg" -GF 2>&1)
+rm -f "$TAB"
+for expect in "W0043  'nNo45' goes to 'omitted_default::Number45' (parameter 1)" \
+              "W0044  'xPanel45' may hold NIL and goes to 'omitted_default::Panel45' (parameter 1)"; do
+   if echo "$out" | grep -qF "$expect"; then
+      echo "PASS: omitted_default ($expect)"
+      pass=$((pass+1))
+   else
+      echo "FAIL: omitted_default (expected: $expect)"
+      echo "$out" | sed 's|^|  |'
+      fail=$((fail+1))
+   fi
+done
+count=$(echo "$out" | grep -c "warning W004[34]")
+if [ "$count" -eq 2 ]; then
+   echo "PASS: omitted_default (2 warnings, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: omitted_default (expected 2 warnings, got $count)"
+   echo "$out" | grep "warning" | sed 's|^|  |'
+   fail=$((fail+1))
+fi
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 [ $fail -eq 0 ]

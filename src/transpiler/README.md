@@ -313,6 +313,13 @@ NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
                T = declared type — `p AS CLASS X` / `p AS ARRAY OF …`:
                    the slot's type is the declaration's, and no caller
                    refines it (see the ladder's declaration rung)
+               O = some caller leaves the slot empty (past its last
+                   argument, a gap, NIL), gathered over every caller
+                   (W0043)
+               L = the declared default is a C# constant, a number, a
+                   logical or a #define (W0044)
+               Z = the declared default is 0 or .F., which an omitted
+                   value is in C# anyway (W0043 is silent)
              Letters can combine in any order, e.g. "RN" or "NR".
 ```
 
@@ -518,6 +525,8 @@ can reach zero. Things that are merely *type debt* go to the
 | W0040 | scan  | A declaration (`AS CLASS X`, `AS ARRAY OF CLASS X`) names a class nothing defines — a program class or an ORM model. Decided by the scan's last pass, when the reftab holds every class (tests/errors/declared_types.prg) |
 | W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`), passed to a declared parameter, returned from a declared function. A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg) |
 | W0042 | pp    | A `#ifdef`, `#ifndef` or `defined()` asks about a name a header the file includes might define, and the transpiler cannot find that header on its include path, so it cannot answer as Harbour would; it takes the name for undefined. Give the transpiler the directories the build finds headers in (see [Preprocessor conditionals](#preprocessor-conditionals); tests/errors/cond_unread.prg) |
+| W0043 | scan  | A value parameter with no default of its own, which some caller leaves out (past its last argument, a gap, NIL), handed on to a parameter that declares one: Harbour passes NIL and the callee's default applies, C# passes the type's zero, 0, .F. or an empty date (EasiPOS's MCNameNumber() made the receipt say POS 00). Silent when the callee's default is 0 or .F. itself, or the routine reassigns or NIL-tests the parameter. The fix is the same default declared on the parameter. A send to a receiver of unknown class is not checked: there is no callee row to read. Decided by the scan's last pass, since the omissions gather over every caller (reftab pflags `O`, `Z`; tests/errors/omitted_default.prg) |
+| W0044 | scan  | An `x` name, which may hold NIL, passed to a value parameter whose declared default is a C# constant on the signature (by value, after the last by-ref parameter; pflag `L`): NIL cannot be converted to it, a run-time error in C#, where Harbour's default took it (EasiPOS's FnOpenTable() handed FSMTender() a NIL panel). The fix is to pass the value meant. Decided by the scan's last pass (tests/errors/omitted_default.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -1656,6 +1665,7 @@ the errors, where the file fails and the test asserts the error line:
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
 | `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass, a parent (a downcast) and a value of unknown type quiet, and a PROCEDURE with a declared parameter parses (two `-GF` passes on a private reftab) |
 | `cond_unread.prg`             | `W0042` | a `#ifdef` after an `#include` of a header the transpiler cannot find; exactly that one warning |
+| `omitted_default.prg`         | `W0043` `W0044` | a parameter a caller leaves out handed on to a declared default, and an `x` value to a constant one; the same default declared on the forwarding parameter, every caller passing it, a callee default of 0, and a number passed, quiet; exactly the two, on two scan passes |
 | `rename_param_*.prg`          | (a row)  | a parameter renamed to a name that names a class (`oLine` → `oItemLineRn`) takes that class on a warm scan, where the reftab still holds the type its callers gave the old name (the two files scanned in turn on a private reftab; run.sh reads the row) |
 
 ### The runtime library — `rtltest/`

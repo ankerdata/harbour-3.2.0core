@@ -91,6 +91,24 @@ struct HB_REFPARAM_
                                do not refine it, the name does not seed it.
                                Re-derived from the source at every
                                registration. Written as pflag `T`. */
+   HB_BOOL fOmitted;        /* some call site leaves the slot empty: past
+                               its last argument, a gap, an explicit NIL.
+                               Harbour passes NIL there, which a DEFAULT
+                               takes; C# passes a value slot's zero, so a
+                               routine that hands such a slot on to one
+                               with a declared default must declare one
+                               too (W0043). Gathered from every caller
+                               over the scan; written as pflag `O`. */
+   HB_BOOL fConstDefault;   /* the declared default (fDeclDefault) is a C#
+                               constant, a number, a logical or a
+                               #define, which the emitter puts on the
+                               signature when the slot is by value and
+                               after the last by-ref one: no NIL reaches
+                               it there (W0044). Written as pflag `L`. */
+   HB_BOOL fZeroDefault;    /* the declared default is the type's zero, a
+                               literal 0 or .F.: C#'s zero for an omitted
+                               value is the default, so W0043 is silent.
+                               Written as pflag `Z`. */
 };
 
 /* Result of hb_refTabRefineParamType. Distinguishing these lets the
@@ -182,6 +200,13 @@ extern HB_BOOL hb_refTabIsReassigned( PHB_REFTAB pTab, const char * szFunc, int 
    top-level `DEFAULT p TO v` / `hb_default(@p, v)` in the body. Same
    lifecycle rules as hb_refTabMark. */
 extern void hb_refTabMarkDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
+
+/* W0043 / W0044's facts: a caller leaves slot iPos empty (`O`), and the
+   slot's declared default is a C# constant (`L`). Neither creates a row:
+   a call to a routine the scan has not registered marks nothing. */
+extern void hb_refTabMarkOmitted( PHB_REFTAB pTab, const char * szFunc, int iPos );
+extern void hb_refTabMarkConstDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
+extern void hb_refTabMarkZeroDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
 
 /* Returns HB_TRUE if iPos carries a declared default. */
 extern HB_BOOL hb_refTabHasDeclDefault( PHB_REFTAB pTab, const char * szFunc, int iPos );
