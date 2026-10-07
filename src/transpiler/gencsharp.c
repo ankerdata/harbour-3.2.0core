@@ -3785,13 +3785,28 @@ static HB_BOOL hb_csCtorResultNeedsCast( const char * szCtor, const char * szMsg
    return ! szRet || hb_stricmp( szRet, szCtor ) != 0;
 }
 
+/* The message a class function's new instance is sent, as its C# method:
+   the first letter upper-cased. Harbour names are case-insensitive and
+   some source writes `:new( … )`, which would be C#'s keyword `new`. */
+static const char * hb_csCtorMsgName( const char * szMsg, char * szBuf, HB_SIZE nSize )
+{
+   HB_SIZE nLen = strlen( szMsg );
+   if( nLen == 0 || nLen >= nSize )
+      return szMsg;
+   szBuf[ 0 ] = ( szMsg[ 0 ] >= 'a' && szMsg[ 0 ] <= 'z' ) ? szMsg[ 0 ] - 'a' + 'A' : szMsg[ 0 ];
+   memcpy( szBuf + 1, szMsg + 1, nLen );
+   return szBuf;
+}
+
 /* Does the emission of this constructor call carry a `(Class)` cast, or
    HbRuntime.Initialised() for a class with only an Init, so that as a
    receiver it must be parenthesised? */
 static HB_BOOL hb_csCtorEmitsCast( PHB_EXPR pExpr, const char * szCtor )
 {
    const char * szMsg = pExpr->value.asMessage.szMessage;
-   if( hb_csSendHasArgs( pExpr ) && szMsg )
+   /* any message but New is a send to the new instance, with or without
+      arguments (`X():Init()`) */
+   if( szMsg && ( hb_csSendHasArgs( pExpr ) || hb_stricmp( szMsg, "New" ) != 0 ) )
    {
       if( hb_stricmp( szMsg, "New" ) == 0 && ! hb_csCtorDeclares( szCtor, "New" ) &&
           hb_csCtorDeclares( szCtor, "Init" ) )
@@ -4878,23 +4893,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   {
                      /* Cast unless the method answers the class itself
                         (hb_csCtorResultNeedsCast): an inherited or untyped
-                        New()/Init() does not.
-                        Capitalise the first letter of the method name:
-                        Harbour is case-insensitive so some source uses
-                        lowercase `:new(...)`, which would emit as the
-                        reserved word `new` — C# can't call a method
-                        named `new`. Uppercase-first yields `New` which
-                        matches the convention used by Harbour classes. */
-                     const char * szMsg = pExpr->value.asMessage.szMessage;
+                        New()/Init() does not. */
                      char szMsgBuf[ 128 ];
-                     HB_SIZE nMsgLen = strlen( szMsg );
-                     if( nMsgLen > 0 && nMsgLen < sizeof( szMsgBuf ) )
-                     {
-                        szMsgBuf[ 0 ] = ( szMsg[ 0 ] >= 'a' && szMsg[ 0 ] <= 'z' )
-                                      ? szMsg[ 0 ] - 'a' + 'A' : szMsg[ 0 ];
-                        memcpy( szMsgBuf + 1, szMsg + 1, nMsgLen );
-                        szMsg = szMsgBuf;
-                     }
+                     const char * szMsg = hb_csCtorMsgName(
+                        pExpr->value.asMessage.szMessage, szMsgBuf, sizeof( szMsgBuf ) );
                      {
                         /* The constructor's row lives under the class
                            (or a parent's) — a bare "New" names nothing,
@@ -4941,14 +4943,31 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   }
                   else
                   {
-                     /* No arguments. A class whose chain declares its own
+                     /* No arguments. Any message but New is sent to the
+                        new instance, and its result is the expression's:
+                        `X():Init()` answers what Init() returns (a device
+                        class's NIL when it cannot start), not the object
+                        `X():New()` answers, and `X():Initialise()` runs
+                        Initialise(). */
+                     const char * szMsgIn = pExpr->value.asMessage.szMessage;
+                     if( szMsgIn && hb_stricmp( szMsgIn, "New" ) != 0 )
+                     {
+                        char szMsgBuf[ 128 ];
+                        const char * szMsg = hb_csCtorMsgName( szMsgIn, szMsgBuf,
+                                                               sizeof( szMsgBuf ) );
+                        if( hb_csCtorResultNeedsCast( szCtor, szMsgIn ) )
+                           fprintf( yyc, "(%s)new %s().%s()", szCtor, szCtor, szMsg );
+                        else
+                           fprintf( yyc, "new %s().%s()", szCtor, szMsg );
+                     }
+                     /* `X():New()`. A class whose chain declares its own
                         New (or, classy-style, Init) still runs that body:
                         `new X()` alone would skip it, and a constructor
                         that sets members or registers itself would
                         silently not. Only the hbclass default constructor
                         — no row at all — is plain `new X()`. Init's
                         result is not New's: see HbRuntime.Initialised(). */
-                     if( hb_csCtorDeclares( szCtor, "New" ) &&
+                     else if( hb_csCtorDeclares( szCtor, "New" ) &&
                          hb_csCtorResultNeedsCast( szCtor, "New" ) )
                         fprintf( yyc, "(%s)new %s().New()", szCtor, szCtor );
                      else if( hb_csCtorDeclares( szCtor, "New" ) )
