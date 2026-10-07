@@ -1,0 +1,10 @@
+<Project>
+
+  <!-- Every contrib library project below this folder: the symbols inside
+       the DLL. An application ships DLLs without .pdb files, and a stack
+       trace through a library still has file and line. -->
+  <PropertyGroup>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>

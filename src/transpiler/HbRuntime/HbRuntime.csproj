@@ -16,6 +16,9 @@
     <Nullable>annotations</Nullable>
     <AssemblyName>HbRuntime</AssemblyName>
     <RootNamespace>HbRuntime</RootNamespace>
+    <!-- the symbols inside the DLL: an application ships DLLs without .pdb
+         files, and a stack trace through HbRuntime still has file and line -->
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
 </Project>
