@@ -294,6 +294,9 @@ void hb_compGenScan( HB_COMP_DECL, PHB_FNAME pFileName )
    /* Merge with whatever's already on disk so multiple -GF invocations
       accumulate. Failure to load is fine — first run starts empty. */
    hb_refTabLoad( pTab, szPath );
+   /* the .NET classes the program reaches (--extern=), never saved */
+   if( hb_refTabGetExternPath() )
+      hb_refTabLoadExtern( pTab, hb_refTabGetExternPath() );
 
    /* Scan this file's AST and add its functions / by-ref usage. */
    hb_refTabCollect( pTab, HB_COMP_PARAM );

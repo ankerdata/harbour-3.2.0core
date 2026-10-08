@@ -66,6 +66,14 @@ extern void         hb_refTabSetReconcile( const char * szPeer, const char * szO
 extern HB_BOOL      hb_refTabReconcileRequested( void );
 extern int          hb_refTabReconcileRun( void );
 
+/* `--extern=<path>`: a table of the .NET classes the program reaches
+   (the .NET builds of its COM shims), in the reftab's row format with
+   row flag X and pflag U (see persistence below). The scan and the C#
+   emitter load it after the reftab (hb_refTabLoadExtern); its rows are
+   never saved. NULL when none was given. */
+extern void         hb_refTabSetExternPath( const char * szPath );
+extern const char * hb_refTabGetExternPath( void );
+
 typedef struct HB_REFTAB_   HB_REFTAB,   * PHB_REFTAB;
 typedef struct HB_REFPARAM_ HB_REFPARAM, * PHB_REFPARAM;
 
@@ -121,6 +129,10 @@ struct HB_REFPARAM_
                                literal 0 or .F.: C#'s zero for an omitted
                                value is the default, so W0043 is silent.
                                Written as pflag `Z`. */
+   HB_BOOL fOut;            /* a .NET method's `out` parameter (pflag `U`,
+                               --extern= table only; fByRef too): Harbour's
+                               `@` is one by-reference mechanism, C# has
+                               two, and an `out` slot takes `out x`. */
 };
 
 /* Result of hb_refTabRefineParamType. Distinguishing these lets the
@@ -385,7 +397,9 @@ extern void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL );
  * Text format, one row per function:
  *   NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
  *
- *   FLAGS   = "V" if variadic, "-" otherwise
+ *   FLAGS   = letters, or "-" for none: V variadic, S called with a
+ *             `...` spread, K class, D dynamic class, P PUBLIC variable,
+ *             A PUBLIC with an array dimension, N procedure (no value)
  *   RETTYPE = inferred return type (NUMERIC/STRING/...) or "-" if unknown
  *   PARAM   = name:type:pflags
  *   pflags  = a string of flag letters, or "-" for none:
@@ -393,13 +407,26 @@ extern void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL );
  *               N = nilable (function body compares/assigns NIL)
  *               C = conflict, W = reassigned in the body
  *               D = declared default (top-level DEFAULT / hb_default)
+ *               T = declared type, O = some caller leaves it empty,
+ *               L = the declared default is a C# constant,
+ *               Z = the declared default is 0 or .F.
  *             Letters can combine in any order, e.g. "RN" or "NR".
+ *   then optional tail fields A=<hex> (call arities), I=<parent class>.
+ *
+ * The --extern= table adds row flag X (a .NET class: RETTYPE holds its
+ * C# type name) and pflag U (an `out` parameter); its rows are marked
+ * external and hb_refTabSave() skips them.
  *
  * Loading merges into the existing table; later definitions overwrite
  * earlier ones (same name = update arity/types/refs).
  */
 extern HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath );
 extern HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath );
+extern HB_BOOL hb_refTabLoadExtern( PHB_REFTAB pTab, const char * szPath );
+
+/* The C# type name of a class the --extern= table declares, or NULL for
+   any other class (whose C# name is its own). */
+extern const char * hb_refTabExternCsName( PHB_REFTAB pTab, const char * szClass );
 
 HB_EXTERN_END
 

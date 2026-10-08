@@ -37,6 +37,13 @@ typedef struct HB_REFENTRY_
    HB_BOOL               fClassDynamic;/* fIsClass + class uses ::&(name) — emit as `dynamic` */
    HB_BOOL               fIsPublic;    /* this is a PUBLIC variable marker */
    HB_BOOL               fPublicArrayDim; /* PUBLIC declared with [size] — emit `new dynamic[N]` at runtime */
+   HB_BOOL               fExtern;      /* loaded from the --extern= table: a .NET
+                                          class the program uses (a COM shim's
+                                          .NET build) or one of its methods.
+                                          Never saved: the table is read again
+                                          each run. */
+   char *                szCsName;     /* fExtern class: its C# type name,
+                                          `EasiPos.EasiSI.EasiSI` (owned) */
    HB_REFPARAM *         pParams;      /* nParams entries (NULL if unknown) */
    HB_U64                bitmap;       /* by-ref bitmap, bit n = arg n is by-ref */
    HB_U64                nilbits;      /* nilable bitmap, bit n = slot n is nilable */
@@ -124,6 +131,23 @@ const char * hb_refTabGetPath( void )
 {
    return s_szRefTabPathOverride[ 0 ] ? s_szRefTabPathOverride
                                       : s_szRefTabPathDefault;
+}
+
+/* The --extern= table: .NET classes the program reaches, in this file's
+   row format (hb_refTabLoadExtern). Empty when there is none. */
+static char s_szExternPath[ HB_PATH_MAX ] = { 0 };
+
+void hb_refTabSetExternPath( const char * szPath )
+{
+   if( ! szPath || ! *szPath )
+      s_szExternPath[ 0 ] = '\0';
+   else
+      hb_strncpy( s_szExternPath, szPath, sizeof( s_szExternPath ) - 1 );
+}
+
+const char * hb_refTabGetExternPath( void )
+{
+   return s_szExternPath[ 0 ] ? s_szExternPath : NULL;
 }
 
 /* ---- string helpers (case-folded) ---- */
@@ -289,6 +313,8 @@ void hb_refTabFree( PHB_REFTAB pTab )
             hb_xfree( e->szPublicOwner );
          if( e->szClassParent )
             hb_xfree( e->szClassParent );
+         if( e->szCsName )
+            hb_xfree( e->szCsName );
          hb_xfree( e->szName );
          hb_xfree( e );
          e = pNext;
@@ -1042,6 +1068,15 @@ const char * hb_refTabClassCanonName( PHB_REFTAB pTab, const char * szName )
    return ( e && e->fIsClass ) ? e->szName : NULL;
 }
 
+const char * hb_refTabExternCsName( PHB_REFTAB pTab, const char * szClass )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szClass )
+      return NULL;
+   e = hb_refTabFindEntry( pTab, szClass, NULL );
+   return ( e && e->fIsClass && e->fExtern ) ? e->szCsName : NULL;
+}
+
 void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName )
 {
    PHB_REFENTRY e;
@@ -1450,7 +1485,8 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
       PHB_REFENTRY e = pTab->buckets[ i ];
       while( e )
       {
-         if( e->fDefined )
+         /* An --extern= row is the table's, read again each run. */
+         if( e->fDefined && ! e->fExtern )
          {
             if( nEntries == nCap )
             {
@@ -1571,7 +1607,14 @@ static int hb_refTabParseParam( char * sz, char ** ppName,
    return 1;
 }
 
-HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
+/* The reftab (fExtern false) and the --extern= table (true) share the
+   format. The table's rows say what a .NET class offers, so they are
+   marked fExtern and never saved, and they may use two letters the
+   reftab does not: row flag X (a .NET class; RETTYPE is its C# type
+   name, `EasiPos.EasiSI.EasiSI`) and pflag U (an `out` parameter, by
+   reference as R is: the emitter writes `out` for its `@` argument). */
+static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
+                                  HB_BOOL fExtern )
 {
    FILE * fp;
    char   line[ 4096 ];
@@ -1601,6 +1644,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
       HB_BOOL omit[ HB_REFTAB_MAXPARAM ];
       HB_BOOL cdef[ HB_REFTAB_MAXPARAM ];
       HB_BOOL zdef[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL outs[ HB_REFTAB_MAXPARAM ];
+      HB_BOOL fExtClass = HB_FALSE;
       int i;
 
       if( line[ 0 ] == '#' || line[ 0 ] == '\n' || line[ 0 ] == '\0' )
@@ -1654,6 +1699,8 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                fPubArr = HB_TRUE;
             else if( *c == 'N' || *c == 'n' )
                fProc = HB_TRUE;
+            else if( fExtern && ( *c == 'X' || *c == 'x' ) )
+               fExtClass = HB_TRUE;
          }
          if( fPub )
          {
@@ -1668,8 +1715,18 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          }
          if( fClassDyn )
             hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
-         else if( fIsClass )
+         else if( fIsClass || fExtClass )
             hb_refTabMarkClass( pTab, fields[ 0 ], NULL );
+         if( fExtClass && fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
+         {
+            PHB_REFENTRY pe = hb_refTabFindEntry( pTab, fields[ 0 ], NULL );
+            if( pe )
+            {
+               if( pe->szCsName )
+                  hb_xfree( pe->szCsName );
+               pe->szCsName = hb_refTabDup( fields[ 2 ] );
+            }
+         }
          if( fSpread )
             hb_refTabMarkCalledVarargs( pTab, fields[ 0 ] );
          if( fProc )
@@ -1705,6 +1762,7 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          omit[ i ]  = HB_FALSE;
          cdef[ i ]  = HB_FALSE;
          zdef[ i ]  = HB_FALSE;
+         outs[ i ]  = HB_FALSE;
          for( c = pf; *c; c++ )
          {
             if( *c == 'R' || *c == 'r' )
@@ -1725,11 +1783,13 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
                cdef[ i ] = HB_TRUE;
             else if( *c == 'Z' || *c == 'z' )
                zdef[ i ] = HB_TRUE;
+            else if( fExtern && ( *c == 'U' || *c == 'u' ) )
+               outs[ i ] = refs[ i ] = HB_TRUE;
          }
       }
 
       hb_refTabAddFunc( pTab, fields[ 0 ], nParams, names, types, fVariadic );
-      if( fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
+      if( ! fExtClass && fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
          hb_refTabSetReturnType( pTab, fields[ 0 ], fields[ 2 ] );
       for( i = 0; i < nParams; i++ )
       {
@@ -1759,9 +1819,19 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
          if( pe && pe->pParams )
          {
             for( i = 0; i < nParams && i < pe->nParams; i++ )
+            {
                if( cons[ i ] )
                   pe->pParams[ i ].fConflict = HB_TRUE;
+               if( outs[ i ] )
+                  pe->pParams[ i ].fOut = HB_TRUE;
+            }
          }
+      }
+      if( fExtern )
+      {
+         PHB_REFENTRY pe = hb_refTabFindEntry( pTab, fields[ 0 ], NULL );
+         if( pe )
+            pe->fExtern = HB_TRUE;
       }
       /* Trailing optional fields. Currently only `A=<hex>` — the
          observed call-site arity bitmap. Tolerates unknown prefixes so
@@ -1784,6 +1854,16 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
 
    fclose( fp );
    return HB_TRUE;
+}
+
+HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
+{
+   return hb_refTabLoadFile( pTab, szPath, HB_FALSE );
+}
+
+HB_BOOL hb_refTabLoadExtern( PHB_REFTAB pTab, const char * szPath )
+{
+   return hb_refTabLoadFile( pTab, szPath, HB_TRUE );
 }
 
 /* ================================================================

@@ -159,6 +159,7 @@ inference engine that `-GS` uses.
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |
 | [`tools/filter_w0022.py`](tools/filter_w0022.py) | Drops the W0022s a converged reftab shows were transient (no `C` flag on the slot) from a scan's warning log |
 | [`tools/verify-atref.py`](tools/verify-atref.py) | Checks `/*@*/` out-parameter annotations against the reftab's `W` / `R` flags (`--src`, `--reftab`, `--out`, `--tsv` for a type audit) |
+| [`tools/netsurface/`](tools/netsurface/) | Writes the `--extern=` table from .NET assemblies' metadata: the classes a program reaches through COM, their methods' parameters (`out`, `ref`) and types (`dotnet run --project tools/netsurface -- <out.tab> <dll>...`) |
 | **Tests**                         |                                                                          |
 | [`tests/`](tests/)                | Numbered `.prg` test cases + drivers: `verify.sh` over the bash stages (`runtests.sh`, `buildprg.sh`, `buildhb.sh`, `buildcs.sh`, …) on macOS/Linux, `runtests.bat` → `runsuite.py` on Windows |
 | **Vendored Harbour sources**      |                                                                          |
@@ -321,6 +322,8 @@ NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
                Z = the declared default is 0 or .F., which an omitted
                    value is in C# anyway (W0043 is silent)
              Letters can combine in any order, e.g. "RN" or "NR".
+  The --extern= table adds row flag X (a .NET class, RETTYPE its C#
+  name) and pflag U (an out parameter); see "External .NET classes".
 ```
 
 Example after a scan:
@@ -491,6 +494,53 @@ the other; the merge commutes, so both come out alike. The emitter then
 reads `<path>` (`--reftab=<path> ... -GS`), while the scan keeps its own
 table, whose types each pass re-derives from its own callers. EasiPOS's
 gen_cs.py does exactly this (tests/errors/reconcile_*.prg).
+
+#### External .NET classes: `--extern`
+
+A Harbour program reaches a COM object through `win_oleCreateObject()`
+and late binding. Where that object is a .NET class (EasiPOS's EasiPos.*
+shims), the C# needs no COM: it references the class's .NET build and
+calls it directly. Through `dynamic` that fails as soon as a call passes
+`@`: C# has two by-reference mechanisms, `ref` and `out`, the binder will
+not take a `ref` argument for an `out` parameter, and only the method
+says which one it has. So the transpiler is told about the class:
+
+```bash
+hbtranspiler ... --extern=<table> ...      # with -GF and with -GS
+```
+
+`<table>` is in this table's row format, with two letters more: row flag
+`X` marks a .NET class, its RETTYPE the C# type name, and pflag `U` an
+`out` parameter (by reference, as `R` is). `tools/netsurface` writes it
+from the assemblies' metadata (every public class marked
+`[ComVisible(true)]`, its public instance methods; a type with no tag
+below, a property or an overload stops it, exit 1):
+
+```
+EasiSI                      X  EasiPos.EasiSI.EasiSI  0
+EasiSI::EasiSI__Version     -  STRING                 0
+EasiSI::EasiSI__SystemInfo  N  -                      11  pcName:STRING:TU ...
+```
+
+The types are the tags that map back to the C# type exactly: string
+STRING, long INTEGER, decimal NUMERIC, bool LOGICAL, DateTime TIMESTAMP,
+DateOnly DATE, object USUAL. Every slot is `T`, so no caller refines it.
+The scan and the emitter load the table after the reftab, and its rows
+are never saved. With it:
+
+- the class is known, so the name rule types a variable that names it
+  (`soEasiSI` is an `EasiSI`), and a declaration can name it;
+- the class prints as its C# name (`public static EasiPos.EasiSI.EasiSI
+  EasiSI_soEasiSI;`), and its calls bind and are checked when C# builds:
+  a method's return type types the result, as a Harbour class's does;
+- `@x` into an `out` parameter is `out x`; a local of another type goes
+  through the reference shim's temporary, as for any by-ref slot
+  (`long _hbref_nSize`, copied back after the call); an omitted `out`
+  is `out _`.
+
+What creates the object is the program's: EasiPOS's easisi.prg creates
+it in a BEGINCSHARP block (`new EasiPos.EasiSI.EasiSI()`), its Harbour
+side keeping `win_oleCreateObject()`. tests/errors/extern_shim.prg.
 
 #### Scan pipeline
 

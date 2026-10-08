@@ -2346,7 +2346,9 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                   if( ! szSlot )
                      szSlot = hb_astInferType( pP ? pP->szName : NULL, NULL );
                   szCs = hb_csTypeMap( szSlot );
-                  if( pP && pP->fByRef &&
+                  if( pP && pP->fOut )
+                     fprintf( yyc, "out _" );   /* a .NET method's out: discarded */
+                  else if( pP && pP->fByRef &&
                       ! hb_csParamElidesArrayRef( szFunc, iPos ) )
                      fprintf( yyc, "ref HbDiscard<%s%s>.Value",
                               szCs, pP->fNilable ? "?" : "" );
@@ -2405,7 +2407,8 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( aShim && iPos < HB_CS_MAXSHIM && aShim[ iPos ] )
          {
             char szName[ 96 ];
-            fprintf( yyc, "ref %s",
+            const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+            fprintf( yyc, "%s %s", ( pP && pP->fOut ) ? "out" : "ref",
                      hb_csShimTempName( pArg, iShimBase, iPos, szName,
                                         sizeof( szName ) ) );
             pItem = pItem->pNext;
@@ -2415,8 +2418,13 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( pArg->ExprType == HB_ET_VARREF )
          {
             /* `@aArr` to a non-reassigned array param: emit plain (no
-               ref) — element mutation propagates through the reference. */
-            if( ! ( szFunc && hb_csParamElidesArrayRef( szFunc, iPos ) ) )
+               ref) — element mutation propagates through the reference.
+               A .NET method's out parameter (--extern= table) takes
+               `out`: Harbour has one by-reference mechanism, C# two. */
+            const HB_REFPARAM * pP = szFunc ? hb_csCallParam( szFunc, iPos ) : NULL;
+            if( pP && pP->fOut )
+               fprintf( yyc, "out " );
+            else if( ! ( szFunc && hb_csParamElidesArrayRef( szFunc, iPos ) ) )
                fprintf( yyc, "ref " );
          }
          else if( szFunc && pArg->ExprType != HB_ET_REFERENCE )
@@ -2438,6 +2446,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                param emits plain (element mutation flows through the
                reference), so no shim there. */
             const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+            if( pP && pP->fOut )
+            {
+               /* a value into a .NET method's out: it reads none, and
+                  Harbour's caller sees nothing back */
+               fprintf( yyc, "out _" );
+               pItem = pItem->pNext;
+               continue;
+            }
             if( pP && pP->fByRef &&
                 ! hb_csParamElidesArrayRef( szFunc, iPos ) )
             {
@@ -2630,6 +2646,13 @@ static const char * hb_csTypeMap( const char * szHbType )
       every use site lets the COM call sites compile. */
    if( hb_stricmp( szHbType, "TOleAuto" ) == 0 )
       return "dynamic";
+   /* A .NET class the --extern= table declares (a COM shim's .NET build)
+      is its C# type name: `EasiSI` is `EasiPos.EasiSI.EasiSI`. */
+   {
+      const char * szCs = hb_refTabExternCsName( s_pRefTab, szHbType );
+      if( szCs )
+         return szCs;
+   }
    /* Otherwise a specific class name — pass through as-is */
    return szHbType;
 }
@@ -10199,6 +10222,9 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       functions defined in this file get overwritten. */
    s_pRefTab = hb_refTabNew();
    hb_refTabLoad( s_pRefTab, hb_refTabGetPath() );
+   /* the .NET classes the program reaches (--extern=) */
+   if( hb_refTabGetExternPath() )
+      hb_refTabLoadExtern( s_pRefTab, hb_refTabGetExternPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
 
    /* Publish the reftab to hb_astInferFromPrefix so `o<ClassName>` /

@@ -1,0 +1,7 @@
+# extern_shim.prg's --extern= table, written by hand in the format
+# tools/netsurface writes: a .NET class Test47.NetShim47 with
+#   void Fill(out string name, out long size)
+#   bool Ready(string host)
+NetShim47	X	Test47.NetShim47	0
+NetShim47::NetShim47__Fill	N	-	2	name:STRING:TU	size:INTEGER:TU
+NetShim47::NetShim47__Ready	-	LOGICAL	1	host:STRING:T

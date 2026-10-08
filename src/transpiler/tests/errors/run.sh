@@ -277,6 +277,36 @@ echo "$after_a" | grep -qF "Weigh46(Fruit46 oThing46"; reconcile_case "two class
    [ "$(echo "$out_b" | grep -c "W0045  'Show46' parameter 1 (oShown46)")" = "1" ] &&
    [ "$(echo "$out_a$out_b" | grep -c "warning W")" = "2" ]; reconcile_case "W0045 for classes that share no ancestor, once each way" $?
 
+# --extern= (plan B12): a .NET class from extern_shim.tab types the static
+# that names it, `@` into an out parameter is `out` (a shim temporary when
+# the local is decimal and the slot long), an omitted out `out _`, and the
+# scan saves none of the table's rows.
+TX="$SCRIPT_DIR/extern_shim_reftab.tab"
+rm -f "$TX"
+"$TRANS" -I"$INC" --reftab="$TX" --extern="$SCRIPT_DIR/extern_shim.tab" "$SCRIPT_DIR/extern_shim.prg" -GF > /dev/null 2>&1
+"$TRANS" -I"$INC" --reftab="$TX" --extern="$SCRIPT_DIR/extern_shim.tab" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/extern_shim.prg" -GS > /dev/null 2>&1
+extern_cs=$(cat "$SCRIPT_DIR/extern_shim.cs" 2>/dev/null)
+extern_saved=$(grep -c "NetShim47" "$TX" 2>/dev/null)
+rm -f "$TX" "$SCRIPT_DIR/extern_shim.cs"
+extern_case() {
+   if [ "$2" = "0" ]; then
+      echo "PASS: extern ($1)"
+      pass=$((pass+1))
+   else
+      echo "FAIL: extern ($1)"
+      echo "$extern_cs" | sed 's|^|  |'
+      fail=$((fail+1))
+   fi
+}
+echo "$extern_cs" | grep -qE "public static Test47\.NetShim47 [A-Za-z_]*soNetShim47;"; extern_case "the static is the class's C# type" $?
+echo "$extern_cs" | grep -qF "long _hbref_nSize = (long)(nSize);" &&
+   echo "$extern_cs" | grep -qE "\.Fill\(out cName, out _hbref_nSize\);" &&
+   echo "$extern_cs" | grep -qF "nSize = _hbref_nSize;"; extern_case "@ into out, a shim for another type" $?
+echo "$extern_cs" | grep -qE "\.Fill\(out cName, out _\);"; extern_case "an omitted out is out _" $?
+echo "$extern_cs" | grep -qF "bool lReady" &&
+   echo "$extern_cs" | grep -qE "lReady = [A-Za-z_]*soNetShim47\.Ready\(\"probe\"\);"; extern_case "a typed return" $?
+[ "$extern_saved" = "0" ]; extern_case "the scan saves none of the table's rows" $?
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 [ $fail -eq 0 ]

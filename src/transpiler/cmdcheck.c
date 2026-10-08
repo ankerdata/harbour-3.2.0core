@@ -229,6 +229,14 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          hb_refTabSetReconcile( NULL, szSwPtr + 16 );
          szSwPtr += strlen( szSwPtr );
       }
+      else if( strncmp( szSwPtr + 2, "extern=", 7 ) == 0 )
+      {
+         /* --extern=<path>: the .NET classes the program reaches (its
+            COM shims' .NET builds), in the reftab's row format; the scan
+            and the C# emitter load it beside the reftab. hbreftab.c. */
+         hb_refTabSetExternPath( szSwPtr + 9 );
+         szSwPtr += strlen( szSwPtr );
+      }
       else if( strncmp( szSwPtr + 2, "defines-map=", 12 ) == 0 )
       {
          /* --defines-map=<path> activates the per-source-file const-class
