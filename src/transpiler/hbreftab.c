@@ -3150,3 +3150,209 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
    }
    hb_astSetFileFuncs( NULL );
 }
+
+/* ---- reconciling two builds' tables (plan H3) ----
+
+   EasiPOS builds two programs from mostly the same sources, the product
+   and the test program, and each is scanned into a reftab of its own.
+   A routine both compile gets its C# signature from its own build's
+   callers: a by-ref slot exists only where some caller of THAT build
+   passes `@`, a short overload only where one of them omits the by-ref
+   tail, a slot's class only as far as they agree. Once the two builds'
+   C# are one tree (and, after the cutover, one hand-edited source), a
+   routine has one signature, and it has to serve both builds' callers.
+
+   --reconcile=<other build's reftab> --reconcile-out=<path>, with
+   --reftab=<this build's>, is a run that compiles nothing: it gives
+   every routine both tables define what the other build's callers
+   recorded, and writes this build's table so to <path>, which the
+   emitter then reads. Run once per build (A with B, B with A); the merge
+   rules commute, so both come out alike.
+
+   Taken from the other side, per routine:
+     - row:  V (variadic) and S (called with `...`), the observed call
+             arities (A=, which decide the short overload);
+     - slot: R (by-ref), O (some caller leaves it empty), N (nilable) and
+             W (reassigned), which shape the signature even though N and
+             W come from the body: a body under TESTX may test or assign
+             a slot the other build's does not;
+             C (conflict), and the type, merged as one caller's argument
+             type merges into a slot (hb_refTabRefineParamType: HASH
+             with HASHC is HASHC, INTEGER with NUMERIC NUMERIC, two
+             classes their common ancestor). Two types that do not merge
+             are W0045 (the slot falls back to USUAL, C# dynamic).
+   Left as each build has them: the return type, D/L/Z (a declared
+   default's value is in the body), T (a declaration). A routine whose
+   parameter counts differ between the builds is left alone and counted.
+   Classes, PUBLICs and the stubs a call site creates are not routines. */
+
+static char s_szReconcilePeer[ HB_PATH_MAX ] = { 0 };
+static char s_szReconcileOut[ HB_PATH_MAX ]  = { 0 };
+
+void hb_refTabSetReconcile( const char * szPeer, const char * szOut )
+{
+   if( szPeer )
+      hb_strncpy( s_szReconcilePeer, szPeer, sizeof( s_szReconcilePeer ) - 1 );
+   if( szOut )
+      hb_strncpy( s_szReconcileOut, szOut, sizeof( s_szReconcileOut ) - 1 );
+}
+
+HB_BOOL hb_refTabReconcileRequested( void )
+{
+   return s_szReconcilePeer[ 0 ] != '\0' || s_szReconcileOut[ 0 ] != '\0';
+}
+
+static HB_BOOL hb_refTabIsRoutine( PHB_REFENTRY e )
+{
+   return e && e->fDefined && ! e->fIsClass && ! e->fIsPublic && e->nParams >= 0;
+}
+
+int hb_refTabReconcileRun( void )
+{
+   PHB_REFTAB pOwn, pPeer;
+   const char * szOwn = hb_refTabGetPath();
+   HB_SIZE i;
+   int nBoth = 0, nChanged = 0, nCounts = 0, nConflicts = 0;
+   int nByRef = 0, nOmitted = 0, nArities = 0, nBody = 0, nTypes = 0;
+
+   if( ! s_szReconcilePeer[ 0 ] || ! s_szReconcileOut[ 0 ] )
+   {
+      fprintf( stderr, "hbtranspiler: --reconcile=<other reftab> needs "
+                       "--reconcile-out=<path>, and the other way round\n" );
+      return EXIT_FAILURE;
+   }
+
+   pOwn = hb_refTabNew();
+   pPeer = hb_refTabNew();
+   if( ! hb_refTabLoad( pOwn, szOwn ) || ! hb_refTabLoad( pPeer, s_szReconcilePeer ) )
+   {
+      fprintf( stderr, "hbtranspiler: cannot read %s or %s\n", szOwn, s_szReconcilePeer );
+      hb_refTabFree( pOwn );
+      hb_refTabFree( pPeer );
+      return EXIT_FAILURE;
+   }
+
+   for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
+   {
+      PHB_REFENTRY e;
+      for( e = pOwn->buckets[ i ]; e; e = e->pNext )
+      {
+         PHB_REFENTRY p = hb_refTabFindEntry( pPeer, e->szName, NULL );
+         HB_BOOL fChanged = HB_FALSE;
+         int k;
+
+         if( ! hb_refTabIsRoutine( e ) || ! hb_refTabIsRoutine( p ) )
+            continue;
+         nBoth++;
+         if( p->nParams != e->nParams )
+         {
+            nCounts++;
+            continue;
+         }
+
+         if( ( p->fVariadic && ! e->fVariadic ) ||
+             ( p->fCalledVarargs && ! e->fCalledVarargs ) )
+         {
+            e->fVariadic      |= p->fVariadic;
+            e->fCalledVarargs |= p->fCalledVarargs;
+            fChanged = HB_TRUE;
+         }
+         if( ( e->bitCallArities | p->bitCallArities ) != e->bitCallArities )
+         {
+            e->bitCallArities |= p->bitCallArities;
+            nArities++;
+            fChanged = HB_TRUE;
+         }
+
+         for( k = 0; k < e->nParams && k < HB_REFTAB_MAXPARAM; k++ )
+         {
+            HB_REFPARAM * pE = &e->pParams[ k ];
+            const HB_REFPARAM * pP = &p->pParams[ k ];
+            HB_U64 bit = ( ( HB_U64 ) 1 ) << k;
+
+            if( ( p->bitmap & bit ) && ! ( e->bitmap & bit ) )
+            {
+               e->bitmap |= bit;
+               pE->fByRef = HB_TRUE;
+               nByRef++;
+               fChanged = HB_TRUE;
+            }
+            if( pP->fOmitted && ! pE->fOmitted )
+            {
+               pE->fOmitted = HB_TRUE;
+               nOmitted++;
+               fChanged = HB_TRUE;
+            }
+            if( ( ( p->nilbits & bit ) && ! ( e->nilbits & bit ) ) ||
+                ( pP->fReassigned && ! pE->fReassigned ) )
+            {
+               if( p->nilbits & bit )
+               {
+                  e->nilbits |= bit;
+                  pE->fNilable = HB_TRUE;
+               }
+               pE->fReassigned |= pP->fReassigned;
+               nBody++;
+               fChanged = HB_TRUE;
+            }
+
+            if( pE->fDeclType || pE->fConflict )
+               continue;
+            if( pP->fConflict )
+            {
+               /* the other build's callers already disagree */
+               hb_refTabDefer( pOwn, pE->szType );
+               pE->szType = hb_refTabDup( "USUAL" );
+               pE->fConflict = HB_TRUE;
+               nTypes++;
+               fChanged = HB_TRUE;
+               continue;
+            }
+            if( pP->szType && pE->szType && hb_stricmp( pP->szType, pE->szType ) != 0 )
+            {
+               char szOwnType[ 128 ];
+               HB_REFINE_RESULT r;
+
+               hb_strncpy( szOwnType, pE->szType, sizeof( szOwnType ) - 1 );
+               r = hb_refTabRefineParamType( pOwn, e->szName, k, pP->szType );
+               if( r == HB_REFINE_CONFLICT )
+               {
+                  fprintf( stderr,
+                           "hbtranspiler: %s: warning W0045  '%s' parameter %d (%s): "
+                           "the two builds' callers give it %s and %s, which do not "
+                           "merge; one C# signature serves both, so it falls back "
+                           "to dynamic\n",
+                           szOwn, e->szName, k + 1, pE->szName ? pE->szName : "?",
+                           szOwnType, pP->szType );
+                  nConflicts++;
+               }
+               if( r != HB_REFINE_OK )
+               {
+                  nTypes++;
+                  fChanged = HB_TRUE;
+               }
+            }
+         }
+         if( fChanged )
+            nChanged++;
+      }
+   }
+
+   if( ! hb_refTabSave( pOwn, s_szReconcileOut ) )
+   {
+      fprintf( stderr, "hbtranspiler: cannot write %s\n", s_szReconcileOut );
+      hb_refTabFree( pOwn );
+      hb_refTabFree( pPeer );
+      return EXIT_FAILURE;
+   }
+   printf( "Reconciled %s with %s into %s: %d routines both define, %d took "
+           "the other build's facts (by-ref %d, left out %d, call arities %d, "
+           "nilable/reassigned %d, types %d), %d with other parameter counts "
+           "left alone, %d conflicts\n",
+           szOwn, s_szReconcilePeer, s_szReconcileOut, nBoth, nChanged,
+           nByRef, nOmitted, nArities, nBody, nTypes, nCounts, nConflicts );
+
+   hb_refTabFree( pOwn );
+   hb_refTabFree( pPeer );
+   return nConflicts ? EXIT_FAILURE : EXIT_SUCCESS;
+}

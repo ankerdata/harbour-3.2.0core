@@ -216,6 +216,19 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
          hb_refTabSetPath( szSwPtr + 9 );
          szSwPtr += strlen( szSwPtr );  /* consume rest of switch */
       }
+      else if( strncmp( szSwPtr + 2, "reconcile=", 10 ) == 0 )
+      {
+         /* --reconcile=<other build's reftab>: with --reconcile-out=,
+            a run that merges the other build's caller facts into this
+            build's table and compiles nothing (plan H3; hbreftab.c). */
+         hb_refTabSetReconcile( szSwPtr + 12, NULL );
+         szSwPtr += strlen( szSwPtr );
+      }
+      else if( strncmp( szSwPtr + 2, "reconcile-out=", 14 ) == 0 )
+      {
+         hb_refTabSetReconcile( NULL, szSwPtr + 16 );
+         szSwPtr += strlen( szSwPtr );
+      }
       else if( strncmp( szSwPtr + 2, "defines-map=", 12 ) == 0 )
       {
          /* --defines-map=<path> activates the per-source-file const-class

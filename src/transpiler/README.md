@@ -462,6 +462,36 @@ Working multi-file demos:
 The test build scripts special-case both pairs to build a single
 `test19` / `test20` executable from each.
 
+#### Two builds, one signature: `--reconcile`
+
+A program built twice from mostly the same sources, with different
+defines and different files around them (EasiPOS's product and its test
+program), is scanned into two tables, and each types a routine from its
+own build's callers alone: a by-ref slot only where one of THAT build's
+callers passes `@`, a short overload only where one of them leaves the
+by-ref tail out, a slot's class as far as they agree. Once the two
+builds' C# are one tree, a routine has one signature, and it has to
+serve both builds' callers. A run that compiles nothing merges them:
+
+```bash
+hbtranspiler -I<include> --reftab=<this build's> \
+             --reconcile=<other build's> --reconcile-out=<path>
+```
+
+For every routine both tables define, `<path>` gets this build's row
+with what the other build's callers recorded added: row flags `V` and
+`S`, the call arities (`A=`), and per slot `R`, `O`, `N`, `W`, `C` and
+the type, merged as one caller's argument type merges into a slot (HASH
+with HASHC is HASHC, INTEGER with NUMERIC is NUMERIC, two classes their
+common ancestor). Two types that do not merge are W0045, the slot USUAL
+(C# dynamic), and the run exits 1. Each build keeps its own return type
+and `D`/`L`/`Z`/`T`, and a routine whose parameter counts differ between
+the builds is left alone and counted. Run it once per build, each with
+the other; the merge commutes, so both come out alike. The emitter then
+reads `<path>` (`--reftab=<path> ... -GS`), while the scan keeps its own
+table, whose types each pass re-derives from its own callers. EasiPOS's
+gen_cs.py does exactly this (tests/errors/reconcile_*.prg).
+
 #### Scan pipeline
 
 `-GF` invokes [`hb_refTabCollect`](hbreftab.c) which runs three
@@ -527,6 +557,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0042 | pp    | A `#ifdef`, `#ifndef` or `defined()` asks about a name a header the file includes might define, and the transpiler cannot find that header on its include path, so it cannot answer as Harbour would; it takes the name for undefined. Give the transpiler the directories the build finds headers in (see [Preprocessor conditionals](#preprocessor-conditionals); tests/errors/cond_unread.prg) |
 | W0043 | scan  | A value parameter with no default of its own, which some caller leaves out (past its last argument, a gap, NIL), handed on to a parameter that declares one: Harbour passes NIL and the callee's default applies, C# passes the type's zero, 0, .F. or an empty date (EasiPOS's MCNameNumber() made the receipt say POS 00). Silent when the callee's default is 0 or .F. itself, or the routine reassigns or NIL-tests the parameter. The fix is the same default declared on the parameter. A send to a receiver of unknown class is not checked: there is no callee row to read. Decided by the scan's last pass, since the omissions gather over every caller (reftab pflags `O`, `Z`; tests/errors/omitted_default.prg) |
 | W0044 | scan  | An `x` name, which may hold NIL, passed to a value parameter whose declared default is a C# constant on the signature (by value, after the last by-ref parameter; pflag `L`): NIL cannot be converted to it, a run-time error in C#, where Harbour's default took it (EasiPOS's FnOpenTable() handed FSMTender() a NIL panel). The fix is to pass the value meant. Decided by the scan's last pass (tests/errors/omitted_default.prg) |
+| W0045 | reconcile | Two builds of one program give a parameter of a routine both compile types that do not merge (two classes with no common ancestor, a scalar and a class): one C# signature serves both builds, so the slot falls back to USUAL (dynamic). Reported by `--reconcile` (see [Two builds, one signature](#two-builds-one-signature---reconcile)), which then exits 1. The fix is in the callers, or a declared type on the parameter (tests/errors/reconcile_*.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -1665,6 +1696,7 @@ the errors, where the file fails and the test asserts the error line:
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
 | `declared_types.prg`          | `W0040` `W0041` | a local's and a member's class nothing defines; another class, a string and a number assigned, put into a declared array, passed and returned; a subclass, a parent (a downcast) and a value of unknown type quiet, and a PROCEDURE with a declared parameter parses (two `-GF` passes on a private reftab) |
 | `cond_unread.prg`             | `W0042` | a `#ifdef` after an `#include` of a header the transpiler cannot find; exactly that one warning |
+| `reconcile_shared.prg` `reconcile_a.prg` `reconcile_b.prg` | `W0045` | one file built twice, each build with its own caller and table: before `--reconcile` the C# signatures differ, after it they are identical (by-ref plus the short overload from either build, two classes merged to their ancestor), and two classes with no common ancestor are W0045 once each way |
 | `omitted_default.prg`         | `W0043` `W0044` | a parameter a caller leaves out handed on to a declared default, and an `x` value to a constant one; the same default declared on the forwarding parameter, every caller passing it, a callee default of 0, and a number passed, quiet; exactly the two, on two scan passes |
 | `rename_param_*.prg`          | (a row)  | a parameter renamed to a name that names a class (`oLine` → `oItemLineRn`) takes that class on a warm scan, where the reftab still holds the type its callers gave the old name (the two files scanned in turn on a private reftab; run.sh reads the row) |
 

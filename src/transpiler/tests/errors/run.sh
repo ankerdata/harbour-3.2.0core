@@ -226,6 +226,57 @@ else
    fail=$((fail+1))
 fi
 
+# --reconcile (plan H3): reconcile_shared.prg built twice, each build
+# with its own caller and its own table, emits different signatures; once
+# each table has the other's caller facts, identical ones. Two classes with
+# no common ancestor are W0045, from both sides.
+TA="$SCRIPT_DIR/reconcile_a.tab"
+TB="$SCRIPT_DIR/reconcile_b.tab"
+RA="$SCRIPT_DIR/reconcile_ra.tab"
+RB="$SCRIPT_DIR/reconcile_rb.tab"
+rm -f "$TA" "$TB" "$RA" "$RB"
+for scan_pass in 1 2; do
+   "$TRANS" -I"$INC" --reftab="$TA" "$SCRIPT_DIR/reconcile_shared.prg" "$SCRIPT_DIR/reconcile_a.prg" -GF > /dev/null 2>&1
+   "$TRANS" -I"$INC" --reftab="$TB" "$SCRIPT_DIR/reconcile_shared.prg" "$SCRIPT_DIR/reconcile_b.prg" -GF > /dev/null 2>&1
+done
+out_a=$("$TRANS" -I"$INC" --reftab="$TA" --reconcile="$TB" --reconcile-out="$RA" 2>&1)
+rc_a=$?
+out_b=$("$TRANS" -I"$INC" --reftab="$TB" --reconcile="$TA" --reconcile-out="$RB" 2>&1)
+rc_b=$?
+reconcile_sigs() {
+   "$TRANS" -I"$INC" --reftab="$1" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/reconcile_shared.prg" -GS > /dev/null 2>&1
+   grep "public static void" "$SCRIPT_DIR/reconcile_shared.cs"
+   rm -f "$SCRIPT_DIR/reconcile_shared.cs"
+}
+before_a=$(reconcile_sigs "$TA")
+before_b=$(reconcile_sigs "$TB")
+after_a=$(reconcile_sigs "$RA")
+after_b=$(reconcile_sigs "$RB")
+rm -f "$TA" "$TB" "$RA" "$RB"
+reconcile_case() {
+   if [ "$2" = "0" ]; then
+      echo "PASS: reconcile ($1)"
+      pass=$((pass+1))
+   else
+      echo "FAIL: reconcile ($1)"
+      echo "  before, A: $before_a" | tr '\n' ' '; echo
+      echo "  before, B: $before_b" | tr '\n' ' '; echo
+      echo "  after,  A: $after_a" | tr '\n' ' '; echo
+      echo "  after,  B: $after_b" | tr '\n' ' '; echo
+      echo "$out_a" | sed 's|^|  |'
+      fail=$((fail+1))
+   fi
+}
+[ -n "$before_a" ] && [ "$before_a" != "$before_b" ]; reconcile_case "each build's own table, different signatures" $?
+[ -n "$after_a" ] && [ "$after_a" = "$after_b" ]; reconcile_case "reconciled, identical signatures" $?
+echo "$after_a" | grep -qF "Count46(string cKey, ref decimal nTotal)" &&
+   echo "$after_a" | grep -qF "Count46(string cKey = default)"; reconcile_case "by-ref and the short overload, from either build" $?
+echo "$after_a" | grep -qF "Weigh46(Fruit46 oThing46"; reconcile_case "two classes, their common ancestor" $?
+[ $rc_a -ne 0 ] && [ $rc_b -ne 0 ] &&
+   [ "$(echo "$out_a" | grep -c "W0045  'Show46' parameter 1 (oShown46)")" = "1" ] &&
+   [ "$(echo "$out_b" | grep -c "W0045  'Show46' parameter 1 (oShown46)")" = "1" ] &&
+   [ "$(echo "$out_a$out_b" | grep -c "warning W")" = "2" ]; reconcile_case "W0045 for classes that share no ancestor, once each way" $?
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 [ $fail -eq 0 ]

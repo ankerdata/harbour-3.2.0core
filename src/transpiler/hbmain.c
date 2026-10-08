@@ -140,6 +140,26 @@ int hb_compMainExt( int argc, const char * const argv[],
          HB_COMP_PARAM->fExit = HB_TRUE;
          iStatus = EXIT_FAILURE;
       }
+
+      /* --reconcile=: the run merges two builds' tables and compiles
+         nothing (hbreftab.c, plan H3) */
+      if( ! HB_COMP_PARAM->fExit && hb_refTabReconcileRequested() )
+      {
+         int i;
+         for( i = 1; i < argc; i++ )
+         {
+            if( ! HB_ISOPTSEP( argv[ i ][ 0 ] ) )
+            {
+               fprintf( stderr, "hbtranspiler: --reconcile takes no source "
+                                "files (%s)\n", argv[ i ] );
+               iStatus = EXIT_FAILURE;
+               break;
+            }
+         }
+         if( iStatus == EXIT_SUCCESS )
+            iStatus = hb_refTabReconcileRun();
+         HB_COMP_PARAM->fExit = HB_TRUE;
+      }
 #endif
    }
 

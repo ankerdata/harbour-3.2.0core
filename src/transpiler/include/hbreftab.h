@@ -54,6 +54,18 @@ extern void         hb_refTabSetPath( const char * szPath );
    the default otherwise. The C# / .hb / scan back-ends all ask this. */
 extern const char * hb_refTabGetPath( void );
 
+/* Two builds of one program, one C# signature per routine (plan H3):
+   `--reconcile=<other build's reftab>` and `--reconcile-out=<path>`
+   (with --reftab=<this build's>) make a run that compiles nothing.
+   hb_refTabReconcileRun() gives each routine both tables define what
+   the other build's callers recorded (by-ref, left-out and nilable
+   slots, call arities, merged slot types; see hbreftab.c), writes the
+   result to <path> for the emitter, reports two slot types that do not
+   merge as W0045, and returns the exit status. */
+extern void         hb_refTabSetReconcile( const char * szPeer, const char * szOut );
+extern HB_BOOL      hb_refTabReconcileRequested( void );
+extern int          hb_refTabReconcileRun( void );
+
 typedef struct HB_REFTAB_   HB_REFTAB,   * PHB_REFTAB;
 typedef struct HB_REFPARAM_ HB_REFPARAM, * PHB_REFPARAM;
 
