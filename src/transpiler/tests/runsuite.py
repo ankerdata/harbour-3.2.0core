@@ -57,6 +57,7 @@ ORM = os.path.join(TESTS, "orm")
 PRELOAD = os.path.join(TESTS, "preload.txt")
 REFTAB = os.path.join(ROOT, "src", "transpiler", "hbreftab.tab")
 GENDEFINES = os.path.join(ROOT, "src", "transpiler", "tools", "gendefines.py")
+TEST_GENDEFINES = os.path.join(ROOT, "src", "transpiler", "tools", "test_gendefines.py")
 
 TRANSPILER = os.environ.get("HBTRANSPILER") or \
     os.path.join(ROOT, "bin", "hbtranspiler.exe")
@@ -128,6 +129,14 @@ def stage_gen():
     """
     if not os.path.isfile(TRANSPILER):
         sys.exit("transpiler not found: %s (set HBTRANSPILER)" % TRANSPILER)
+    # gendefines.py's own tests first: gen's defines map rests on its
+    # reading of #define values, so a failure there stops the suite before
+    # any test's output could mislead.
+    r = subprocess.run([sys.executable, TEST_GENDEFINES],
+                       capture_output=True, text=True, errors="replace")
+    if r.returncode != 0:
+        print((r.stdout + r.stderr).strip())
+        sys.exit("gen: tools/test_gendefines.py failed")
     for d in (HBOUT, CSOUT):
         os.makedirs(d, exist_ok=True)
 

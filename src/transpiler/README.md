@@ -157,6 +157,7 @@ inference engine that `-GS` uses.
 | [`libraries/<lib>/`](libraries/)  | One C# project per contrib library (`HbWin`, `HbSqlit3`, `Xhb`, …): implementations plus generated stubs — see [Contrib libraries](#contrib-libraries) |
 | [`tools/genfunctab.py`](tools/genfunctab.py) | Generates `hbfuncs.tab` from `HbRuntime/` + Harbour doc blocks |
 | [`tools/gendefines.py`](tools/gendefines.py) | Harvests literal `#define`s into per-source `<Name>Const.cs` classes + `defines_map.txt` |
+| [`tools/test_gendefines.py`](tools/test_gendefines.py) | gendefines.py's tests of its `#define` value reading; runsuite.py's gen stage runs them first and stops on a failure |
 | [`tools/filter_w0022.py`](tools/filter_w0022.py) | Drops the W0022s a converged reftab shows were transient (no `C` flag on the slot) from a scan's warning log |
 | [`tools/verify-atref.py`](tools/verify-atref.py) | Checks `/*@*/` out-parameter annotations against the reftab's `W` / `R` flags (`--src`, `--reftab`, `--out`, `--tsv` for a type audit) |
 | [`tools/netsurface/`](tools/netsurface/) | Writes the `--extern=` table from .NET assemblies' metadata: the classes a program reaches through COM, their methods' parameters (`out`, `ref`) and types (`dotnet run --project tools/netsurface -- <out.tab> <dll>...`) |
