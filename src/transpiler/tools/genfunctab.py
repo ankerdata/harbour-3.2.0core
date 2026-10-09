@@ -250,7 +250,7 @@ def hbruntime_class_bodies(text: str) -> list[str]:
     holds other classes too (HbDynamicObject, HbDiscard<T>, ...), and a
     method of theirs is not reached as HbRuntime.<name>: harvesting the
     whole file once gave HbDiscard<T>.Seed an HbRuntime row. Braces are
-    matched plainly; HbRuntime.cs's string literals balance theirs."""
+    matched plainly; HbRuntime's string literals balance theirs."""
     bodies = []
     for m in re.finditer(r"\bclass\s+HbRuntime\b[^{]*\{", text):
         depth, i = 1, m.end()
@@ -338,14 +338,14 @@ def write_table(path: Path,
                 hbruntime: dict[str, tuple[str, str]],
                 types: dict[str, str]):
     """Emit a row whenever a function has at least one piece of
-    information attached: either a prefix (it's implemented in
-    HbRuntime.cs) or a return type (parsed from a doc block).
+    information attached: either a prefix (HbRuntime implements it) or
+    a return type (parsed from a doc block).
 
     Functions with neither contribute nothing and are omitted; the
     C# emitter will pass those through unchanged with no type info.
 
     The NAME column preserves canonical casing: if the name exists
-    in HbRuntime.cs we use that casing (so the emitter produces calls
+    in HbRuntime we use that casing (so the emitter produces calls
     that match the actual C# method); otherwise we fall back to the
     uppercase key (the only thing doc blocks give us)."""
     all_names = set(hbruntime) | set(types.keys())
@@ -373,7 +373,7 @@ def main() -> int:
     print(f"repo root:    {REPO_ROOT}")
     print(f"writing:      {OUTPUT_PATH.relative_to(REPO_ROOT)}")
 
-    print("parsing HbRuntime.cs for prefix entries...")
+    print("parsing HbRuntime/*.cs for prefix entries...")
     hbruntime = harvest_hbruntime_methods()
     print(f"  {len(hbruntime)} public static methods found")
 

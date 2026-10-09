@@ -52,6 +52,7 @@
 #include "hbfieldtypes.h"
 #include "hbhbxcanon.h"
 #include "hbfilecase.h"
+#include "hbvartypes.h"
 #endif
 
 static char s_szUndefineMarker[ 1 ] = "";
@@ -289,7 +290,6 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
             a project inject its own standard rules (e.g. hbcom.ch)
             without patching the transpiler. Missing files inside the
             list warn but don't abort — see ppcomp.c. */
-         extern void hb_compPreloadListSetPath( const char * szPath );
          hb_compPreloadListSetPath( szSwPtr + 15 );
          szSwPtr += strlen( szSwPtr );
       }
@@ -300,7 +300,6 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
             the W0021 Hungarian gate (so short loop counters like
             `i`/`j`/`k` don't trigger noise) and feed type inference
             with the declared type. See include/hbvartypes.h. */
-         extern void hb_varTabSetPath( const char * szPath );
          hb_varTabSetPath( szSwPtr + 12 );
          szSwPtr += strlen( szSwPtr );
       }

@@ -5,7 +5,7 @@
  * that calls `hb_bitand()`, `hb_bitAnd()`, and `hb_BitAnd()`
  * interchangeably compiles fine under native Harbour but produces
  * three distinct CS0103 errors when emitted verbatim to C#, because
- * HbRuntime.cs only exposes one spelling.
+ * HbRuntime only exposes one spelling.
  *
  * The .hbx files shipped with Harbour (`include/harbour.hbx` plus
  * optional `contrib/<lib>/<lib>.hbx`) are the canonical registry:

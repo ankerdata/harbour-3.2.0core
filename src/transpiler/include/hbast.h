@@ -456,6 +456,9 @@ extern void         hb_astWarnScope( const char * szFile );
 /* A new file for the preprocessor (ppcomp.c): forget what the last one
    #defined and #included, which `#ifdef` answers from */
 extern void         hb_compCondReset( void );
+/* --preload-list=<path> (ppcomp.c): the project's extra headers, read at
+   startup on top of std.ch and common.ch */
+extern void         hb_compPreloadListSetPath( const char * szPath );
 /* The class an o<Class> / so<Class> name names - a program class of the
    reftab (opaque PHB_REFTAB) or an ORM model of the fieldtypes map - or
    NULL. */

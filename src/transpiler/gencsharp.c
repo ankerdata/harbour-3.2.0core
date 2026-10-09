@@ -2883,20 +2883,20 @@ static const char * hb_csTranslateInline( const char * szVal,
       literal (a `//` inside `"..."` is data, not a comment). */
    {
       HB_SIZE i;
-      HB_BOOL fInStr = HB_FALSE;
-      char    cStrQ = '\0';
+      HB_BOOL fInLit = HB_FALSE;   /* this pre-scan's own; the main scan starts afresh */
+      char    cLitQ  = '\0';
       for( i = 0; i + 1 < nLen; i++ )
       {
-         if( fInStr )
+         if( fInLit )
          {
-            if( szVal[ i ] == cStrQ )
-               fInStr = HB_FALSE;
+            if( szVal[ i ] == cLitQ )
+               fInLit = HB_FALSE;
             continue;
          }
          if( szVal[ i ] == '"' || szVal[ i ] == '\'' )
          {
-            fInStr = HB_TRUE;
-            cStrQ = szVal[ i ];
+            fInLit = HB_TRUE;
+            cLitQ = szVal[ i ];
             continue;
          }
          if( szVal[ i ] == '/' && szVal[ i + 1 ] == '/' )
@@ -2978,11 +2978,8 @@ static const char * hb_csTranslateInline( const char * szVal,
          s_szBuf[ nOut++ ] = p[ nIn ];
          continue;
       }
-      /* `{}` → `System.Array.Empty<dynamic>()` — Harbour empty array
-         literal. C# `{}` in expression context is a block. Fully
-         qualified because HbRuntimeStubs declares a NIE stub named
-         `Array`, which `using static HbRuntime;` pulls into scope and
-         shadows the System.Array type.
+      /* `{}` → `new List<dynamic>()`, Harbour's empty array (C# `{}` in
+         expression context is a block).
          `{ => }` → empty hash, mirroring hb_csTranslateInit. Both
          forms allow interior whitespace; any other `{` falls through
          to the depth tracker at the bottom of the loop. */
@@ -3642,18 +3639,6 @@ static const char * hb_csOperatorStr( HB_EXPRTYPE type )
    }
 }
 
-/* Map a function name to its remapped form, e.g. STR → HbRuntime.STR.
-   The prefix is looked up in hbfuncs.tab (see include/hbfunctab.h).
-   Functions with no prefix entry are returned unchanged.
-
-   When a prefix is found, the function name is uppercased. Harbour is
-   case-insensitive for identifiers, so real-world code uses every
-   variation (`INT()`, `int()`, `Int()`). C# is case-sensitive, and
-   HbRuntime.cs exposes its methods as UPPERCASE to match the Harbour
-   convention. Without the uppercasing, `int()` would emit `HbRuntime.int`
-   which is both syntactically broken (`int` is reserved) and semantically
-   wrong (no such method). Non-remapped functions (user code, prefix="-")
-   keep their source case so IDE navigation stays useful. */
 /* The C# class a contrib library's functions live in: the library's
    directory name with its first letter upper-cased, and the letter after
    a leading "hb" too — hbwin -> HbWin, hbsqlit3 -> HbSqlit3, xhb -> Xhb.
@@ -3674,6 +3659,12 @@ static const char * hb_csLibraryClass( const char * szLib, char * szBuf, HB_SIZE
    return szBuf;
 }
 
+/* Map a function name to its HbRuntime form, e.g. str → HbRuntime.Str.
+   The prefix and the canonical spelling both come from hbfuncs.tab
+   (include/hbfunctab.h): Harbour ignores case and real code writes
+   `INT()`, `int()` and `Int()`, while C# needs the one spelling HbRuntime
+   declares (and `int` alone is a C# keyword). A name with no prefix (the
+   program's own functions) is returned unchanged, in its source spelling. */
 static const char * hb_csFuncMap( const char * szName )
 {
    static char s_szBuf[ 128 ];
@@ -3706,7 +3697,7 @@ static const char * hb_csFuncMap( const char * szName )
    if( szPrefix )
    {
       /* Use the canonical name recorded in hbfuncs.tab — that matches
-         the actual method declared in HbRuntime.cs (C# is case-
+         the actual method HbRuntime declares (C# is case-
          sensitive; Harbour is not, so the source-site spelling is
          unreliable). Fall back to the source name if for some reason
          the canonical isn't there. */
@@ -4842,11 +4833,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                    pFirst->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
                {
                   /* the model the factory builds (PLUDef -> PLUTable) */
-                  const char * szCanon = hb_fieldTypesModelOf(
+                  const char * szModel = hb_fieldTypesModelOf(
                      pFirst->value.asFunCall.pFunName->value.asSymbol.name );
-                  if( szCanon )
+                  if( szModel )
                   {
-                     fprintf( yyc, "new %s(", szCanon );
+                     fprintf( yyc, "new %s(", szModel );
                      hb_csEmitCallArgs( szName, pParms, yyc );
                      fprintf( yyc, ")" );
                      break;
@@ -6626,7 +6617,7 @@ static const char * hb_csHbxCanon( const char * szName )
 
 /* The hbfuncs.tab namespace prefix for szName, or NULL for a name the
    program defines. hbfuncs.tab gives a name the HbRuntime prefix
-   whenever HbRuntime.cs declares a method of that name, and HbRuntime.cs
+   whenever HbRuntime declares a method of that name, and HbRuntime
    once carried placeholders for EasiPOS's own functions: all 9,060
    calls to shared/flags.prg's GetFlag emitted as HbRuntime.GETFLAG,
    which returned NIL. The program's definition wins here for the reason
@@ -10082,12 +10073,12 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                pQ = pQ->pNext;
             for( k = iFirstRef; k < iMax; k++ )
             {
-               const HB_REFPARAM * pP =
+               const HB_REFPARAM * pSlot =
                   hb_refTabParam( s_pRefTab, szFnName, k );
                const char * szSlotType = NULL;
-               if( pP && pP->szType &&
-                   hb_stricmp( pP->szType, "USUAL" ) != 0 )
-                  szSlotType = pP->szType;
+               if( pSlot && pSlot->szType &&
+                   hb_stricmp( pSlot->szType, "USUAL" ) != 0 )
+                  szSlotType = pSlot->szType;
                if( ! szSlotType && pQ )
                   szSlotType = hb_astInferType( pQ->szName, NULL );
                hb_csEmitIndent( yyc, iIndent + 1 );
@@ -10350,9 +10341,6 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       current corpus but worth noting if it happens later. */
    fprintf( yyc, "using static Program;\n" );
    fprintf( yyc, "\n" );
-
-   /* HbRuntime.cs must be present in the output directory.
-      The build script copies it from src/transpiler/HbRuntime.cs */
 
    /* Emit comments and #include/#define from startup function */
    {
@@ -10720,10 +10708,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                      if( s_pRefTab && szPName &&
                          ! hb_csIsFileMemvar( szPName ) )
                      {
-                        const char * szOwner = hb_refTabPublicOwner(
+                        const char * szPublicOwner = hb_refTabPublicOwner(
                            s_pRefTab, szPName );
-                        if( szOwner && s_szFileBase &&
-                            hb_stricmp( szOwner, s_szFileBase ) == 0 )
+                        if( szPublicOwner && s_szFileBase &&
+                            hb_stricmp( szPublicOwner, s_szFileBase ) == 0 )
                         {
                            /* Sized-array form (`PUBLIC name[size]`) —
                               emit as `List<dynamic>` so cross-file callers

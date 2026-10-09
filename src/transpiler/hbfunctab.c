@@ -266,7 +266,7 @@ const char * hb_funcTabReturnType( const char * szName )
 
 /* Returns the canonical casing recorded in hbfuncs.tab for szName, or
    NULL if the name isn't in the table. The C# emitter uses this to
-   produce calls whose method-name casing matches HbRuntime.cs — C# is
+   produce calls whose method-name casing matches HbRuntime's — C# is
    case-sensitive, and source sites are routinely mixed-case (SPACE /
    Space / space all lex the same in Harbour). */
 const char * hb_funcTabCanonName( const char * szName )
