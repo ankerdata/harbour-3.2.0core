@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A .NET startup hook for a transpiled program: loaded through
+       DOTNET_STARTUP_HOOKS before the program's Main, it logs every
+       exception as it is thrown, with the whole stack of the thread that
+       threw it. See StartupHook.cs and the transpiler README's tools table. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ExceptionLog</AssemblyName>
+  </PropertyGroup>
+
+</Project>
