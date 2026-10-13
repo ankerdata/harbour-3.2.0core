@@ -2523,8 +2523,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( szFunc )
          {
             const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
-            if( pP && ! pP->fByRef && ! pP->fNilable && pP->szType &&
-                hb_stricmp( pP->szType, "INTEGER" ) == 0 &&
+            /* A receiver whose class the reftab does not know (a table
+               model, `oTableIndexTable:GoTo( nRecNo )`) leaves szFunc ""
+               — the row every class declaring the method shares types
+               the slot, as it names a gap */
+            const HB_REFPARAM * pCast = ( ! pP && szGapKey )
+               ? hb_refTabParam( s_pRefTab, szGapKey, iPos ) : pP;
+            if( pCast && ! pCast->fByRef && ! pCast->fNilable && pCast->szType &&
+                hb_stricmp( pCast->szType, "INTEGER" ) == 0 &&
                 hb_csNeedsIntCast( pArg ) )
             {
                fprintf( yyc, "(long)(" );
