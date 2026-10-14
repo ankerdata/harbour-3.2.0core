@@ -1241,7 +1241,8 @@ to hold the reasoning.
 |------------------------------------------|---------------------------------------------------------------------------|
 | trailing gap `Foo(a)`                    | dropped — the declaration's `= default` takes it                          |
 | middle gap after the last `ref`          | named arguments: `Foo(a, nC: c)` (test90)                                 |
-| gap at or before a `ref`                 | padded: `default(T)`, `default(T?)` where the callee declares a default (`D`), `ref HbDiscard<T>.Value` for a `ref` slot |
+| arguments that stop before the first `ref` | emitted as written, so the call binds the **short overload** (an inner gap `default(T?)`; test150) |
+| gap at or before a `ref`, an argument at or past it | padded: `default(T)`, `default(T?)` where the callee declares a default (`D`), `ref HbDiscard<T>.Value` for a `ref` slot |
 | more arguments than declared             | the extras are dropped, as Harbour drops them; W0018 at scan is what stops the pipeline (test104) |
 | `@x` at a `ref` slot                     | `ref x` when `x` is a storage location of the slot's type; otherwise a typed temp, passed by `ref`, written back — the ref shim ([Non-`@` call sites](#non--call-sites-at-by-ref-parameters), test71, test91) |
 | plain `x` at a `ref` slot                | `ref HbDiscard<T>.Seed(x)` — the callee sees the value, the write goes nowhere, below |
@@ -1351,14 +1352,26 @@ public static void ADTData_ADTPlu(dynamic oLine = default, bool lTemporary = def
 
 Three things to know:
 
-- It covers callers that stop **before** the first `ref`. A caller
-  that passes the `ref` slot without `@` is `HbDiscard<T>` / the
-  shim's business; a caller that stops **between** the first `ref`
-  and the end is not covered (that would need one overload per
-  arity) and falls to the padding rules above.
-- It is emitted only when the scan's call-arity bitmap shows some
-  caller actually stops before the first `ref`, so a function all of
-  whose callers pass the full list gets no dead overload.
+- It covers callers that stop **before** the first `ref`: such a call
+  is emitted as written and binds it (`ErrText65(5)`, test150). Until
+  2026-10-14 the call emitter padded every omitted slot up to the last
+  `ref` as soon as a call had one argument, so only a parameterless
+  call reached a short overload and the prefixed ones were dead: of
+  EasiPOS's 147 short overloads 138 were bound by nothing, 64 calls
+  bound one and 368 were padded; now 36 overloads, 377 calls bound and
+  51 padded. A caller that passes the `ref` slot without `@` is
+  `HbDiscard<T>` / the shim's business; a caller that stops **between**
+  the first `ref` and the end is not covered (that would need one
+  overload per arity) and falls to the padding rules above.
+- It is emitted only when the scan's call-arity bitmap (the row's
+  `A=`) shows a caller that stops before the first `ref`, so a function
+  all of whose callers pass the full list gets no dead overload. An
+  empty bitmap means no such caller: the scan always precedes the emit.
+  A file-static routine's calls are credited to its own `<File>::<Name>`
+  row (before 2026-10-14 they were recorded under the bare name, which
+  no row holds, so every file-static routine with a `ref` parameter got
+  the overload; test146, test150). One rule answers both the
+  declaration and the call: `hb_csShortOverloadFirstRef()`.
 - When a tail slot carries a declared default (`D`), the short
   overload forwards `null`, not a zero, so the callee's normalising
   local sees "not supplied" — as in Harbour.

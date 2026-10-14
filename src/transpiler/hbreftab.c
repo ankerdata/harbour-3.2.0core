@@ -2234,6 +2234,8 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
       case HB_ET_FUNCALL:
       {
          const char * szName = NULL;
+         const char * szCallee;
+         char szStaticKey[ 256 ];
          if( pExpr->value.asFunCall.pFunName &&
              pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
             szName = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
@@ -2243,7 +2245,24 @@ static void hb_refTabScanExpr( PHB_REFTAB pTab, PHB_EXPR pExpr,
          if( pCtx && hb_refTabIsVariadicProbe( szName ) )
             pCtx->fVariadic = HB_TRUE;
 
-         hb_refTabScanArgList( pTab, szName,
+         /* A call to one of the file's STATIC functions is credited to
+            its own row, `<FileBase>::<Name>` as Pass 1 registered it.
+            Under the bare name, which no row holds, its arity — what
+            decides the short overload — was lost, and its by-ref marks
+            reached the row only through Pass 3's propagation: every
+            file-static routine with a `ref` parameter got a short
+            overload, called short or not (easipos-transpiled's plan,
+            D29). */
+         szCallee = szName;
+         if( szName && pCtx && pCtx->szFileBase &&
+             hb_astIsFileStaticFunc( szName ) )
+         {
+            hb_snprintf( szStaticKey, sizeof( szStaticKey ), "%s::%s",
+                         pCtx->szFileBase, szName );
+            szCallee = szStaticKey;
+         }
+
+         hb_refTabScanArgList( pTab, szCallee,
                                pExpr->value.asFunCall.pParms, pCtx );
          hb_refTabScanExpr( pTab, pExpr->value.asFunCall.pFunName, pCtx );
          break;
@@ -3025,7 +3044,11 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
       pFunc = pFunc->pNext;
    }
 
-   /* ----- Pass 2: scan each body for variadic/nilable/by-ref flags. */
+   /* ----- Pass 2: scan each body for variadic/nilable/by-ref flags.
+      The file's function list tells a call to one of its STATIC
+      functions from a free function of the same name (Pass 3 publishes
+      it again for the propagation). */
+   hb_astSetFileFuncs( HB_COMP_PARAM->ast.pFuncList );
    pFunc     = HB_COMP_PARAM->ast.pFuncList;
    pCompFunc = HB_COMP_PARAM->functions.pFirst;
    while( pFunc )

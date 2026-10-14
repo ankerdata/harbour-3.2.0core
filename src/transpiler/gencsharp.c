@@ -1516,6 +1516,46 @@ static HB_BOOL hb_csParamEmitsRef( const char * szFunc, int iPos )
           ! hb_csParamElidesArrayRef( szFunc, iPos );
 }
 
+/* Where a routine's short overload begins: the index of its first
+   parameter emitted `ref`, when it gets a short overload at all, else
+   -1. It gets one when the reftab recorded a call that stops before
+   that slot (the arity bitmap the scan keeps, bit n for n arguments)
+   and the routine is not called with a spread. One answer for the
+   declaration (hb_csEmitFunc) and for every call (hb_csEmitCallArgs),
+   so a call that stops before the slot binds the method the
+   declaration emits, where it used to be padded up to the last ref
+   with `ref HbDiscard<T>.Value` and bind the canonical: only a call
+   with no argument at all reached a short overload (EasiPOS: 64 calls,
+   368 padded, 138 of 147 short overloads bound by nothing). An empty
+   bitmap means no such call: the pipeline and the suite scan before
+   they emit, so it no longer stands for "never scanned, emit anyway".
+   szRow is the routine's reftab key (`<FileBase>::<Name>` for a
+   file-static). */
+static int hb_csShortOverloadFirstRef( const char * szRow )
+{
+   int iCount, k, iFirstRef = -1;
+   HB_U64 bitArities, shortMask;
+
+   if( ! szRow || ! *szRow || ! s_pRefTab ||
+       hb_refTabIsCalledVarargs( s_pRefTab, szRow ) )
+      return -1;
+   iCount = hb_refTabParamCount( s_pRefTab, szRow );
+   for( k = 0; k < iCount; k++ )
+      if( hb_csParamEmitsRef( szRow, k ) )
+      {
+         iFirstRef = k;
+         break;
+      }
+   if( iFirstRef < 0 )
+      return -1;
+   /* Every arity from 0 through iFirstRef is a call the short overload
+      serves: its parameters are the slots before the ref, each
+      defaulted. */
+   bitArities = hb_refTabCallArities( s_pRefTab, szRow );
+   shortMask = ( ( ( HB_U64 ) 1 ) << ( iFirstRef + 1 ) ) - 1;
+   return ( bitArities & shortMask ) != 0 ? iFirstRef : -1;
+}
+
 /* Warn when a call passes an array by-ref (`@aArr`) to a parameter the
    callee never reassigns: the `@` is redundant (a List<dynamic> is a
    reference type, so element mutation already propagates), and the slot
@@ -2227,6 +2267,12 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
    entry, as the ref-shim map is, so nested calls do not inherit it. */
 static const char * s_szGapNameKey = NULL;
 
+/* Set by a function call (HB_ET_FUNCALL) just before its arguments:
+   only a function has a short overload a call can bind, a method has
+   none. Consumed on entry, as the ref-shim map is, so a nested send's
+   arguments do not inherit it. */
+static HB_BOOL s_fCallArgsFunc = HB_FALSE;
+
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc )
 {
    PHB_EXPR pHead;
@@ -2241,8 +2287,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    const HB_BOOL * aShim = s_aRefShim;
    int            iShimBase = s_iRefShimBase;
    const char *   szGapKey = s_szGapNameKey;
+   HB_BOOL        fFuncCall = s_fCallArgsFunc;
+   /* The callee's reftab row: a file-static function's own
+      `file::func`, else the bare name (resolved below). */
+   const char *   szRow = szFunc;
+   char           szRowKey[ 256 ];
    s_aRefShim = NULL;
    s_szGapNameKey = NULL;
+   s_fCallArgsFunc = HB_FALSE;
 
    if( ! pParms )
       return;
@@ -2276,14 +2328,12 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          `file::func`. Counting against the bare name once dropped 23
          of rmio2700's 27 RoomCharge arguments — the public RoomCharge
          takes four. */
-      const char * szRow = szFunc;
-      char szKey[ 256 ];
       int nDeclared;
       if( hb_csIsFileStaticFunc( szFunc ) && s_szFileBase[ 0 ] )
       {
-         hb_snprintf( szKey, sizeof( szKey ), "%s::%s", s_szFileBase, szFunc );
-         if( hb_refTabParamCount( s_pRefTab, szKey ) >= 0 )
-            szRow = szKey;
+         hb_snprintf( szRowKey, sizeof( szRowKey ), "%s::%s", s_szFileBase, szFunc );
+         if( hb_refTabParamCount( s_pRefTab, szRowKey ) >= 0 )
+            szRow = szRowKey;
       }
       nDeclared = hb_refTabParamCount( s_pRefTab, szRow );
       if( nDeclared >= 0 && nLastReal >= nDeclared &&
@@ -2318,6 +2368,12 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( pRP->fByRef )
             iLastRef = j;
       iEnd = ( iLastRef > nLastReal ) ? iLastRef : nLastReal;
+      /* A function call whose arguments stop before the first ref slot
+         binds the short overload (hb_csShortOverloadFirstRef): emitted
+         as written, an inner gap `default(T?)` as below, nothing
+         padded after the last real argument. */
+      if( fFuncCall && nLastReal < hb_csShortOverloadFirstRef( szRow ) )
+         iEnd = nLastReal;
 
       pItem = pHead;
       for( iPos = 0; iPos <= iEnd; iPos++ )
@@ -4925,6 +4981,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             else
                hb_csEmitExpr( pExpr->value.asFunCall.pFunName, yyc, HB_FALSE );
             fprintf( yyc, "(" );
+            s_fCallArgsFunc = HB_TRUE;
             hb_csEmitCallArgs( szName, pExpr->value.asFunCall.pParms, yyc );
             fprintf( yyc, ")" );
          }
@@ -9970,44 +10027,19 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       to avoid method-bloat). Main and spread-receivers don't
       participate.
 
-      We only emit when the reftab's observed call-arity bitmap shows
-      at least one caller actually passed fewer than iFirstRef args.
-      Without the guard, every ref-taking function gets a dead short
-      overload (e.g. LoadAFlag, whose callers all pass the full
-      arity). The bitmap is populated during the -GF scan pass; a
-      transpile that skipped scanning falls back to always emitting,
-      since bitCallArities == 0 can't distinguish "never called" from
-      "never scanned". */
+      Emitted only when the reftab recorded a call that stops before
+      the first ref — the call hb_csEmitCallArgs binds to it — so no
+      routine gets a short overload nothing calls
+      (hb_csShortOverloadFirstRef has the rule and its history). */
    if( ! fIsMain )
    {
       char szFnKeyBuf[ 256 ];
       const char * szFnName = hb_csFuncRefKey( pFunc->value.asFunc.szName,
                                                szFnKeyBuf, sizeof( szFnKeyBuf ) );
-      HB_BOOL fSpreadCallee = hb_refTabIsCalledVarargs( s_pRefTab, szFnName );
-      int iFirstRef = -1;
+      int iFirstRef = hb_csShortOverloadFirstRef( szFnName );
       int iMax = ( int ) pCompFunc->wParamCount;
       int k;
-      for( k = 0; k < iMax; k++ )
-      {
-         if( hb_csParamEmitsRef( szFnName, k ) )
-         {
-            iFirstRef = k;
-            break;
-         }
-      }
-      {
-         HB_U64 bitArities = hb_refTabCallArities( s_pRefTab, szFnName );
-         /* Short overload declares iFirstRef params, each with `=
-            default`, so it accepts every arity from 0 through
-            iFirstRef inclusive. Mask covers bits 0..iFirstRef. When
-            the reftab recorded any such arity, at least one caller
-            needs the short overload; otherwise skip it to avoid
-            emitting dead methods. */
-         HB_U64 shortMask = iFirstRef >= 0
-            ? ( ( ( HB_U64 ) 1 ) << ( iFirstRef + 1 ) ) - 1 : 0;
-         HB_BOOL fHasShortCaller =
-            bitArities == 0 || ( bitArities & shortMask ) != 0;
-      if( iFirstRef >= 0 && ! fSpreadCallee && fHasShortCaller )
+      if( iFirstRef >= 0 )
       {
          char szMangledBuf[ 256 ];
          /* The emitted name mangles the bare name; szFnName may be the
@@ -10141,7 +10173,6 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          fprintf( yyc, ");\n" );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "}\n" );
-      }
       }
    }
 

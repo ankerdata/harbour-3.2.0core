@@ -35,7 +35,7 @@ public static partial class Program
     {
         bool lLog = false;
         // omit lLog + lUpper -> short overload
-        HbRuntime.QOut(ErrText65(5, ref HbDiscard<bool>.Value));
+        HbRuntime.QOut(ErrText65(5));
         // skip lLog, pass lUpper -> by-value overload
         HbRuntime.QOut(ErrText65(7, ref HbDiscard<bool>.Value, true));
         // pass @lLog -> canonical (writes lLog back)

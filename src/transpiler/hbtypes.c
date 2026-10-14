@@ -1051,7 +1051,7 @@ void hb_astSetFileFuncs( PHB_AST_NODE pFuncList )
    s_pFileFuncs = pFuncList;
 }
 
-static HB_BOOL hb_astIsFileStaticFunc( const char * szName )
+HB_BOOL hb_astIsFileStaticFunc( const char * szName )
 {
    PHB_AST_NODE pF;
    for( pF = s_pFileFuncs; pF; pF = pF->pNext )

@@ -97,6 +97,9 @@ static const char * hb_astDeclText( const char * szDecl, char * szBuf, HB_SIZE n
 static int s_iLastLine = 0;
 static PHB_AST_NODE s_pClassList = NULL;
 static PHB_REFTAB s_pRefTab = NULL;
+/* The file being emitted, without path or extension: a file-static
+   function's reftab row is `<FileBase>::<Name>`. */
+static char s_szFileBase[ HB_PATH_MAX ] = "";
 
 /* Emit a single blank line if there's a gap in source line numbers,
    indicating the source had one or more blank/comment lines between statements */
@@ -1367,6 +1370,16 @@ static void hb_astEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc, FILE * yyc 
          const char * szFnName = hb_refTabMethodKey(
             szClassName, szRealName );
          hb_strncpy( szKeyBuf, szFnName, sizeof( szKeyBuf ) - 1 );
+         /* A file-static function's row is `<FileBase>::<Name>`
+            (hb_refTabCollect), as the C# emitter reads it. Under the
+            bare name its by-ref marks were found only while the scan
+            of its callers kept a stub row in this process; the calls
+            are credited to the static row now, and the stub is gone. */
+         if( ( ! szClassName || ! *szClassName ) &&
+             ( pFunc->value.asFunc.cScope & HB_FS_STATIC ) != 0 &&
+             s_szFileBase[ 0 ] )
+            hb_snprintf( szKeyBuf, sizeof( szKeyBuf ), "%s::%s",
+                         s_szFileBase, szRealName );
          szFnName = szKeyBuf;
          {
             int iPos = 0;
@@ -1499,6 +1512,8 @@ void hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName )
       Use -o output path if specified, otherwise use source file's directory. */
    {
       PHB_FNAME pOut = hb_fsFNameSplit( HB_COMP_PARAM->szFile );
+      hb_strncpy( s_szFileBase, pOut->szName ? pOut->szName : "",
+                  sizeof( s_szFileBase ) - 1 );
       pFileName->szExtension = ".prg";
       if( HB_COMP_PARAM->pOutPath && HB_COMP_PARAM->pOutPath->szPath )
          pFileName->szPath = HB_COMP_PARAM->pOutPath->szPath;

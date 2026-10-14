@@ -19,25 +19,11 @@ public static partial class Program
         return nCount;
     }
 
-    public static decimal test146_Bump146()
-    {
-        decimal _arg0 = 0;
-        decimal _arg1 = default;
-        return test146_Bump146(ref _arg0, _arg1);
-    }
-
     public static string test146_Tag146(ref string cTag, string cAdd = default)
     {
         HbRuntime.hb_default(ref cTag, "");
         cTag += cAdd;
         return cTag;
-    }
-
-    public static string test146_Tag146()
-    {
-        string _arg0 = default;
-        string _arg1 = default;
-        return test146_Tag146(ref _arg0, _arg1);
     }
 
     public static void Main(string[] args)

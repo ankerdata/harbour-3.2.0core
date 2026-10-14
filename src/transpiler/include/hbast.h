@@ -446,6 +446,8 @@ extern void         hb_astSetPrefixReftab( void * pRefTab );
    functions, whose reftab row is `<FileBase>::<Name>`. Set with the
    reftab for the length of a file; NULL to clear. */
 extern void         hb_astSetFileFuncs( PHB_AST_NODE pFuncList );
+/* Whether szName is one of the published file's STATIC functions. */
+extern HB_BOOL      hb_astIsFileStaticFunc( const char * szName );
 /* The file the type checks are warning about. A warning prints once per
    line and name, and the table that remembers them lives as long as the
    process, which scans or emits a batch of files: hb_refTabCollect(),

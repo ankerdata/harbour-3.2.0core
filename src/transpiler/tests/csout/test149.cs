@@ -89,13 +89,13 @@ public static partial class Program
         // the full call, the width defaulted
         HbRuntime.QOut(Label149("item", ref cLabel), cLabel);
         // the short call: a string
-        HbRuntime.QOut(Label149("sale", ref HbDiscard<string>.Value));
-        HbRuntime.QOut(HbRuntime.Len(Label149("tax", ref HbDiscard<string>.Value)));
+        HbRuntime.QOut(Label149("sale"));
+        HbRuntime.QOut(HbRuntime.Len(Label149("tax")));
 
         HbRuntime.QOut(Even149(4, ref lOdd), lOdd);
         // the short call: a logical
-        HbRuntime.QOut(Even149(7, ref HbDiscard<bool>.Value));
-        if (Even149(10, ref HbDiscard<bool>.Value))
+        HbRuntime.QOut(Even149(7));
+        if (Even149(10))
         {
             HbRuntime.QOut("ten is even");
         }
@@ -103,7 +103,7 @@ public static partial class Program
         Note149("full", ref nLength);
         HbRuntime.QOut(nLength);
         // the short call of a procedure: void
-        Note149("short", ref HbDiscard<decimal>.Value);
+        Note149("short");
         return;
     }
 }
