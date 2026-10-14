@@ -120,7 +120,7 @@ public static partial class Program
    tells the gapped caller `Tally( , @nCnt )` to pad null. */
     }
 
-    public static dynamic Accrue()
+    public static decimal Accrue()
     {
         decimal _arg0 = 0;
         decimal? _arg1 = null;

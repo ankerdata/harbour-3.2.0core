@@ -36,7 +36,7 @@ public static partial class Program
         return 42;
     }
 
-    public static dynamic GetQty()
+    public static decimal GetQty()
     {
         bool _arg0 = default;
         return GetQty(ref _arg0);

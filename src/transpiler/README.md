@@ -1322,7 +1322,7 @@ public static decimal GetQty(ref bool lDecimalQty)      // canonical
     return buildno_snQuantity;
 }
 
-public static dynamic GetQty()                          // short overload
+public static decimal GetQty()                          // short overload
 {
     bool _arg0 = default;
     return GetQty(ref _arg0);
@@ -1330,7 +1330,10 @@ public static dynamic GetQty()                          // short overload
 ```
 
 Here the first `ref` is parameter 0, so the prefix is empty and the
-short overload is parameterless. With a prefix — adtdata.prg's
+short overload is parameterless. It returns what the canonical
+returns, `decimal` here, so a short call is as typed as a full one
+(test149; declared `dynamic` until 2026-10-14, it cost EasiPOS 115
+typed results). With a prefix — adtdata.prg's
 `ADTPlu(oLine, lTemporary, @cAuditStr, nSign)` — the two slots before
 the `ref` are kept, in the canonical's types (not `dynamic`, so a
 wrongly typed argument still fails where it should):

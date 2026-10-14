@@ -24,7 +24,7 @@ public static partial class Program
         return (lUpper == true ? "CODE" : "code") + HbRuntime.Str(nCode, 2);
     }
 
-    public static dynamic ErrText65(decimal nCode = default)
+    public static string ErrText65(decimal nCode = default)
     {
         bool _arg1 = default;
         bool _arg2 = default;

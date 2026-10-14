@@ -94,7 +94,7 @@ public static partial class Program
    its guard stays exactly as before. */
     }
 
-    public static dynamic Accum()
+    public static decimal Accum()
     {
         decimal _arg0 = 0;
         bool _arg1 = true;

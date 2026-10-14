@@ -19,7 +19,7 @@ public static partial class Program
         return nCount;
     }
 
-    public static dynamic test146_Bump146()
+    public static decimal test146_Bump146()
     {
         decimal _arg0 = 0;
         decimal _arg1 = default;
@@ -33,7 +33,7 @@ public static partial class Program
         return cTag;
     }
 
-    public static dynamic test146_Tag146()
+    public static string test146_Tag146()
     {
         string _arg0 = default;
         string _arg1 = default;

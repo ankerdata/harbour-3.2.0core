@@ -10020,8 +10020,14 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          fprintf( yyc, "\n" );
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "public static " );
+         /* The same return type as the canonical: the short overload
+            answers the canonical's result unchanged, so a short call
+            is as typed as a full one. Declared `dynamic`, every call
+            that left the by-reference arguments out lost its type
+            (easipos: 115 routines, each a RET-DYNAMIC audit row). */
          fprintf( yyc, "%s",
-                  pFunc->value.asFunc.fProcedure ? "void" : "dynamic" );
+                  pFunc->value.asFunc.fProcedure ? "void"
+                  : szRetType ? hb_csTypeMap( szRetType ) : "dynamic" );
          fprintf( yyc, " %s(", szEmitName );
          pP = pFunc->value.asFunc.pParams;
          for( k = 0; pP && k < iFirstRef; k++ )
