@@ -28,7 +28,8 @@ sources plus the libraries) differs from the one it was built against.
 A runtime change that keeps the surface (its reference assembly is byte
 for byte the same) copies the new HbRuntime.dll beside each test instead
 of rebuilding 144 projects. gen always transpiles every test — the suite shares one
-reftab, so one test's change can change another's output — and every
+reftab, so one test's change can change another's output — in batches of
+BATCH files per transpiler process, as the pipeline does; and every
 test always runs. --full rebuilds everything: the occasional sweep, and
 the answer to a changed Harbour or .NET toolchain, which the
 incremental checks cannot see.
@@ -79,6 +80,9 @@ SRC_RE = re.compile(r"^(test\w+)\.prg$")
 INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]+"([^"]+)"', re.I | re.M)
 
 FULL = False                     # --full: rebuild every test
+BATCH = 150                      # files per transpiler process in gen (the
+                                 # pipeline's bound; bare names keep the
+                                 # command line far below Windows' limit)
 
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -179,17 +183,33 @@ def stage_gen(only=None):
             failed.append("   FAIL %-12s %s exit %d: %s"
                           % (src, mode, r.returncode, text[-1] if text else "(no output)"))
 
+    def run_batched(before, files, after):
+        """One transpiler process per BATCH files, the file list between
+        `before` and `after`, as the pipeline runs its passes (scan.py,
+        tc.make_batches): the process's fixed cost (the headers, the
+        reftab, the canon set) outweighs a test's own work, and one
+        process per file per pass was 483 spawns, about 45 s of the
+        suite's 80. A batch that fails is re-run one file at a time, so
+        the failure lands on its file with its own message."""
+        for i in range(0, len(files), BATCH):
+            batch = files[i:i + BATCH]
+            if len(batch) == 1:
+                run(before + batch + after)
+                continue
+            r = subprocess.run(before + batch + after, cwd=TESTS,
+                               capture_output=True, text=True, errors="replace")
+            if r.returncode != 0:
+                for f in batch:
+                    run(before + [f] + after)
+
     if not only and os.path.isfile(REFTAB):
         os.remove(REFTAB)
-    for f in srcs:
-        run(base + [f, "-GF", "-q"])
-    for f in srcs:
-        run(base + ["-o" + HBOUT + os.sep, f, "-GT"])
+    run_batched(base, srcs, ["-GF", "-q"])
+    run_batched(base + ["-o" + HBOUT + os.sep], srcs, ["-GT"])
     print("hbout/  regenerated (%s)" %
           (", ".join(srcs) if only else "%d sources" % len(srcs)))
 
-    for f in srcs:                    # deliberately NOT clearing the reftab
-        run(base + [f, "-GF", "-q"])
+    run_batched(base, srcs, ["-GF", "-q"])   # deliberately NOT clearing the reftab
 
     if os.path.isdir(DEFINES):
         shutil.rmtree(DEFINES)
@@ -207,8 +227,7 @@ def stage_gen(only=None):
     ftypes = os.path.join(ORM, "fieldtypes.tsv")
     if os.path.isfile(ftypes) and os.path.getsize(ftypes):
         opts.append("--fieldtypes=" + ftypes)
-    for f in srcs:
-        run(base + opts + ["-o" + CSOUT + os.sep, f, "-GS", "-q"])
+    run_batched(base + opts + ["-o" + CSOUT + os.sep], srcs, ["-GS", "-q"])
     print("csout/  regenerated" + (" (%s)" % ", ".join(srcs) if only else ""))
     if failed:
         print("gen: %d transpiler run(s) failed" % len(failed))
