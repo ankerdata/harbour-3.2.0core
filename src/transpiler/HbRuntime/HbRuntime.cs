@@ -248,7 +248,15 @@ public static partial class HbRuntime
             .Select(a => a.GetType("Program"))
             .FirstOrDefault(t => t != null));
 
-    internal static System.Type? ProgramType => s_programType.Value;
+    internal static System.Type? ProgramType => s_programTypeSet ?? s_programType.Value;
+
+    // A host that holds several programs in one assembly names the one it
+    // runs: the test suite's single executable keeps each test's Program in
+    // a namespace of its own (tests/runsuite.py), so the lookup above finds
+    // no global Program, and its dispatcher calls this before the test's
+    // Main. A transpiled program on its own never needs it.
+    static System.Type? s_programTypeSet;
+    public static void SetProgramType(System.Type program) => s_programTypeSet = program;
 
     public static Func<dynamic[], dynamic> FuncPtr(string methodName)
     {

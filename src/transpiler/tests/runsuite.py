@@ -21,13 +21,15 @@ Stages (default "all"):
   run   run both and diff the output     (runprg.sh/runcs.sh/comparecs.sh)
 
 Builds are incremental: a Harbour exe is rebuilt only when it is older
-than its .prg sources or a local .ch they include, and a C# test only
-when the .cs it would be built from differ from what it was last built
-from, or when the public surface of the runtime assembly (the HbRuntime/
-sources plus the libraries) differs from the one it was built against.
-A runtime change that keeps the surface (its reference assembly is byte
-for byte the same) copies the new HbRuntime.dll beside each test instead
-of rebuilding 144 projects. gen always transpiles every test — the suite shares one
+than its .prg sources or a local .ch they include. The C# tests build as
+ONE assembly (csexe/suite): each test's emitted files wrapped in a
+namespace named for it, so every test keeps its own Program, Main,
+statics and classes, and a generated Suite.cs runs the test named on the
+command line. It is rebuilt when any staged file changed or when the
+public surface of the runtime assembly (the HbRuntime/ sources plus the
+libraries) differs from the one it was built against; a runtime change
+that keeps the surface (its reference assembly is byte for byte the same)
+copies the new HbRuntime.dll beside it instead. gen always transpiles every test — the suite shares one
 reftab, so one test's change can change another's output — in batches of
 BATCH files per transpiler process, as the pipeline does; and every
 test always runs. --full rebuilds everything: the occasional sweep, and
@@ -84,14 +86,17 @@ BATCH = 150                      # files per transpiler process in gen (the
                                  # pipeline's bound; bare names keep the
                                  # command line far below Windows' limit)
 
-CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
+SUITE = os.path.join(CSEXE, "suite")   # the one project every test's C# builds into
+
+SUITEPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>%s</RootNamespace>
-    <AssemblyName>%s</AssemblyName>
+    <RootNamespace>suite</RootNamespace>
+    <AssemblyName>suite</AssemblyName>
+    <StartupObject>Suite</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../HbRuntime/HbRuntime.csproj" />
@@ -298,6 +303,18 @@ def write_if_changed(path, text):
     return True
 
 
+def write_text_if_changed(path, text):
+    """UTF-8, the line endings as given: a staged csout file keeps its own,
+    and a comment's `→` must not meet the console code page."""
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8", newline="") as fh:
+            if fh.read() == text:
+                return False
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
+    return True
+
+
 # --------------------------------------------------------------- prg ----
 def build_prg(name):
     """(name, error or None, built?)"""
@@ -359,59 +376,118 @@ def runtime_surface(lib):
         return hashlib.sha256(fh.read()).hexdigest()
 
 
-def build_cs(name, lib_dll, surface):
-    """(name, error or None, built?). Skipped when the staged .cs and
-    .csproj are byte-identical to the last build's and the runtime
-    assembly that build copied beside it is the current one. When only
-    the runtime changed and its public surface did not (the test was
-    built against the same reference assembly, REF_STAMP), the new
-    HbRuntime.dll is copied beside the test's own: nothing it compiled
-    against moved, so a build would only have copied it too, at the cost
-    of a dotnet process per test. (Not "newer than the runtime": MSBuild
-    copies a new HbRuntime.dll but leaves the test's own dll alone when
-    the runtime's public API did not change.)"""
-    srcs = sources(name, ".cs", "csout")
-    if not srcs:
-        return name, "no source", False
-    d = os.path.join(CSEXE, name)
-    os.makedirs(d, exist_ok=True)
-    files = {os.path.basename(s): os.path.join(TESTS, s) for s in srcs}
-    for sub in (DEFINES, ORM):             # Const classes + ORM fixtures
+def wrapped_source(name, path):
+    """A test's emitted C# inside a namespace named for the test, so the
+    suite's one assembly holds every test's `Program`, `Main`, statics and
+    classes apart (eight class names, Animal, Dog, Person and Widget among
+    them, are declared by more than one test), and a test's file statics
+    initialise only when its Program is first touched, as in its own
+    executable. The file's `using` lines stay at its top, inside the
+    namespace, where `using static Program` names the test's own; a Const
+    class or an ORM fixture stays global and is found from inside."""
+    with open(path, encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    return "namespace %s\n{\n%s%s}\n" % (name, text, "" if text.endswith("\n") else "\n")
+
+
+def dispatcher(names):
+    """Suite.cs, the assembly's entry point: it runs the test named on the
+    command line, the remaining arguments its Main's, after telling
+    HbRuntime which Program is the program's (its own lookup finds a
+    global `Program`, and there is none here)."""
+    lines = ["// Generated by runsuite.py: one entry point for every test.",
+             "public static class Suite",
+             "{",
+             "    public static int Main(string[] args)",
+             "    {",
+             "        if (args.Length == 0)",
+             "        {",
+             "            System.Console.Error.WriteLine(\"usage: suite <testNNN> [args]\");",
+             "            return 2;",
+             "        }",
+             "        string[] rest = args[1..];",
+             "        switch (args[0])",
+             "        {"]
+    for n in names:
+        lines += ["            case \"%s\":" % n,
+                  "                HbRuntime.SetProgramType(typeof(%s.Program));" % n,
+                  "                %s.Program.Main(rest);" % n,
+                  "                return 0;"]
+    lines += ["            default:",
+              "                System.Console.Error.WriteLine(\"suite: no test named \" + args[0]);",
+              "                return 2;",
+              "        }",
+              "    }",
+              "}",
+              ""]
+    return "\n".join(lines)
+
+
+def stage_suite(lib_dll, surface):
+    """(errors or None, built?). Every test's C# is staged, wrapped, into
+    the one project, with the Const classes, the ORM fixtures and the
+    dispatcher. It is built when anything staged changed, or when the
+    runtime's public surface moved since the last build (REF_STAMP, the
+    reference assembly's hash). When only the runtime changed and its
+    surface did not, the new HbRuntime.dll is copied beside the assembly
+    instead: nothing it compiled against moved, so a build would only
+    have copied it too. (Not "newer than the runtime": MSBuild copies a
+    new HbRuntime.dll but leaves the assembly alone when the runtime's
+    public API did not change.) Until 2026-10-15 each test was a project
+    of its own: 153 builds after a change to the runtime's surface (228 s),
+    a dotnet host per test to run, 228 MB of bin and obj."""
+    os.makedirs(SUITE, exist_ok=True)
+    names = test_names()
+    changed = False
+    keep = {"Suite.cs"}
+    for n in names:
+        for s in sources(n, ".cs", "csout"):
+            base = os.path.basename(s)
+            keep.add(base)
+            changed |= write_text_if_changed(os.path.join(SUITE, base),
+                                             wrapped_source(n, os.path.join(TESTS, s)))
+    for sub in (DEFINES, ORM):             # Const classes + ORM fixtures, global
         if os.path.isdir(sub):
             for f in os.listdir(sub):
                 if f.endswith(".cs"):
-                    files[f] = os.path.join(sub, f)
-    changed = stage_files(files, d, ".cs")
-    changed |= write_if_changed(os.path.join(d, name + ".csproj"),
-                                CSPROJ % (name, name))
-    dll = newest_file(os.path.join(d, "bin"), name + ".dll")
-    rt = newest_file(os.path.join(d, "bin"), "HbRuntime.dll")
-    stamp = os.path.join(d, REF_STAMP)
+                    keep.add(f)
+                    if not same_bytes(os.path.join(sub, f), os.path.join(SUITE, f)):
+                        shutil.copy(os.path.join(sub, f), os.path.join(SUITE, f))
+                        changed = True
+    changed |= write_text_if_changed(os.path.join(SUITE, "Suite.cs"), dispatcher(names))
+    for f in os.listdir(SUITE):
+        if f.endswith(".cs") and f not in keep:
+            os.remove(os.path.join(SUITE, f))
+            changed = True
+    changed |= write_if_changed(os.path.join(SUITE, "suite.csproj"), SUITEPROJ)
+    dll = newest_file(os.path.join(SUITE, "bin"), "suite.dll")
+    rt = newest_file(os.path.join(SUITE, "bin"), "HbRuntime.dll")
+    stamp = os.path.join(SUITE, REF_STAMP)
     stamped = bool(surface) and os.path.isfile(stamp) and \
         open(stamp, encoding="ascii").read().strip() == surface
     if not FULL and not changed and dll and rt:
-        # the current runtime beside a test is not enough: it may have been
-        # copied there by a run that misread the surface, beside a test
-        # compiled against the old one, so the stamp must agree too
+        # the current runtime beside the assembly is not enough: it may have
+        # been copied there by a run that misread the surface, beside an
+        # assembly compiled against the old one, so the stamp must agree too
         if same_bytes(lib_dll, rt) and (stamped or not surface):
-            return name, None, False
+            return None, False
         if stamped:
             shutil.copy2(lib_dll, rt)
             lib_pdb, rt_pdb = lib_dll[:-4] + ".pdb", rt[:-4] + ".pdb"
             if os.path.isfile(lib_pdb):
                 shutil.copy2(lib_pdb, rt_pdb)
-            return name, None, False
+            return None, False
     r = subprocess.run(["dotnet", "build", "--no-dependencies", "-v", "q",
-                        "--nologo"], cwd=d, capture_output=True, text=True)
+                        "--nologo"], cwd=SUITE, capture_output=True, text=True)
     if r.returncode == 0 and "error CS" not in r.stdout:
         if surface:
             with open(stamp, "w", encoding="ascii") as fh:
                 fh.write(surface + "\n")
-        return name, None, True
+        return None, True
     if dll and os.path.isfile(dll):        # never skip a failed build later
         os.remove(dll)
     errs = [l.strip() for l in r.stdout.splitlines() if "error CS" in l]
-    return name, (errs[0][:120] if errs else "rc=%d" % r.returncode), True
+    return (errs[:8] if errs else ["rc=%d" % r.returncode]), True
 
 
 def hbruntime_sources():
@@ -427,12 +503,10 @@ def hbruntime_sources():
     return files
 
 
-def stage_cs(names):
-    """HbRuntime is built once up front: the per-test builds run in
-    parallel and would otherwise race to write HbRuntime.dll, surfacing
-    as random CS2012 file-in-use failures scattered across tests. It is
-    rebuilt only when its sources changed, and a test whose output holds
-    another HbRuntime.dll than the one built here is rebuilt against it."""
+def stage_cs():
+    """HbRuntime is built first, on its own, when its sources changed, so a
+    runtime that fails to build fails the stage with its own error; then
+    the suite's one assembly (stage_suite), which references it."""
     lib = os.path.join(CSEXE, "HbRuntime")
     os.makedirs(lib, exist_ok=True)
     files = hbruntime_sources()
@@ -463,21 +537,39 @@ def stage_cs(names):
             return False
         print("dotnet: HbRuntime rebuilt")
     surface = runtime_surface(lib)
-    with ThreadPoolExecutor(max_workers=4) as ex:
-        res = list(ex.map(lambda n: build_cs(n, lib_dll, surface), names))
-    bad = [(n, e) for n, e, _ in res if e]
-    built = sum(1 for _, e, b in res if b and not e)
-    print("dotnet: %d built, %d up to date, %d failed" %
-          (built, len(names) - built - len(bad), len(bad)))
-    for n, e in bad:
-        print("   FAIL %-12s %s" % (n, e))
-    return not bad
+    errs, built = stage_suite(lib_dll, surface)
+    removed = 0                            # the old layout's per-test project trees
+    for d in os.listdir(CSEXE):
+        p = os.path.join(CSEXE, d)
+        if os.path.isdir(p) and SRC_RE.match(d + ".prg"):
+            shutil.rmtree(p)
+            removed += 1
+    if removed:
+        print("dotnet: %d per-test project trees removed (one assembly now)" % removed)
+    if errs:
+        print("dotnet: the suite's assembly failed to build")
+        for line in errs:
+            print("   " + line[:160])
+        return False
+    print("dotnet: suite %s" % ("built" if built else "up to date"))
+    return True
 
 
 # --------------------------------------------------------------- run ----
-def run_one(name):
-    """Each executable runs in its own output directory: some tests touch
-    files relative to cwd, and the tests/ tree is not a scratch area."""
+def suite_command():
+    """How to start the suite's assembly: its apphost beside the dll, else
+    the dll through dotnet. None when it was not built."""
+    exe = newest_file(os.path.join(SUITE, "bin"), "suite.exe")
+    if exe:
+        return [exe]
+    dll = newest_file(os.path.join(SUITE, "bin"), "suite.dll")
+    return ["dotnet", dll] if dll else None
+
+
+def run_one(name, cmd):
+    """Each test runs in a directory of its own: some tests touch files
+    relative to cwd, and the tests/ tree is not a scratch area. The C# side
+    is the suite's assembly, told which test to run."""
     out_p = out_c = None
     exe = os.path.join(PRGEXE, name + ".exe")
     if os.path.isfile(exe):
@@ -485,10 +577,10 @@ def run_one(name):
         out_p = r.stdout + r.stderr
         with open(os.path.join(PRGEXE, name + ".txt"), "w") as fh:
             fh.write(out_p)
-    d = os.path.join(CSEXE, name)
-    if os.path.isdir(d):
-        r = subprocess.run(["dotnet", "run", "--no-build"], cwd=d,
-                           capture_output=True, text=True)
+    if cmd:
+        d = os.path.join(CSEXE, "run", name)
+        os.makedirs(d, exist_ok=True)
+        r = subprocess.run(cmd + [name], cwd=d, capture_output=True, text=True)
         out_c = r.stdout + r.stderr
         with open(os.path.join(CSEXE, name + ".txt"), "w") as fh:
             fh.write(out_c)
@@ -496,8 +588,10 @@ def run_one(name):
 
 
 def stage_run(names):
-    with ThreadPoolExecutor(max_workers=4) as ex:
-        res = list(ex.map(run_one, names))
+    cmd = suite_command()
+    # 306 process starts, nothing shared between them: one per core
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as ex:
+        res = list(ex.map(lambda n: run_one(n, cmd), names))
     match, differ, skip = 0, 0, 0
     for name, p, c in res:
         if p is None or c is None:
@@ -546,7 +640,7 @@ def main():
     if stage in ("all", "prg"):
         ok &= stage_prg(names)
     if stage in ("all", "cs"):
-        ok &= stage_cs(names)
+        ok &= stage_cs()
     if stage in ("all", "run"):
         ok &= stage_run(names)
     return 0 if ok else 1

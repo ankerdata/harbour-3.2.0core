@@ -1575,6 +1575,18 @@ runtests.bat all --test test151       rem one test (or test45a,test56): its file
                                       rem once at the end of a change
 ```
 
+gen runs the transpiler one process per 150 files, as the pipeline's
+scan does. The C# tests build as one assembly, `tests/csexe/suite`:
+each test's emitted files wrapped in a namespace named for it, so every
+test keeps its own `Program`, `Main`, statics and classes, behind a
+generated `Suite.cs` that runs the test named on the command line
+(`suite.exe test56`) after `HbRuntime.SetProgramType()` names that
+test's `Program` for the runtime's reflection. One build instead of 153,
+and a change to the runtime's public surface rebuilds it once.
+
+```
+```
+
 [`runtests.bat`](tests/runtests.bat) sets up `vcvarsall` and the
 Harbour `bin` directory, then calls [`runsuite.py`](tests/runsuite.py)
 directly — never through a shell, which is what keeps the linker
