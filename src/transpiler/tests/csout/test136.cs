@@ -98,23 +98,23 @@ public static partial class Program
             HbRuntime.AAdd(aNames, oItem.Label());
         }
 
-        HbRuntime.QOut(aNames[1], HbRuntime.Len(aNames[1]));
+        HbRuntime.QOut(aNames[Ix(2)], HbRuntime.Len(aNames[Ix(2)]));
 
         for (iPos = 1; iPos <= HbRuntime.Len(oCrate.aGizmos); iPos++)
         {
-            HbRuntime.QOut(((Gizmo136)oCrate.aGizmos[(int)iPos - 1]).cName, ((Gizmo136)oCrate.aGizmos[(int)iPos - 1]).nSize);
+            HbRuntime.QOut(((Gizmo136)oCrate.aGizmos[Ix(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[Ix(iPos)]).nSize);
         }
 
-        HbRuntime.QOut(oCrate.aGizmos[3].cColour, ((Gizmo136)oCrate.aGizmos[3]).nSize);
+        HbRuntime.QOut(oCrate.aGizmos[Ix(4)].cColour, ((Gizmo136)oCrate.aGizmos[Ix(4)]).nSize);
 
         oAny = oCrate.Largest();
         HbRuntime.QOut(oAny.Label());
         HbRuntime.QOut(oCrate.oFirst.Label());
 
         test136_saShelf136 = oCrate.aGizmos;
-        test136_soSpare136 = test136_saShelf136[2];
+        test136_soSpare136 = test136_saShelf136[Ix(3)];
         HbRuntime.QOut(test136_soSpare136.Label());
-        HbRuntime.QOut(HbRuntime.Len(test136_Names136(test136_saShelf136)), test136_Names136(test136_saShelf136)[0]);
+        HbRuntime.QOut(HbRuntime.Len(test136_Names136(test136_saShelf136)), test136_Names136(test136_saShelf136)[Ix(1)]);
         HbRuntime.QOut(test136_Total136());
         return;
     }
@@ -141,7 +141,7 @@ public static partial class Program
         long iPos = default;
         for (iPos = 1; iPos <= HbRuntime.Len(aList); iPos++)
         {
-            HbRuntime.AAdd(aOut, ((Gizmo136)aList[(int)iPos - 1]).cName);
+            HbRuntime.AAdd(aOut, ((Gizmo136)aList[Ix(iPos)]).cName);
         }
 
         return aOut;

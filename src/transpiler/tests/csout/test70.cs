@@ -36,18 +36,18 @@ public static partial class Program
 
         for (nI = 1; nI <= 3; nI++)
         {
-            test70_saTotals[(int)nI - 1] = nI * 10;
+            test70_saTotals[Ix(nI)] = nI * 10;
         }
 
-        aConfirm[0] = "first";
-        aConfirm[4] = "fifth";
+        aConfirm[Ix(1)] = "first";
+        aConfirm[Ix(5)] = "fifth";
 
-        aGrid[0] = new List<dynamic> { "a", "b", "c" };
-        aGrid[1] = new List<dynamic> { "d", "e", "f" };
+        aGrid[Ix(1)] = new List<dynamic> { "a", "b", "c" };
+        aGrid[Ix(2)] = new List<dynamic> { "d", "e", "f" };
 
-        HbRuntime.QOut("saTotals=" + HbRuntime.Str(test70_saTotals[0], 2) + "," + HbRuntime.Str(test70_saTotals[1], 2) + "," + HbRuntime.Str(test70_saTotals[2], 2));
-        HbRuntime.QOut("aConfirm=" + aConfirm[0] + "/" + aConfirm[4]);
-        HbRuntime.QOut("aGrid=" + aGrid[0][0] + aGrid[0][2] + "|" + aGrid[1][1]);
+        HbRuntime.QOut("saTotals=" + HbRuntime.Str(test70_saTotals[Ix(1)], 2) + "," + HbRuntime.Str(test70_saTotals[Ix(2)], 2) + "," + HbRuntime.Str(test70_saTotals[Ix(3)], 2));
+        HbRuntime.QOut("aConfirm=" + aConfirm[Ix(1)] + "/" + aConfirm[Ix(5)]);
+        HbRuntime.QOut("aGrid=" + aGrid[Ix(1)][Ix(1)] + aGrid[Ix(1)][Ix(3)] + "|" + aGrid[Ix(2)][Ix(2)]);
         return;
     }
 }

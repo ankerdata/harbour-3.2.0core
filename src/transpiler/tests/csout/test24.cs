@@ -65,7 +65,7 @@ public static partial class Program
         // comment on FOR
         for (n = 1; n <= HbRuntime.Len(aCodes); n++)
         {
-            HbRuntime.QOut(aCodes[(int)n - 1]);
+            HbRuntime.QOut(aCodes[Ix(n)]);
             // comment on NEXT
         }
 

@@ -56,13 +56,13 @@ public static partial class Program
         HbRuntime.QOut(HbRuntime.hb_HGetDef(hnById, 4, "none"), HbRuntime.hb_HKeyAt(hnById, 1) + 1);
 
         hCopy = HbRuntime.hb_HClone(hSrc);
-        hCopy["a"][0] = 9;
+        hCopy["a"][Ix(1)] = 9;
         hCopy["b"]["x"] = 5;
-        HbRuntime.QOut(hSrc["a"][0], hSrc["b"]["x"], hCopy["a"][0], hCopy["b"]["x"]);
+        HbRuntime.QOut(hSrc["a"][Ix(1)], hSrc["b"]["x"], hCopy["a"][Ix(1)], hCopy["b"]["x"]);
 
         aCopy = HbRuntime.AClone(aSrc);
-        aCopy[0]["k"] = 2;
-        HbRuntime.QOut(aSrc[0]["k"], aCopy[0]["k"]);
+        aCopy[Ix(1)]["k"] = 2;
+        HbRuntime.QOut(aSrc[Ix(1)]["k"], aCopy[Ix(1)]["k"]);
 
         return;
     }

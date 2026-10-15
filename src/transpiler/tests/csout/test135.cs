@@ -43,7 +43,7 @@ public static partial class Program
         foreach (List<dynamic> __hb_fe_aRow135 in HbRuntime.HbEnumValues(aRows135))
         {
             aRow135 = __hb_fe_aRow135;
-            cOut += aRow135[0] + HbRuntime.hb_ntos(aRow135[1]) + ";";
+            cOut += aRow135[Ix(1)] + HbRuntime.hb_ntos(aRow135[Ix(2)]) + ";";
         }
 
         foreach (OrderedDictionary<string, dynamic> __hb_fe_hField135 in HbRuntime.HbEnumValues(aHashes135))

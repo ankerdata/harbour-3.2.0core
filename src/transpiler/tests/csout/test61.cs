@@ -31,9 +31,9 @@ public static partial class Program
         // AClone must deep-copy the nested array
         aCopy = HbRuntime.AClone(aNested);
         // must not touch the original
-        aCopy[1][0] = 99;
+        aCopy[Ix(2)][Ix(1)] = 99;
         // still 2
-        HbRuntime.QOut("aclone=" + HbRuntime.LTrim(HbRuntime.Str(aNested[1][0])));
+        HbRuntime.QOut("aclone=" + HbRuntime.LTrim(HbRuntime.Str(aNested[Ix(2)][Ix(1)])));
 
         // Empty() of an empty hash
         HbRuntime.QOut("empty_hash=" + (HbRuntime.Empty(hEmpty) ? "Y" : "N"));

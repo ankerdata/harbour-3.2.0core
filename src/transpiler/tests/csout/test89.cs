@@ -90,9 +90,9 @@ public static partial class Program
                 break;
             }
 
-            if (aList[(int)i - 1] > nOver)
+            if (aList[Ix(i)] > nOver)
             {
-                return aList[(int)i - 1];
+                return aList[Ix(i)];
             }
         }
 

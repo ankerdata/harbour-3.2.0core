@@ -34,7 +34,7 @@ public static partial class Program
         HbRuntime.ASize(aFlag, nCount);
         for (i = 1; i <= nCount; i++)
         {
-            aFlag[(int)i - 1] = cFile + ":" + HbRuntime.Str(i, 1);
+            aFlag[Ix(i)] = cFile + ":" + HbRuntime.Str(i, 1);
         }
 
         return;

@@ -41,23 +41,23 @@ public class Record : HbDynamicObject
         string cType = default;
         for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
-            xVal = HbRuntime.GETMEMBER(this, aFields[(int)i - 1]);
+            xVal = HbRuntime.GETMEMBER(this, aFields[Ix(i)]);
             cType = HbRuntime.ValType(xVal);
             if (cType == "C")
             {
-                HbRuntime.QOut(aFields[(int)i - 1] + ": " + xVal);
+                HbRuntime.QOut(aFields[Ix(i)] + ": " + xVal);
             }
             else if (cType == "N")
             {
-                HbRuntime.QOut(aFields[(int)i - 1] + ": " + HbRuntime.Str(xVal, 4));
+                HbRuntime.QOut(aFields[Ix(i)] + ": " + HbRuntime.Str(xVal, 4));
             }
             else if (cType == "L")
             {
-                HbRuntime.QOut(aFields[(int)i - 1] + ": " + (xVal ? "T" : "F"));
+                HbRuntime.QOut(aFields[Ix(i)] + ": " + (xVal ? "T" : "F"));
             }
             else
             {
-                HbRuntime.QOut(aFields[(int)i - 1] + ": ?");
+                HbRuntime.QOut(aFields[Ix(i)] + ": ?");
             }
         }
 

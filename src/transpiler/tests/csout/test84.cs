@@ -51,7 +51,7 @@ public static partial class Program
         // division results as 1.50 where C# Str gives 1.5; the semantics
         // under test are the VALUES, so pin the format on both sides.
         // 30 — index use makes i an int
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(aList[(int)i - 1], 4, 0)));
+        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(aList[Ix(i)], 4, 0)));
         // 1.50  int local / int literal
         HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str((decimal)(i) / 2, 8, 2)));
         // 3.50  int define / int literal

@@ -73,7 +73,7 @@ public static partial class Program
         HbRuntime.QOut("result=" + HbRuntime.LTrim(HbRuntime.Str(nResult)) + " " + cOut);
         for (i = 1; i <= (nLen = HbRuntime.Len(aList)); i++)
         {
-            cAll += aList[(int)i - 1];
+            cAll += aList[Ix(i)];
         }
 
         HbRuntime.QOut("all=" + cAll + " len=" + HbRuntime.LTrim(HbRuntime.Str(nLen)));

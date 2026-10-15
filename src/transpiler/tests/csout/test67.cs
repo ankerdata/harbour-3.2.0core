@@ -25,7 +25,7 @@ public static partial class Program
         long i = default;
         for (i = 1; i <= HbRuntime.Len(aArr); i++)
         {
-            aArr[(int)i - 1] = aArr[(int)i - 1] * nFactor;
+            aArr[Ix(i)] = aArr[Ix(i)] * nFactor;
         }
 
         return HbRuntime.Len(aArr);
@@ -43,10 +43,10 @@ public static partial class Program
         List<dynamic> aData = new List<dynamic> { 1, 2, 3 };
         // elided: aData[i] mutated in place
         Scale(aData, 10);
-        HbRuntime.QOut("scaled=" + HbRuntime.Str(aData[0], 4) + HbRuntime.Str(aData[1], 4) + HbRuntime.Str(aData[2], 4));
+        HbRuntime.QOut("scaled=" + HbRuntime.Str(aData[Ix(1)], 4) + HbRuntime.Str(aData[Ix(2)], 4) + HbRuntime.Str(aData[Ix(3)], 4));
         // ref kept: aData is repointed
         Replace(ref aData);
-        HbRuntime.QOut("replaced=" + HbRuntime.Str(aData[0], 4) + HbRuntime.Str(aData[1], 4) + HbRuntime.Str(aData[2], 4));
+        HbRuntime.QOut("replaced=" + HbRuntime.Str(aData[Ix(1)], 4) + HbRuntime.Str(aData[Ix(2)], 4) + HbRuntime.Str(aData[Ix(3)], 4));
         return;
     }
 }

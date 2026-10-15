@@ -50,7 +50,7 @@ public static partial class Program
         HbRuntime.QOut(cTrail);
 
         HbRuntime.ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return a < b; })));
-        HbRuntime.QOut(aNums[0], aNums[1], aNums[2]);
+        HbRuntime.QOut(aNums[Ix(1)], aNums[Ix(2)], aNums[Ix(3)]);
         HbRuntime.QOut(nCalls > 0);
 
         // a value that is only discarded; a value with no effect at all

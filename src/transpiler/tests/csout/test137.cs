@@ -114,7 +114,7 @@ public static partial class Program
 
         for (iPos = 1; iPos <= HbRuntime.Len(oTill137.aLines); iPos++)
         {
-            oLine = oTill137.aLines[(int)iPos - 1];
+            oLine = oTill137.aLines[Ix(iPos)];
             if (oLine.nKind == Test137PrgConst.KIND_ITEM)
             {
                 HbRuntime.QOut(Describe137((ItemLine137)oLine), Price137((ItemLine137)oLine), Qty137(oLine));
@@ -147,7 +147,7 @@ public static partial class Program
     }
     public static ItemLine137 ItemAt137(Till137 oTill137 = default, long iPos = default)
     {
-        Line137 oLine = oTill137.aLines[(int)iPos - 1];
+        Line137 oLine = oTill137.aLines[Ix(iPos)];
         return (ItemLine137)oLine;
     }
 }

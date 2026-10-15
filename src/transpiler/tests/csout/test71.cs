@@ -57,10 +57,10 @@ public static partial class Program
 
         /* aArr[1] — value-in only: aArr[1] must still read "beta,two" after */
         {
-            string _hbref_aArr_0 = aArr[0];
+            string _hbref_aArr_0 = aArr[Ix(1)];
             cTaken = Consume(ref _hbref_aArr_0, ",");
         }
-        HbRuntime.QOut(" elem  in=beta,two   out=" + aArr[0] + "  took=" + cTaken);
+        HbRuntime.QOut(" elem  in=beta,two   out=" + aArr[Ix(1)] + "  took=" + cTaken);
 
         /* oObj["cField"] — value-in only: the hash entry stays "gamma,three" */
         {

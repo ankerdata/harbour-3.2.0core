@@ -20,6 +20,31 @@ public static partial class HbRuntime
     // a second variable never saw the change. The functions read any
     // IList, so a typed List<T> can be a Harbour array too.
 
+    // Ix( <nIndex> ): a Harbour array subscript, 1-based, as the List's
+    // 0-based int. The emitter writes every array subscript through it,
+    // `aLine[Ix(i)]`, `aCSV[Ix(19)]`, so the Harbour index stays readable
+    // where `[(int)(i) - 1]` and a literal decremented in place did not.
+    // An index below 1 is Harbour's bound error, reported with the index
+    // given, not the -1 the List would report. A fraction is an error too:
+    // the (int) cast truncated it silently, and so does Harbour, a bug
+    // neither side reported. An int converts to long on its own, so the
+    // two overloads cover every number the C# holds.
+    public static int Ix(long iIndex)
+    {
+        if (iIndex < 1)
+            throw new ArgumentOutOfRangeException(nameof(iIndex), iIndex,
+                "Bound error: array index " + iIndex.ToString(CultureInfo.InvariantCulture) + ", the first is 1");
+        return (int)(iIndex - 1);
+    }
+
+    public static int Ix(decimal nIndex)
+    {
+        if (nIndex != Math.Truncate(nIndex))
+            throw new ArgumentOutOfRangeException(nameof(nIndex), nIndex,
+                "Bound error: array index " + nIndex.ToString(CultureInfo.InvariantCulture) + " has a fraction");
+        return Ix((long)nIndex);
+    }
+
     // Array( <nElements> [, <nElements>...] ): an array of NIL with one
     // more dimension for each argument — Array( 2, 3 ) is two arrays of
     // three (vm/arrayshb.c, hb_arrayNewRagged). No argument gives NIL; a

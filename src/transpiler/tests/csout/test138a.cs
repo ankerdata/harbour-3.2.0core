@@ -28,7 +28,7 @@ public static partial class Program
 {
     public static decimal FirstTotal138(Till138 oTill138 = default)
     {
-        Line138 oLine = oTill138.aLines[0];
+        Line138 oLine = oTill138.aLines[Ix(1)];
         return Amount138((PrintLine138)oLine);
 
         // later callers pass subclasses
@@ -51,9 +51,9 @@ public static partial class Program
         long iPos = default;
         for (iPos = 1; iPos <= HbRuntime.Len(oTill138.aLines); iPos++)
         {
-            if (((Line138)oTill138.aLines[(int)iPos - 1]).nKind != 0)
+            if (((Line138)oTill138.aLines[Ix(iPos)]).nKind != 0)
             {
-                nTotal += oTill138.aLines[(int)iPos - 1].nValue;
+                nTotal += oTill138.aLines[Ix(iPos)].nValue;
             }
         }
 

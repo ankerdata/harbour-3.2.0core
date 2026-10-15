@@ -29,27 +29,27 @@ public static partial class Program
         SaleBuffer oBuf = new SaleBuffer();
 
         HbRuntime.hb_ADel(aNums, 2, true);
-        HbRuntime.QOut(HbRuntime.Len(aNums), aNums[1]);
+        HbRuntime.QOut(HbRuntime.Len(aNums), aNums[Ix(2)]);
         HbRuntime.hb_AIns(aNums, 1, 9, true);
-        HbRuntime.QOut(HbRuntime.Len(aNums), aNums[0], aNums[3]);
+        HbRuntime.QOut(HbRuntime.Len(aNums), aNums[Ix(1)], aNums[Ix(4)]);
         HbRuntime.hb_ADel(aNums, 1);
-        HbRuntime.QOut(HbRuntime.Len(aNums), HbRuntime.ValType(aNums[3]));
+        HbRuntime.QOut(HbRuntime.Len(aNums), HbRuntime.ValType(aNums[Ix(4)]));
 
         oBuf.aLines = new List<dynamic> { "a", "b", "c" };
         HbRuntime.hb_AIns(oBuf.aLines, 2, "x", true);
-        HbRuntime.QOut(HbRuntime.Len(oBuf.aLines), oBuf.aLines[1], oBuf.aLines[3]);
+        HbRuntime.QOut(HbRuntime.Len(oBuf.aLines), oBuf.aLines[Ix(2)], oBuf.aLines[Ix(4)]);
         HbRuntime.hb_ADel(oBuf.aLines, 1, true);
-        HbRuntime.QOut(HbRuntime.Len(oBuf.aLines), oBuf.aLines[0]);
+        HbRuntime.QOut(HbRuntime.Len(oBuf.aLines), oBuf.aLines[Ix(1)]);
 
         oBuf.xQueue = new List<dynamic> { 10, 20 };
         HbRuntime.hb_ADel(oBuf.xQueue, 1, true);
-        HbRuntime.QOut(HbRuntime.Len(oBuf.xQueue), oBuf.xQueue[0]);
+        HbRuntime.QOut(HbRuntime.Len(oBuf.xQueue), oBuf.xQueue[Ix(1)]);
         HbRuntime.hb_AIns(oBuf.xQueue, 2, 30, true);
-        HbRuntime.QOut(HbRuntime.Len(oBuf.xQueue), oBuf.xQueue[1]);
+        HbRuntime.QOut(HbRuntime.Len(oBuf.xQueue), oBuf.xQueue[Ix(2)]);
 
         aNums = new List<dynamic> { 5, 6, 7 };
         BufferTrim(aNums);
-        HbRuntime.QOut(HbRuntime.Len(aNums), aNums[0]);
+        HbRuntime.QOut(HbRuntime.Len(aNums), aNums[Ix(1)]);
 
         return;
     }

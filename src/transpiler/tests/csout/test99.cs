@@ -39,7 +39,7 @@ public class Bin : IHbObject
 
     public virtual dynamic Last()
     {
-        return aItems[(int)(HbRuntime.Len(aItems)) - 1];
+        return aItems[Ix(HbRuntime.Len(aItems))];
     }
 
     public virtual decimal Heft()

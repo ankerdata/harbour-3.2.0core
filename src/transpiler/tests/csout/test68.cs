@@ -20,18 +20,18 @@ public static partial class Program
     public static dynamic MinMax(List<dynamic> aData, ref dynamic xLo, ref dynamic xHi)
     {
         long i = default;
-        xLo = aData[0];
-        xHi = aData[0];
+        xLo = aData[Ix(1)];
+        xHi = aData[Ix(1)];
         for (i = 2; i <= HbRuntime.Len(aData); i++)
         {
-            if (aData[(int)i - 1] < xLo)
+            if (aData[Ix(i)] < xLo)
             {
-                xLo = aData[(int)i - 1];
+                xLo = aData[Ix(i)];
             }
 
-            if (aData[(int)i - 1] > xHi)
+            if (aData[Ix(i)] > xHi)
             {
-                xHi = aData[(int)i - 1];
+                xHi = aData[Ix(i)];
             }
         }
 

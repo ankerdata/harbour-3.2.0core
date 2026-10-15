@@ -24,7 +24,7 @@ public static partial class Program
         // Use cMemberName inside a FOR-loop body first (nested scope).
         for (i = 1; i <= HbRuntime.Len(aFields); i++)
         {
-            cMemberName = aFields[(int)i - 1];
+            cMemberName = aFields[Ix(i)];
             cAccum += "[" + cMemberName + "]";
         }
 

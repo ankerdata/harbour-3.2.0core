@@ -54,7 +54,7 @@ public static partial class Program
         HbRuntime.QOut("len=", HbRuntime.Len(aData));
         if (HbRuntime.Len(aData) >= 3)
         {
-            HbRuntime.QOut("vals=", aData[0] + aData[1] + aData[2]);
+            HbRuntime.QOut("vals=", aData[Ix(1)] + aData[Ix(2)] + aData[Ix(3)]);
         }
 
         return;

@@ -50,7 +50,7 @@ public static partial class Program
         // Nested FOR with EXIT
         for (i = 1; i <= HbRuntime.Len(aItems); i++)
         {
-            if (aItems[(int)i - 1] == cTarget)
+            if (aItems[Ix(i)] == cTarget)
             {
                 nPos = i;
                 HbRuntime.QOut("nPos=" + HbRuntime.Str(nPos));

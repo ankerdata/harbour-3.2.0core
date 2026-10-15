@@ -51,7 +51,7 @@ public static partial class Program
 
         // an element of the declared array: x is a Parcel141, the result bool
         nPos = HbRuntime.AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
-        HbRuntime.QOut(nPos, ((Parcel141)aParcels[(int)(nPos) - 1]).cLabel);
+        HbRuntime.QOut(nPos, ((Parcel141)aParcels[Ix(nPos)]).cLabel);
 
         // ASort's two parameters, both elements
         HbRuntime.ASort(aParcels, null, null, ((Func<Parcel141, Parcel141, bool>)((x, y) => x.nWeight < y.nWeight)));

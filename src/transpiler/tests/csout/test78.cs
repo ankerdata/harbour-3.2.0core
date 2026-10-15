@@ -27,16 +27,16 @@ public static partial class Program
 
         for (i = 1; i <= HbRuntime.Len(aItems); i++)
         {
-            HbRuntime.QOut("i=", aItems[(int)i - 1]);
+            HbRuntime.QOut("i=", aItems[Ix(i)]);
         }
 
         // integral arithmetic keeps int
         nIdx = nIdx + 2;
-        HbRuntime.QOut("a=", aItems[(int)nIdx - 1]);
-        HbRuntime.QOut("b=", aItems[(int)nLast - 1]);
+        HbRuntime.QOut("a=", aItems[Ix(nIdx)]);
+        HbRuntime.QOut("b=", aItems[Ix(nLast)]);
         // decimal index — cast path
-        HbRuntime.QOut("c=", aItems[(int)(nHalf) - 1]);
-        HbRuntime.QOut("d=", aItems[(int)(FirstReal(aItems)) - 1]);
+        HbRuntime.QOut("c=", aItems[Ix(nHalf)]);
+        HbRuntime.QOut("d=", aItems[Ix(FirstReal(aItems))]);
         // int widens into decimal math
         HbRuntime.QOut("e=", HbRuntime.Str(nIdx * 1.5m, 6, 1));
         // (explicit width: Harbour's
@@ -52,7 +52,7 @@ public static partial class Program
     {
         long nPos = 1;
 
-        while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[(int)nPos - 1]))
+        while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[Ix(nPos)]))
         {
             nPos = nPos + 1;
         }

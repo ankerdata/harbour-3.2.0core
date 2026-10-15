@@ -24,14 +24,14 @@ public class Shelf123 : IHbObject
     public OrderedDictionary<string, dynamic> hTags123;
     public decimal nPos123;
 
-    public dynamic First123() => aSlots123[0];
-    public dynamic Last123() => aSlots123[(int)(HbRuntime.Len(aSlots123)) - 1];
-    public dynamic At123(dynamic nAt = default) => aSlots123[(int)(nAt) - 1];
-    public dynamic Current123() => aSlots123[(int)(nPos123) - 1];
-    public dynamic Cell123(dynamic nRow = default, dynamic nCol = default) => aGrid123[(int)(nRow) - 1][(int)(nCol) - 1];
+    public dynamic First123() => aSlots123[Ix(1)];
+    public dynamic Last123() => aSlots123[Ix(HbRuntime.Len(aSlots123))];
+    public dynamic At123(dynamic nAt = default) => aSlots123[Ix(nAt)];
+    public dynamic Current123() => aSlots123[Ix(nPos123)];
+    public dynamic Cell123(dynamic nRow = default, dynamic nCol = default) => aGrid123[Ix(nRow)][Ix(nCol)];
     public dynamic Tag123(dynamic cKey = default) => hTags123[cKey];
     public dynamic Red123() => hTags123["red"];
-    public dynamic Put123(dynamic nAt = default, dynamic cVal = default) => aSlots123[(int)(nAt) - 1] = cVal;
+    public dynamic Put123(dynamic nAt = default, dynamic cVal = default) => aSlots123[Ix(nAt)] = cVal;
     public virtual Shelf123 Fill123()
     {
         aSlots123 = new List<dynamic> { "first", "second", "third" };

@@ -46,27 +46,27 @@ public static partial class Program
         dynamic x = default;
 
         // an element grows in place
-        HbRuntime.AAdd(aRows125[0], "a");
-        HbRuntime.AAdd(aRows125[0], "b");
-        HbRuntime.QOut(HbRuntime.Len(aRows125[0]), aRows125[0][1]);
-        HbRuntime.hb_AIns(aRows125[0], 1, "z", true);
-        HbRuntime.QOut(HbRuntime.Len(aRows125[0]), aRows125[0][0]);
+        HbRuntime.AAdd(aRows125[Ix(1)], "a");
+        HbRuntime.AAdd(aRows125[Ix(1)], "b");
+        HbRuntime.QOut(HbRuntime.Len(aRows125[Ix(1)]), aRows125[Ix(1)][Ix(2)]);
+        HbRuntime.hb_AIns(aRows125[Ix(1)], 1, "z", true);
+        HbRuntime.QOut(HbRuntime.Len(aRows125[Ix(1)]), aRows125[Ix(1)][Ix(1)]);
 
         // a second holder sees the change, whoever makes it
-        aAlias125 = aRows125[1];
-        HbRuntime.ASize(aRows125[1], 3);
+        aAlias125 = aRows125[Ix(2)];
+        HbRuntime.ASize(aRows125[Ix(2)], 3);
         HbRuntime.QOut(HbRuntime.Len(aAlias125));
         test125_AddTwice125(aAlias125);
-        HbRuntime.QOut(HbRuntime.Len(aRows125[1]), aRows125[1][4]);
+        HbRuntime.QOut(HbRuntime.Len(aRows125[Ix(2)]), aRows125[Ix(2)][Ix(5)]);
         HbRuntime.hb_ADel(aAlias125, 1, true);
-        HbRuntime.QOut(HbRuntime.Len(aRows125[1]));
+        HbRuntime.QOut(HbRuntime.Len(aRows125[Ix(2)]));
 
         // a member
         HbRuntime.AAdd(oStock125.aItems125, "first");
-        HbRuntime.QOut(HbRuntime.Len(oStock125.aItems125), oStock125.aItems125[0]);
+        HbRuntime.QOut(HbRuntime.Len(oStock125.aItems125), oStock125.aItems125[Ix(1)]);
 
         // every dimension of Array()
-        HbRuntime.QOut(HbRuntime.Len(aGrid125), HbRuntime.Len(aGrid125[1]), HbRuntime.ValType(aGrid125[1][2]));
+        HbRuntime.QOut(HbRuntime.Len(aGrid125), HbRuntime.Len(aGrid125[Ix(2)]), HbRuntime.ValType(aGrid125[Ix(2)][Ix(3)]));
 
         // FOR EACH sees an element its body adds
         foreach (dynamic __hb_fe_x in HbRuntime.HbEnumValues(aSeen125))
@@ -78,7 +78,7 @@ public static partial class Program
             }
         }
 
-        HbRuntime.QOut(HbRuntime.Len(aSeen125), aSeen125[4]);
+        HbRuntime.QOut(HbRuntime.Len(aSeen125), aSeen125[Ix(5)]);
 
         return;
     }

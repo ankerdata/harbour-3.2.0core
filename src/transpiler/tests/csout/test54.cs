@@ -26,7 +26,7 @@ public static partial class Program
 
         /* The headline case: `!` over a comparison whose left side is
       itself a binary op. Three-level nesting. */
-        if (!(cPath + aFile[0] == cZipFile))
+        if (!(cPath + aFile[Ix(1)] == cZipFile))
         {
             HbRuntime.QOut("different");
         }

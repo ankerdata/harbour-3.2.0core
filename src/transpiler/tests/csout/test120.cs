@@ -34,7 +34,7 @@ public static partial class Program
         HbRuntime.QOut("count:", iCount, iLen);
 
         iWhole = (long)(HbRuntime.Int(nPrice * 1.2m));
-        HbRuntime.QOut("whole:", iWhole, aItems[(int)iWhole - 1]);
+        HbRuntime.QOut("whole:", iWhole, aItems[Ix(iWhole)]);
 
         iWhole = (long)(HbRuntime.Round(nPrice, 0) + iLen);
         HbRuntime.QOut("rounded:", iWhole);

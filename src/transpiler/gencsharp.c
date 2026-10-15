@@ -2748,7 +2748,7 @@ static const char * hb_csScopeStr( int iScope )
      ::name       → this.name          (Self:member shorthand)
      :=           → =                  (Harbour assignment)
      .T./.t./.F./.f. → true/false      (logical literals, word-bounded)
-     a[ n ]       → a[(int)(n) - 1]    (an array subscript, rebased)
+     a[ n ]       → a[Ix(n)]           (an array subscript, rebased)
    Anything else passes through. The result is C# source; the caller
    decides between expression-body (`=> expr`) and block-body (for
    sequence expressions with top-level commas — this helper does not
@@ -3334,10 +3334,10 @@ static const char * hb_csTranslateInline( const char * szVal,
          continue;
       }
       /* `recv[ idx ]`: rebased as the AST emitter rebases a subscript
-         (HB_ET_ARRAYAT). An array's 1-based index becomes the List's
-         0-based int (an integer literal decremented where it stands); a
-         hash's key passes as it is, a numeric-keyed hash's cast to long.
-         The `]` that closes it is rewritten through aSub. */
+         (HB_ET_ARRAYAT). An array's 1-based index goes through Ix(),
+         an integer literal with its source value; a hash's key passes
+         as it is, a numeric-keyed hash's cast to long. The `]` that
+         closes it is rewritten through aSub. */
       if( p[ nIn ] == '[' )
       {
          HB_SIZE nClose = 0;
@@ -3361,8 +3361,8 @@ static const char * hb_csTranslateInline( const char * szVal,
                   memcpy( szNum, p + i, nD - i );
                   szNum[ nD - i ] = '\0';
                   nOut += hb_snprintf( s_szBuf + nOut, sizeof( s_szBuf ) - nOut,
-                                       "[%" HB_PF64 "d]",
-                                       ( HB_I64 ) atoll( szNum ) - 1 );
+                                       "[Ix(%" HB_PF64 "d)]",
+                                       ( HB_I64 ) atoll( szNum ) );
                   nIn = nClose;
                   continue;
                }
@@ -3371,7 +3371,7 @@ static const char * hb_csTranslateInline( const char * szVal,
          if( ( iKind == 3 || iKind == 2 ) &&
              iSubTop < ( int ) HB_SIZEOFARRAY( aSub ) - 1 )
          {
-            const char * szOpen = iKind == 3 ? "[(int)(" : "[(long)(";
+            const char * szOpen = iKind == 3 ? "[Ix(" : "[(long)(";
             HB_SIZE nL = strlen( szOpen );
             memcpy( s_szBuf + nOut, szOpen, nL );
             nOut += nL;
@@ -3384,7 +3384,7 @@ static const char * hb_csTranslateInline( const char * szVal,
       }
       if( p[ nIn ] == ']' && iSubTop >= 0 && iDepth == aSub[ iSubTop ].depth )
       {
-         const char * szClose = aSub[ iSubTop ].fArray ? ") - 1]" : ")]";
+         const char * szClose = ")]";   /* Ix( … ) and (long)( … ) alike */
          HB_SIZE nL = strlen( szClose );
          memcpy( s_szBuf + nOut, szClose, nL );
          nOut += nL;
@@ -5572,31 +5572,26 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                hb_csEmitExpr( pIdx, yyc, HB_FALSE );
                fprintf( yyc, "]" );
             }
-            /* Integer literal index — emit decremented value directly */
+            /* An array's 1-based subscript goes through HbRuntime's
+               Ix(), which answers the List's 0-based int and throws on
+               an index below 1 or with a fraction. A literal keeps its
+               source value (`aCSV[Ix(19)]` for the .prg's `aCSV[19]`);
+               until 2026-10-15 it was decremented where it stood and
+               anything else was `[(int)(…) - 1]`, which truncated a
+               fraction silently, reported Harbour's index 0 as C#'s -1
+               and cut the link between the C# and the source line
+               (easipos-transpiled's plan, D30). */
             else if( pIdx &&
                      pIdx->ExprType == HB_ET_NUMERIC &&
                      pIdx->value.asNum.NumType == HB_ET_LONG )
             {
-               fprintf( yyc, "[%" HB_PF64 "d]",
-                        pIdx->value.asNum.val.l - 1 );
+               fprintf( yyc, "[Ix(%" HB_PF64 "d)]", pIdx->value.asNum.val.l );
             }
-            /* INTEGER-typed variable index (Pass 2.5 int candidacy): a
-               C# long, cast without parentheses. */
-            else if( pIdx && pIdx->ExprType == HB_ET_VARIABLE &&
-                     hb_csLocalTypeGet( pIdx->value.asSymbol.name ) &&
-                     hb_stricmp( hb_csLocalTypeGet(
-                                    pIdx->value.asSymbol.name ),
-                                 "INTEGER" ) == 0 )
-            {
-               fprintf( yyc, "[(int)%s - 1]", pIdx->value.asSymbol.name );
-            }
-            /* Variable or expression index — cast and subtract at runtime
-               (a List<dynamic>'s indexer takes an int) */
             else
             {
-               fprintf( yyc, "[(int)(" );
+               fprintf( yyc, "[Ix(" );
                hb_csEmitExpr( pIdx, yyc, HB_FALSE );
-               fprintf( yyc, ") - 1]" );
+               fprintf( yyc, ")]" );
             }
          }
          break;

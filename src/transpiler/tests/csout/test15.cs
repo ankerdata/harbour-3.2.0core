@@ -25,12 +25,12 @@ public static partial class Program
         string cSub = default;
 
         // Array subscript access
-        nTotal = aNumbers[0] + aNumbers[2] + aNumbers[4];
+        nTotal = aNumbers[Ix(1)] + aNumbers[Ix(3)] + aNumbers[Ix(5)];
         HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
 
         // Array subscript assignment
-        aNumbers[1] = 99;
-        HbRuntime.QOut("aNumbers[2]=" + HbRuntime.Str(aNumbers[1]));
+        aNumbers[Ix(2)] = 99;
+        HbRuntime.QOut("aNumbers[2]=" + HbRuntime.Str(aNumbers[Ix(2)]));
 
         // Array length
         nLen = HbRuntime.Len(aNumbers);
@@ -40,7 +40,7 @@ public static partial class Program
         nTotal = 0;
         for (i = 1; i <= HbRuntime.Len(aNumbers); i++)
         {
-            nTotal += aNumbers[(int)i - 1];
+            nTotal += aNumbers[Ix(i)];
         }
 
         HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
@@ -56,7 +56,7 @@ public static partial class Program
         HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
 
         // Nested array access
-        nTotal = aMatrix[1][0];
+        nTotal = aMatrix[Ix(2)][Ix(1)];
         HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
 
         // Hash access

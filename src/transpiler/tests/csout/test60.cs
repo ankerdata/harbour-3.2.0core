@@ -31,7 +31,7 @@ public static partial class Program
         cOut = "";
         for (i = 1; i <= HbRuntime.Len(aNums); i++)
         {
-            cOut += HbRuntime.LTrim(HbRuntime.Str(aNums[(int)i - 1]));
+            cOut += HbRuntime.LTrim(HbRuntime.Str(aNums[Ix(i)]));
         }
 
         HbRuntime.QOut("sorted=" + cOut);
