@@ -33,7 +33,14 @@ test always runs. --full rebuilds everything: the occasional sweep, and
 the answer to a changed Harbour or .NET toolchain, which the
 incremental checks cannot see.
 
-Usage: runsuite.py [all|gen|prg|cs|run] [--full]
+--test testNNN[,testNNN...] runs the stages for those tests alone (a
+pair member, test45a, names its pair): gen keeps the shared reftab and
+scans, round-trips and emits only their files, so a change to the named
+test is seen in seconds. Another test's output can change with it, since
+the reftab is shared, so the whole suite still runs once at the end of a
+change. Without a reftab yet, gen does the whole suite first.
+
+Usage: runsuite.py [all|gen|prg|cs|run] [--full] [--test testNNN[,...]]
 
 Environment:
   HBTRANSPILER  transpiler binary (default <root>/bin/hbtranspiler.exe)
@@ -118,7 +125,7 @@ def sources(name, ext, subdir):
 
 
 # --------------------------------------------------------------- gen ----
-def stage_gen():
+def stage_gen(only=None):
     """Reproduce runtests.sh, then buildcs.sh.
 
     runtests.sh clears hbreftab.tab, scans every source with -GF, then
@@ -126,7 +133,15 @@ def stage_gen():
     and emits -GS into csout/. Clearing before the -GS pass produces
     false diffs (test79 emits Animal vs dynamic), so both the order and
     the not-clearing matter.
+
+    With `only` (test names, --test) the reftab is kept and the passes
+    run over those tests' files alone: their rows replace what the last
+    whole-suite scan recorded for them, and the emit reads everything
+    else from that scan.
     """
+    if only and not os.path.isfile(REFTAB):
+        print("gen: no hbreftab.tab yet, the whole suite is scanned first")
+        only = None
     if not os.path.isfile(TRANSPILER):
         sys.exit("transpiler not found: %s (set HBTRANSPILER)" % TRANSPILER)
     # gendefines.py's own tests first: gen's defines map rests on its
@@ -140,7 +155,10 @@ def stage_gen():
     for d in (HBOUT, CSOUT):
         os.makedirs(d, exist_ok=True)
 
-    srcs = sorted(f for f in os.listdir(TESTS) if SRC_RE.match(f))
+    if only:
+        srcs = [os.path.basename(s) for n in only for s in sources(n, ".prg", ".")]
+    else:
+        srcs = sorted(f for f in os.listdir(TESTS) if SRC_RE.match(f))
     base = [TRANSPILER]
     if os.path.isfile(PRELOAD):
         base.append("--preload-list=" + PRELOAD)
@@ -161,13 +179,14 @@ def stage_gen():
             failed.append("   FAIL %-12s %s exit %d: %s"
                           % (src, mode, r.returncode, text[-1] if text else "(no output)"))
 
-    if os.path.isfile(REFTAB):
+    if not only and os.path.isfile(REFTAB):
         os.remove(REFTAB)
     for f in srcs:
         run(base + [f, "-GF", "-q"])
     for f in srcs:
         run(base + ["-o" + HBOUT + os.sep, f, "-GT"])
-    print("hbout/  regenerated (%d sources)" % len(srcs))
+    print("hbout/  regenerated (%s)" %
+          (", ".join(srcs) if only else "%d sources" % len(srcs)))
 
     for f in srcs:                    # deliberately NOT clearing the reftab
         run(base + [f, "-GF", "-q"])
@@ -190,7 +209,7 @@ def stage_gen():
         opts.append("--fieldtypes=" + ftypes)
     for f in srcs:
         run(base + opts + ["-o" + CSOUT + os.sep, f, "-GS", "-q"])
-    print("csout/  regenerated")
+    print("csout/  regenerated" + (" (%s)" % ", ".join(srcs) if only else ""))
     if failed:
         print("gen: %d transpiler run(s) failed" % len(failed))
         for line in failed:
@@ -480,15 +499,31 @@ def stage_run(names):
 def main():
     global FULL
     args = sys.argv[1:]
+    usage = "usage: runsuite.py [all|gen|prg|cs|run] [--full] [--test testNNN[,...]]"
     FULL = "--full" in args
     args = [a for a in args if a != "--full"]
+    only = None
+    if "--test" in args:
+        i = args.index("--test")
+        if i + 1 >= len(args):
+            sys.exit(usage)
+        every = test_names()
+        only = []
+        for w in args[i + 1].split(","):
+            w = w.strip()
+            n = w[:-1] if w in PAIRMEMBERS else w     # test45a names test45
+            if n not in every:
+                sys.exit("runsuite.py: no test named %s" % w)
+            if n not in only:
+                only.append(n)
+        del args[i:i + 2]
     stage = args[0] if args else "all"
     if stage not in ("all", "gen", "prg", "cs", "run") or len(args) > 1:
-        sys.exit("usage: runsuite.py [all|gen|prg|cs|run] [--full]")
+        sys.exit(usage)
     ok = True
     if stage in ("all", "gen"):
-        stage_gen()
-    names = test_names()
+        stage_gen(only)
+    names = only or test_names()
     if stage in ("all", "prg"):
         ok &= stage_prg(names)
     if stage in ("all", "cs"):

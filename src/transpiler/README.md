@@ -1569,6 +1569,10 @@ runtests.bat            rem gen + prg + cs + run
 runtests.bat gen        rem regenerate hbout/ and csout/ only
 runtests.bat prg|cs|run rem a single stage
 runtests.bat all --full rem rebuild every test, not only what changed
+runtests.bat all --test test151       rem one test (or test45a,test56): its files
+                                      rem scanned, emitted, built and run alone,
+                                      rem the shared reftab kept; the whole suite
+                                      rem once at the end of a change
 ```
 
 [`runtests.bat`](tests/runtests.bat) sets up `vcvarsall` and the
