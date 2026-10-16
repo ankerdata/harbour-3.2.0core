@@ -10251,7 +10251,9 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       functions defined in this file get overwritten. */
    s_pRefTab = hb_refTabNew();
    hb_refTabLoad( s_pRefTab, hb_refTabGetPath() );
-   /* the .NET classes the program reaches (--extern=) */
+   /* the runtime's own classes (hbclasses.tab) and the .NET classes the
+      program reaches (--extern=) */
+   hb_refTabLoadBuiltinClasses( s_pRefTab );
    if( hb_refTabGetExternPath() )
       hb_refTabLoadExtern( s_pRefTab, hb_refTabGetExternPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );

@@ -35,7 +35,7 @@ public static partial class Program
         OrderedDictionary<string, dynamic> hByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
         long iSlot = default;
         decimal nPos = HbRuntime.Val("2");
-        dynamic oError = default;
+        HbError oError = default;
         Shelf151 oShelf = new Shelf151();
 
         oShelf.aSlots = new List<dynamic> { "a", "b", "c" };

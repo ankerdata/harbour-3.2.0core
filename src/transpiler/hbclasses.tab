@@ -1,0 +1,26 @@
+# The runtime's own classes, as the --extern= table declares a .NET class
+# (README, "External .NET classes"): row flag X, the RETTYPE its C# type
+# name, then the members (`Class::member`, RETTYPE the member's type) and
+# the methods (`Class::Class__Method`). Loaded after the reftab by the
+# scan and the emitter, beside hbfuncs.tab, never saved. With a class
+# here the name rule types a variable that names it (`oError` is an
+# `Error`), a declaration can name it, and its members are typed.
+#
+# Error: Harbour's error object (ErrorNew(), a RECOVER USING variable,
+# the WITH block's parameter), HbRuntime's HbError (HbRuntime.Errors.cs).
+Error	X	HbError	0
+Error::severity	-	NUMERIC	0
+Error::genCode	-	NUMERIC	0
+Error::subSystem	-	STRING	0
+Error::subCode	-	NUMERIC	0
+Error::description	-	STRING	0
+Error::operation	-	STRING	0
+Error::fileName	-	STRING	0
+Error::osCode	-	NUMERIC	0
+Error::tries	-	NUMERIC	0
+Error::canRetry	-	LOGICAL	0
+Error::canDefault	-	LOGICAL	0
+Error::canSubstitute	-	LOGICAL	0
+Error::args	-	-	0
+Error::cargo	-	-	0
+Error::Error__classname	-	STRING	0

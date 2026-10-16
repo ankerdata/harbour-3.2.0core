@@ -210,7 +210,7 @@ public class HbError : HbDynamicObject
 
 public static partial class HbRuntime
 {
-    public static dynamic ErrorNew() => new HbError();
+    public static HbError ErrorNew() => new HbError();
 
     // ErrorBlock() is per thread, as Harbour's is (rtl/errapi.c keeps it
     // in thread-specific data); ErrorBlock( b ) sets it when b is a block

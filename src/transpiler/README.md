@@ -544,6 +544,18 @@ What creates the object is the program's: EasiPOS's easisi.prg creates
 it in a BEGINCSHARP block (`new EasiPos.EasiSI.EasiSI()`), its Harbour
 side keeping `win_oleCreateObject()`. tests/errors/extern_shim.prg.
 
+The runtime's own classes are declared the same way, in
+`hbclasses.tab` beside hbfuncs.tab, loaded with the `--extern=` table
+and never saved: Harbour's `Error` is HbRuntime's `HbError`, with its
+members typed (`subSystem` STRING, `subCode` NUMERIC, `description`,
+`operation`, `canRetry` LOGICAL, …). So `oError` is an `HbError` by its
+name wherever it appears (`ErrorNew()`, `RECOVER USING`, the WITH
+block's parameter, a codeblock's, an error routine's) and its member
+reads are typed (test152). The name is the way: Harbour's own `-w3`
+refuses `AS CLASS Error`, no such class being declared to its compiler
+(W0025). Until 2026-10-15 the scan knew no such class and every
+`oError` was `dynamic`.
+
 #### Scan pipeline
 
 `-GF` invokes [`hb_refTabCollect`](hbreftab.c) which runs three

@@ -17,7 +17,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic oError = HbRuntime.ErrorNew();
+        HbError oError = HbRuntime.ErrorNew();
 
         oError.severity = 3;
         oError.genCode = 42;

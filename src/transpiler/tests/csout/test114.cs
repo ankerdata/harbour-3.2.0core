@@ -18,7 +18,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic oError = default;
+        HbError oError = default;
         dynamic xGot = "unset";
         decimal nZero = 0;
         string cTrail = "";
@@ -163,9 +163,9 @@ public static partial class Program
         throw new HbBreak(xValue);
     }
 
-    public static dynamic test114_Brk114Udm()
+    public static HbError test114_Brk114Udm()
     {
-        dynamic oError = HbRuntime.ErrorNew();
+        HbError oError = HbRuntime.ErrorNew();
 
         oError.severity = 2;
         oError.subSystem = "UDMPRINT";

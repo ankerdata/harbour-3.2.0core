@@ -13,6 +13,7 @@
 #include "hbreftab.h"
 #include "hbfieldtypes.h"
 #include "hbdefinemap.h"
+#include "hbfunctab.h"        /* hb_funcTabSiblingPath: hbclasses.tab beside hbfuncs.tab */
 
 #define HB_REFTAB_BUCKETS  1024  /* power of two */
 #define HB_REFTAB_MAXPARAM 64    /* hard cap; matches the by-ref bitmap width */
@@ -1863,6 +1864,21 @@ HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath )
 
 HB_BOOL hb_refTabLoadExtern( PHB_REFTAB pTab, const char * szPath )
 {
+   return hb_refTabLoadFile( pTab, szPath, HB_TRUE );
+}
+
+/* The runtime's own classes: hbclasses.tab beside hbfuncs.tab, in the
+   --extern= table's format, loaded as that table is (rows marked
+   extern, never saved). Harbour's Error is HbRuntime's HbError, with its
+   members typed, so `oError` is typed by its name and `AS CLASS Error`
+   is a declaration like any other; before, the scan knew no such class
+   and every oError was dynamic (EasiPOS: 112 declarations). */
+HB_BOOL hb_refTabLoadBuiltinClasses( PHB_REFTAB pTab )
+{
+   char szPath[ HB_PATH_MAX ];
+
+   if( ! hb_funcTabSiblingPath( "hbclasses.tab", szPath, sizeof( szPath ) ) )
+      return HB_FALSE;
    return hb_refTabLoadFile( pTab, szPath, HB_TRUE );
 }
 

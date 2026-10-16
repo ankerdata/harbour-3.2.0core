@@ -24,6 +24,7 @@ typedef struct HB_FUNCENTRY_
 
 static PHB_FUNCENTRY s_buckets[ HB_FUNCTAB_BUCKETS ];
 static HB_BOOL       s_fLoaded = HB_FALSE;
+static char          s_szExeDir[ HB_PATH_MAX ] = "";   /* the binary's directory, for its siblings */
 
 /* ---- helpers ---- */
 
@@ -205,6 +206,33 @@ static void hb_funcTabRead( FILE * fp )
 
 /* ---- public API ---- */
 
+/* A file that lives beside hbfuncs.tab (hbclasses.tab, the runtime's own
+   classes): the same two places, the binary's bin/../src/transpiler/ and
+   then the current directory's. The path in szBuf when one opens, else
+   NULL. Only once hb_funcTabInit() has run, which records the binary's
+   directory. */
+const char * hb_funcTabSiblingPath( const char * szFile, char * szBuf, HB_SIZE nBuf )
+{
+   FILE * fp = NULL;
+
+   if( ! szFile || ! szBuf || nBuf == 0 )
+      return NULL;
+   if( s_szExeDir[ 0 ] )
+   {
+      hb_snprintf( szBuf, nBuf, "%s../src/transpiler/%s", s_szExeDir, szFile );
+      fp = hb_fopen( szBuf, "r" );
+   }
+   if( ! fp )
+   {
+      hb_snprintf( szBuf, nBuf, "src/transpiler/%s", szFile );
+      fp = hb_fopen( szBuf, "r" );
+   }
+   if( ! fp )
+      return NULL;
+   fclose( fp );
+   return szBuf;
+}
+
 /* The table lives in the checkout, not beside the binary, so it is
    found through the bin/ the binary was built into: the pipeline runs
    the transpiler by absolute path from easipos-transpiled, and any
@@ -229,6 +257,7 @@ HB_BOOL hb_funcTabInit( const char * szExePath )
 
       if( pExe->szPath )
       {
+         hb_strncpy( s_szExeDir, pExe->szPath, sizeof( s_szExeDir ) - 1 );
          hb_snprintf( szPath, sizeof( szPath ), "%s../%s",
                       pExe->szPath, HB_FUNCTAB_FILE );
          fp = hb_fopen( szPath, "r" );

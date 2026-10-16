@@ -28,6 +28,10 @@ HB_EXTERN_BEGIN
    stop, since an empty table would emit every core call unrouted. */
 extern HB_BOOL      hb_funcTabInit( const char * szExePath );
 
+/* The path of a file beside hbfuncs.tab (hbclasses.tab), found the same
+   way, in szBuf; NULL when it is in neither place. */
+extern const char * hb_funcTabSiblingPath( const char * szFile, char * szBuf, HB_SIZE nBuf );
+
 /* Returns the namespace prefix for szName (e.g., "HbRuntime"), or
    NULL if the function is not in the table or has no remap. */
 extern const char * hb_funcTabPrefix( const char * szName );

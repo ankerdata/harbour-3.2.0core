@@ -423,6 +423,10 @@ extern void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL );
 extern HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath );
 extern HB_BOOL hb_refTabLoad( PHB_REFTAB pTab, const char * szPath );
 extern HB_BOOL hb_refTabLoadExtern( PHB_REFTAB pTab, const char * szPath );
+/* The runtime's own classes, hbclasses.tab beside hbfuncs.tab, in the
+   --extern= table's format and loaded like it (never saved): Harbour's
+   Error as HbRuntime's HbError. HB_FALSE when the file is not found. */
+extern HB_BOOL hb_refTabLoadBuiltinClasses( PHB_REFTAB pTab );
 
 /* The C# type name of a class the --extern= table declares, or NULL for
    any other class (whose C# name is its own). */
