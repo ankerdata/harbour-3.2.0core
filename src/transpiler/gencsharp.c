@@ -2080,6 +2080,18 @@ static void hb_csBeginHoist( PHB_EXPR pCall, FILE * yyc, int iIndent )
                    iBase, szFunc );
    else
       hb_snprintf( s_szHoistVar, sizeof( s_szHoistVar ), "_hbcall_%s", szFunc );
+   {
+      /* A method's key is `Class::Class__Method`, and a file-static
+         function's `file::func`: the temporary must be an identifier
+         (`var _hbcall_EasiTSE::EasiTSE__FinishTender` was CS1001 the
+         first time a method send with a shim stood in an expression,
+         EasiPOS's fmde.prg; test154). */
+      char * p;
+      for( p = s_szHoistVar; *p; p++ )
+         if( ! ( ( *p >= 'A' && *p <= 'Z' ) || ( *p >= 'a' && *p <= 'z' ) ||
+                 ( *p >= '0' && *p <= '9' ) || *p == '_' ) )
+            *p = '_';
+   }
    fprintf( yyc, "var %s = ", s_szHoistVar );
    s_aRefShim   = aShim;
    s_iRefShimBase = iBase;
