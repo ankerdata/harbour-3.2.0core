@@ -1291,7 +1291,32 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember )
                             ? pMember->value.asClassData.szType
                             : hb_astInferType( szMember, NULL ) ), "long" ) == 0;
          }
-         return HB_FALSE;
+         break;   /* not this class's own: an ancestor's, if anyone's */
+      }
+   }
+   /* An inherited member. Its declaration is an ancestor's, often in
+      another file, so the reftab's Class::member rows carry its type
+      (the scan's hb_refTabSetReturnType), read up the INHERIT chain as
+      hb_csSendMemberIsInteger reads them for a typed receiver; a row
+      without a type is an undeclared member, whose name decides, as for
+      the class's own. Without this, TextTranLine's `::nType := nType`
+      (nType declared AS INTEGER by TranLine) got no cast and was CS0266
+      once the value was a decimal parameter (EasiPOS, plan C4,
+      2026-10-16; test153). */
+   if( s_pRefTab )
+   {
+      const char * szCls = s_szCurrentClass;
+      int iDepth;
+      for( iDepth = 0; szCls && iDepth < 16; iDepth++ )
+      {
+         const char * szKey = hb_refTabMethodKey( szCls, szMember );
+         const char * szMT = hb_refTabReturnType( s_pRefTab, szKey );
+         if( szMT )
+            return hb_stricmp( szMT, "INTEGER" ) == 0;
+         if( hb_refTabParamCount( s_pRefTab, szKey ) >= 0 )
+            return hb_stricmp( hb_csTypeMap(
+                      hb_astInferType( szMember, NULL ) ), "long" ) == 0;
+         szCls = hb_refTabClassParent( s_pRefTab, szCls );
       }
    }
    return HB_FALSE;

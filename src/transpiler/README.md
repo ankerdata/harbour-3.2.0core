@@ -1448,7 +1448,12 @@ like a function call, the send emitter parking the shim map across the
 receiver expression; an assignment whose target is a member or element
 (`oObj:cField := Func(@oObj:nField)`) is a statement block too, and a
 write-back into an `AS INTEGER` member takes the `(long)` coercion an
-ordinary assignment gets.
+ordinary assignment gets. The member's declaration is looked for up the
+INHERIT chain whichever way it is reached, through a typed receiver or
+through `::`, so a subclass writing a decimal into its parent's `AS
+INTEGER` member is coerced too (test153; until 2026-10-16 the `::` rule
+read the current class's own declarations only, and TextTranLine's
+`::nType := nType` was CS0266).
 
 #### Why not C# overloads?
 
