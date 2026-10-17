@@ -2962,6 +2962,11 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                      if( hb_refTabParamCount( pTab, szMKey ) < 0 )
                         hb_refTabAddFunc( pTab, szMKey, nP, nP ? apNames : NULL,
                                           NULL, HB_FALSE );
+                     /* `METHOD M() AS <type> INLINE ...`: the declared return
+                        is the row's, as a body's RETURN would have been */
+                     if( pMember->value.asClassMethod.szDeclType )
+                        hb_refTabSetReturnType( pTab, szMKey,
+                           hb_astDeclCanon( pTab, pMember->value.asClassMethod.szDeclType ) );
                      continue;
                   }
 

@@ -9582,6 +9582,10 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
             hb_csTranslateInline( pMember->value.asClassMethod.szInline,
                                   szParms );
          HB_BOOL      fBlock  = hb_csInlineHasTopLevelComma( szExpr );
+         /* `METHOD M() AS <type> INLINE ...` returns its declared type; an
+            undeclared one stays dynamic, its expression being text here */
+         const char * szRetCs = pMember->value.asClassMethod.szDeclType ?
+            hb_csTypeMap( hb_astDeclCanon( s_pRefTab, pMember->value.asClassMethod.szDeclType ) ) : "dynamic";
 
          if( pMember->value.asClassMethod.fMessageAlias &&
              ( ! szParms || ! *szParms ) )
@@ -9590,13 +9594,13 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                typed and dynamic receivers alike, so a property — a
                method group has no value on a dynamic receiver. */
             hb_csEmitIndent( yyc, 1 );
-            fprintf( yyc, "%s dynamic %s => %s;\n", szScope, szName, szExpr );
+            fprintf( yyc, "%s %s %s => %s;\n", szScope, szRetCs, szName, szExpr );
             pMember = pMember->pNext;
             continue;
          }
 
          hb_csEmitIndent( yyc, 1 );
-         fprintf( yyc, "%s dynamic %s(", szScope, szName );
+         fprintf( yyc, "%s %s %s(", szScope, szRetCs, szName );
          if( szParms && *szParms )
          {
             /* szParams is a comma-separated bare identifier list; emit
