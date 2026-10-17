@@ -2589,6 +2589,14 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
          const char * szT = hb_astInferExprType( pExpr, pEnv );
          return szT && hb_stricmp( szT, "INTEGER" ) == 0;
       }
+      case HB_ET_IIF:
+         /* as integral as its two branches, as the emitter casts it
+            (hb_csNeedsIntCast): `IIF( lSame, 0, oTransaction:iSaleCurrClkNo )` */
+         if( pExpr->value.asList.pExprList && pExpr->value.asList.pExprList->pNext &&
+             pExpr->value.asList.pExprList->pNext->pNext )
+            return hb_astExprIsIntegral( pExpr->value.asList.pExprList->pNext, pEnv, NULL ) &&
+                   hb_astExprIsIntegral( pExpr->value.asList.pExprList->pNext->pNext, pEnv, NULL );
+         return HB_FALSE;
       default:
          return HB_FALSE;
    }
