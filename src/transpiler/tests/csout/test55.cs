@@ -19,7 +19,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         string cStr = "Hello World";
-        OrderedDictionary<string, dynamic> hData = new OrderedDictionary<string, dynamic> { { "Alpha", 1 }, { "Beta", 2 } };
+        OrderedDictionary<string, dynamic> hData = new OrderedDictionary<string, dynamic>
+        {
+            { "Alpha", 1 },
+            { "Beta", 2 }
+        };
 
         HbRuntime.QOut("sub_hit=" + (HbRuntime.HbIn("World", cStr) ? "Y" : "N"));
         HbRuntime.QOut("sub_miss=" + (HbRuntime.HbIn("xyz", cStr) ? "Y" : "N"));

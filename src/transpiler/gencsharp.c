@@ -220,6 +220,12 @@ static int s_iExprIndent = 0;
    pointed at the declared variable's key type around decl-init
    emission (see HB_ET_HASH). Default string. */
 static const char * s_szHashKeyCs = "string";
+/* The type a `{ … }` literal must take (plan C12): a record (`new X( … )`)
+   or a FIXED array (`new X[] { … }`), set by the emitter of a declared
+   slot — a local's or a static's initialiser, an assignment, a RETURN, an
+   argument — for a literal only (hb_csExpectLiteral), read and cleared by
+   HB_ET_ARRAY, which sets it again for each element that is a literal. */
+static const char * s_szLiteralHbType = NULL;
 
 static const char * hb_csHashKeyCsFor( const char * szType )
 {
@@ -323,6 +329,9 @@ static HB_BOOL hb_csMemberIsInteger( const char * szMember );
        int); / and ^ excluded — they emit decimal-producing forms. */
 static const char * hb_csExprCsType( PHB_EXPR pExpr );
 static const char * hb_csExprElemType( PHB_EXPR pArr );
+static const char * hb_csExprHbType( PHB_EXPR pExpr );
+static HB_BOOL hb_csIsRecordType( const char * szType );
+static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr );
 static HB_BOOL hb_csCsTypeIs( const char * szCs, const char * szWant );
 
 static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
@@ -2639,6 +2648,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                const char * szDown = hb_csDowncastTo( pP->szType, pArg );
                if( szDown )
                   fprintf( yyc, "(%s)", szDown );
+               hb_csExpectLiteral( pP->szType, pArg );
             }
          }
          /* A block AScan / AEval / ASort hands each element to: its first
@@ -2659,6 +2669,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                s_nCbElemParams = s_szCbElemType ? nElem : 0;
             }
          }
+         /* AAdd( a, { … } ), AFill( a, { … } ), hb_AIns( a, n, { … } ): the
+            value goes into the array, so a literal takes the array's
+            element type (a record's constructor, plan C12) */
+         if( szFunc && pHead != pArg && pArg->ExprType == HB_ET_ARRAY &&
+             ( ( iPos == 1 && ( hb_stricmp( szFunc, "AAdd" ) == 0 ||
+                                hb_stricmp( szFunc, "AFill" ) == 0 ) ) ||
+               ( iPos == 2 && hb_stricmp( szFunc, "hb_AIns" ) == 0 ) ) )
+            hb_csExpectLiteral( hb_csExprElemType( pHead ), pArg );
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
          s_szCbElemType = NULL;
          s_nCbElemParams = 0;
@@ -2705,6 +2723,17 @@ static const char * hb_csTypeMap( const char * szHbType )
          `oX` parameters work without the reftab having to refine
          every slot to a concrete class. */
       return "dynamic";
+   if( hb_astIsFixedType( szHbType ) )
+   {
+      /* FIXED<T> (plan C12): an array that never grows or shrinks, so a C#
+         array of its element type, a record's class or a scalar's */
+      static char s_aFixed[ 4 ][ 160 ];
+      static int  s_iFixed = 0;
+      char * szBuf = s_aFixed[ s_iFixed++ & 3 ];
+      hb_snprintf( szBuf, sizeof( s_aFixed[ 0 ] ), "%s[]",
+                   hb_csTypeMap( hb_astArrayElemType( szHbType ) ) );
+      return szBuf;
+   }
    if( hb_astIsArrayType( szHbType ) )
       /* ARRAY, and ARRAY<T> (a declared element type, which only types
          the reads: hb_csExprElemType). One object every holder shares, grown in place by AAdd() and
@@ -4144,36 +4173,113 @@ static const char * hb_csFuncHbType( const char * szFn )
    return szRet ? szRet : hb_funcTabReturnType( szFn );
 }
 
-/* T, when pArr is a declared array (ARRAY<T>, `AS ARRAY OF …`): a
-   variable, a member, a call. Harbour's type name; NULL otherwise. */
-static const char * hb_csExprElemType( PHB_EXPR pArr )
+/* The Harbour type of an expression that holds an array or a record: a
+   variable's, a member's, a call's, or an element's — of a declared array
+   its element type, of a record by a constant subscript its field's type
+   (plan C12). NULL when nothing says. */
+static const char * hb_csExprHbType( PHB_EXPR pExpr )
 {
-   const char * szHb = NULL;
-   if( ! pArr )
+   if( ! pExpr )
       return NULL;
-   switch( pArr->ExprType )
+   switch( pExpr->ExprType )
    {
       case HB_ET_VARIABLE:
       case HB_ET_VARREF:
-         szHb = hb_csArgVarType( pArr->value.asSymbol.name );
-         break;
+         return hb_csArgVarType( pExpr->value.asSymbol.name );
       case HB_ET_ALIASVAR:   /* a file static read in a body (MEMVAR->name) */
-         if( pArr->value.asAlias.pVar &&
-             pArr->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
-            szHb = hb_csArgVarType( pArr->value.asAlias.pVar->value.asSymbol.name );
-         break;
+         if( pExpr->value.asAlias.pVar &&
+             pExpr->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+            return hb_csArgVarType( pExpr->value.asAlias.pVar->value.asSymbol.name );
+         return NULL;
       case HB_ET_SEND:
-         szHb = hb_csSendHbType( pArr );
-         break;
+         return hb_csSendHbType( pExpr );
       case HB_ET_FUNCALL:
-         if( pArr->value.asFunCall.pFunName &&
-             pArr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
-            szHb = hb_csFuncHbType( pArr->value.asFunCall.pFunName->value.asSymbol.name );
-         break;
+         if( pExpr->value.asFunCall.pFunName &&
+             pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+            return hb_csFuncHbType( pExpr->value.asFunCall.pFunName->value.asSymbol.name );
+         return NULL;
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+         if( pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+            return hb_csExprHbType( pExpr->value.asList.pExprList );
+         return NULL;
+      case HB_ET_ARRAYAT:
+      {
+         const char * szBase = hb_csExprHbType( pExpr->value.asList.pExprList );
+         if( hb_csIsRecordType( szBase ) )
+         {
+            long l = hb_astConstIndex( pExpr->value.asList.pIndex );
+            const HB_REFPARAM * pP = l > 0 ?
+               hb_refTabParam( s_pRefTab, szBase, ( int ) l - 1 ) : NULL;
+            return pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 ?
+                   pP->szType : NULL;
+         }
+         return hb_astArrayElemType( szBase );
+      }
       default:
-         break;
+         return NULL;
    }
-   return hb_astArrayElemType( szHb );
+}
+
+/* a record's name (plan C12): a class the reftab flags R */
+static HB_BOOL hb_csIsRecordType( const char * szType )
+{
+   return szType && s_pRefTab && ! hb_astIsArrayType( szType ) &&
+          hb_refTabIsRecord( s_pRefTab, szType );
+}
+
+/* The type a literal about to be emitted must take (s_szLiteralHbType):
+   set for a `{ … }` literal going into a record or a declared array,
+   cleared for anything else, so no other expression's literal takes it */
+static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr )
+{
+   while( pExpr && ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   s_szLiteralHbType = pExpr && pExpr->ExprType == HB_ET_ARRAY && szHbType &&
+                       ( hb_astArrayElemType( szHbType ) || hb_csIsRecordType( szHbType ) ) ?
+                       szHbType : NULL;
+}
+
+/* The elements of a `{ … }` literal, each under its own expected type (a
+   record's field at its position, a declared array's element type):
+   inline (`a, b, c`) when iInd is 0, else one per line at iInd spaces with
+   a comma after each but the last, which gets no newline, so the caller
+   closes a record's `)` on its line and an array's `}` under them. A
+   nested literal lines its own elements up one level deeper, as a hash's
+   values do (HB_ET_HASH); the column is restored after. */
+static void hb_csEmitLiteralItems( PHB_EXPR pItem, FILE * yyc, const char * szRecord,
+                                   const char * szElem, int iInd )
+{
+   int iPos = 0;
+   int iSaved = s_iExprIndent;
+
+   if( iInd )
+      s_iExprIndent = iInd + 4;
+   while( pItem )
+   {
+      if( szRecord )
+      {
+         const HB_REFPARAM * pP = hb_refTabParam( s_pRefTab, szRecord, iPos++ );
+         hb_csExpectLiteral( pP ? pP->szType : NULL, pItem );
+      }
+      else
+         hb_csExpectLiteral( szElem, pItem );
+      if( iInd )
+         fprintf( yyc, "%*s", iInd, "" );
+      hb_csEmitExpr( pItem, yyc, HB_FALSE );
+      pItem = pItem->pNext;
+      if( pItem )
+         fprintf( yyc, iInd ? ",\n" : ", " );
+   }
+   s_iExprIndent = iSaved;
+}
+
+/* T, when pArr is a declared array (ARRAY<T>, FIXED<T>): a variable, a
+   member, a call, an element. Harbour's type name; NULL otherwise. */
+static const char * hb_csExprElemType( PHB_EXPR pArr )
+{
+   return hb_astArrayElemType( hb_csExprHbType( pArr ) );
 }
 
 /* The class of an element of a declared array — the cast its sends need
@@ -4488,22 +4594,33 @@ static const char * hb_csDowncastTo( const char * szTarget, PHB_EXPR pVal )
    return hb_csTypeMap( szTarget );
 }
 
+/* The Harbour type of an assignment's target: a variable's, a member's
+   (`::oItem`, `oX:oItem`), an element's (of a declared array, of a record
+   by a constant subscript); NULL when nothing says */
+static const char * hb_csAssignTargetHbType( PHB_EXPR pLeft )
+{
+   if( ! pLeft )
+      return NULL;
+   if( pLeft->ExprType == HB_ET_VARIABLE )
+      return hb_csArgVarType( pLeft->value.asSymbol.name );
+   if( pLeft->ExprType == HB_ET_SEND )
+      return hb_csSendHbType( pLeft );
+   if( pLeft->ExprType == HB_ET_ALIASVAR &&
+       pLeft->value.asAlias.pVar &&
+       pLeft->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
+      return hb_csArgVarType( pLeft->value.asAlias.pVar->value.asSymbol.name );
+   if( pLeft->ExprType == HB_ET_ARRAYAT )
+      return hb_csExprHbType( pLeft );
+   return NULL;
+}
+
 /* The downcast an assignment needs: into a variable by its type, into a
    member (`::oItem := oLine`, `oX:oItem := oLine`) by the member's */
 static const char * hb_csAssignDowncast( PHB_EXPR pLeft, PHB_EXPR pRight )
 {
-   const char * szTarget = NULL;
-   if( ! pLeft || ! pRight )
+   if( ! pLeft || ! pRight || pLeft->ExprType == HB_ET_ARRAYAT )
       return NULL;
-   if( pLeft->ExprType == HB_ET_VARIABLE )
-      szTarget = hb_csArgVarType( pLeft->value.asSymbol.name );
-   else if( pLeft->ExprType == HB_ET_SEND )
-      szTarget = hb_csSendHbType( pLeft );
-   else if( pLeft->ExprType == HB_ET_ALIASVAR &&
-            pLeft->value.asAlias.pVar &&
-            pLeft->value.asAlias.pVar->ExprType == HB_ET_VARIABLE )
-      szTarget = hb_csArgVarType( pLeft->value.asAlias.pVar->value.asSymbol.name );
-   return hb_csDowncastTo( szTarget, pRight );
+   return hb_csDowncastTo( hb_csAssignTargetHbType( pLeft ), pRight );
 }
 
 /* Date arithmetic. C# DateOnly has none of Harbour's operators
@@ -5521,6 +5638,25 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_ARRAYAT:
+         {
+            /* a record's field (plan C12): `aRow[ FLD_LEN ]` on a record,
+               the subscript a literal or a #define, is the field itself,
+               `aRow.iLen`; any other subscript goes through the record's
+               indexer below, as an array's does */
+            const char * szRec = hb_csExprHbType( pExpr->value.asList.pExprList );
+            if( hb_csIsRecordType( szRec ) )
+            {
+               long l = hb_astConstIndex( pExpr->value.asList.pIndex );
+               const HB_REFPARAM * pP = l > 0 ?
+                  hb_refTabParam( s_pRefTab, szRec, ( int ) l - 1 ) : NULL;
+               if( pP && pP->szName && pP->szName[ 0 ] )
+               {
+                  hb_csEmitExpr( pExpr->value.asList.pExprList, yyc, HB_TRUE );
+                  fprintf( yyc, ".%s", pP->szName );
+                  break;
+               }
+            }
+         }
          hb_csEmitExpr( pExpr->value.asList.pExprList, yyc, HB_TRUE );
          {
             /* Decide hash-vs-array. Hash if any of:
@@ -5636,6 +5772,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       case HB_ET_ARRAY:
          {
             PHB_EXPR pItem;
+            const char * szExpect = s_szLiteralHbType;
+            const char * szElem = szExpect ? hb_astArrayElemType( szExpect ) : NULL;
+            HB_BOOL fComplex = HB_FALSE;
+            int iInd = s_iExprIndent;
+            s_szLiteralHbType = NULL;
             pItem = pExpr->value.asList.pExprList;
             /* `{ ... }` — array of all the enclosing variadic's args.
                Its lone child is the `...` spread (an empty,
@@ -5651,15 +5792,50 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "new List<dynamic>(hbva)" );
                break;
             }
-            fprintf( yyc, "new List<dynamic> { " );
-            while( pItem )
+            /* An element that is itself a literal (an array, a hash, a
+               record's row) puts the literal over several lines, one
+               element per line, as a hash with such values goes
+               (HB_ET_HASH): a table's 155 rows were one line of 12 KB. A
+               literal of scalars stays inline whatever its length. The
+               column is s_iExprIndent where a declaration set it (a file
+               static's initialiser), else the method-body default. */
+            for( ; pItem; pItem = pItem->pNext )
+               if( pItem->ExprType == HB_ET_ARRAY || pItem->ExprType == HB_ET_HASH )
+                  fComplex = HB_TRUE;
+            if( ! fComplex )
+               iInd = 0;
+            else if( iInd <= 0 )
+               iInd = 12;
+            pItem = pExpr->value.asList.pExprList;
+            /* a record's literal (plan C12): its constructor, each argument
+               under its field's type; over several lines the arguments
+               stand one per line and `)` closes on the last */
+            if( hb_csIsRecordType( szExpect ) )
             {
-               hb_csEmitExpr( pItem, yyc, HB_FALSE );
-               pItem = pItem->pNext;
-               if( pItem )
-                  fprintf( yyc, ", " );
+               fprintf( yyc, "new %s(%s", hb_csTypeMap( szExpect ), iInd ? "\n" : "" );
+               hb_csEmitLiteralItems( pItem, yyc, szExpect, NULL, iInd );
+               fprintf( yyc, ")" );
+               break;
             }
-            fprintf( yyc, " }" );
+            /* a declared array's literal is a C# array when FIXED, each
+               element under the element type (a record's literal is its
+               constructor); any other a List */
+            if( szElem && hb_astIsFixedType( szExpect ) )
+               fprintf( yyc, "new %s", hb_csTypeMap( szExpect ) );
+            else
+               fprintf( yyc, "new List<dynamic>" );
+            if( iInd )
+            {
+               fprintf( yyc, "\n%*s{\n", iInd - 4, "" );
+               hb_csEmitLiteralItems( pItem, yyc, NULL, szElem, iInd );
+               fprintf( yyc, "\n%*s}", iInd - 4, "" );
+            }
+            else
+            {
+               fprintf( yyc, " { " );
+               hb_csEmitLiteralItems( pItem, yyc, NULL, szElem, 0 );
+               fprintf( yyc, " }" );
+            }
          }
          break;
 
@@ -5707,17 +5883,21 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
 
             /* Break at the commas — one `{ key, value },` per line —
-               for any nested initializer or anything beyond a handful
-               of pairs; a jsonify-style payload dict in argument
-               position was previously one multi-KB line. Small scalar
-               hashes stay inline. Contexts that don't track a column
-               (locals, arguments — s_iExprIndent 0) get a method-body
-               default: items at 12, braces at 8. C# doesn't care and
-               it reads fine even when the opener sits deeper. */
-            if( iInd <= 0 && ( fComplex || iPairs > 4 ) )
+               for any nested initializer or more than one pair: a pair
+               is an initializer itself, so a hash of two reads as a
+               literal of literals, which an array of them is laid out
+               as too (Alex, 2026-10-17; until then only a nested
+               initializer or more than four pairs broke, and a
+               jsonify-style payload dict in argument position was one
+               multi-KB line). A hash of one pair, or none, stays
+               inline. Contexts that don't track a column (locals,
+               arguments — s_iExprIndent 0) get a method-body default:
+               items at 12, braces at 8. C# doesn't care and it reads
+               fine even when the opener sits deeper. */
+            if( iInd <= 0 && ( fComplex || iPairs > 1 ) )
                iInd = 12;
 
-            if( fComplex || iPairs > 4 )
+            if( fComplex || iPairs > 1 )
             {
                fprintf( yyc, "new OrderedDictionary<%s, dynamic>\n%*s{\n",
                         szKeyCs, iInd - 4, "" );
@@ -6458,6 +6638,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      pExpr->value.asOperator.pLeft, pExpr->value.asOperator.pRight );
                   if( szDown )
                      fprintf( yyc, "(%s)", szDown );
+                  hb_csExpectLiteral( hb_csAssignTargetHbType( pExpr->value.asOperator.pLeft ),
+                                      pExpr->value.asOperator.pRight );
                }
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_TRUE );
                if( fNeedParen )
@@ -7045,6 +7227,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   hb_csDowncastTo( s_szRetHbType, pNode->value.asReturn.pExpr );
                if( szDown )
                   fprintf( yyc, "(%s)", szDown );
+               hb_csExpectLiteral( s_szRetHbType, pNode->value.asReturn.pExpr );
             }
             hb_csEmitExpr( pNode->value.asReturn.pExpr, yyc, HB_FALSE );
             fprintf( yyc, ";\n" );
@@ -7158,6 +7341,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   const char * szDown =
                      hb_csDowncastTo( szType, pNode->value.asVar.pInit );
                   s_szHashKeyCs = hb_csHashKeyCsFor( szType );
+                  hb_csExpectLiteral( szType, pNode->value.asVar.pInit );
                   if( fIntCast )
                      fprintf( yyc, "(long)(" );
                   else if( szDown )
@@ -9043,11 +9227,65 @@ static HB_BOOL hb_csClassExtendedByBlock( const char * szName )
    return HB_FALSE;
 }
 
+/* A RECORD (plan C12): a plain sealed class of its fields, in order,
+   built by a positional constructor from the `{ … }` literal, and nothing
+   else (Alex, 2026-10-17: the array face a base class gave it — an
+   indexer, Len(), FOR EACH — was boilerplate on every record). A reader
+   reaches a field by name (`aRow.iLen`, from a constant subscript); a
+   subscript the scan cannot resolve is W0046, and a record that reaches
+   code holding it as `dynamic` is read there once declared. The fields'
+   types are the reftab row's (the scan's, declaration or name), the
+   AST's when the row is not there yet. */
+static void hb_csEmitRecord( PHB_AST_NODE pRecord, FILE * yyc )
+{
+   const char * szName = pRecord->value.asClass.szName;
+   const char * aszField[ 64 ];
+   char         aszCs[ 64 ][ 96 ];
+   PHB_AST_NODE pMember;
+   int n = 0, i;
+
+   for( pMember = pRecord->value.asClass.pMembers; pMember && n < 64;
+        pMember = pMember->pNext )
+   {
+      const HB_REFPARAM * pP;
+      const char * szHb = NULL;
+      if( pMember->type != HB_AST_CLASSDATA || ! pMember->value.asClassData.szName )
+         continue;
+      pP = s_pRefTab ? hb_refTabParam( s_pRefTab, szName, n ) : NULL;
+      if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+         szHb = pP->szType;
+      else if( pMember->value.asClassData.szType )
+         szHb = hb_astDeclCanon( s_pRefTab, pMember->value.asClassData.szType );
+      else
+         szHb = hb_astInferType( pMember->value.asClassData.szName, NULL );
+      aszField[ n ] = pMember->value.asClassData.szName;
+      hb_strncpy( aszCs[ n ], hb_csTypeMap( szHb ), sizeof( aszCs[ 0 ] ) - 1 );
+      n++;
+   }
+
+   fprintf( yyc, "public sealed class %s\n{\n", szName );
+   for( i = 0; i < n; i++ )
+      fprintf( yyc, "    public %s %s;\n", aszCs[ i ], aszField[ i ] );
+   fprintf( yyc, "\n    public %s(", szName );
+   for( i = 0; i < n; i++ )
+      fprintf( yyc, "%s%s %s", i ? ", " : "", aszCs[ i ], aszField[ i ] );
+   fprintf( yyc, ")\n    {\n" );
+   for( i = 0; i < n; i++ )
+      fprintf( yyc, "        this.%s = %s;\n", aszField[ i ], aszField[ i ] );
+   fprintf( yyc, "    }\n}\n" );
+}
+
 static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
 {
    PHB_AST_NODE pClassNode = pClass->pClassNode;
    PHB_AST_NODE pMember;
    HB_CS_METHOD * pMethod;
+
+   if( pClassNode->value.asClass.fRecord )
+   {
+      hb_csEmitRecord( pClassNode, yyc );
+      return;
+   }
 
    /* `partial` only when a #pragma BEGINCSHARP block in this file
       extends it — a C# reader should not wonder what the other part is */
@@ -10329,6 +10567,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
       {
          PHB_AST_NODE pStmt = pFirst->value.asFunc.pBody->value.asBlock.pFirst;
          s_pClassList = pStmt;
+         hb_astSetFileDecls( pStmt );   /* its #defines: constant subscripts */
          while( pStmt )
          {
             if( pStmt->type == HB_AST_CLASS )
@@ -10732,12 +10971,13 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                            const char * szSavedKey = s_szHashKeyCs;
                            fprintf( yyc, " = " );
                            /* The field is indented 4 spaces (class body
-                              level 1); a complex hash/array literal's
-                              children should sit one level deeper at 8.
-                              hb_csEmitExpr reads this and resets it on
-                              the way out. */
+                              level 1); a hash or array literal laid out
+                              over several lines puts its elements one
+                              level deeper, at 8. Cleared after, so nothing
+                              else is laid out from this column. */
                            s_iExprIndent = 8;
                            s_szHashKeyCs = hb_csHashKeyCsFor( szType );
+                           hb_csExpectLiteral( szType, pStmt->value.asVar.pInit );
                            hb_csEmitExpr( pStmt->value.asVar.pInit, yyc, HB_FALSE );
                            s_szHashKeyCs = szSavedKey;
                            s_iExprIndent = 0;

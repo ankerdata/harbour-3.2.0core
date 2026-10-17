@@ -20,8 +20,16 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aNames135 = new List<dynamic> { "tin", "cup" };
-        List<dynamic> aRows135 = new List<dynamic> { new List<dynamic> { "a", 1 }, new List<dynamic> { "b", 2 } };
-        List<dynamic> aHashes135 = new List<dynamic> { new OrderedDictionary<string, dynamic> { { "k", "v1" } }, new OrderedDictionary<string, dynamic> { { "k", "v2" } } };
+        List<dynamic> aRows135 = new List<dynamic>
+        {
+            new List<dynamic> { "a", 1 },
+            new List<dynamic> { "b", 2 }
+        };
+        List<dynamic> aHashes135 = new List<dynamic>
+        {
+            new OrderedDictionary<string, dynamic> { { "k", "v1" } },
+            new OrderedDictionary<string, dynamic> { { "k", "v2" } }
+        };
         List<dynamic> aAmounts135 = new List<dynamic> { 1.5m, 2.25m };
         List<dynamic> aCounts135 = new List<dynamic> { 3, 4 };
         List<dynamic> aWhole135 = new List<dynamic> { (decimal)(10) / 2 };

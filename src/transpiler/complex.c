@@ -220,6 +220,7 @@ static const HB_LEX_KEY s_typetable[] =
    { "NUMERIC",   4, 7, _AS_NUMERIC   },
    { "OBJECT",    4, 6, _AS_OBJECT    },
    { "POINTER",   4, 7, _AS_POINTER   },
+   { "RECORD",    4, 6, _AS_CLASS     },   /* `AS RECORD X`: a class to the grammar (plan C12) */
    { "STRING",    4, 6, _AS_CHARACTER },
    { "SYMBOL",    4, 6, _AS_SYMBOL    },
    { "TIMESTAMP", 4, 8, _AS_DATETIME  },
@@ -1033,6 +1034,26 @@ hb_comp_yylex_restart:
                goto hb_comp_yylex_restart;
             }
          }
+         /* `RECORD X( f1, f2 AS …, … )` at the start of a statement (plan
+            C12): a one-line declaration the class parser reads as a
+            class of its fields, in order. A statement cannot otherwise
+            begin with a name, another name and a parenthesis, so a
+            function or variable called Record is not taken. */
+         if( iType == IDENTIFIER && pLex->iState == LOOKUP &&
+             hb_stricmp( pToken->value, "RECORD" ) == 0 &&
+             pToken->pNext &&
+             HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_KEYWORD &&
+             pToken->pNext->pNext &&
+             HB_PP_TOKEN_TYPE( pToken->pNext->pNext->type ) == HB_PP_TOKEN_LEFT_PB )
+         {
+            if( hb_compRecordParse( HB_COMP_PARAM ) )
+            {
+               HB_COMP_PARAM->currLine =
+                  hb_pp_line( pLex->pPP ) + 1;
+               pLex->iState = LOOKUP;
+               goto hb_comp_yylex_restart;
+            }
+         }
          /* Intercept METHOD keyword for class implementations after ENDCLASS.
             METHOD is an identifier, so it won't conflict with the yacc parser.
             PROCEDURE is handled separately below since it's a yacc keyword.
@@ -1550,10 +1571,25 @@ hb_comp_yylex_restart:
 
             case AS_TYPE:
             {
-               int iAs = hb_comp_asType( pToken->pNext, HB_FALSE );
+               /* `AS FIXED ARRAY OF …` (plan C12): FIXED is read here and
+                  kept for hb_compDeclaredType, which writes FIXED<T> */
+               PHB_PP_TOKEN pTypeTok = pToken->pNext;
+               HB_BOOL fFixed = HB_FALSE;
+               int iAs;
+               if( pTypeTok && HB_PP_TOKEN_TYPE( pTypeTok->type ) == HB_PP_TOKEN_KEYWORD &&
+                   hb_stricmp( pTypeTok->value, "FIXED" ) == 0 && pTypeTok->pNext &&
+                   HB_PP_TOKEN_TYPE( pTypeTok->pNext->type ) == HB_PP_TOKEN_KEYWORD &&
+                   hb_stricmp( pTypeTok->pNext->value, "ARRAY" ) == 0 )
+               {
+                  fFixed = HB_TRUE;
+                  pTypeTok = pTypeTok->pNext;
+               }
+               iAs = hb_comp_asType( pTypeTok, HB_FALSE );
                if( iAs )
                {
                   pLex->iState = DECLARE_TYPE;
+                  if( fFixed )
+                     hb_pp_tokenGet( pLex->pPP );
                   pToken = hb_pp_tokenGet( pLex->pPP );
                   if( iAs == AS_ARRAY && pToken->pNext &&
                       HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_KEYWORD &&
@@ -1564,6 +1600,7 @@ hb_comp_yylex_restart:
                      {
                         hb_pp_tokenGet( pLex->pPP );
                         hb_pp_tokenGet( pLex->pPP );
+                        pLex->fDeclFixed = fFixed;
                         return iAsArray;
                      }
                   }

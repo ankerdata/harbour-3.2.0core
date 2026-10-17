@@ -31,7 +31,15 @@ public static partial class Program
 {
     public static List<dynamic> TestDeptDef(string cPath = default)
     {
-        return new List<dynamic> { new List<dynamic> { "Dept", "DEPT" }, (cPath != null ? cPath : ""), new List<dynamic> {  }, new List<dynamic> {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
+        return new List<dynamic>
+        {
+            new List<dynamic> { "Dept", "DEPT" },
+            (cPath != null ? cPath : ""),
+            new List<dynamic> {  },
+            new List<dynamic> {  },
+            new OrderedDictionary<string, dynamic> {  },
+            1
+        };
     }
 
     public static TestOrmRec84 ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)

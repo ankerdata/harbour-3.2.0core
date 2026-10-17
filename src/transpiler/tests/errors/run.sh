@@ -82,6 +82,21 @@ run_one "$SCRIPT_DIR/foreach_after.prg" "W0038" "'cName' is read after its FOR E
 run_one "$SCRIPT_DIR/foreach_after.prg" "W0038" "'cCell' is read after its FOR EACH"
 run_one "$SCRIPT_DIR/foreach_integer.prg" "W0039" "FOR EACH 'nId' is an integer only by inference"
 run_one "$SCRIPT_DIR/cond_unread.prg"   "W0042" "whether 'COND_UNREAD_FLAG' is defined.*could not read 'cond_unread_missing.ch'"
+# records and fixed arrays (plan C12): a literal by count and field, a
+# field by its type, a FIXED array against a plain one and against growth
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "an array of 3 elements .*, declared FieldRow41, a record of 4 fields"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "putting STRING into 'iLen' of 'FieldRow41'"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "putting STRING into 'iLen' of 'aRow'"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "assigning ARRAY to 'aRow', declared FieldRow41"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "assigning ARRAY to 'aRows', declared FIXED<FieldRow41>"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "AAdd\(\) changes the length of 'aRows', declared FIXED"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "ASize\(\) changes the length of 'aRows', declared FIXED"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0041" "passing an array of 3 elements as 'aRow' to 'Take41', declared FieldRow41"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0046" "'aRow' is a FieldRow41, read by a subscript that is not a constant"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0046" "'aRow' is a FieldRow41 of 4 fields, read at position 5"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0046" "an element of 'aRows' is a FieldRow41, read by a subscript that is not a constant"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0046" "'aRow' is a FieldRow41, given to Len\\(\\) as an array"
+run_one "$SCRIPT_DIR/fixed_record.prg"  "W0046" "FOR EACH over 'aRow', a FieldRow41"
 
 # ...and nothing else: the quiet lines stay quiet
 for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer:1"; do
@@ -97,6 +112,17 @@ for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer
       fail=$((fail+1))
    fi
 done
+
+# ...and the eight, no more: the quiet lines stay quiet
+count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/fixed_record.prg" -GS 2>&1 | grep -c "warning W004[16]")
+rm -f "$SCRIPT_DIR/fixed_record.cs"
+if [ "$count" -eq 13 ]; then
+   echo "PASS: fixed_record (13 warnings, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: fixed_record (expected 13 warnings, got $count)"
+   fail=$((fail+1))
+fi
 
 # W0042 once, for the one question; the unread header is no warning by itself
 count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/cond_unread.prg" -GS 2>&1 | grep -c "warning W")

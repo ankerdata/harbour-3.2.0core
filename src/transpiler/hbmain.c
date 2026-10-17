@@ -428,7 +428,12 @@ const char * hb_compDeclaredType( HB_COMP_DECL, PHB_VARTYPE pVarType )
 {
    const char * szElem;
    char szBuf[ 160 ];
+   /* `AS FIXED ARRAY OF …` (plan C12): the lexer read the FIXED, this
+      declaration takes it (FIXED<T>, a C# array), and no later one does */
+   HB_BOOL fFixed = HB_COMP_PARAM->pLex && HB_COMP_PARAM->pLex->fDeclFixed;
 
+   if( HB_COMP_PARAM->pLex )
+      HB_COMP_PARAM->pLex->fDeclFixed = HB_FALSE;
    if( ! pVarType )
       return NULL;
    switch( pVarType->cVarType )
@@ -444,7 +449,7 @@ const char * hb_compDeclaredType( HB_COMP_DECL, PHB_VARTYPE pVarType )
    }
    if( ! szElem )
       return NULL;
-   hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szElem );
+   hb_snprintf( szBuf, sizeof( szBuf ), "%s<%s>", fFixed ? "FIXED" : "ARRAY", szElem );
    return hb_compIdentifierNew( HB_COMP_PARAM, szBuf, HB_IDENT_COPY );
 }
 #endif

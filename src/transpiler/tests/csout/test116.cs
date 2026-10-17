@@ -15,7 +15,11 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        OrderedDictionary<string, dynamic> h = new OrderedDictionary<string, dynamic> { { "a", 1 }, { "b", 2 } };
+        OrderedDictionary<string, dynamic> h = new OrderedDictionary<string, dynamic>
+        {
+            { "a", 1 },
+            { "b", 2 }
+        };
         OrderedDictionary<string, dynamic> hCopy = HbRuntime.hb_HClone(h);
         List<dynamic> aKeys = HbRuntime.hb_HKeys(h);
         decimal nB = HbRuntime.hb_HGetDef(h, "b", 0);

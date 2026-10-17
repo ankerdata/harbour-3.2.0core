@@ -308,6 +308,16 @@ extern void hb_refTabMarkClassDynamic( PHB_REFTAB pTab, const char * szName );
 /* Returns HB_TRUE if szName has been marked as a dynamic class. */
 extern HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName );
 
+/* A record (`RECORD X( … )`, plan C12): a class row flagged R whose
+   parameters are the fields, in order, each with its type — the shape a
+   `{ … }` literal must have and a constant subscript reads. Marked by the
+   scan from the declaration; its fields are read back with
+   hb_refTabParamCount / hb_refTabParam. */
+extern void    hb_refTabMarkRecord( PHB_REFTAB pTab, const char * szName,
+                                    int nFields, const char ** ppNames,
+                                    const char ** ppTypes );
+extern HB_BOOL hb_refTabIsRecord( PHB_REFTAB pTab, const char * szName );
+
 /* Mark szName as a PUBLIC variable. szOwnerBase is the basename of the
    .prg declaring it; only the first caller sets the owner (subsequent
    calls leave it alone), giving us a stable single point for emitting

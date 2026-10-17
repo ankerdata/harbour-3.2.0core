@@ -15,7 +15,11 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        OrderedDictionary<string, dynamic> hAges = new OrderedDictionary<string, dynamic> { { "ann", 31 }, { "bob", 42 } };
+        OrderedDictionary<string, dynamic> hAges = new OrderedDictionary<string, dynamic>
+        {
+            { "ann", 31 },
+            { "bob", 42 }
+        };
         dynamic xItem = default;
         string cOut = "";
         decimal nTotal = 0;

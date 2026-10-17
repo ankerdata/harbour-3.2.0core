@@ -496,8 +496,16 @@ const char * hb_astHashFamilyMerge( const char * szA, const char * szB )
    array would leave a name claiming T. */
 HB_BOOL hb_astIsArrayType( const char * szType )
 {
-   return szType && hb_strnicmp( szType, "ARRAY", 5 ) == 0 &&
-          ( szType[ 5 ] == '\0' || szType[ 5 ] == '<' );
+   return szType && ( ( hb_strnicmp( szType, "ARRAY", 5 ) == 0 &&
+                        ( szType[ 5 ] == '\0' || szType[ 5 ] == '<' ) ) ||
+                      hb_astIsFixedType( szType ) );
+}
+
+/* FIXED<T> (plan C12): an array fixed in length, so a C# T[] where
+   ARRAY<T> is a List<dynamic>; an array type in every other respect */
+HB_BOOL hb_astIsFixedType( const char * szType )
+{
+   return szType && hb_strnicmp( szType, "FIXED<", 6 ) == 0;
 }
 
 /* One copy of each type string built here, for the life of the run. */
@@ -523,11 +531,12 @@ static const char * hb_astIntern( const char * szText, HB_SIZE nLen )
    return s_aPool[ s_nPool++ ];
 }
 
-/* T of ARRAY<T>, or NULL */
+/* T of ARRAY<T> or FIXED<T>, or NULL */
 const char * hb_astArrayElemType( const char * szType )
 {
    HB_SIZE nLen;
-   if( ! szType || hb_strnicmp( szType, "ARRAY<", 6 ) != 0 )
+   if( ! szType || ( hb_strnicmp( szType, "ARRAY<", 6 ) != 0 &&
+                     hb_strnicmp( szType, "FIXED<", 6 ) != 0 ) )
       return NULL;
    nLen = strlen( szType );
    if( nLen < 8 || szType[ nLen - 1 ] != '>' )
@@ -535,10 +544,13 @@ const char * hb_astArrayElemType( const char * szType )
    return hb_astIntern( szType + 6, nLen - 7 );
 }
 
-/* An ARRAY<T> going somewhere undeclared is an ARRAY */
+/* An ARRAY<T> going somewhere undeclared is an ARRAY. A FIXED<T> stays
+   one, as a record stays itself: a C# array or a record class is what the
+   value is, wherever it goes (plan C12). */
 static const char * hb_astUndeclared( const char * szType )
 {
-   return hb_astArrayElemType( szType ) ? "ARRAY" : szType;
+   return hb_astArrayElemType( szType ) && ! hb_astIsFixedType( szType ) ?
+          "ARRAY" : szType;
 }
 
 static HB_BOOL hb_astIsDeclScalar( const char * szType )
@@ -574,7 +586,9 @@ const char * hb_astDeclCanon( void * pRefTab, const char * szDecl )
       char szBuf[ 160 ];
       const char * szCanon = hb_astIsDeclScalar( szElem ) ? szElem :
                              hb_astDeclClass( pRefTab, szElem );
-      hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szCanon ? szCanon : szElem );
+      hb_snprintf( szBuf, sizeof( szBuf ), "%s<%s>",
+                   hb_astIsFixedType( szDecl ) ? "FIXED" : "ARRAY",
+                   szCanon ? szCanon : szElem );
       return hb_astIntern( szBuf, strlen( szBuf ) );
    }
    if( hb_astIsDeclScalar( szDecl ) )
@@ -592,6 +606,110 @@ HB_BOOL hb_astDeclKnown( void * pRefTab, const char * szDecl )
    const char * szClass = szElem ? szElem : szDecl;
    return ! szClass || hb_astIsDeclScalar( szClass ) ||
           hb_astDeclClass( pRefTab, szClass ) != NULL;
+}
+
+/* Records (plan C12): a class row the reftab flags R, its fields the
+   row's parameters in order (hb_refTabMarkRecord). */
+HB_BOOL hb_astIsRecordType( void * pRefTab, const char * szType )
+{
+   return pRefTab && szType && ! hb_astIsArrayType( szType ) &&
+          hb_refTabIsRecord( ( PHB_REFTAB ) pRefTab, szType );
+}
+
+int hb_astRecordFieldCount( void * pRefTab, const char * szRecord )
+{
+   int n = pRefTab && szRecord ?
+           hb_refTabParamCount( ( PHB_REFTAB ) pRefTab, szRecord ) : -1;
+   return n < 0 ? 0 : n;
+}
+
+/* the field at iPos (1-based), as the source spells it */
+const char * hb_astRecordFieldName( void * pRefTab, const char * szRecord, int iPos )
+{
+   const HB_REFPARAM * pP = pRefTab && szRecord && iPos > 0 ?
+      hb_refTabParam( ( PHB_REFTAB ) pRefTab, szRecord, iPos - 1 ) : NULL;
+   return pP && pP->szName && pP->szName[ 0 ] ? pP->szName : NULL;
+}
+
+/* the field's type; NULL when nothing is known of it */
+const char * hb_astRecordFieldType( void * pRefTab, const char * szRecord, int iPos )
+{
+   const HB_REFPARAM * pP = pRefTab && szRecord && iPos > 0 ?
+      hb_refTabParam( ( PHB_REFTAB ) pRefTab, szRecord, iPos - 1 ) : NULL;
+   return pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 ? pP->szType : NULL;
+}
+
+/* The file's declarations, its #defines among them (HB_AST_PPDEFINE,
+   "NAME VALUE"), for the number a `#define` subscript stands for: set per
+   file by the scan (hb_astPropagate) and the emitter. */
+static PHB_AST_NODE s_pFileDecls = NULL;
+
+void hb_astSetFileDecls( PHB_AST_NODE pDecls )
+{
+   s_pFileDecls = pDecls;
+}
+
+static HB_BOOL hb_astFileDefineValue( const char * szName, long * plValue )
+{
+   PHB_AST_NODE p;
+   HB_SIZE nLen = strlen( szName );
+
+   for( p = s_pFileDecls; p; p = p->pNext )
+   {
+      const char * sz;
+      HB_BOOL fNeg;
+      long l = 0;
+      if( p->type != HB_AST_PPDEFINE || ! p->value.asDefine.szDefine )
+         continue;
+      sz = p->value.asDefine.szDefine;
+      if( hb_strnicmp( sz, szName, nLen ) != 0 ||
+          ( sz[ nLen ] != ' ' && sz[ nLen ] != '\t' ) )
+         continue;
+      sz += nLen;
+      while( *sz == ' ' || *sz == '\t' )
+         sz++;
+      fNeg = *sz == '-';
+      if( fNeg )
+         sz++;
+      if( *sz < '0' || *sz > '9' )
+         return HB_FALSE;
+      while( *sz >= '0' && *sz <= '9' )
+         l = l * 10 + ( *sz++ - '0' );
+      while( *sz == ' ' || *sz == '\t' )
+         sz++;
+      if( *sz )
+         return HB_FALSE;
+      *plValue = fNeg ? -l : l;
+      return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
+/* A constant subscript (plan C12): a whole-number literal above 0, or a
+   `#define` of one (the defines map's, else this file's own); 0 when the
+   subscript is anything else. */
+long hb_astConstIndex( PHB_EXPR pIdx )
+{
+   while( pIdx && ( pIdx->ExprType == HB_ET_LIST || pIdx->ExprType == HB_ET_ARGLIST ) &&
+          pIdx->value.asList.pExprList && ! pIdx->value.asList.pExprList->pNext )
+      pIdx = pIdx->value.asList.pExprList;
+   if( ! pIdx )
+      return 0;
+   if( pIdx->ExprType == HB_ET_NUMERIC )
+      return pIdx->value.asNum.NumType == HB_ET_LONG && pIdx->value.asNum.val.l > 0 ?
+             ( long ) pIdx->value.asNum.val.l : 0;
+   if( pIdx->ExprType == HB_ET_VARIABLE && pIdx->value.asSymbol.name )
+   {
+      const char * szName = pIdx->value.asSymbol.name;
+      const char * szValue = hb_defineMapLookupValue( szName );
+      long l = 0;
+      if( szValue && *szValue )
+         l = atol( szValue );
+      else if( ! hb_astFileDefineValue( szName, &l ) )
+         l = 0;
+      return l > 0 ? l : 0;
+   }
+   return 0;
 }
 
 /* Definite value-type tags — the types where a disagreement between a
@@ -1277,6 +1395,8 @@ static HB_BOOL hb_astIsClassType( const char * sz );
 static HB_BOOL hb_astIsClassType( const char * sz );  /* fwd, defined below */
 static const char * hb_astLeanArrayType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                                          int iDepth );  /* fwd, defined below */
+static const char * hb_astSubscriptType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                         int iDepth );  /* fwd, defined below */
 
 static const char * hb_astResolveRecvClass( PHB_EXPR pRecv,
                                             HB_TYPEENV * pEnv, int iDepth )
@@ -1357,7 +1477,28 @@ static const char * hb_astLeanArrayType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
        pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
       return hb_typeEnvFuncReturnType( pEnv,
                 pExpr->value.asFunCall.pFunName->value.asSymbol.name );
+   /* an element: `aDef[ 2 ][ 1 ]`, a record's field holding an array */
+   if( pExpr->ExprType == HB_ET_ARRAYAT )
+      return hb_astSubscriptType( pExpr, pEnv, iDepth + 1 );
    return NULL;
+}
+
+/* The type of `a[ i ]` (plan C12): a field of a record, when a is one and
+   i a constant (a literal or a #define); else an element of a declared
+   array (ARRAY<T>, FIXED<T>); else nothing. */
+static const char * hb_astSubscriptType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                         int iDepth )
+{
+   const char * szBase;
+   if( ! pExpr || iDepth > 4 )
+      return NULL;
+   szBase = hb_astLeanArrayType( pExpr->value.asList.pExprList, pEnv, iDepth );
+   if( szBase && pEnv && hb_astIsRecordType( pEnv->pRefTab, szBase ) )
+   {
+      long l = hb_astConstIndex( pExpr->value.asList.pIndex );
+      return l > 0 ? hb_astRecordFieldType( pEnv->pRefTab, szBase, ( int ) l ) : NULL;
+   }
+   return hb_astArrayElemType( szBase );
 }
 
 /*
@@ -1634,13 +1775,13 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
       }
 
       case HB_ET_ARRAYAT:
-         /* an element of a declared array (ARRAY<T>) is a T; of any
-            other array, or of a hash, nothing is known. The array is read
-            as cheaply as a receiver is (hb_astLeanArrayType): EasiPOS
+         /* an element of a declared array (ARRAY<T>, FIXED<T>) is a T, a
+            record's field by a constant subscript is the field's type; of
+            any other array, or of a hash, nothing is known. The array is
+            read as cheaply as a receiver is (hb_astLeanArrayType): EasiPOS
             has some 7,000 element reads, and full inference of each one's
             operand slowed the scan. */
-         return hb_astArrayElemType(
-            hb_astLeanArrayType( pExpr->value.asList.pExprList, pEnv, 0 ) );
+         return hb_astSubscriptType( pExpr, pEnv, 0 );
 
       case HB_ET_FUNCALL:
          /* Infer return types for known functions:
@@ -1732,6 +1873,11 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
        hb_stricmp( szActual, "OBJECT" ) == 0 || hb_stricmp( szActual, "NIL" ) == 0 ||
        hb_stricmp( szDecl, szActual ) == 0 )
       return HB_TRUE;
+   /* a FIXED array is a C# array, any other array a List: neither takes
+      the other (a literal is checked element by element before this) */
+   if( hb_astIsFixedType( szDecl ) != hb_astIsFixedType( szActual ) &&
+       ( hb_astIsArrayType( szDecl ) || hb_astIsArrayType( szActual ) ) )
+      return HB_FALSE;
    if( ( szDeclElem = hb_astArrayElemType( szDecl ) ) != NULL )
    {
       const char * szActElem = hb_astArrayElemType( szActual );
@@ -1812,6 +1958,66 @@ static void hb_astDeclCheck( const char * szDecl, const char * szActual,
    hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
 }
 
+/* W0041 for the value of pExpr going into something declared szDecl: a
+   `{ … }` literal for a record is checked by count and field by field,
+   one for an array (FIXED<T>, ARRAY<T>) element by element, each under
+   its own declared type (plan C12); any other value by its type
+   (hb_astDeclCheck). */
+static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
+                                 HB_TYPEENV * pEnv, const char * szFile, int iLine,
+                                 const char * szName, const char * szWhat )
+{
+   PHB_EXPR pItem;
+
+   if( ! szDecl || ! pExpr )
+      return;
+   while( ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( pExpr->ExprType == HB_ET_ARRAY && pEnv &&
+       hb_astIsRecordType( pEnv->pRefTab, szDecl ) )
+   {
+      int nFields = hb_astRecordFieldCount( pEnv->pRefTab, szDecl );
+      int n = 0, i = 1;
+      for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext )
+         n++;
+      if( n != nFields )
+      {
+         char szVal[ 64 ], szDone[ 256 ], szMsg[ 320 ];
+         hb_snprintf( szVal, sizeof( szVal ), "an array of %d elements", n );
+         hb_snprintf( szDone, sizeof( szDone ), szWhat, szVal );
+         hb_snprintf( szMsg, sizeof( szMsg ), "%s, declared %s, a record of %d fields",
+                      szDone, szDecl, nFields );
+         hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+         return;
+      }
+      for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext, i++ )
+      {
+         const char * szField = hb_astRecordFieldName( pEnv->pRefTab, szDecl, i );
+         const char * szType = hb_astRecordFieldType( pEnv->pRefTab, szDecl, i );
+         char szInto[ 192 ];
+         if( ! szType )
+            continue;
+         hb_snprintf( szInto, sizeof( szInto ), "putting %%s into '%s' of '%s'",
+                      szField ? szField : "?", szDecl );
+         hb_astDeclCheckExpr( szType, pItem, pEnv, szFile, iLine, szName, szInto );
+      }
+      return;
+   }
+   if( pExpr->ExprType == HB_ET_ARRAY && hb_astArrayElemType( szDecl ) )
+   {
+      const char * szElem = hb_astArrayElemType( szDecl );
+      char szInto[ 192 ];
+      hb_snprintf( szInto, sizeof( szInto ), "putting %%s into '%s'",
+                   szName ? szName : "an array" );
+      for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext )
+         hb_astDeclCheckExpr( szElem, pItem, pEnv, szFile, iLine, szName, szInto );
+      return;
+   }
+   hb_astDeclCheck( szDecl, hb_astInferExprType( pExpr, pEnv ), szFile, iLine,
+                    szName, szWhat );
+}
+
 /* The type an assignment brings: szGiven when the caller knows it (a
    FOR EACH variable takes its array's element type), else the right
    side's — an ARRAY<T> plain ARRAY, since the target is undeclared. */
@@ -1890,6 +2096,29 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
          if( hb_typeEnvSet( pEnv, szVarName, szNewType ) )
             *pfChanged = HB_TRUE;
       }
+   }
+   /* An `a` name (ARRAY by its prefix) given a record or a FIXED array
+      (plan C12) is one: an array to Harbour and the name, a class or a C#
+      array to C#, which must declare it so (`TableDef aDef = PluDef()`).
+      A plain array given to it afterwards leaves it dynamic. */
+   else if( strcmp( szCurType, "ARRAY" ) == 0 && s_pPropRefTab )
+   {
+      const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
+      if( szNewType && ( hb_astIsFixedType( szNewType ) ||
+                         hb_astIsRecordType( s_pPropRefTab, szNewType ) ) &&
+          hb_typeEnvSet( pEnv, szVarName, szNewType ) )
+         *pfChanged = HB_TRUE;
+   }
+   else if( s_pPropRefTab && ( hb_astIsFixedType( szCurType ) ||
+                               hb_astIsRecordType( s_pPropRefTab, szCurType ) ) )
+   {
+      const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
+      if( szNewType && hb_stricmp( szCurType, szNewType ) != 0 &&
+          hb_stricmp( szNewType, "USUAL" ) != 0 &&
+          hb_stricmp( szNewType, "OBJECT" ) != 0 &&
+          hb_stricmp( szNewType, "NIL" ) != 0 &&
+          hb_typeEnvSet( pEnv, szVarName, "USUAL" ) )
+         *pfChanged = HB_TRUE;
    }
    /* Weak HASH (keys unknown) upgrades to a key-typed HASHC/HASHN
       observed on the RHS — a key-typed literal or a call returning
@@ -2059,11 +2288,26 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                if( pVar && pEnum &&
                    ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) )
                {
-                  const char * szElem = hb_astArrayElemType(
-                     hb_astInferExprType( pEnum, pEnv ) );
+                  const char * szEnum = hb_astInferExprType( pEnum, pEnv );
+                  const char * szElem = hb_astArrayElemType( szEnum );
                   if( szElem )
                      hb_astPropagateVarAs( pVar->value.asSymbol.name, NULL, szElem,
                                            pEnv, pfChanged );
+                  /* W0046 (plan C12): a record has fields, not elements to
+                     walk; the C# class has no enumerator */
+                  if( pEnv->pRefTab && hb_astIsRecordType( pEnv->pRefTab, szEnum ) )
+                  {
+                     const char * szName = pEnum->ExprType == HB_ET_VARIABLE ?
+                        pEnum->value.asSymbol.name : "a value";
+                     char szKey[ 160 ];
+                     hb_snprintf( szKey, sizeof( szKey ), "W0046:FOREACH:%s", szName );
+                     if( ! hb_astOrmSeen( pStmt->iLine, szKey ) )
+                        fprintf( stderr,
+                           "hbtranspiler: %s(%d): warning W0046  FOR EACH over '%s', "
+                           "a %s: a record has fields, not elements\n",
+                           pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                           pStmt->iLine, szName, szEnum );
+                  }
                }
             }
             hb_astPropagateBlock( pStmt->value.asForEach.pBody, pEnv, pfChanged );
@@ -2485,6 +2729,57 @@ static HB_BOOL hb_astSelfMessageUndeclared( HB_TYPEENV * pEnv, const char * szMs
    return i < 16;
 }
 
+/* The array functions, by the argument that is their array: Len(),
+   AScan(), AEval(), AClone(), ASort(), ATail(), AAdd(), ASize(),
+   hb_ADel(), hb_AIns(), AFill() take it first, ACopy() first and second */
+static int hb_astArrayFuncArgs( const char * szFunc )
+{
+   static const char * s_aFirst[] = {
+      "LEN", "ASCAN", "HB_ASCAN", "HB_RASCAN", "AEVAL", "ACLONE", "ASORT",
+      "ATAIL", "AADD", "ASIZE", "HB_ADEL", "HB_AINS", "AFILL" };
+   int i;
+   if( ! szFunc )
+      return 0;
+   if( hb_stricmp( szFunc, "ACOPY" ) == 0 )
+      return 2;
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aFirst ); i++ )
+      if( hb_stricmp( szFunc, s_aFirst[ i ] ) == 0 )
+         return 1;
+   return 0;
+}
+
+/* W0046 (plan C12): a record given to an array function as its array. A
+   record is a plain class in C#, with fields and no length or elements;
+   the code reads a field, or the FIXED array that holds the records. */
+static void hb_astRecordAsArrayCheck( PHB_EXPR pCall, HB_TYPEENV * pEnv )
+{
+   const char * szFunc = pCall->value.asFunCall.pFunName->value.asSymbol.name;
+   PHB_EXPR pParms = pCall->value.asFunCall.pParms;
+   PHB_EXPR pArg = ( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                                 pParms->ExprType == HB_ET_ARGLIST ) ) ?
+                   pParms->value.asList.pExprList : pParms;
+   int iArgs = hb_astArrayFuncArgs( szFunc );
+   int i;
+
+   for( i = 0; pArg && i < iArgs; i++, pArg = pArg->pNext )
+   {
+      const char * szRec = hb_astLeanArrayType( pArg, pEnv, 0 );
+      if( szRec && hb_astIsRecordType( pEnv->pRefTab, szRec ) )
+      {
+         const char * szName = pArg->ExprType == HB_ET_VARIABLE ?
+            pArg->value.asSymbol.name : "a value";
+         char szKey[ 160 ];
+         hb_snprintf( szKey, sizeof( szKey ), "W0046:%s:%s", szFunc, szName );
+         if( ! hb_astOrmSeen( s_iObserveLine, szKey ) )
+            fprintf( stderr,
+               "hbtranspiler: %s(%d): warning W0046  '%s' is a %s, given to %s() "
+               "as an array: a record has fields, not elements\n",
+               pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+               s_iObserveLine, szName, szRec, szFunc );
+      }
+   }
+}
+
 static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                                HB_BOOL * pfChanged )
 {
@@ -2534,6 +2829,57 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                      s_iObserveLine, szTarget );
             }
          }
+         /* W0046 (plan C12): a record's elements are its fields, each a
+            C# member reached by a constant position, a literal or a
+            #define; a subscript the scan cannot resolve, or one past
+            the last field, has no member to go to (the record is a
+            plain class, with no indexer: Alex, 2026-10-17) */
+         if( pBase && pIdx && pEnv->pRefTab )
+         {
+            const char * szRec = hb_astLeanArrayType( pBase, pEnv, 0 );
+            if( szRec && hb_astIsRecordType( pEnv->pRefTab, szRec ) )
+            {
+               long l = hb_astConstIndex( pIdx );
+               int  n = hb_astRecordFieldCount( pEnv->pRefTab, szRec );
+               if( l <= 0 || l > n )
+               {
+                  /* the record by name, or as an element of the array
+                     it was read from (`aRows[ i ][ n ]`) */
+                  const char * szWhat = szTarget;
+                  char szElemOf[ 160 ];
+                  char szKey[ 160 ];
+                  if( ! szWhat && pBase->ExprType == HB_ET_ARRAYAT &&
+                      hb_astTargetName( pBase->value.asList.pExprList ) )
+                  {
+                     hb_snprintf( szElemOf, sizeof( szElemOf ), "an element of '%s'",
+                                  hb_astTargetName( pBase->value.asList.pExprList ) );
+                     szWhat = szElemOf;
+                  }
+                  if( ! szWhat )
+                     szWhat = "a value";
+                  hb_snprintf( szKey, sizeof( szKey ), "W0046:%s", szWhat );
+                  if( ! hb_astOrmSeen( s_iObserveLine, szKey ) )
+                  {
+                     if( l <= 0 )
+                        fprintf( stderr,
+                           "hbtranspiler: %s(%d): warning W0046  %s%s%s is a %s, "
+                           "read by a subscript that is not a constant: a record's "
+                           "elements are its fields, each at a literal or #define "
+                           "position\n",
+                           pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                           s_iObserveLine, szTarget ? "'" : "", szWhat,
+                           szTarget ? "'" : "", szRec );
+                     else
+                        fprintf( stderr,
+                           "hbtranspiler: %s(%d): warning W0046  %s%s%s is a %s of "
+                           "%d fields, read at position %ld\n",
+                           pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                           s_iObserveLine, szTarget ? "'" : "", szWhat,
+                           szTarget ? "'" : "", szRec, n, l );
+                  }
+               }
+            }
+         }
          if( pBase && pBase->ExprType == HB_ET_VARIABLE && pIdx &&
              ! hb_astHashNameKeys( pBase->value.asSymbol.name ) )
          {
@@ -2569,6 +2915,9 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       }
 
       case HB_ET_FUNCALL:
+         if( pEnv->pRefTab && pExpr->value.asFunCall.pFunName &&
+             pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+            hb_astRecordAsArrayCheck( pExpr, pEnv );
          hb_astObserveExpr( pExpr->value.asFunCall.pParms, pEnv, pfChanged );
          break;
 
@@ -3520,8 +3869,8 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                char szWhat[ 192 ];
                hb_snprintf( szWhat, sizeof( szWhat ), "passing %%s as '%s' to '%s'",
                             pDecl->szName ? pDecl->szName : "?", szCallee );
-               hb_astDeclCheck( pDecl->szType, szArgType, pEnv->szFile, iLine,
-                                pDecl->szName, szWhat );
+               hb_astDeclCheckExpr( pDecl->szType, pEffective, pEnv, pEnv->szFile,
+                                    iLine, pDecl->szName, szWhat );
             }
             /* an ARRAY<T> refines an undeclared slot as a plain ARRAY */
             r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos,
@@ -4520,9 +4869,8 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
    {
       char szWhat[ 160 ];
       hb_snprintf( szWhat, sizeof( szWhat ), "assigning %%s to '%s'", szName );
-      hb_astDeclCheck( hb_typeEnvGet( pEnv, szName ),
-                       hb_astInferExprType( pRHS, pEnv ),
-                       szFile, iLine, szName, szWhat );
+      hb_astDeclCheckExpr( hb_typeEnvGet( pEnv, szName ), pRHS, pEnv,
+                           szFile, iLine, szName, szWhat );
       return;
    }
    szLhs = hb_astInferType( szName, NULL );    /* prefix only */
@@ -4543,8 +4891,10 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
       return;
    if( hb_stricmp( szLhs, szRhs ) == 0 )
       return;
-   /* an `a` name commits to an array: a declared one (ARRAY<T>) is one */
-   if( hb_astIsArrayType( szLhs ) && hb_astIsArrayType( szRhs ) )
+   /* an `a` name commits to an array: a declared one (ARRAY<T>, FIXED<T>)
+      is one, and so is a record (plan C12) */
+   if( hb_astIsArrayType( szLhs ) &&
+       ( hb_astIsArrayType( szRhs ) || hb_astIsRecordType( s_pPropRefTab, szRhs ) ) )
       return;
    /* `h<X>` commits to hash-ness only — a key-typed HASHC/HASHN RHS
       against the prefix's plain HASH is agreement, not a W0024. Same
@@ -4608,29 +4958,54 @@ static void hb_astCheckIntegerCompound( PHB_EXPR pExpr, const char * szFile,
             s_szOp[ pExpr->ExprType - HB_EO_PLUSEQ ], szName );
 }
 
-/* W0041 for x put into an element of pArr, a declared array (ARRAY<T>):
-   by `pArr[ i ] := x` or `AAdd( pArr, x )`. */
-static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pVal,
+/* W0041 for x put into an element of pArr, a declared array (ARRAY<T>,
+   FIXED<T>) or a record: by `pArr[ i ] := x` (pIdx the subscript, a
+   record's field when it is a constant) or `AAdd( pArr, x )`. */
+static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
                                   HB_TYPEENV * pEnv, const char * szFile,
                                   int iLine )
 {
+   const char * szArr;
    const char * szElem;
    const char * szName = NULL;
    char szWhat[ 160 ];
 
    if( ! pArr || ! pVal )
       return;
-   szElem = hb_astArrayElemType( hb_astInferExprType( pArr, pEnv ) );
-   if( ! szElem )
-      return;
+   szArr = hb_astInferExprType( pArr, pEnv );
    if( pArr->ExprType == HB_ET_VARIABLE )
       szName = pArr->value.asSymbol.name;
    else if( pArr->ExprType == HB_ET_SEND )
       szName = pArr->value.asMessage.szMessage;
+   if( pEnv && hb_astIsRecordType( pEnv->pRefTab, szArr ) )
+   {
+      long l = hb_astConstIndex( pIdx );
+      const char * szField = l > 0 ?
+         hb_astRecordFieldName( pEnv->pRefTab, szArr, ( int ) l ) : NULL;
+      szElem = l > 0 ? hb_astRecordFieldType( pEnv->pRefTab, szArr, ( int ) l ) : NULL;
+      if( ! szElem )
+         return;
+      hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into '%s' of '%s'",
+                   szField ? szField : "?", szName ? szName : szArr );
+      hb_astDeclCheckExpr( szElem, pVal, pEnv, szFile, iLine, szName, szWhat );
+      return;
+   }
+   szElem = hb_astArrayElemType( szArr );
+   if( ! szElem )
+      return;
    hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into '%s'",
                 szName ? szName : "an array" );
-   hb_astDeclCheck( szElem, hb_astInferExprType( pVal, pEnv ), szFile, iLine,
-                    szName, szWhat );
+   hb_astDeclCheckExpr( szElem, pVal, pEnv, szFile, iLine, szName, szWhat );
+}
+
+/* AAdd(), ASize(), hb_ADel() and hb_AIns(): the functions that change an
+   array's length, which a FIXED array has not got (W0041) */
+static HB_BOOL hb_astChangesArraySize( const char * szFunc )
+{
+   return szFunc && ( hb_stricmp( szFunc, "AADD" ) == 0 ||
+                      hb_stricmp( szFunc, "ASIZE" ) == 0 ||
+                      hb_stricmp( szFunc, "HB_ADEL" ) == 0 ||
+                      hb_stricmp( szFunc, "HB_AINS" ) == 0 );
 }
 
 static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
@@ -4659,26 +5034,40 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                      pExpr->value.asOperator.pRight,
                      pEnv, szFile, pStmt->iLine );
                }
-               /* `a[ i ] := x` into a declared array (W0041) */
+               /* `a[ i ] := x` into a declared array or a record (W0041) */
                else if( pExpr->ExprType == HB_EO_ASSIGN &&
                         pExpr->value.asOperator.pLeft &&
                         pExpr->value.asOperator.pLeft->ExprType == HB_ET_ARRAYAT )
                   hb_astCheckElemWrite(
                      pExpr->value.asOperator.pLeft->value.asList.pExprList,
+                     pExpr->value.asOperator.pLeft->value.asList.pIndex,
                      pExpr->value.asOperator.pRight, pEnv, szFile, pStmt->iLine );
-               /* `AAdd( a, x )` into a declared array (W0041) */
+               /* `AAdd( a, x )` into a declared array (W0041); a FIXED
+                  array's length is not changed (AAdd, ASize, hb_ADel,
+                  hb_AIns: W0041) */
                else if( pExpr->ExprType == HB_ET_FUNCALL &&
                         pExpr->value.asFunCall.pFunName &&
                         pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
-                        hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name,
-                                    "AADD" ) == 0 )
+                        hb_astChangesArraySize(
+                           pExpr->value.asFunCall.pFunName->value.asSymbol.name ) )
                {
+                  const char * szFn = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
                   PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
                   PHB_EXPR pArr = ( pParms && ( pParms->ExprType == HB_ET_LIST ||
                                                 pParms->ExprType == HB_ET_ARGLIST ) ) ?
                                   pParms->value.asList.pExprList : pParms;
-                  if( pArr && pArr->pNext )
-                     hb_astCheckElemWrite( pArr, pArr->pNext, pEnv, szFile,
+                  if( pArr && hb_astIsFixedType( hb_astInferExprType( pArr, pEnv ) ) )
+                  {
+                     const char * szArrName = pArr->ExprType == HB_ET_VARIABLE ?
+                        pArr->value.asSymbol.name : "an array";
+                     char szMsg[ 256 ];
+                     hb_snprintf( szMsg, sizeof( szMsg ),
+                                  "%s() changes the length of '%s', declared FIXED",
+                                  szFn, szArrName );
+                     hb_astDeclWarn( "W0041", szFile, pStmt->iLine, szArrName, szMsg );
+                  }
+                  else if( pArr && pArr->pNext && hb_stricmp( szFn, "AADD" ) == 0 )
+                     hb_astCheckElemWrite( pArr, NULL, pArr->pNext, pEnv, szFile,
                                            pStmt->iLine );
                }
                else if( pExpr->ExprType >= HB_EO_PLUSEQ &&
@@ -5234,9 +5623,8 @@ static void hb_astCheckDeclReturns( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                char szWhat[ 160 ];
                hb_snprintf( szWhat, sizeof( szWhat ), "returning %%s from '%s'",
                             szFunc ? szFunc : "?" );
-               hb_astDeclCheck( szDecl,
-                  hb_astInferExprType( pStmt->value.asReturn.pExpr, pEnv ),
-                  szFile, pStmt->iLine, szFunc, szWhat );
+               hb_astDeclCheckExpr( szDecl, pStmt->value.asReturn.pExpr, pEnv,
+                                    szFile, pStmt->iLine, szFunc, szWhat );
             }
             break;
          case HB_AST_IF:
@@ -5330,6 +5718,8 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       once nested propagate calls return. */
    pSavedPropRefTab = s_pPropRefTab;
    s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
+   if( pClassList )
+      hb_astSetFileDecls( pClassList );   /* its #defines: constant subscripts */
 
    s_iIntCand = 0;   /* per-function int-candidate audit tracking */
 
@@ -5684,6 +6074,12 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
          else if( strcmp( szCurType, "HASH" ) == 0 &&
                   szPropType && strcmp( szPropType, "HASH" ) != 0 &&
                   hb_astIsHashFamily( szPropType ) )
+            fOverride = HB_TRUE;
+         /* An `a` name holding a record or a FIXED array (plan C12): the
+            class or the C# array the value is, from an assignment. */
+         else if( strcmp( szCurType, "ARRAY" ) == 0 && szPropType &&
+                  ( hb_astIsFixedType( szPropType ) ||
+                    hb_astIsRecordType( pRefTab, szPropType ) ) )
             fOverride = HB_TRUE;
          /* NUMERIC upgraded to INTEGER by Pass 2.5 index candidacy. */
          else if( strcmp( szCurType, "NUMERIC" ) == 0 &&

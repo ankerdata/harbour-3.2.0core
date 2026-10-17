@@ -299,7 +299,8 @@ NAME<TAB>FLAGS<TAB>RETTYPE<TAB>NPARAMS<TAB>PARAM_1<TAB>...<TAB>PARAM_N
   FLAGS    = a string of flag letters, or "-" for none:
                V = variadic (uses PCount/HB_PValue/HB_Parameter/HB_AParams)
                S = some call site forwards `...` to it
-               K = a class marker, D = a dynamic class (`::&( name )`)
+               K = a class marker, D = a dynamic class (`::&( name )`),
+                   R = a record (with K): the parameters are its fields, in order
                P = a PUBLIC variable (RETTYPE holds its owning .prg),
                    A = a PUBLIC declared with a size
                N = a PROCEDURE, or a method declared as one: no value,
@@ -617,11 +618,12 @@ can reach zero. Things that are merely *type debt* go to the
 | W0038 | scan  | A FOR EACH variable read after its loop, before it is assigned again: Harbour has restored its value from before the loop, C# keeps the last element — keep what the loop found in a variable of its own (tests/errors/foreach_after.prg) |
 | W0039 | scan  | A FOR EACH variable that is an integer by inference only (an `n` name keying an `hn` hash, set from `At()`): C# casts each element to long, dropping a fraction Harbour keeps — name it `i<...>` if the elements are whole numbers. Decided by the scan's last pass, since the types it reads settle over the passes (tests/errors/foreach_integer.prg) |
 | W0040 | scan  | A declaration (`AS CLASS X`, `AS ARRAY OF CLASS X`) names a class nothing defines — a program class or an ORM model. Decided by the scan's last pass, when the reftab holds every class (tests/errors/declared_types.prg) |
-| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`), passed to a declared parameter, returned from a declared function. A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg) |
+| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`) or a record's field, passed to a declared parameter, returned from a declared function; a `{ … }` literal for a record checked by count and field by field, for a declared array element by element; a FIXED array given a plain array, or grown or cut (AAdd, ASize, hb_ADel, hb_AIns). A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg, fixed_record.prg) |
 | W0042 | pp    | A `#ifdef`, `#ifndef` or `defined()` asks about a name a header the file includes might define, and the transpiler cannot find that header on its include path, so it cannot answer as Harbour would; it takes the name for undefined. Give the transpiler the directories the build finds headers in (see [Preprocessor conditionals](#preprocessor-conditionals); tests/errors/cond_unread.prg) |
 | W0043 | scan  | A value parameter with no default of its own, which some caller leaves out (past its last argument, a gap, NIL), handed on to a parameter that declares one: Harbour passes NIL and the callee's default applies, C# passes the type's zero, 0, .F. or an empty date (EasiPOS's MCNameNumber() made the receipt say POS 00). Silent when the callee's default is 0 or .F. itself, or the routine reassigns or NIL-tests the parameter. The fix is the same default declared on the parameter. A send to a receiver of unknown class is not checked: there is no callee row to read. Decided by the scan's last pass, since the omissions gather over every caller (reftab pflags `O`, `Z`; tests/errors/omitted_default.prg) |
 | W0044 | scan  | An `x` name, which may hold NIL, passed to a value parameter whose declared default is a C# constant on the signature (by value, after the last by-ref parameter; pflag `L`): NIL cannot be converted to it, a run-time error in C#, where Harbour's default took it (EasiPOS's FnOpenTable() handed FSMTender() a NIL panel). The fix is to pass the value meant. Decided by the scan's last pass (tests/errors/omitted_default.prg) |
 | W0045 | reconcile | Two builds of one program give a parameter of a routine both compile types that do not merge (two classes with no common ancestor, a scalar and a class): one C# signature serves both builds, so the slot falls back to USUAL (dynamic). Reported by `--reconcile` (see [Two builds, one signature](#two-builds-one-signature---reconcile)), which then exits 1. The fix is in the callers, or a declared type on the parameter (tests/errors/reconcile_*.prg) |
+| W0046 | scan  | A record read as an array: a subscript that is not a constant (a whole-number literal or a `#define` of one) or is past the last field; Len(), AScan(), AEval(), ACopy(), AClone(), ASort(), ATail(), AAdd(), ASize(), hb_ADel(), hb_AIns() or AFill() given one; FOR EACH over one. A record is a plain C# class of its fields, so the fix is the position by name, the FIXED array that holds the rows, or a declaration on the holder (tests/errors/fixed_record.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -833,6 +835,8 @@ Tests: [test83.prg](tests/test83.prg), [test85.prg](tests/test85.prg).
 | `DATE`            | `dPosted`              | `DateOnly`                           |
 | `TIMESTAMP`       | `tStamp`               | `DateTime`                           |
 | `ARRAY`           | `aLines`               | `List<dynamic>` — one object every holder shares, grown and shrunk in place (test125) |
+| `FIXED<T>`        | *(`AS FIXED ARRAY OF …`)* | `T[]` — an array fixed in length, its elements a record's class or a scalar: built once, read by position, never grown (test155) |
+| *a record* `X`    | *(`RECORD X( … )`, `AS RECORD X`)* | `X`, a plain sealed class of the record's fields with a positional constructor; a constant subscript is the field (test155) |
 | `HASH` / `HASHC`  | `hConfig`              | `OrderedDictionary<string, dynamic>` (keyed by strings, what an `h` name declares; .NET 9's, which keeps Harbour's insertion order across deletes — test113) |
 | `HASHN`           | `hnByRecNo`            | `OrderedDictionary<long, dynamic>` — keyed by numbers, what an `hn` / `shn` name declares (Alex, 2026-09-27; test127): integer ids, the subscript casts the key `(long)`. A key of the other kind is W0035. The keys an `x` or untyped name's hash is used with still decide it (test76) |
 | `OBJECT`          | `oTable`               | `dynamic`  *(messages bind via the DLR; or a class name when the refTab knows it)* |
@@ -1036,6 +1040,37 @@ strongest. Later rungs override earlier ones.
    HB_CLS_NO_DECLARATIONS does, and the generated C is the same (members
    keep `AS ARRAY`). The transpiler never reads that header (includes are
    off), so it sees the declarations as written.
+   **`RECORD X( f1, f2 AS … )`, `AS RECORD X` and `AS FIXED ARRAY OF …`**
+   (plan C12 / C16, 2026-10-16/17; test155) declare an array used as a
+   record: its positions named and typed once, in a line the class parser
+   reads like a CLASS (a field by its prefix or by an `AS` of its own, an
+   `oX` field by the class its name names). The reftab keeps it as a class
+   row flagged `R` whose parameters are the fields, in order. In C# a
+   record is a plain sealed class of its fields and a positional
+   constructor, nothing else; `AS FIXED ARRAY OF RECORD X` (or `OF
+   CHARACTER`, …) is a C# array, `X[]` / `string[]`, where `AS ARRAY OF
+   RECORD X` stays a `List<dynamic>` whose elements are records. A `{ … }`
+   literal going into a declared slot — a local's or a static's
+   initialiser, an assignment, a RETURN, a declared argument, AAdd()'s
+   value — is the record's constructor or `new X[] { … }`, nested as deep
+   as the declarations go, and an array literal whose elements are
+   literals is laid out one element per line (as a hash of two pairs or
+   more is). A subscript that is a constant — a whole-number literal, or a
+   `#define` of one, whose value the defines map's fifth column or the
+   file's own `#define` line gives (hb_astConstIndex) — on a record is the
+   field itself, `aRow[ FLD_LEN ]` → `aRow.iLen`, read or written, typed
+   by the scan and checked by C#; `aDef[ FD_FIELD_INFO ]` → `aDef.aFields`.
+   W0041 checks a literal by count and field by field, an array's by
+   element, a FIXED array against a plain one (a C# array and a List are
+   not one) and against AAdd() / ASize() / hb_ADel() / hb_AIns(). W0046 is
+   a record read as an array: a subscript that is not a constant or is
+   past the last field, Len() and the other array functions given one,
+   FOR EACH over one; a row held as `dynamic` is declared before it is
+   read. A record or a FIXED array keeps its type into an undeclared slot
+   (a C# array or a class is what the value is), and an `a` name takes
+   it. Harbour sees arrays: astype.ch removes the RECORD line and reads
+   the declarations as `AS ARRAY`, and the `-GT` round trip writes them so
+   (tests/errors/fixed_record.prg has the warnings).
 3. **Initialisers and defines**: a `#define` with an integer value is
    integer tier (the defines map), and a LOCAL or STATIC initialised
    from an integer literal, such a define, or another integer variable
@@ -1792,6 +1827,7 @@ the errors, where the file fails and the test asserts the error line:
 | `integer_fraction.prg`        | `W0024` | An `i` name given what may hold a fraction: assigned, passed, `/=`, `*= 1.5`, a FOR STEP; and exactly those five, the `Int()` lines quiet |
 | `hash_key_name.prg`           | `W0035` | A number as an `h` name's key, a string as an `hn` name's, a numerically keyed literal given to an `h` name; exactly those three |
 | `x_subscript.prg`             | `W0036` | An `x` name subscripted by a number; the same value through an `a` name, and by a string, quiet |
+| `fixed_record.prg`            | `W0041` `W0046` | A record's literal by count and field, a string into an integer field, a plain array into a record or a FIXED array, a FIXED array grown or cut; a record read by a variable or an out-of-range subscript, given to Len(), walked by FOR EACH; the quiet lines quiet |
 | `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
@@ -2081,16 +2117,23 @@ block placed inside a function to show it is hoisted.
 ## Defines map
 
 `--defines-map=<path>` tells the emitter to rewrite bare identifier
-references to qualified `<Name>Const` class members, and tells the
-type inferencer what type a `#define` reference carries. The path
-points at a four-column TSV:
+references to qualified `<Name>Const` class members, tells the type
+inferencer what type a `#define` reference carries, and gives a
+whole-number define's value, for a `#define` subscript on a record. The
+path points at a five-column TSV:
 
 ```
-NAME<TAB>ClassName<TAB>[OwnerBasename]<TAB>type
-ACCEPTANCE   RmCommConst   ``     long
-RGBMAX       ColorsConst   ``     decimal
-LOCAL_FLAG   MyPrgPrgConst myprg  long
+NAME<TAB>ClassName<TAB>[OwnerBasename]<TAB>type<TAB>[value]
+FD_FNAME     OpenFileConst   ``     long     2
+RGBMAX       ColorsConst     ``     decimal
+LOCAL_FLAG   MyPrgPrgConst   myprg  long     1
 ```
+
+- **value** is a whole-number define's digits (2026-10-16): what a
+  `#define` subscript on a record stands for, so `aDef[ FD_FIELD_INFO ]`
+  is the third field (hb_astConstIndex, hb_defineMapLookupValue). Empty
+  for any other define. A file's own `#define` lines serve the same
+  purpose without the map.
 
 - **type** is the C# type of the emitted `const`: any integer-valued
   define is `long` (enum-like ids, flags, bit masks — cast-free at

@@ -78,12 +78,22 @@ static const char * hb_astStandardTypeOrObject( const char * szType )
    "ARRAY<X>" `ARRAY OF CLASS X`, "ARRAY<STRING>" `ARRAY OF CHARACTER` —
    the forms include/astype.ch removes for Harbour, so the round trip
    keeps the declaration. */
+static PHB_REFTAB s_pRefTab;   /* defined below; a record's declaration needs it */
+
 static const char * hb_astDeclText( const char * szDecl, char * szBuf, HB_SIZE nBuf )
 {
    const char * szElem = hb_astArrayElemType( szDecl );
    const char * szType = szElem ? szElem : szDecl;
    HB_BOOL fScalar = hb_astStandardType( szType ) != NULL;
 
+   /* a record, an array of records, a FIXED array (plan C12): arrays to
+      Harbour, as astype.ch reads them */
+   if( hb_astIsFixedType( szDecl ) ||
+       ( s_pRefTab && hb_refTabIsRecord( s_pRefTab, szType ) ) )
+   {
+      hb_snprintf( szBuf, nBuf, "ARRAY" );
+      return szBuf;
+   }
    if( fScalar && hb_stricmp( szType, "STRING" ) == 0 )
       szType = "CHARACTER";
    if( szElem )
@@ -1083,6 +1093,10 @@ static void hb_astEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_CLASS:
+         /* a RECORD (plan C12) is nothing to Harbour, which sees an
+            array: the line goes, as astype.ch takes it from the source */
+         if( pNode->value.asClass.fRecord )
+            break;
          hb_astEmitIndent( yyc, iIndent );
          fprintf( yyc, "CLASS %s", pNode->value.asClass.szName );
          if( pNode->value.asClass.szParent )

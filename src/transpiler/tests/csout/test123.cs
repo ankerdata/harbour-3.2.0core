@@ -35,8 +35,16 @@ public class Shelf123 : IHbObject
     public virtual Shelf123 Fill123()
     {
         aSlots123 = new List<dynamic> { "first", "second", "third" };
-        aGrid123 = new List<dynamic> { new List<dynamic> { "a1", "a2" }, new List<dynamic> { "b1", "b2" } };
-        hTags123 = new OrderedDictionary<string, dynamic> { { "red", "warm" }, { "blue", "cold" } };
+        aGrid123 = new List<dynamic>
+        {
+            new List<dynamic> { "a1", "a2" },
+            new List<dynamic> { "b1", "b2" }
+        };
+        hTags123 = new OrderedDictionary<string, dynamic>
+        {
+            { "red", "warm" },
+            { "blue", "cold" }
+        };
         nPos123 = 2;
         return this;
     }

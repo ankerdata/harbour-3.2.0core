@@ -21,7 +21,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aData = new List<dynamic> { 10, 20, 30 };
-        List<dynamic> aNested = new List<dynamic> { 1, new List<dynamic> { 2, 3 } };
+        List<dynamic> aNested = new List<dynamic>
+        {
+            1,
+            new List<dynamic> { 2, 3 }
+        };
         List<dynamic> aCopy = default;
         OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
 

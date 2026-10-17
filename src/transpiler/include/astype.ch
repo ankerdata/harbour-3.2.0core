@@ -30,3 +30,13 @@
 #xtranslate AS CLASS <!name!>      =>
 #xtranslate AS ARRAY OF <!type!>   =>
 #xtranslate AS ARRAY OF CLASS <!name!> =>
+
+/* Records and fixed arrays (plan C12): `RECORD X( f1, f2 AS … )` declares
+   an array's positions, `AS RECORD X` holds one, `AS FIXED ARRAY OF …` an
+   array that never grows or shrinks. Arrays to Harbour: the declarations
+   go, as the others do, and the RECORD line with them. */
+#xtranslate AS RECORD <!name!>               =>
+#xtranslate AS ARRAY OF RECORD <!name!>      =>
+#xtranslate AS FIXED ARRAY OF <!type!>       =>
+#xtranslate AS FIXED ARRAY OF RECORD <!name!> =>
+#xcommand RECORD <*rest*> =>

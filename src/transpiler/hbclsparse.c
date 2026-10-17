@@ -64,27 +64,35 @@ static const char * hb_clsScalarType( PHB_PP_TOKEN pToken )
 
 /* The type the tokens after an `AS` declare: `CLASS X` is "X", `ARRAY OF
    CLASS X` "ARRAY<X>", `ARRAY OF CHARACTER` "ARRAY<STRING>", a scalar its
-   name (CHARACTER is STRING). OBJECT, BLOCK, USUAL and an array of them
-   declare nothing the name's prefix does not: NULL, the tokens still
-   counted. */
+   name (CHARACTER is STRING). `RECORD X` is "X" too (a record is a class
+   the reftab flags), `FIXED ARRAY OF …` "FIXED<…>" (plan C12). OBJECT,
+   BLOCK, USUAL and an array of them declare nothing the name's prefix
+   does not: NULL, the tokens still counted. */
 const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUsed )
 {
    char szBuf[ 160 ];
+   HB_BOOL fFixed = HB_FALSE;
 
    *piUsed = 0;
    if( ! pTok || HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_KEYWORD )
       return NULL;
-   if( hb_clsTokenIs( pTok, "CLASS" ) && pTok->pNext &&
-       HB_PP_TOKEN_TYPE( pTok->pNext->type ) == HB_PP_TOKEN_KEYWORD )
+   if( ( hb_clsTokenIs( pTok, "CLASS" ) || hb_clsTokenIs( pTok, "RECORD" ) ) &&
+       pTok->pNext && HB_PP_TOKEN_TYPE( pTok->pNext->type ) == HB_PP_TOKEN_KEYWORD )
    {
       *piUsed = 2;
       return hb_compIdentifierNew( HB_COMP_PARAM, pTok->pNext->value, HB_IDENT_COPY );
+   }
+   if( hb_clsTokenIs( pTok, "FIXED" ) && hb_clsTokenIs( pTok->pNext, "ARRAY" ) )
+   {
+      fFixed = HB_TRUE;
+      pTok = pTok->pNext;
    }
    if( hb_clsTokenIs( pTok, "ARRAY" ) && hb_clsTokenIs( pTok->pNext, "OF" ) )
    {
       PHB_PP_TOKEN pElem = pTok->pNext->pNext;
       const char * szElem = NULL;
-      if( hb_clsTokenIs( pElem, "CLASS" ) && pElem->pNext &&
+      if( ( hb_clsTokenIs( pElem, "CLASS" ) || hb_clsTokenIs( pElem, "RECORD" ) ) &&
+          pElem->pNext &&
           HB_PP_TOKEN_TYPE( pElem->pNext->type ) == HB_PP_TOKEN_KEYWORD )
       {
          szElem = pElem->pNext->value;
@@ -95,11 +103,15 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
          szElem = hb_clsScalarType( pElem );
          *piUsed = 3;
       }
+      if( *piUsed && fFixed )
+         *piUsed += 1;
       if( ! szElem || hb_stricmp( szElem, "HASH" ) == 0 )
          return *piUsed ? "ARRAY" : NULL;
-      hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szElem );
+      hb_snprintf( szBuf, sizeof( szBuf ), "%s<%s>", fFixed ? "FIXED" : "ARRAY", szElem );
       return hb_compIdentifierNew( HB_COMP_PARAM, szBuf, HB_IDENT_COPY );
    }
+   if( fFixed )
+      return NULL;
    *piUsed = 1;
    return hb_clsScalarType( pTok );
 }
@@ -543,10 +555,13 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                else if( hb_clsTokenIs( pToken, "AS" ) )
                {
                   pToken = hb_clsNextToken( HB_COMP_PARAM );
-                  /* `AS CLASS X` and `AS ARRAY OF …` name more than one word
-                     (hb_compDeclTypeTokens); any other type is one word, kept
-                     as written (`AS INTEGER`, the legacy `as int`) */
+                  /* `AS CLASS X`, `AS RECORD X`, `AS ARRAY OF …` and `AS FIXED
+                     ARRAY OF …` name more than one word (hb_compDeclTypeTokens);
+                     any other type is one word, kept as written (`AS INTEGER`,
+                     the legacy `as int`) */
                   if( hb_clsTokenIs( pToken, "CLASS" ) ||
+                      hb_clsTokenIs( pToken, "RECORD" ) ||
+                      hb_clsTokenIs( pToken, "FIXED" ) ||
                       ( hb_clsTokenIs( pToken, "ARRAY" ) &&
                         hb_clsTokenIs( pToken->pNext, "OF" ) ) )
                   {
@@ -817,5 +832,83 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
       inside another function's body. */
    hb_astAppendToStartup( HB_COMP_PARAM, pClass );
 
+   return HB_TRUE;
+}
+
+/*
+ * `RECORD X( f1, f2 AS CLASS Y, aRows AS FIXED ARRAY OF RECORD Z, … )`
+ * (plan C12): called from the lexer with the RECORD token current, the
+ * name and a parenthesis after it. Reads the line into a class node of
+ * its fields, in order: each a DATA member, typed by its declaration or
+ * left to its name's prefix. The record is an array in Harbour (astype.ch
+ * removes the line and reads the declarations naming it as AS ARRAY) and
+ * a class of its fields in C#; the scan registers it as a class the
+ * reftab flags, its fields the row's parameters (hb_refTabMarkRecord).
+ *
+ * Returns HB_TRUE when a record was read.
+ */
+HB_BOOL hb_compRecordParse( HB_COMP_DECL )
+{
+   PHB_PP_TOKEN pToken;
+   PHB_AST_NODE pRecord;
+   const char * szName;
+   int iLine = hb_clsCurrLine( HB_COMP_PARAM );
+
+   pToken = hb_clsNextToken( HB_COMP_PARAM );
+   szName = hb_clsSaveId( HB_COMP_PARAM, pToken );
+   if( ! szName )
+      return HB_FALSE;
+   pToken = hb_clsNextToken( HB_COMP_PARAM );
+   if( ! pToken || HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_LEFT_PB )
+      return HB_FALSE;
+
+   pRecord = hb_astNew( HB_AST_CLASS, iLine );
+   pRecord->value.asClass.szName       = szName;
+   pRecord->value.asClass.szParent     = NULL;
+   pRecord->value.asClass.pMembers     = NULL;
+   pRecord->value.asClass.pMembersLast = NULL;
+   pRecord->value.asClass.szDestructor = NULL;
+   pRecord->value.asClass.fFriendly    = HB_FALSE;
+   pRecord->value.asClass.fRecord      = HB_TRUE;
+
+   pToken = hb_clsNextToken( HB_COMP_PARAM );
+   while( pToken && HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_RIGHT_PB &&
+          ! hb_clsTokenIsEOL( pToken ) )
+   {
+      if( HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_KEYWORD )
+      {
+         PHB_AST_NODE pField = hb_astNew( HB_AST_CLASSDATA, iLine );
+         pField->value.asClassData.szName    = hb_clsSaveId( HB_COMP_PARAM, pToken );
+         pField->value.asClassData.szType    = NULL;
+         pField->value.asClassData.szInit    = NULL;
+         pField->value.asClassData.szParams  = NULL;
+         pField->value.asClassData.iScope    = HB_AST_SCOPE_EXPORTED;
+         pField->value.asClassData.iKind     = HB_AST_DATA_INSTANCE;
+         pField->value.asClassData.fReadOnly = HB_FALSE;
+         pField->value.asClassData.fDeclType = HB_FALSE;
+         pToken = hb_clsNextToken( HB_COMP_PARAM );
+         if( hb_clsTokenIs( pToken, "AS" ) )
+         {
+            int iUsed, i;
+            pToken = hb_clsNextToken( HB_COMP_PARAM );
+            pField->value.asClassData.szType =
+               hb_compDeclTypeTokens( HB_COMP_PARAM, pToken, &iUsed );
+            pField->value.asClassData.fDeclType =
+               pField->value.asClassData.szType != NULL;
+            if( iUsed == 0 )
+               iUsed = 1;     /* a type word the declaration ignores (OBJECT) */
+            for( i = 0; i < iUsed; i++ )
+               pToken = hb_clsNextToken( HB_COMP_PARAM );
+         }
+         hb_clsAddMember( pRecord, pField );
+         continue;
+      }
+      pToken = hb_clsNextToken( HB_COMP_PARAM );   /* a comma */
+   }
+   if( pToken && HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_RIGHT_PB )
+      pToken = hb_clsNextToken( HB_COMP_PARAM );
+   hb_clsSkipLine( HB_COMP_PARAM, pToken );
+
+   hb_astAppendToStartup( HB_COMP_PARAM, pRecord );
    return HB_TRUE;
 }

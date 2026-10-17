@@ -38,7 +38,11 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        List<dynamic> aRows125 = new List<dynamic> { new List<dynamic> {  }, new List<dynamic> {  } };
+        List<dynamic> aRows125 = new List<dynamic>
+        {
+            new List<dynamic> {  },
+            new List<dynamic> {  }
+        };
         List<dynamic> aAlias125 = default;
         List<dynamic> aGrid125 = HbRuntime.Array(2, 3);
         List<dynamic> aSeen125 = new List<dynamic> { 1, 2 };

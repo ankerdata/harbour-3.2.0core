@@ -17,6 +17,8 @@ typedef struct HB_DEFENTRY_
    char *                szCanonName; /* canonical-cased NAME for emission — owned */
    char *                szClass;     /* owning class name — owned */
    char *                szType;      /* C# type token: int|long|decimal|string|bool — owned, may be NULL */
+   char *                szValue;     /* a whole number's digits, the define's value — owned, may be
+                                         NULL (a constant subscript, plan C12) */
    struct HB_DEFENTRY_ * pNext;
 } HB_DEFENTRY, * PHB_DEFENTRY;
 
@@ -138,7 +140,7 @@ static PHB_DEFENTRY hb_defMapFind( PHB_DEFENTRY * table, const char * szKey,
 
 static void hb_defMapInsert( PHB_DEFENTRY * table, const char * szOwner,
                              const char * szName, const char * szClass,
-                             const char * szType )
+                             const char * szType, const char * szValue )
 {
    char *       szKey = hb_defMapKeyJoin( szOwner, szName );
    HB_SIZE      slot  = hb_defMapHash( szKey ) & ( HB_DEFMAP_BUCKETS - 1 );
@@ -168,6 +170,7 @@ static void hb_defMapInsert( PHB_DEFENTRY * table, const char * szOwner,
    e->szCanonName = hb_defMapDup( szName );
    e->szClass     = hb_defMapDup( szClass );
    e->szType      = ( szType && *szType ) ? hb_defMapDup( szType ) : NULL;
+   e->szValue     = ( szValue && *szValue ) ? hb_defMapDup( szValue ) : NULL;
    e->pNext       = table[ slot ];
    table[ slot ]  = e;
 }
@@ -186,6 +189,8 @@ static void hb_defMapClear( PHB_DEFENTRY * table )
          hb_xfree( e->szClass );
          if( e->szType )
             hb_xfree( e->szType );
+         if( e->szValue )
+            hb_xfree( e->szValue );
          hb_xfree( e );
          e = next;
       }
@@ -250,6 +255,7 @@ void hb_defineMapLoad( void )
       char * szClass;
       char * szOwner;
       char * szType = NULL;
+      char * szValue = NULL;
       char * szTab1;
       char * szTab2;
       char * szTab3;
@@ -279,12 +285,22 @@ void hb_defineMapLoad( void )
       {
          *szTab2 = '\0';
          szOwner = szTab2 + 1;
-         /* Optional 4th column: the C# type token. */
+         /* Optional 4th column: the C# type token; 5th: the value of a
+            whole-number define, for a constant subscript (plan C12). */
          szTab3 = strchr( szOwner, '\t' );
          if( szTab3 )
          {
+            char * szTab4;
             *szTab3 = '\0';
             szType = szTab3 + 1;
+            szTab4 = strchr( szType, '\t' );
+            if( szTab4 )
+            {
+               *szTab4 = '\0';
+               szValue = szTab4 + 1;
+               if( ! *szValue )
+                  szValue = NULL;
+            }
             if( ! *szType )
                szType = NULL;
          }
@@ -296,9 +312,9 @@ void hb_defineMapLoad( void )
          continue;
 
       if( szOwner )
-         hb_defMapInsert( s_locals, szOwner, szName, szClass, szType );
+         hb_defMapInsert( s_locals, szOwner, szName, szClass, szType, szValue );
       else
-         hb_defMapInsert( s_globals, "", szName, szClass, szType );
+         hb_defMapInsert( s_globals, "", szName, szClass, szType, szValue );
    }
 
    fclose( fh );
@@ -379,4 +395,26 @@ const char * hb_defineMapLookupType( const char * szName )
    }
    e = hb_defMapFindBy( s_globals, "", szName );
    return e ? e->szType : NULL;
+}
+
+/* The value of a whole-number define (the map's fifth column), or NULL:
+   what a `#define` subscript on a record stands for (plan C12).
+   Local-first, like hb_defineMapLookupCanon. */
+const char * hb_defineMapLookupValue( const char * szName )
+{
+   PHB_DEFENTRY e;
+
+   if( ! szName || ! *szName )
+      return NULL;
+   if( ! s_fLoaded )
+      hb_defineMapLoad();
+
+   if( s_szCurrentFile[ 0 ] )
+   {
+      e = hb_defMapFindBy( s_locals, s_szCurrentFile, szName );
+      if( e )
+         return e->szValue;
+   }
+   e = hb_defMapFindBy( s_globals, "", szName );
+   return e ? e->szValue : NULL;
 }

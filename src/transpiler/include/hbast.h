@@ -221,6 +221,10 @@ struct _HB_AST_NODE
          const char *   szDestructor;  /* DESTRUCTOR <method>, or NULL */
          HB_BOOL        fFriendly;     /* MODULE FRIENDLY: the file's functions
                                           reach its PROTECTED / HIDDEN members */
+         HB_BOOL        fRecord;       /* `RECORD X( f1, f2 AS … )`: an array whose
+                                          positions are named and typed, a C# class of
+                                          its fields; the members are its fields, in
+                                          order (plan C12) */
       } asClass;
 
       /* HB_AST_CLASSDATA */
@@ -347,6 +351,17 @@ extern HB_BOOL      hb_astIsArrayType( const char * szType );
 extern const char * hb_astArrayElemType( const char * szType );
 extern const char * hb_astDeclCanon( void * pRefTab, const char * szDecl );
 extern HB_BOOL      hb_astDeclKnown( void * pRefTab, const char * szDecl );
+/* Records and fixed arrays (plan C12): FIXED<T> is an array fixed in
+   length (a C# T[]); a record is a class the reftab flags, its fields the
+   row's parameters in order. A subscript that is a whole-number literal or
+   a #define of one (the file's own, or the defines map's) is constant. */
+extern HB_BOOL      hb_astIsFixedType( const char * szType );
+extern HB_BOOL      hb_astIsRecordType( void * pRefTab, const char * szType );
+extern int          hb_astRecordFieldCount( void * pRefTab, const char * szRecord );
+extern const char * hb_astRecordFieldName( void * pRefTab, const char * szRecord, int iPos );
+extern const char * hb_astRecordFieldType( void * pRefTab, const char * szRecord, int iPos );
+extern void         hb_astSetFileDecls( PHB_AST_NODE pDecls );
+extern long         hb_astConstIndex( PHB_EXPR pIdx );
 /* W0040 when szDecl names a class nothing defines (szName declared at
    szFile(iLine)): a member, checked where the scan registers its row */
 extern void         hb_astDeclCheckKnown( void * pRefTab, const char * szDecl,
@@ -491,6 +506,7 @@ extern HB_BOOL      hb_astReturnsSelfOrNil( PHB_AST_NODE pBody );
 
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
+extern HB_BOOL      hb_compRecordParse( HB_COMP_DECL );
 extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );
 
 /* The type the tokens after an `AS` declare, in the transpiler's type

@@ -768,6 +768,8 @@ typedef struct _HB_COMP_LEX
 #ifdef HB_TRANSPILER
    PHB_PP_TOKEN   pRetTypeAs;       /* the `AS` of `FUNCTION f( … ) AS <type>`: it and
                                        the rest of the line never reach the grammar */
+   HB_BOOL        fDeclFixed;       /* `AS FIXED ARRAY OF …` was read: the next
+                                       hb_compDeclaredType writes FIXED<T> */
 #endif
 } HB_COMP_LEX, * PHB_COMP_LEX;
 

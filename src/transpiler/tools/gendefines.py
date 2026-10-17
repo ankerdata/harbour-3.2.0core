@@ -16,10 +16,13 @@ majority of real-world headers that consist of flag/enum-style constants.
         rmcomm.ch   → public static class RmcommConst
         deadbill.prg → public static class DeadbillPrgConst
 
-  - A `defines_map.txt` sibling. One `NAME<TAB>ClassName<TAB>Owner` line
-    per used define. Owner is empty for header-origin defines (globally
-    visible). Owner is the .prg basename for defines harvested from a
-    .prg — those shadow the global map *only* when compiling that file.
+  - A `defines_map.txt` sibling. One `NAME<TAB>ClassName<TAB>Owner<TAB>
+    Type<TAB>Value` line per used define. Owner is empty for header-origin
+    defines (globally visible). Owner is the .prg basename for defines
+    harvested from a .prg — those shadow the global map *only* when
+    compiling that file. Value is a whole-number define's digits, what a
+    `#define` subscript on a record stands for (the transpiler's plan
+    C12); empty for any other.
 
 ## Scoping rules
 
@@ -503,6 +506,13 @@ def cs_type_token(t: str, val: object) -> str:
     return 'decimal'
 
 
+def value_token(t: str, val: object) -> str:
+    """The map's value column: a whole-number define's digits (the
+    transpiler reads a `#define` subscript on a record by it), else
+    empty."""
+    return str(val) if cs_type_token(t, val) == 'long' else ''
+
+
 def emit_cs(used: Dict[str, Tuple[str, object]], class_name: str,
             source_basename: str) -> str:
     lines = [
@@ -557,12 +567,13 @@ def write_map(header_first: Dict[str, Tuple[str, Tuple[str, object]]],
               prg_defines: Dict[str, Dict[str, Tuple[str, object]]],
               tokens: Set[str], class_suffix: str,
               output_dir: str) -> Tuple[int, int, str]:
-    """Emit defines_map.txt (NAME<TAB>ClassName<TAB>Owner<TAB>Type).
+    """Emit defines_map.txt (NAME<TAB>ClassName<TAB>Owner<TAB>Type<TAB>Value).
 
     Owner is empty for header-origin globals and `basename.prg` for
     file-local prg defines. Type is int|long|decimal|string|bool — the
-    transpiler reads it to type a define reference in inference.
-    Returns (global_count, local_count, path)."""
+    transpiler reads it to type a define reference in inference. Value is
+    a whole-number define's digits (a `#define` subscript on a record),
+    empty for any other. Returns (global_count, local_count, path)."""
     map_path = os.path.join(output_dir, 'defines_map.txt')
     global_lines = []
     for name in sorted(header_first):
@@ -571,7 +582,7 @@ def write_map(header_first: Dict[str, Tuple[str, Tuple[str, object]]],
         basename, (t, val) = header_first[name]
         global_lines.append(
             f'{name}\t{class_name_for(basename, class_suffix)}\t\t'
-            f'{cs_type_token(t, val)}')
+            f'{cs_type_token(t, val)}\t{value_token(t, val)}')
 
     local_lines = []
     for prg_basename in sorted(prg_defines):
@@ -581,7 +592,8 @@ def write_map(header_first: Dict[str, Tuple[str, Tuple[str, object]]],
                 continue
             t, val = prg_defines[prg_basename][name]
             local_lines.append(
-                f'{name}\t{cls}\t{prg_basename}\t{cs_type_token(t, val)}')
+                f'{name}\t{cls}\t{prg_basename}\t{cs_type_token(t, val)}'
+                f'\t{value_token(t, val)}')
 
     with open(map_path, 'w') as f:
         f.write('\n'.join(global_lines + local_lines))

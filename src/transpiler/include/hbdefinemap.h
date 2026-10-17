@@ -78,6 +78,11 @@ extern HB_BOOL hb_defineMapIsLocalOwned( const char * szName );
    like hb_defineMapLookupCanon. */
 extern const char * hb_defineMapLookupType( const char * szName );
 
+/* Returns the value of a whole-number define (the map's fifth column, its
+   digits), or NULL: what a `#define` subscript on a record stands for
+   (plan C12). Local-first, like hb_defineMapLookupCanon. */
+extern const char * hb_defineMapLookupValue( const char * szName );
+
 HB_EXTERN_END
 
 #endif /* HB_DEFINEMAP_H_ */

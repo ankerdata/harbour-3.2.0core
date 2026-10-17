@@ -21,7 +21,12 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        OrderedDictionary<string, dynamic> hStock = new OrderedDictionary<string, dynamic> { { "tea", 1 }, { "milk", 2 }, { "rusk", 3 } };
+        OrderedDictionary<string, dynamic> hStock = new OrderedDictionary<string, dynamic>
+        {
+            { "tea", 1 },
+            { "milk", 2 },
+            { "rusk", 3 }
+        };
         OrderedDictionary<long, dynamic> hnById = new OrderedDictionary<long, dynamic> {  };
         OrderedDictionary<string, dynamic> hSrc = new OrderedDictionary<string, dynamic>
         {
@@ -29,7 +34,10 @@ public static partial class Program
             { "b", new OrderedDictionary<string, dynamic> { { "x", 1 } } }
         };
         OrderedDictionary<string, dynamic> hCopy = default;
-        List<dynamic> aSrc = new List<dynamic> { new OrderedDictionary<string, dynamic> { { "k", 1 } } };
+        List<dynamic> aSrc = new List<dynamic>
+        {
+            new OrderedDictionary<string, dynamic> { { "k", 1 } }
+        };
         List<dynamic> aCopy = default;
         long nId = 7;
         string cKey = default;

@@ -36,6 +36,7 @@ typedef struct HB_REFENTRY_
    HB_BOOL               fDefined;     /* set once a real definition has been seen */
    HB_BOOL               fIsClass;     /* this is a CLASS marker, not a function */
    HB_BOOL               fClassDynamic;/* fIsClass + class uses ::&(name) — emit as `dynamic` */
+   HB_BOOL               fRecord;      /* fIsClass + a RECORD: pParams are its fields, in order (flag R) */
    HB_BOOL               fIsPublic;    /* this is a PUBLIC variable marker */
    HB_BOOL               fPublicArrayDim; /* PUBLIC declared with [size] — emit `new dynamic[N]` at runtime */
    HB_BOOL               fExtern;      /* loaded from the --extern= table: a .NET
@@ -1263,6 +1264,34 @@ HB_BOOL hb_refTabIsClassDynamic( PHB_REFTAB pTab, const char * szName )
    return e && e->fClassDynamic;
 }
 
+void hb_refTabMarkRecord( PHB_REFTAB pTab, const char * szName,
+                          int nFields, const char ** ppNames,
+                          const char ** ppTypes )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return;
+   /* The fields are the row's parameters. An entry a class mark or a stub
+      left with another count would be merged by hb_refTabAddFunc as two
+      definitions of one function (the wider arity, variadic); a record is
+      declared once, so its fields replace what was there. */
+   e = hb_refTabFindOrCreate( pTab, szName );
+   e->fDefined = HB_FALSE;
+   hb_refTabAddFunc( pTab, szName, nFields, ppNames, ppTypes, HB_FALSE );
+   hb_refTabMarkClass( pTab, szName, NULL );
+   e->fRecord   = HB_TRUE;
+   e->fVariadic = HB_FALSE;
+}
+
+HB_BOOL hb_refTabIsRecord( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fRecord;
+}
+
 void hb_refTabMarkPublic( PHB_REFTAB pTab, const char * szName,
                           const char * szOwnerBase, HB_BOOL fArrayDim )
 {
@@ -1516,13 +1545,14 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
          if( e->fDefined )
          {
             int p;
-            char fnFlags[ 8 ];
+            char fnFlags[ 12 ];
             int  fnK = 0;
             const char * szRet;
             if( e->fVariadic )      fnFlags[ fnK++ ] = 'V';
             if( e->fCalledVarargs ) fnFlags[ fnK++ ] = 'S';
             if( e->fIsClass )       fnFlags[ fnK++ ] = 'K';
             if( e->fClassDynamic )  fnFlags[ fnK++ ] = 'D';
+            if( e->fRecord )        fnFlags[ fnK++ ] = 'R';
             if( e->fIsPublic )      fnFlags[ fnK++ ] = 'P';
             if( e->fPublicArrayDim) fnFlags[ fnK++ ] = 'A';
             if( e->fProcedure )     fnFlags[ fnK++ ] = 'N';
@@ -1634,6 +1664,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
       HB_SIZE n;
       int    nParams;
       HB_BOOL fVariadic;
+      HB_BOOL fRecord;
       const char * names[ HB_REFTAB_MAXPARAM ];
       const char * types[ HB_REFTAB_MAXPARAM ];
       HB_BOOL refs[ HB_REFTAB_MAXPARAM ];
@@ -1683,6 +1714,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          HB_BOOL fPub       = HB_FALSE;
          HB_BOOL fPubArr    = HB_FALSE;
          HB_BOOL fProc      = HB_FALSE;
+         fRecord   = HB_FALSE;
          fVariadic = HB_FALSE;
          for( c = fields[ 1 ]; *c; c++ )
          {
@@ -1692,6 +1724,8 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
                fSpread = HB_TRUE;
             else if( *c == 'K' || *c == 'k' )
                fIsClass = HB_TRUE;
+            else if( *c == 'R' || *c == 'r' )
+               fRecord = HB_TRUE;
             else if( *c == 'D' || *c == 'd' )
                fClassDyn = HB_TRUE;
             else if( *c == 'P' || *c == 'p' )
@@ -1716,7 +1750,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          }
          if( fClassDyn )
             hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
-         else if( fIsClass || fExtClass )
+         else if( ( fIsClass || fExtClass ) && ! fRecord )
             hb_refTabMarkClass( pTab, fields[ 0 ], NULL );
          if( fExtClass && fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
          {
@@ -1789,7 +1823,12 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          }
       }
 
-      hb_refTabAddFunc( pTab, fields[ 0 ], nParams, names, types, fVariadic );
+      if( fRecord )
+         /* a record's fields are its parameters (flag R): the class mark
+            after them, so the row is not merged as a second arity */
+         hb_refTabMarkRecord( pTab, fields[ 0 ], nParams, names, types );
+      else
+         hb_refTabAddFunc( pTab, fields[ 0 ], nParams, names, types, fVariadic );
       if( ! fExtClass && fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
          hb_refTabSetReturnType( pTab, fields[ 0 ], fields[ 2 ] );
       for( i = 0; i < nParams; i++ )
@@ -2730,6 +2769,40 @@ static const char * hb_refTabDeclaredMethod( HB_COMP_DECL, const char * szClass,
    return NULL;
 }
 
+/* A RECORD's row (plan C12): the class mark with its fields as the
+   parameters, in order, each typed by its declaration (`AS …`, in its
+   definition's spelling) or by its name's prefix, an `oX` field by the
+   class its name names, as a member is. */
+static void hb_refTabCollectRecord( PHB_REFTAB pTab, PHB_AST_NODE pRecord )
+{
+   const char * apNames[ HB_REFTAB_MAXPARAM ];
+   const char * apTypes[ HB_REFTAB_MAXPARAM ];
+   int n = 0;
+   PHB_AST_NODE pMember;
+
+   for( pMember = pRecord->value.asClass.pMembers;
+        pMember && n < HB_REFTAB_MAXPARAM; pMember = pMember->pNext )
+   {
+      const char * szName = pMember->value.asClassData.szName;
+      const char * szType;
+      if( pMember->type != HB_AST_CLASSDATA || ! szName )
+         continue;
+      if( pMember->value.asClassData.szType )
+         szType = hb_astDeclCanon( pTab, pMember->value.asClassData.szType );
+      else
+      {
+         szType = hb_astInferType( szName, NULL );
+         if( szType && hb_stricmp( szType, "OBJECT" ) == 0 &&
+             hb_astObjectNameClass( pTab, szName ) )
+            szType = hb_astObjectNameClass( pTab, szName );
+      }
+      apNames[ n ] = szName;
+      apTypes[ n ] = szType ? szType : "USUAL";
+      n++;
+   }
+   hb_refTabMarkRecord( pTab, pRecord->value.asClass.szName, n, apNames, apTypes );
+}
+
 void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
 {
    PHB_AST_NODE pFunc;
@@ -2737,6 +2810,16 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
 
    /* this file's warnings are its own, not the batch's last file's */
    hb_astWarnScope( HB_COMP_PARAM->szFile );
+
+   /* the file's declarations, its #defines among them: the number a
+      `#define` subscript on a record stands for (hb_astConstIndex) */
+   {
+      PHB_AST_NODE pFirst = HB_COMP_PARAM->ast.pFuncList;
+      hb_astSetFileDecls( pFirst && pFirst->type == HB_AST_FUNCTION &&
+                          pFirst->value.asFunc.pBody &&
+                          pFirst->value.asFunc.pBody->type == HB_AST_BLOCK ?
+                          pFirst->value.asFunc.pBody->value.asBlock.pFirst : NULL );
+   }
 
    /* ----- Pass 0: mark every CLASS so cross-file callers can detect
       ClassName():New() patterns even when ClassName lives elsewhere.
@@ -2755,8 +2838,13 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
             later in source order than the class that references it. */
          for( ; p; p = p->pNext )
             if( p->type == HB_AST_CLASS && p->value.asClass.szName )
-               hb_refTabMarkClass( pTab, p->value.asClass.szName,
-                                   p->value.asClass.szParent );
+            {
+               if( p->value.asClass.fRecord )
+                  hb_refTabCollectRecord( pTab, p );
+               else
+                  hb_refTabMarkClass( pTab, p->value.asClass.szName,
+                                      p->value.asClass.szParent );
+            }
          p = pFirst->value.asFunc.pBody->value.asBlock.pFirst;
          while( p )
          {

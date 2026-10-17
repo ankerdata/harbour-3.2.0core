@@ -42,7 +42,15 @@ public static partial class Program
 {
     public static List<dynamic> TestShelf133Def(string cPath = default)
     {
-        return new List<dynamic> { new List<dynamic> { "Shelf", "SHELF" }, (cPath != null ? cPath : ""), new List<dynamic> {  }, new List<dynamic> {  }, new OrderedDictionary<string, dynamic> {  }, 1 };
+        return new List<dynamic>
+        {
+            new List<dynamic> { "Shelf", "SHELF" },
+            (cPath != null ? cPath : ""),
+            new List<dynamic> {  },
+            new List<dynamic> {  },
+            new OrderedDictionary<string, dynamic> {  },
+            1
+        };
     }
 
     public static ShelfRec133 ConstructORMTable(List<dynamic> aFileDefinition = default, bool lReadOnly = default, bool lShared = default)

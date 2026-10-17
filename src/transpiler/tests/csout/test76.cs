@@ -22,11 +22,19 @@ using static Program;
 public static partial class Program
 {
     public static OrderedDictionary<long, dynamic> test76_shnPanels;
-    public static OrderedDictionary<string, dynamic> test76_shNames = new OrderedDictionary<string, dynamic> { { "alpha", 1 }, { "beta", 2 } };
+    public static OrderedDictionary<string, dynamic> test76_shNames = new OrderedDictionary<string, dynamic>
+    {
+        { "alpha", 1 },
+        { "beta", 2 }
+    };
     public static void Main(string[] args)
     {
         OrderedDictionary<long, dynamic> hnById = new OrderedDictionary<long, dynamic> {  };
-        OrderedDictionary<long, dynamic> hnLit = new OrderedDictionary<long, dynamic> { { 10, "ten" }, { 20, "twenty" } };
+        OrderedDictionary<long, dynamic> hnLit = new OrderedDictionary<long, dynamic>
+        {
+            { 10, "ten" },
+            { 20, "twenty" }
+        };
 
         test76_shnPanels = BuildPanels();
 

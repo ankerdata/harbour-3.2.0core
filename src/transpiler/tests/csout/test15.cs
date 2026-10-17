@@ -9,9 +9,22 @@ public static partial class Program
     {
         List<dynamic> aNumbers = new List<dynamic> { 10, 20, 30, 40, 50 };
         List<dynamic> aNames = new List<dynamic> { "Alice", "Bob", "Charlie" };
-        OrderedDictionary<string, dynamic> hPerson = new OrderedDictionary<string, dynamic> { { "name", "John" }, { "age", 30 } };
-        OrderedDictionary<string, dynamic> hConfig = new OrderedDictionary<string, dynamic> { { "debug", true }, { "timeout", 60 } };
-        List<dynamic> aMatrix = new List<dynamic> { new List<dynamic> { 1, 2 }, new List<dynamic> { 3, 4 }, new List<dynamic> { 5, 6 } };
+        OrderedDictionary<string, dynamic> hPerson = new OrderedDictionary<string, dynamic>
+        {
+            { "name", "John" },
+            { "age", 30 }
+        };
+        OrderedDictionary<string, dynamic> hConfig = new OrderedDictionary<string, dynamic>
+        {
+            { "debug", true },
+            { "timeout", 60 }
+        };
+        List<dynamic> aMatrix = new List<dynamic>
+        {
+            new List<dynamic> { 1, 2 },
+            new List<dynamic> { 3, 4 },
+            new List<dynamic> { 5, 6 }
+        };
         List<dynamic> aEmpty = new List<dynamic> {  };
         decimal nTotal = 0;
         decimal nLen = default;
