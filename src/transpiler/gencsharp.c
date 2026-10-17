@@ -248,6 +248,15 @@ static HB_BOOL hb_csNeedsIntCast( PHB_EXPR pExpr )
        pExpr->value.asNum.NumType == HB_ET_LONG )
       return HB_FALSE;
 
+   /* an IIF is as integral as its two branches: a bit setter
+      `IIF( lx, hb_bitOr( ... ), hb_bitAnd( ... ) )` returns long uncast
+      (test119, test121) */
+   if( pExpr && pExpr->ExprType == HB_ET_IIF && pExpr->value.asList.pExprList &&
+       pExpr->value.asList.pExprList->pNext &&
+       pExpr->value.asList.pExprList->pNext->pNext )
+      return hb_csNeedsIntCast( pExpr->value.asList.pExprList->pNext ) ||
+             hb_csNeedsIntCast( pExpr->value.asList.pExprList->pNext->pNext );
+
    /* a long already: an `i` name, a Pass 2.5 local, an integral static,
       a call returning long, integral arithmetic over those */
    if( pExpr && pExpr->ExprType == HB_ET_VARIABLE &&
@@ -7269,11 +7278,21 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                /* a function declared (or typed) a subclass returning its parent */
                const char * szDown =
                   hb_csDowncastTo( s_szRetHbType, pNode->value.asReturn.pExpr );
-               if( szDown )
+               /* a return declared INTEGER takes a decimal expression as a
+                  write into an `i` local does, cast: `RETURN Len( ::aBuffer )`,
+                  `RETURN nID` of a `%` result (GetSaleIndex, GetBuffID) */
+               HB_BOOL fIntCast = s_szRetHbType &&
+                  hb_stricmp( s_szRetHbType, "INTEGER" ) == 0 &&
+                  hb_csNeedsIntCast( pNode->value.asReturn.pExpr );
+               if( fIntCast )
+                  fprintf( yyc, "(long)(" );
+               else if( szDown )
                   fprintf( yyc, "(%s)", szDown );
                hb_csExpectLiteral( s_szRetHbType, pNode->value.asReturn.pExpr );
+               hb_csEmitExpr( pNode->value.asReturn.pExpr, yyc, HB_FALSE );
+               if( fIntCast )
+                  fprintf( yyc, ")" );
             }
-            hb_csEmitExpr( pNode->value.asReturn.pExpr, yyc, HB_FALSE );
             fprintf( yyc, ";\n" );
             s_pHoistCall = NULL;
             if( pHoist )
