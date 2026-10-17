@@ -139,6 +139,12 @@ public static partial class HbRuntime
             ? CloneNested(arr, new Dictionary<object, object>(ReferenceEqualityComparer.Instance))
             : null;
 
+    // AClone() of a FIXED array (plan C16: a C# array, FieldDef[] for a
+    // definition's rows): a C# array of the same type, its elements cloned
+    // as above; a record element is an object, shared
+    public static T[] AClone<T>(T[] arr) =>
+        (T[])CloneNested(arr, new Dictionary<object, object>(ReferenceEqualityComparer.Instance));
+
     // ATail(): the last element, NIL for an empty array or none
     public static dynamic ATail(dynamic arr) =>
         (object)arr is IList a && IsHbArray(a) && a.Count > 0 ? a[a.Count - 1] : null;

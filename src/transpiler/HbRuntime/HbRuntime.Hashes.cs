@@ -152,6 +152,13 @@ public static partial class HbRuntime
             ? CloneNested(d, new Dictionary<object, object>(ReferenceEqualityComparer.Instance))
             : null;
 
+    // hb_HClone() of a typed hash (plan C16's HASH OF ..., a definition's
+    // OrderedDictionary<string, string>): the same dictionary type, which
+    // the dynamic form returns too but a typed holder cannot take from
+    // `dynamic` at run time
+    public static OrderedDictionary<K, V> hb_HClone<K, V>(OrderedDictionary<K, V> h) where K : notnull =>
+        (OrderedDictionary<K, V>)CloneNested(h, new Dictionary<object, object>(ReferenceEqualityComparer.Instance));
+
     // AClone() and hb_HClone() (vm/arrays.c, hb_nestedCloneDo): nested
     // arrays and hashes are cloned as well, each once — an array reached
     // twice is one clone reached twice, a cycle stays a cycle. A hash is
@@ -159,6 +166,16 @@ public static partial class HbRuntime
     // clone its instance variables.
     static object CloneNested(object x, Dictionary<object, object> done)
     {
+        if (x is System.Array fixedArr)   // a FIXED array (plan C16): a C# array of the same type
+        {
+            if (done.TryGetValue(fixedArr, out object cf))
+                return cf;
+            var copy = System.Array.CreateInstance(fixedArr.GetType().GetElementType()!, fixedArr.Length);
+            done[fixedArr] = copy;
+            for (int i = 0; i < fixedArr.Length; i++)
+                copy.SetValue(CloneNested(fixedArr.GetValue(i), done), i);
+            return copy;
+        }
         if (IsHbArray(x))
         {
             var a = (System.Collections.IList)x;

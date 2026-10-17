@@ -453,10 +453,14 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
             szPName && hb_stricmp( pOld[ i ].szName, szPName ) != 0 &&
             hb_astObjectNameClass( pTab, szPName ) != NULL;
          /* The prefix's weak form of a family never overrides what the
-            callers refined: an `a` name's ARRAY a FIXED<T> or ARRAY<T>, an
-            `h` name's HASH a HASHC / HASHN / HASHC<T> (plan C12, C16) */
+            callers refined: an `a` name's ARRAY a FIXED<T>, an ARRAY<T> or
+            a record (whose body would otherwise be checked and emitted
+            with the ARRAY every pass, the callers refining it back only
+            afterwards), an `h` name's HASH a HASHC / HASHN / HASHC<T>
+            (plan C12, C16) */
          HB_BOOL fWeakOfFamily = szPType && szOldType &&
-            ( ( hb_stricmp( szPType, "ARRAY" ) == 0 && hb_astArrayElemType( szOldType ) ) ||
+            ( ( hb_stricmp( szPType, "ARRAY" ) == 0 &&
+                ( hb_astArrayElemType( szOldType ) || hb_refTabIsRecord( pTab, szOldType ) ) ) ||
               ( hb_stricmp( szPType, "HASH" ) == 0 && hb_astIsHashFamily( szOldType ) &&
                 hb_stricmp( szOldType, "HASH" ) != 0 ) );
          if( ( ( ! szPType || ! *szPType ||
@@ -904,6 +908,46 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       pParam->szType = szDup;
       return HB_REFINE_REFINED;
    }
+
+   /* An `a` slot, ARRAY by its prefix, given a record or a FIXED array
+      (plan C12): an array to Harbour and to the name, the class or the C#
+      array to C#, which the slot takes as an `a` local does
+      (hb_astPropagateVarAs). */
+   if( hb_stricmp( pParam->szType, "ARRAY" ) == 0 &&
+       ( hb_astIsFixedType( szNewType ) || hb_refTabIsRecord( pTab, szNewType ) ) )
+   {
+      char * szDup = hb_refTabDup( szNewType );
+      hb_refTabDefer( pTab, pParam->szType );
+      pParam->szType = szDup;
+      return HB_REFINE_REFINED;
+   }
+
+   /* The other way round, a plain ARRAY arriving at a record or FIXED
+      slot, is the weak form of what the slot holds, as OBJECT is of a
+      class and HASH of HASHC: the slot stays, no conflict. The scan
+      converges a hop per pass -- OpenDefinition's slot takes FileDef from
+      ConstructORMTable's only once that slot has it -- so the hop behind
+      still passes last pass's ARRAY; frozen at ARRAY:C here, a chain of
+      def-passing routines never healed (eight W0022s on the defs' first
+      pass). A holder nobody typed that really passes a List<dynamic> is
+      the C# build's CS1503 at the call, pointing at the holder to
+      declare, which dynamic would have hidden. */
+   if( hb_stricmp( szNewType, "ARRAY" ) == 0 && pParam->szType &&
+       ( hb_astIsFixedType( pParam->szType ) || hb_refTabIsRecord( pTab, pParam->szType ) ) )
+      return HB_REFINE_OK;
+
+   /* A class the reftab does not know yet, arriving at an `a` slot, may
+      be a record: the pass that knows the name decides, as
+      hb_astCheckOneAssign leaves an `a` local. A cold scan's first pass
+      walks the files in path order, so easipos/test/filedefinitions/
+      testormdef.prg's TestOrmDef returned FileDef before filedefinitions/
+      filedef.prg's RECORD FileDef was collected, and the disagreement
+      froze six slots at ARRAY:C for good. */
+   if( hb_stricmp( pParam->szType, "ARRAY" ) == 0 &&
+       ! hb_refTabIsScalarType( szNewType ) &&
+       hb_stricmp( szNewType, "OBJECT" ) != 0 && hb_stricmp( szNewType, "FUNREF" ) != 0 &&
+       ! hb_refTabIsClass( pTab, szNewType ) && ! hb_fieldTypesModelCanon( szNewType ) )
+      return HB_REFINE_OK;
 
    if( hb_stricmp( pParam->szType, "OBJECT" ) == 0 )
    {

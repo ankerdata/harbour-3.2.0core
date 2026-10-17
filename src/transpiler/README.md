@@ -247,7 +247,10 @@ ABS     NUMERIC      HbRuntime
   its type from its Hungarian prefix: `hCopy := hb_HClone( h )` is a
   hash, `nSev := hb_HGetDef( h, "sev", 0 )` a number (test116). It used
   to mean "dynamic on purpose" and beat the prefix, which turned those
-  locals `dynamic`.
+  locals `dynamic`. `AClone()` and `hb_HClone()` give back what they were
+  given: a FIXED array, a typed list, a record or a typed hash keeps its
+  type ahead of the table's `ARRAY` or `-` (hb_astInferExprType), as
+  HbRuntime's `AClone<T>( T[] )` and `hb_HClone<K, V>` keep the C# type.
 - **PREFIX** — namespace to remap to when emitting C#. A row with
   `HbRuntime` produces `HbRuntime.NAME(...)` in the output. `-` means
   "leave the name alone".
@@ -707,6 +710,22 @@ and family base, `OrmTable`, the base the generated C# models derive
 from. `BrowseDialog:New`'s `oOrmTable`, fed a `PLUTable` here and a
 `CustomerTable` there, therefore types as `OrmTable`; a table-specific
 member on it is then a C# error, which is the point.
+
+An `a` slot and the array family (plan C12 / C16, the def files): a
+record or a FIXED array arriving at a slot the prefix typed `ARRAY` is
+adopted, as an `a` local adopts one; a plain `ARRAY` arriving at a record
+or FIXED slot is the weak form of what the slot holds, as OBJECT is of a
+class and HASH of HASHC, and leaves it; a class the reftab does not know
+yet is left to the pass that knows it, since a cold scan's first pass
+walks the files in path order and met `TestOrmDef`'s FileDef before
+filedef.prg's RECORD; and re-registering the function at the start of
+its file's scan keeps the record over the prefix's ARRAY, as it keeps a
+FIXED<T> or a HASHC<T>. Without the three, a chain of def-passing
+routines (ConstructORMTable, OpenDefinition, DefinitionParts) froze at
+`ARRAY:C` on the first pass and never healed, and a body was checked and
+emitted with the weak type its callers had already refined away. A holder
+nobody typed that really passes a `List<dynamic>` where a FileDef goes is
+the C# build's CS1503, at the call, pointing at the holder to declare.
 
 ---
 

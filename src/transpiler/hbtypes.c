@@ -1550,6 +1550,35 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
    if( ! pExpr )
       return NULL;
 
+   /* AClone() and hb_HClone() give back what they were given (HbRuntime's
+      AClone<T>(T[]) and hb_HClone<K, V>): a FIXED array, a typed list, a
+      record or a typed hash keeps its type (plan C16), where hbfuncs.tab's
+      ARRAY failed a declared FIXED holder (W0041 at GetSQLiteInfo's
+      aDbfFieldsInfo). Before the literal typer, which answers a HbRuntime
+      builtin from the table; the argument's type needs the environment. */
+   if( pExpr->ExprType == HB_ET_FUNCALL &&
+       pExpr->value.asFunCall.pFunName &&
+       pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+       pExpr->value.asFunCall.pFunName->value.asSymbol.name &&
+       ( hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "ACLONE" ) == 0 ||
+         hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "HB_HCLONE" ) == 0 ) )
+   {
+      PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+      PHB_EXPR pFirst = pParms;
+      if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                      pParms->ExprType == HB_ET_ARGLIST ) )
+         pFirst = pParms->value.asList.pExprList;
+      if( pFirst )
+      {
+         const char * szArg = hb_astInferExprType( pFirst, pEnv );
+         if( szArg &&
+             ( hb_astIsFixedType( szArg ) || hb_astArrayElemType( szArg ) ||
+               hb_astIsRecordType( s_pPropRefTab, szArg ) ||
+               ( hb_astIsHashFamily( szArg ) && hb_stricmp( szArg, "HASH" ) != 0 ) ) )
+            return szArg;
+      }
+   }
+
    /* First try the simple literal-based inference */
    szType = hb_astInferFromExpr( pExpr );
    if( szType )
@@ -4952,9 +4981,14 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
    if( hb_stricmp( szLhs, szRhs ) == 0 )
       return;
    /* an `a` name commits to an array: a declared one (ARRAY<T>, FIXED<T>)
-      is one, and so is a record (plan C12) */
+      is one, and so is a record (plan C12); a class the reftab does not
+      know yet (another file's record on a cold scan's first pass) may be
+      one, and the pass that knows it decides */
    if( hb_astIsArrayType( szLhs ) &&
-       ( hb_astIsArrayType( szRhs ) || hb_astIsRecordType( s_pPropRefTab, szRhs ) ) )
+       ( hb_astIsArrayType( szRhs ) || hb_astIsRecordType( s_pPropRefTab, szRhs ) ||
+         ( hb_astIsClassType( szRhs ) && s_pPropRefTab &&
+           ! hb_refTabIsClass( s_pPropRefTab, szRhs ) &&
+           ! hb_fieldTypesModelCanon( szRhs ) ) ) )
       return;
    /* `h<X>` commits to hash-ness only — a key-typed HASHC/HASHN RHS
       against the prefix's plain HASH is agreement, not a W0024. Same
