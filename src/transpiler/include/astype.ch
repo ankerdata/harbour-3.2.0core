@@ -40,3 +40,15 @@
 #xtranslate AS FIXED ARRAY OF <!type!>       =>
 #xtranslate AS FIXED ARRAY OF RECORD <!name!> =>
 #xcommand RECORD <*rest*> =>
+
+/* Typed hashes: `AS INTEGER HASH`, `AS STRING HASH`, `AS HASH OF …`, keyed
+   and valued for the transpiler, a hash to Harbour. Longest forms last. */
+#xtranslate AS <k: INTEGER, STRING> HASH                        =>
+#xtranslate AS <k: INTEGER, STRING> HASH OF <!type!>            =>
+#xtranslate AS <k: INTEGER, STRING> HASH OF <c: CLASS, RECORD> <!name!> =>
+#xtranslate AS HASH OF <!type!>                                  =>
+#xtranslate AS HASH OF <c: CLASS, RECORD> <!name!>               =>
+#xtranslate AS HASH OF ARRAY OF <!type!>                         =>
+#xtranslate AS HASH OF ARRAY OF <c: CLASS, RECORD> <!name!>      =>
+#xtranslate AS HASH OF FIXED ARRAY OF <!type!>                   =>
+#xtranslate AS HASH OF FIXED ARRAY OF <c: CLASS, RECORD> <!name!> =>

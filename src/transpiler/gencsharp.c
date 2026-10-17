@@ -229,8 +229,7 @@ static const char * s_szLiteralHbType = NULL;
 
 static const char * hb_csHashKeyCsFor( const char * szType )
 {
-   return ( szType && hb_stricmp( szType, "HASHN" ) == 0 )
-          ? "long" : "string";
+   return hb_astHashKeyKind( szType ) == 'N' ? "long" : "string";
 }
 
 static const char * hb_csLocalTypeGet( const char * szName );
@@ -2677,6 +2676,10 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                                 hb_stricmp( szFunc, "AFill" ) == 0 ) ) ||
                ( iPos == 2 && hb_stricmp( szFunc, "hb_AIns" ) == 0 ) ) )
             hb_csExpectLiteral( hb_csExprElemType( pHead ), pArg );
+         /* hb_HSet( h, k, { … } ): the value under a typed hash's value type */
+         if( szFunc && pHead != pArg && iPos == 2 &&
+             hb_stricmp( szFunc, "hb_HSet" ) == 0 )
+            hb_csExpectLiteral( hb_astHashValueType( hb_csExprHbType( pHead ) ), pArg );
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
          s_szCbElemType = NULL;
          s_nCbElemParams = 0;
@@ -2741,6 +2744,18 @@ static const char * hb_csTypeMap( const char * szHbType )
          reallocated, and a holder other than the one passed by ref
          never saw the change. */
       return "List<dynamic>";
+   if( hb_astHashValueType( szHbType ) )
+   {
+      /* HASHC<T> / HASHN<T> (`AS HASH OF …`, `AS INTEGER HASH OF …`): the
+         values typed, so the dictionary is; the keys by the kind */
+      static char s_aHash[ 4 ][ 200 ];
+      static int  s_iHash = 0;
+      char * szBuf = s_aHash[ s_iHash++ & 3 ];
+      hb_snprintf( szBuf, sizeof( s_aHash[ 0 ] ), "OrderedDictionary<%s, %s>",
+                   hb_csHashKeyCsFor( szHbType ),
+                   hb_csTypeMap( hb_astHashValueType( szHbType ) ) );
+      return szBuf;
+   }
    if( hb_stricmp( szHbType, "HASH"  ) == 0 ||
        hb_stricmp( szHbType, "HASHC" ) == 0 )
       /* A Harbour hash keeps its keys in the order they were added
@@ -2969,7 +2984,7 @@ static int hb_csInlineSubscript( const char * p, HB_SIZE nLen, HB_SIZE nAt,
          szName[ nEnd - nStart ] = '\0';
          szT = hb_astInferType( szName, NULL );
          if( hb_astIsHashFamily( szT ) )
-            return hb_stricmp( szT, "HASHN" ) == 0 ? 2 : 1;
+            return hb_astHashKeyKind( szT ) == 'N' ? 2 : 1;
       }
    }
    return 3;
@@ -4214,6 +4229,8 @@ static const char * hb_csExprHbType( PHB_EXPR pExpr )
             return pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 ?
                    pP->szType : NULL;
          }
+         if( hb_astHashValueType( szBase ) )
+            return hb_astHashValueType( szBase );   /* a typed hash's value */
          return hb_astArrayElemType( szBase );
       }
       default:
@@ -4236,9 +4253,12 @@ static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr )
    while( pExpr && ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
           pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
       pExpr = pExpr->value.asList.pExprList;
-   s_szLiteralHbType = pExpr && pExpr->ExprType == HB_ET_ARRAY && szHbType &&
-                       ( hb_astArrayElemType( szHbType ) || hb_csIsRecordType( szHbType ) ) ?
-                       szHbType : NULL;
+   s_szLiteralHbType =
+      pExpr && szHbType &&
+      ( ( pExpr->ExprType == HB_ET_ARRAY &&
+          ( hb_astArrayElemType( szHbType ) || hb_csIsRecordType( szHbType ) ) ) ||
+        ( pExpr->ExprType == HB_ET_HASH && hb_astHashValueType( szHbType ) ) ) ?
+      szHbType : NULL;
 }
 
 /* The elements of a `{ … }` literal, each under its own expected type (a
@@ -5696,6 +5716,18 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                if( szT && hb_stricmp( szT, "STRING" ) == 0 )
                   fHash = HB_TRUE;
             }
+            /* a typed hash wherever it is held — a record's field, an
+               element, a call's result — says what it is (hb_csExprHbType);
+               the name-based decision below is for the rest */
+            if( ! fHash && pLhs )
+            {
+               const char * szLhsT = hb_csExprHbType( pLhs );
+               if( hb_astHashKeyKind( szLhsT ) )
+               {
+                  fHash = HB_TRUE;
+                  fLongKey = hb_astHashKeyKind( szLhsT ) == 'N';
+               }
+            }
             if( ! fHash && pLhs )
             {
                const char * szLhsName = NULL;
@@ -5721,7 +5753,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   if( hb_astIsHashFamily( szT ) )
                   {
                      fHash = HB_TRUE;
-                     fLongKey = hb_stricmp( szT, "HASHN" ) == 0;
+                     fLongKey = hb_astHashKeyKind( szT ) == 'N';
                   }
                }
             }
@@ -5845,6 +5877,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             HB_BOOL fComplex = HB_FALSE;
             int    iPairs = 0;
             int    iInd = s_iExprIndent;
+            /* a typed hash's literal (`AS HASH OF RECORD X := { … }`): the
+               dictionary of the declared key and value types, each value
+               under the value type (a record's constructor) */
+            const char * szExpect = s_szLiteralHbType;
+            const char * szValType = hb_astHashValueType( szExpect );
+            const char * szValCs = szValType ? hb_csTypeMap( szValType ) : "dynamic";
+            s_szLiteralHbType = NULL;
             /* C# key type for this literal: its own literal keys win
                (any numeric key → long); an empty/unlabeled literal
                inherits s_szHashKeyCs, which decl-init emission points
@@ -5852,6 +5891,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                `LOCAL hById := { => }` matches its
                OrderedDictionary<long, dynamic> declaration. */
             const char * szKeyCs = s_szHashKeyCs;
+            if( hb_astHashKeyKind( szExpect ) )
+               szKeyCs = hb_csHashKeyCsFor( szExpect );   /* the declaration's */
+            else
             {
                PHB_EXPR pKey = pExpr->value.asList.pExprList;
                while( pKey )
@@ -5899,8 +5941,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
             if( fComplex || iPairs > 1 )
             {
-               fprintf( yyc, "new OrderedDictionary<%s, dynamic>\n%*s{\n",
-                        szKeyCs, iInd - 4, "" );
+               fprintf( yyc, "new OrderedDictionary<%s, %s>\n%*s{\n",
+                        szKeyCs, szValCs, iInd - 4, "" );
                /* Bump indent so a nested complex hash/array (if we add
                   one to the heuristic later) lines its own children up
                   one level deeper. Restored on the way out. */
@@ -5913,6 +5955,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   if( pItem )
                   {
                      fprintf( yyc, ", " );
+                     hb_csExpectLiteral( szValType, pItem );
                      hb_csEmitExpr( pItem, yyc, HB_FALSE );
                      pItem = pItem->pNext;
                   }
@@ -5923,7 +5966,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             }
             else
             {
-               fprintf( yyc, "new OrderedDictionary<%s, dynamic> { ", szKeyCs );
+               fprintf( yyc, "new OrderedDictionary<%s, %s> { ", szKeyCs, szValCs );
                pItem = pExpr->value.asList.pExprList;
                while( pItem )
                {
@@ -5933,6 +5976,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   if( pItem )
                   {
                      fprintf( yyc, ", " );
+                     hb_csExpectLiteral( szValType, pItem );
                      hb_csEmitExpr( pItem, yyc, HB_FALSE );
                      pItem = pItem->pNext;
                   }

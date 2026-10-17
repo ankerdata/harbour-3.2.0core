@@ -770,6 +770,9 @@ typedef struct _HB_COMP_LEX
                                        the rest of the line never reach the grammar */
    HB_BOOL        fDeclFixed;       /* `AS FIXED ARRAY OF …` was read: the next
                                        hb_compDeclaredType writes FIXED<T> */
+   const char *   szDeclType;       /* a type the lexer composed from several words
+                                       (`AS INTEGER HASH OF RECORD X`): the next
+                                       hb_compDeclaredType takes it as it is */
 #endif
 } HB_COMP_LEX, * PHB_COMP_LEX;
 

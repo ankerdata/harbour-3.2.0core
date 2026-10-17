@@ -434,6 +434,14 @@ const char * hb_compDeclaredType( HB_COMP_DECL, PHB_VARTYPE pVarType )
 
    if( HB_COMP_PARAM->pLex )
       HB_COMP_PARAM->pLex->fDeclFixed = HB_FALSE;
+   /* a type the lexer composed (`AS HASH OF …`, `AS INTEGER HASH`): taken
+      as it is, the grammar having seen a type that declares nothing */
+   if( HB_COMP_PARAM->pLex && HB_COMP_PARAM->pLex->szDeclType )
+   {
+      const char * szComposed = HB_COMP_PARAM->pLex->szDeclType;
+      HB_COMP_PARAM->pLex->szDeclType = NULL;
+      return szComposed;
+   }
    if( ! pVarType )
       return NULL;
    switch( pVarType->cVarType )

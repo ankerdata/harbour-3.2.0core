@@ -82,6 +82,34 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
       *piUsed = 2;
       return hb_compIdentifierNew( HB_COMP_PARAM, pTok->pNext->value, HB_IDENT_COPY );
    }
+   /* `[INTEGER|STRING|CHARACTER] HASH [OF <type>]`: a hash keyed by whole
+      numbers or strings (HASHN, HASHC), its values typed when OF says
+      (HASHN<T>, HASHC<T>); a bare HASH stays the weak HASH of before */
+   {
+      PHB_PP_TOKEN pHash = pTok;
+      int cKey = 0;
+      if( hb_clsTokenIs( pTok, "INTEGER" ) && hb_clsTokenIs( pTok->pNext, "HASH" ) )
+         { cKey = 'N'; pHash = pTok->pNext; }
+      else if( ( hb_clsTokenIs( pTok, "STRING" ) || hb_clsTokenIs( pTok, "CHARACTER" ) ) &&
+               hb_clsTokenIs( pTok->pNext, "HASH" ) )
+         { cKey = 'C'; pHash = pTok->pNext; }
+      if( hb_clsTokenIs( pHash, "HASH" ) && ( cKey || hb_clsTokenIs( pHash->pNext, "OF" ) ) )
+      {
+         const char * szValue = NULL;
+         int iUsedValue = 0;
+         *piUsed = cKey ? 2 : 1;
+         if( hb_clsTokenIs( pHash->pNext, "OF" ) )
+         {
+            szValue = hb_compDeclTypeTokens( HB_COMP_PARAM, pHash->pNext->pNext, &iUsedValue );
+            *piUsed += 1 + ( iUsedValue ? iUsedValue : 1 );
+         }
+         if( szValue )
+            hb_snprintf( szBuf, sizeof( szBuf ), "%s<%s>", cKey == 'N' ? "HASHN" : "HASHC", szValue );
+         else
+            hb_snprintf( szBuf, sizeof( szBuf ), "%s", cKey == 'N' ? "HASHN" : "HASHC" );
+         return hb_compIdentifierNew( HB_COMP_PARAM, szBuf, HB_IDENT_COPY );
+      }
+   }
    if( hb_clsTokenIs( pTok, "FIXED" ) && hb_clsTokenIs( pTok->pNext, "ARRAY" ) )
    {
       fFixed = HB_TRUE;
@@ -563,7 +591,13 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                       hb_clsTokenIs( pToken, "RECORD" ) ||
                       hb_clsTokenIs( pToken, "FIXED" ) ||
                       ( hb_clsTokenIs( pToken, "ARRAY" ) &&
-                        hb_clsTokenIs( pToken->pNext, "OF" ) ) )
+                        hb_clsTokenIs( pToken->pNext, "OF" ) ) ||
+                      ( hb_clsTokenIs( pToken, "HASH" ) &&
+                        hb_clsTokenIs( pToken->pNext, "OF" ) ) ||
+                      ( ( hb_clsTokenIs( pToken, "INTEGER" ) ||
+                          hb_clsTokenIs( pToken, "STRING" ) ||
+                          hb_clsTokenIs( pToken, "CHARACTER" ) ) &&
+                        hb_clsTokenIs( pToken->pNext, "HASH" ) ) )
                   {
                      int iUsed, i;
                      szType = hb_compDeclTypeTokens( HB_COMP_PARAM, pToken, &iUsed );

@@ -36,9 +36,8 @@ static const char * hb_astStandardType( const char * szType )
       the OrObject wrapper would otherwise mangle them into OBJECT.
       INTEGER (Pass 2.5 int candidacy) likewise: the lexer's AS-type
       list has no INTEGER keyword, so degrade to NUMERIC. */
-   if( hb_stricmp( szType, "HASHC" ) == 0 ||
-       hb_stricmp( szType, "HASHN" ) == 0 )
-      return "HASH";
+   if( hb_astIsHashFamily( szType ) )
+      return "HASH";          /* HASHC, HASHN and the value-typed HASHC<T> too */
    if( hb_stricmp( szType, "INTEGER" ) == 0 )
       return "NUMERIC";
    if( hb_stricmp( szType, "INTEGER"   ) == 0 ||

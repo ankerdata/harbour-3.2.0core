@@ -356,6 +356,12 @@ extern HB_BOOL      hb_astDeclKnown( void * pRefTab, const char * szDecl );
    row's parameters in order. A subscript that is a whole-number literal or
    a #define of one (the file's own, or the defines map's) is constant. */
 extern HB_BOOL      hb_astIsFixedType( const char * szType );
+/* Typed hashes: HASHC<T> / HASHN<T> are hashes keyed by strings / whole
+   numbers whose values are T (`AS HASH OF …`, `AS INTEGER HASH OF …`), a
+   C# OrderedDictionary<string|long, T>; HASH, HASHC and HASHN hold
+   dynamic values as before. */
+extern const char * hb_astHashValueType( const char * szType );
+extern int          hb_astHashKeyKind( const char * szType );
 extern HB_BOOL      hb_astIsRecordType( void * pRefTab, const char * szType );
 extern int          hb_astRecordFieldCount( void * pRefTab, const char * szRecord );
 extern const char * hb_astRecordFieldName( void * pRefTab, const char * szRecord, int iPos );

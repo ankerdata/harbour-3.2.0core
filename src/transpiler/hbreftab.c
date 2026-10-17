@@ -205,10 +205,8 @@ static HB_BOOL hb_refTabIsScalarType( const char * sz )
       hb_stricmp( sz, "LOGICAL"   ) == 0 ||
       hb_stricmp( sz, "DATE"      ) == 0 ||
       hb_stricmp( sz, "TIMESTAMP" ) == 0 ||
-      hb_astIsArrayType( sz ) ||               /* ARRAY, or ARRAY<T> declared */
-      hb_stricmp( sz, "HASH"      ) == 0 ||
-      hb_stricmp( sz, "HASHC"     ) == 0 ||   /* string-keyed hash */
-      hb_stricmp( sz, "HASHN"     ) == 0 ||   /* numeric-keyed hash */
+      hb_astIsArrayType( sz ) ||               /* ARRAY, ARRAY<T>, FIXED<T> */
+      hb_astIsHashFamily( sz ) ||              /* HASH, HASHC, HASHN, HASHC<T>, HASHN<T> */
       hb_stricmp( sz, "BLOCK"     ) == 0 ||
       hb_stricmp( sz, "CODEBLOCK" ) == 0 ||
       hb_stricmp( sz, "CHARACTER" ) == 0 ||
@@ -454,12 +452,19 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
          HB_BOOL fRenamedToClass = pOld && i < nOld && pOld[ i ].szName &&
             szPName && hb_stricmp( pOld[ i ].szName, szPName ) != 0 &&
             hb_astObjectNameClass( pTab, szPName ) != NULL;
-         if( ( ! szPType || ! *szPType ||
-               hb_stricmp( szPType, "USUAL" ) == 0 ||
-               hb_stricmp( szPType, "OBJECT" ) == 0 ) &&
-             szOldType && ! fRenamedToClass &&
-             hb_stricmp( szOldType, "USUAL" ) != 0 &&
-             hb_stricmp( szOldType, "OBJECT" ) != 0 )
+         /* The prefix's weak form of a family never overrides what the
+            callers refined: an `a` name's ARRAY a FIXED<T> or ARRAY<T>, an
+            `h` name's HASH a HASHC / HASHN / HASHC<T> (plan C12, C16) */
+         HB_BOOL fWeakOfFamily = szPType && szOldType &&
+            ( ( hb_stricmp( szPType, "ARRAY" ) == 0 && hb_astArrayElemType( szOldType ) ) ||
+              ( hb_stricmp( szPType, "HASH" ) == 0 && hb_astIsHashFamily( szOldType ) &&
+                hb_stricmp( szOldType, "HASH" ) != 0 ) );
+         if( ( ( ! szPType || ! *szPType ||
+                 hb_stricmp( szPType, "USUAL" ) == 0 ||
+                 hb_stricmp( szPType, "OBJECT" ) == 0 ) &&
+               szOldType && ! fRenamedToClass &&
+               hb_stricmp( szOldType, "USUAL" ) != 0 &&
+               hb_stricmp( szOldType, "OBJECT" ) != 0 ) || fWeakOfFamily )
             e->pParams[ i ].szType = hb_refTabDup( szOldType );
          else
             e->pParams[ i ].szType = hb_refTabDup( szPType ? szPType : "USUAL" );

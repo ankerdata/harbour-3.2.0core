@@ -469,8 +469,34 @@ HB_BOOL hb_astIsHashFamily( const char * szType )
 {
    return szType && (
       hb_stricmp( szType, "HASH"  ) == 0 ||
-      hb_stricmp( szType, "HASHC" ) == 0 ||
-      hb_stricmp( szType, "HASHN" ) == 0 );
+      ( hb_strnicmp( szType, "HASHC", 5 ) == 0 &&
+        ( szType[ 5 ] == '\0' || szType[ 5 ] == '<' ) ) ||
+      ( hb_strnicmp( szType, "HASHN", 5 ) == 0 &&
+        ( szType[ 5 ] == '\0' || szType[ 5 ] == '<' ) ) );
+}
+
+/* 'C' for a hash keyed by strings (HASHC, HASHC<T>), 'N' by whole
+   numbers (HASHN, HASHN<T>), 0 for a weak HASH or anything else */
+int hb_astHashKeyKind( const char * szType )
+{
+   if( ! hb_astIsHashFamily( szType ) || hb_stricmp( szType, "HASH" ) == 0 )
+      return 0;
+   return ( szType[ 4 ] == 'N' || szType[ 4 ] == 'n' ) ? 'N' : 'C';
+}
+
+static const char * hb_astIntern( const char * szText, HB_SIZE nLen );  /* fwd */
+
+/* T of HASHC<T> / HASHN<T>, or NULL: the values' type when the hash
+   declared one (`AS HASH OF …`), dynamic otherwise */
+const char * hb_astHashValueType( const char * szType )
+{
+   HB_SIZE nLen;
+   if( ! hb_astIsHashFamily( szType ) || szType[ 5 ] != '<' )
+      return NULL;
+   nLen = strlen( szType );
+   if( nLen < 8 || szType[ nLen - 1 ] != '>' )
+      return NULL;
+   return hb_astIntern( szType + 6, nLen - 7 );
 }
 
 const char * hb_astHashFamilyMerge( const char * szA, const char * szB )
@@ -483,7 +509,9 @@ const char * hb_astHashFamilyMerge( const char * szA, const char * szB )
       return szB;             /* weak yields to the key-typed member */
    if( hb_stricmp( szB, "HASH" ) == 0 )
       return szA;
-   return NULL;               /* HASHC vs HASHN — real conflict */
+   return NULL;               /* HASHC vs HASHN, or typed values against
+                                 dynamic ones or another type: a real
+                                 conflict, two C# dictionary types */
 }
 
 /* ---- Declared types (`AS CLASS X`, `AS ARRAY OF …`) ----
@@ -591,6 +619,15 @@ const char * hb_astDeclCanon( void * pRefTab, const char * szDecl )
                    szCanon ? szCanon : szElem );
       return hb_astIntern( szBuf, strlen( szBuf ) );
    }
+   if( ( szElem = hb_astHashValueType( szDecl ) ) != NULL )
+   {
+      /* HASHC<T> / HASHN<T>: the value type in its definition's spelling,
+         an array or a record among them (hb_astDeclCanon of T) */
+      char szBuf[ 160 ];
+      hb_snprintf( szBuf, sizeof( szBuf ), "%.5s<%s>", szDecl,
+                   hb_astDeclCanon( pRefTab, szElem ) );
+      return hb_astIntern( szBuf, strlen( szBuf ) );
+   }
    if( hb_astIsDeclScalar( szDecl ) )
       return szDecl;
    {
@@ -603,8 +640,13 @@ const char * hb_astDeclCanon( void * pRefTab, const char * szDecl )
 HB_BOOL hb_astDeclKnown( void * pRefTab, const char * szDecl )
 {
    const char * szElem = hb_astArrayElemType( szDecl );
-   const char * szClass = szElem ? szElem : szDecl;
-   return ! szClass || hb_astIsDeclScalar( szClass ) ||
+   const char * szClass;
+   if( hb_astHashValueType( szDecl ) )
+      return hb_astDeclKnown( pRefTab, hb_astHashValueType( szDecl ) );
+   if( szElem && ( hb_astArrayElemType( szElem ) || hb_astHashValueType( szElem ) ) )
+      return hb_astDeclKnown( pRefTab, szElem );   /* nested: ARRAY OF HASH OF … */
+   szClass = szElem ? szElem : szDecl;
+   return ! szClass || hb_astIsDeclScalar( szClass ) || hb_astIsHashFamily( szClass ) ||
           hb_astDeclClass( pRefTab, szClass ) != NULL;
 }
 
@@ -870,13 +912,7 @@ static int hb_astKeyKind( const char * szType )
    (a weak HASH says nothing). */
 static int hb_astHashKind( const char * szType )
 {
-   if( ! szType )
-      return 0;
-   if( strcmp( szType, "HASHN" ) == 0 )
-      return 'N';
-   if( strcmp( szType, "HASHC" ) == 0 )
-      return 'C';
-   return 0;
+   return hb_astHashKeyKind( szType );
 }
 
 /* The name a subscript's or an assignment's target is known by: a
@@ -1498,6 +1534,8 @@ static const char * hb_astSubscriptType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       long l = hb_astConstIndex( pExpr->value.asList.pIndex );
       return l > 0 ? hb_astRecordFieldType( pEnv->pRefTab, szBase, ( int ) l ) : NULL;
    }
+   if( hb_astHashValueType( szBase ) )
+      return hb_astHashValueType( szBase );   /* a typed hash's value, by any key */
    return hb_astArrayElemType( szBase );
 }
 
@@ -1850,8 +1888,7 @@ static HB_BOOL hb_astIsClassType( const char * sz )
       hb_stricmp( sz, "DECIMAL"   ) != 0 && hb_stricmp( sz, "STRING"    ) != 0 &&
       hb_stricmp( sz, "CHARACTER" ) != 0 && hb_stricmp( sz, "LOGICAL"   ) != 0 &&
       hb_stricmp( sz, "DATE"      ) != 0 && hb_stricmp( sz, "TIMESTAMP" ) != 0 &&
-      hb_stricmp( sz, "ARRAY"     ) != 0 && hb_stricmp( sz, "HASH"      ) != 0 &&
-      hb_stricmp( sz, "HASHC"     ) != 0 && hb_stricmp( sz, "HASHN"     ) != 0 &&
+      hb_stricmp( sz, "ARRAY"     ) != 0 && ! hb_astIsHashFamily( sz ) &&
       hb_stricmp( sz, "BLOCK"     ) != 0 && hb_stricmp( sz, "CODEBLOCK" ) != 0 &&
       hb_stricmp( sz, "NIL"       ) != 0 && hb_stricmp( sz, "SYMBOL"    ) != 0 &&
       hb_stricmp( sz, "POINTER"   ) != 0 && hb_stricmp( sz, "OBJECT"    ) != 0 &&
@@ -1901,6 +1938,12 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
       return HB_TRUE;
    if( hb_stricmp( szDecl, "ARRAY" ) == 0 && hb_astIsArrayType( szActual ) )
       return HB_TRUE;
+   /* typed values (HASHC<T>) are their own C# type: only the same type
+      goes in (equal strings were accepted above; a literal is checked
+      value by value before this); a weak HASH, or one keyed the same,
+      goes into a declared hash with dynamic values */
+   if( hb_astHashValueType( szDecl ) || hb_astHashValueType( szActual ) )
+      return HB_FALSE;
    if( hb_astHashFamilyMerge( szDecl, szActual ) )
       return HB_TRUE;
    return HB_FALSE;
@@ -2014,6 +2057,20 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
          hb_astDeclCheckExpr( szElem, pItem, pEnv, szFile, iLine, szName, szInto );
       return;
    }
+   if( pExpr->ExprType == HB_ET_HASH && hb_astHashValueType( szDecl ) )
+   {
+      /* `{ k => v, … }` for a typed hash: each value under the value type
+         (the keys' kind is the name's business, W0035, and the declaration
+         agrees with the name: hb_astDeclareVar) */
+      const char * szVal = hb_astHashValueType( szDecl );
+      char szInto[ 192 ];
+      hb_snprintf( szInto, sizeof( szInto ), "putting %%s into '%s'",
+                   szName ? szName : "a hash" );
+      for( pItem = pExpr->value.asList.pExprList; pItem && pItem->pNext;
+           pItem = pItem->pNext->pNext )
+         hb_astDeclCheckExpr( szVal, pItem->pNext, pEnv, szFile, iLine, szName, szInto );
+      return;
+   }
    hb_astDeclCheck( szDecl, hb_astInferExprType( pExpr, pEnv ), szFile, iLine,
                     szName, szWhat );
 }
@@ -2110,6 +2167,7 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
          *pfChanged = HB_TRUE;
    }
    else if( s_pPropRefTab && ( hb_astIsFixedType( szCurType ) ||
+                               hb_astHashValueType( szCurType ) ||
                                hb_astIsRecordType( s_pPropRefTab, szCurType ) ) )
    {
       const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
@@ -2290,6 +2348,8 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                {
                   const char * szEnum = hb_astInferExprType( pEnum, pEnv );
                   const char * szElem = hb_astArrayElemType( szEnum );
+                  if( ! szElem )
+                     szElem = hb_astHashValueType( szEnum );   /* a typed hash's values */
                   if( szElem )
                      hb_astPropagateVarAs( pVar->value.asSymbol.name, NULL, szElem,
                                            pEnv, pfChanged );
@@ -4992,6 +5052,8 @@ static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
    }
    szElem = hb_astArrayElemType( szArr );
    if( ! szElem )
+      szElem = hb_astHashValueType( szArr );   /* `h[ k ] := x` into a typed hash */
+   if( ! szElem )
       return;
    hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into '%s'",
                 szName ? szName : "an array" );
@@ -5688,10 +5750,26 @@ static void hb_astDeclareVar( HB_TYPEENV * pEnv, const char * szName,
                               const char * szDecl, void * pRefTab,
                               const char * szFile, int iLine )
 {
+   int cName, cDecl;
    if( ! szName || ! szDecl )
       return;
    hb_typeEnvDeclare( pEnv, szName, hb_astDeclCanon( pRefTab, szDecl ) );
    hb_astDeclCheckKnown( pRefTab, szDecl, szName, szFile, iLine );
+   /* W0035: a typed hash's declared key kind against the name's (`hnX AS
+      STRING HASH`): the name declares the keys too, and the subscripts are
+      checked against it */
+   cName = hb_astHashNameKeys( szName );
+   cDecl = hb_astHashKeyKind( szDecl );
+   if( cName && cDecl && cName != cDecl )
+   {
+      char szMsg[ 256 ];
+      hb_snprintf( szMsg, sizeof( szMsg ),
+                   "'%s' is declared %s, a hash keyed by %s, but its name declares "
+                   "one keyed by %s", szName, szDecl,
+                   cDecl == 'N' ? "numbers" : "strings",
+                   cName == 'N' ? "numbers" : "strings" );
+      hb_astDeclWarn( "W0035", szFile, iLine, szName, szMsg );
+   }
 }
 
 const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,

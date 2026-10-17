@@ -113,6 +113,24 @@ for spec in "hash_key_name:3" "x_subscript:1" "foreach_after:2" "foreach_integer
    fi
 done
 
+# typed hashes (plan C12 / C16): values by type, keys by kind
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0041" "putting NUMERIC into 'hRows', declared Row41h"
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0035" "'hnById' is given a hash keyed by strings, but its name declares one keyed by numbers"
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0035" "'hnWrong' is declared HASHC, a hash keyed by strings, but its name declares one keyed by numbers"
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0041" "assigning HASH to 'hRows', declared HASHC<Row41h>"
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0041" "putting STRING into 'hRows', declared Row41h"
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0035" "'hRows' takes a number as a key, but its name declares a hash keyed by strings"
+run_one "$SCRIPT_DIR/typed_hash.prg"    "W0035" "'hnById' takes a string as a key, but its name declares a hash keyed by numbers"
+count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/typed_hash.prg" -GS 2>&1 | grep -c "warning W00[34][15]")
+rm -f "$SCRIPT_DIR/typed_hash.cs"
+if [ "$count" -eq 7 ]; then
+   echo "PASS: typed_hash (7 warnings, no more)"
+   pass=$((pass+1))
+else
+   echo "FAIL: typed_hash (expected 7 warnings, got $count)"
+   fail=$((fail+1))
+fi
+
 # ...and the eight, no more: the quiet lines stay quiet
 count=$("$TRANS" -I"$INC" -o"$SCRIPT_DIR/" "$SCRIPT_DIR/fixed_record.prg" -GS 2>&1 | grep -c "warning W004[16]")
 rm -f "$SCRIPT_DIR/fixed_record.cs"

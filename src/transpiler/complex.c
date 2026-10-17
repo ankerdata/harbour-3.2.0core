@@ -1576,6 +1576,25 @@ hb_comp_yylex_restart:
                PHB_PP_TOKEN pTypeTok = pToken->pNext;
                HB_BOOL fFixed = HB_FALSE;
                int iAs;
+               /* `AS HASH OF …`, `AS INTEGER HASH [OF …]`, `AS STRING HASH
+                  [OF …]`: a typed hash, several words the class parser's
+                  type reader composes (HASHC<T>, HASHN); the words are
+                  consumed here, the type goes to hb_compDeclaredType, and
+                  the grammar sees a type that declares nothing, as a bare
+                  `AS HASH` is */
+               {
+                  int iUsed = 0;
+                  const char * szHash = hb_compDeclTypeTokens( HB_COMP_PARAM, pTypeTok, &iUsed );
+                  if( szHash && iUsed > 1 && hb_astIsHashFamily( szHash ) )
+                  {
+                     int i;
+                     pLex->iState = DECLARE_TYPE;
+                     for( i = 0; i < iUsed; i++ )
+                        pToken = hb_pp_tokenGet( pLex->pPP );
+                     pLex->szDeclType = szHash;
+                     return AS_VARIANT;
+                  }
+               }
                if( pTypeTok && HB_PP_TOKEN_TYPE( pTypeTok->type ) == HB_PP_TOKEN_KEYWORD &&
                    hb_stricmp( pTypeTok->value, "FIXED" ) == 0 && pTypeTok->pNext &&
                    HB_PP_TOKEN_TYPE( pTypeTok->pNext->type ) == HB_PP_TOKEN_KEYWORD &&

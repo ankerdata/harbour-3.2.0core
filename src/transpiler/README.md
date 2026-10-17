@@ -612,7 +612,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0032 | scan  | Message sent to a scalar-named variable (`aLine:nQty`) — rename to `o<…>`   |
 | W0033 | scan  | A bare BREAK ends a SWITCH CASE: C's `break`, which Harbour runs as the sequence BREAK — leave the CASE with EXIT |
 | W0034 | emit  | THREAD STATIC with an initializer other than NIL, 0 or .F.: a `[ThreadStatic]` field's initializer runs on the first thread only, so another would start with the C# default |
-| W0035 | scan  | A hash used with keys its name does not declare: a number as the key of an `h` name, a string as the key of an `hn` one, or a hash of the other kind assigned to it — rename (`hn<...>` for numbers, `h<...>` for strings) or change the key |
+| W0035 | scan  | A hash used with keys its name does not declare: a number as the key of an `h` name, a string as the key of an `hn` one, or a hash of the other kind assigned to it — rename (`hn<...>` for numbers, `h<...>` for strings) or change the key. A declaration whose key kind contradicts the name (`hnX AS STRING HASH`) too (tests/errors/typed_hash.prg) |
 | W0036 | scan  | An `x` name subscripted by a key that is not a string: C# cannot tell an array from a hash — assign it to an `a`/`h`/`hn` name where the code knows which (a `ValType()` branch), or read a hash whose keys may be either kind with `hb_HGet()` |
 | W0037 | scan  | `Self` sends a message neither its class nor an ancestor declares (an ancestor in another file included), on a class that keeps no members in a dynamic bag: Harbour raises "No exported method" when the line runs, C# would go through `((dynamic)this)` and throw there. HBObject's and the VM's own messages (`Init`, `ClassName`, `Super`, `__enum*` …) and ancestors the reftab does not know say nothing; the scan's last pass decides, as for W0018. First found easipos easizvt.prg sending to `::oEasiZVT` for its member oEasiZVTProxy in four methods |
 | W0038 | scan  | A FOR EACH variable read after its loop, before it is assigned again: Harbour has restored its value from before the loop, C# keeps the last element — keep what the loop found in a variable of its own (tests/errors/foreach_after.prg) |
@@ -837,6 +837,7 @@ Tests: [test83.prg](tests/test83.prg), [test85.prg](tests/test85.prg).
 | `ARRAY`           | `aLines`               | `List<dynamic>` — one object every holder shares, grown and shrunk in place (test125) |
 | `FIXED<T>`        | *(`AS FIXED ARRAY OF …`)* | `T[]` — an array fixed in length, its elements a record's class or a scalar: built once, read by position, never grown (test155) |
 | *a record* `X`    | *(`RECORD X( … )`, `AS RECORD X`)* | `X`, a plain sealed class of the record's fields with a positional constructor; a constant subscript is the field (test155) |
+| `HASHC<T>` / `HASHN<T>` | *(`AS HASH OF …`, `AS INTEGER HASH OF …`)* | `OrderedDictionary<string, T>` / `OrderedDictionary<long, T>` — a hash whose values are typed in storage (a record, a class, a scalar, an array); `AS STRING HASH` / `AS INTEGER HASH` alone declare the keys, values dynamic (test156) |
 | `HASH` / `HASHC`  | `hConfig`              | `OrderedDictionary<string, dynamic>` (keyed by strings, what an `h` name declares; .NET 9's, which keeps Harbour's insertion order across deletes — test113) |
 | `HASHN`           | `hnByRecNo`            | `OrderedDictionary<long, dynamic>` — keyed by numbers, what an `hn` / `shn` name declares (Alex, 2026-09-27; test127): integer ids, the subscript casts the key `(long)`. A key of the other kind is W0035. The keys an `x` or untyped name's hash is used with still decide it (test76) |
 | `OBJECT`          | `oTable`               | `dynamic`  *(messages bind via the DLR; or a class name when the refTab knows it)* |
@@ -1071,6 +1072,22 @@ strongest. Later rungs override earlier ones.
    it. Harbour sees arrays: astype.ch removes the RECORD line and reads
    the declarations as `AS ARRAY`, and the `-GT` round trip writes them so
    (tests/errors/fixed_record.prg has the warnings).
+   **`AS HASH OF …`, `AS INTEGER HASH [OF …]`, `AS STRING HASH [OF …]`**
+   (2026-10-17; test156) type a hash as the arrays are typed: the keys by
+   kind (`INTEGER` whole numbers, `STRING` or nothing strings, what an
+   `hn` / `h` name says: the two must agree, W0035), the values by `OF`
+   (a scalar, `CLASS X`, `RECORD X`, an array). The transpiler's types are
+   HASHC<T> and HASHN<T>, and C# gets `OrderedDictionary<string|long, T>`
+   with the values typed in storage, so a `{ k => v }` literal under the
+   declaration is that dictionary with each value under the value type (a
+   record's constructor), `hb_HSet( h, k, { … } )` the same, `h[ k ]` is a
+   T (`h[ k ][ FLD_LEN ]` the record's field), and FOR EACH over the hash
+   types the loop variable. A typed hash is its own C# type: a plain hash
+   into it, or it into a holder of dynamic values, is W0041, and the slot
+   of an `h` parameter given a typed hash by its callers takes the type
+   (hb_refTabAddFunc keeps a refined family type over the prefix's weak
+   one, for FIXED arrays too). A bare `AS HASH` stays what it was, keys
+   by use. Harbour sees `AS HASH` (astype.ch, the round trip).
 3. **Initialisers and defines**: a `#define` with an integer value is
    integer tier (the defines map), and a LOCAL or STATIC initialised
    from an integer literal, such a define, or another integer variable
@@ -1828,6 +1845,7 @@ the errors, where the file fails and the test asserts the error line:
 | `hash_key_name.prg`           | `W0035` | A number as an `h` name's key, a string as an `hn` name's, a numerically keyed literal given to an `h` name; exactly those three |
 | `x_subscript.prg`             | `W0036` | An `x` name subscripted by a number; the same value through an `a` name, and by a string, quiet |
 | `fixed_record.prg`            | `W0041` `W0046` | A record's literal by count and field, a string into an integer field, a plain array into a record or a FIXED array, a FIXED array grown or cut; a record read by a variable or an out-of-range subscript, given to Len(), walked by FOR EACH; the quiet lines quiet |
+| `typed_hash.prg`              | `W0041` `W0035` | A value of another type into `AS HASH OF RECORD X`, a plain hash into a typed one; a key of the other kind, a literal keyed the other way, a declaration whose key kind contradicts the name; the quiet lines quiet |
 | `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |
