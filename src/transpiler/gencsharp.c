@@ -681,10 +681,15 @@ static const char * hb_csArgVarType( const char * szName )
             return pP->szType ? pP->szType : "USUAL";
       }
    }
-   /* PUBLIC / MEMVAR variables are runtime-typed — always emitted as
-      `dynamic` regardless of any Hungarian prefix. */
-   if( hb_csIsFileMemvar( szName ) ||
-       ( szName && s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) ) )
+   /* A PUBLIC is its class when its name names one (`oHWFlags`, an
+      HWFlags: hb_csPublicFieldType), else runtime-typed, `dynamic`
+      whatever its Hungarian prefix, as a file MEMVAR always is. */
+   if( szName && s_pRefTab && hb_refTabIsPublic( s_pRefTab, szName ) )
+   {
+      const char * szClass = hb_astObjectNameClass( s_pRefTab, szName );
+      return szClass ? szClass : "USUAL";
+   }
+   if( hb_csIsFileMemvar( szName ) )
       return "USUAL";
    return hb_astInferType( szName, NULL );
 }
@@ -867,19 +872,23 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
                s_iCurrentStmtLine, szFunc, iFirstMissing + 1 );
 }
 
-/* Callback used by hb_refTabForEachPublic — emits one field line per
-   PUBLIC variable whose owner matches this .prg. Sized-array forms
-   (`PUBLIC name[size]`) emit as `List<dynamic>` so cross-file callers can
-   pass them by-ref to callees declared `ref List<dynamic>` (the typical
-   shape for flag-table mutators like LoadAFlag). The allocation
-   (`HbRuntime.Array(N)`) still happens at the source's PUBLIC statement
-   — see HB_AST_PUBLIC emission. */
-static void hb_csEmitPublicField( const char * szName, HB_BOOL fArrayDim,
-                                   void * userdata )
+/* The C# type of a PUBLIC's field on the owning .prg's Program partial.
+   A name that names a class (`oHWFlags` with CLASS HWFlags; plan C13,
+   2026-10-18, test157) is that class, as a local so named is typed, so
+   every file's reads of its members are static. The sized form (`PUBLIC
+   name[size]`) is `List<dynamic>`, which cross-file callers pass by
+   reference to callees declared `ref List<dynamic>` (LoadAFlag's shape);
+   any other PUBLIC is `dynamic`: its value is whatever its writers put
+   there, and only the name is evidence. The allocation (`HbRuntime.Array(N)`,
+   `new X()`) happens at the source's PUBLIC statement — see HB_AST_PUBLIC
+   emission. */
+static const char * hb_csPublicFieldType( const char * szName, HB_BOOL fArrayDim )
 {
-   FILE * fp = *( FILE ** ) userdata;
-   fprintf( fp, "    public static %s %s;\n",
-            fArrayDim ? "List<dynamic>" : "dynamic", szName );
+   const char * szClass = ( ! fArrayDim && s_pRefTab ) ?
+      hb_astObjectNameClass( s_pRefTab, szName ) : NULL;
+   if( szClass )
+      return hb_csTypeMap( szClass );
+   return fArrayDim ? "List<dynamic>" : "dynamic";
 }
 
 static HB_BOOL hb_csIsFileMemvar( const char * szName )
@@ -11097,17 +11106,16 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                         if( szPublicOwner && s_szFileBase &&
                             hb_stricmp( szPublicOwner, s_szFileBase ) == 0 )
                         {
-                           /* Sized-array form (`PUBLIC name[size]`) —
-                              emit as `List<dynamic>` so cross-file callers
-                              passing `ref aXxx` to a callee declared
-                              `ref List<dynamic>` (the LoadAFlag shape) bind
-                              cleanly. The runtime allocation is still
-                              emitted at the PUBLIC statement site. */
+                           /* The field's type: the class the name names,
+                              `List<dynamic>` for the sized form, else
+                              `dynamic` (hb_csPublicFieldType). The runtime
+                              allocation is still emitted at the PUBLIC
+                              statement site. */
                            HB_BOOL fArr = pStmt->value.asVar.fArrayDim;
                            hb_csAddFileMemvar( szPName );
                            hb_csEmitIndent( yyc, 1 );
                            fprintf( yyc, "public static %s %s;\n",
-                                    fArr ? "List<dynamic>" : "dynamic", szPName );
+                                    hb_csPublicFieldType( szPName, fArr ), szPName );
                         }
                      }
                   }
