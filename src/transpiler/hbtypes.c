@@ -4490,16 +4490,16 @@ static void hb_astMemberDivEvidence( PHB_EXPR pMember, HB_TYPEENV * pEnv,
 
 static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine );
 
-/* ---- WHOLE-IN-DECIMAL (audit only; plan E21's migration list) ----
+/* ---- WHOLE-IN-DECIMAL (audit only) ----
    A def field declared with decimals (N 13,3) meeting a whole number:
    written from an INTEGER member, local or call, read into one, or
    returned by a routine declared AS INTEGER. The code says the value is
    whole and the def says the column holds fractions: each is a field to
-   make N n,0 in the batched migration, or a whole number that is wrong
-   (Alex, 2026-10-19, after the "NoOf" totals went whole). ORM-NARROW sees
-   the reads into members; nothing else sees the writes. A literal says
-   nothing (every total is reset with 0), so the whole side is a value the
-   scan types INTEGER: a variable, a member, a call, their arithmetic. */
+   make N n,0 in a def migration, or a whole number that is wrong.
+   ORM-NARROW sees the reads into members; nothing else sees the writes. A
+   literal says nothing (every total is reset with 0), so the whole side
+   is a value the scan types INTEGER: a variable, a member, a call, their
+   arithmetic. */
 
 /* pExpr, or the expression inside an Int() around it, as an ORM field
    whose map row has decimals: "Class:accessor" and "DBNAME N len,dec". */

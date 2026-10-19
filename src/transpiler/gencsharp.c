@@ -873,8 +873,8 @@ static void hb_csWarnMissingRef( const char * szFunc, PHB_EXPR pParms )
 }
 
 /* The C# type of a PUBLIC's field on the owning .prg's Program partial.
-   A name that names a class (`oHWFlags` with CLASS HWFlags; plan C13,
-   2026-10-18, test157) is that class, as a local so named is typed, so
+   A name that names a class (`oHWFlags` with CLASS HWFlags; test157) is
+   that class, as a local so named is typed, so
    every file's reads of its members are static. The sized form (`PUBLIC
    name[size]`) is `List<dynamic>`, which cross-file callers pass by
    reference to callees declared `ref List<dynamic>` (LoadAFlag's shape);
