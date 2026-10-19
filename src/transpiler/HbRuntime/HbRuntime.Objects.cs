@@ -44,41 +44,26 @@ public class HbDynamicObject : System.Dynamic.DynamicObject, IHbObject
     // ((dynamic)this) lands here — or a column in the bag.
     bool TryReadMember(string cName, out object result)
     {
-        var prop = GetType().GetProperty(cName, HbRuntime.MemberFlags);
-        if (prop != null)
+        HbMemberSlot oSlot = HbMemberSlot.FindReadable(this, cName, out bool fAmbiguous);
+        if (fAmbiguous)
+            throw new System.Reflection.AmbiguousMatchException("Ambiguous member " + cName);
+        if (oSlot != null && oSlot.TryGet(this, out object xValue))
         {
-            result = prop.GetValue(this);
+            result = xValue;
             return true;
         }
-        var field = GetType().GetField(cName, HbRuntime.MemberFlags);
-        if (field != null)
-        {
-            result = field.GetValue(this);
-            return true;
-        }
-        return _bag.TryGetValue(cName, out result);
+        result = null;
+        return false;
     }
 
     public override bool TrySetMember(System.Dynamic.SetMemberBinder binder, object value)
     {
-        var prop = GetType().GetProperty(binder.Name, HbRuntime.MemberFlags);
-        if (prop != null)
+        HbMemberSlot oSlot = HbMemberSlot.Declared(GetType(), binder.Name, true, out bool fAmbiguous);
+        if (fAmbiguous)
+            throw new System.Reflection.AmbiguousMatchException("Ambiguous member " + binder.Name);
+        if (oSlot != null)
         {
-            object coerced = value;
-            if (value != null && prop.PropertyType != typeof(object) &&
-                prop.PropertyType != value.GetType())
-                coerced = Convert.ChangeType(value, prop.PropertyType);
-            prop.SetValue(this, coerced);
-            return true;
-        }
-        var field = GetType().GetField(binder.Name, HbRuntime.MemberFlags);
-        if (field != null)
-        {
-            object coerced = value;
-            if (value != null && field.FieldType != typeof(object) &&
-                field.FieldType != value.GetType())
-                coerced = Convert.ChangeType(value, field.FieldType);
-            field.SetValue(this, coerced);
+            oSlot.Set(this, oSlot.Convert(value));
             return true;
         }
         if (_bag.ContainsKey(binder.Name))
@@ -118,6 +103,135 @@ public class HbDynamicObject : System.Dynamic.DynamicObject, IHbObject
     }
 }
 
+/// <summary>
+/// A member as GETMEMBER() and SETMEMBER() reach it, found once per class
+/// and name and used for every object of the class: a public property or a
+/// public field (either case-insensitive), else the bag of an
+/// HbDynamicObject. EasiPosNative's row loader keeps one per column.
+/// </summary>
+public sealed class HbMemberSlot
+{
+    const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.Public |
+        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase;
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<(Type, string, bool), (HbMemberSlot? oSlot, bool fAmbiguous)>
+        s_declared = new();
+
+    readonly System.Reflection.PropertyInfo? oProperty;
+    readonly System.Reflection.FieldInfo? oField;
+    readonly Type oType;
+
+    public string Name { get; }
+
+    HbMemberSlot(string cName, Type oType, System.Reflection.PropertyInfo? oProperty, System.Reflection.FieldInfo? oField)
+    {
+        Name = cName;
+        this.oType = oType;
+        this.oProperty = oProperty;
+        this.oField = oField;
+    }
+
+    // Where a value is written: a declared member, else the bag of an
+    // HbDynamicObject, which takes any name
+    public static HbMemberSlot? FindWritable(Type oClass, string cName) => FindWritable(oClass, cName, out _);
+
+    public static HbMemberSlot? FindWritable(Type oClass, string cName, out bool fAmbiguous)
+    {
+        HbMemberSlot? oSlot = Declared(oClass, cName, true, out fAmbiguous);
+        if (oSlot != null || fAmbiguous)
+            return oSlot;
+        return typeof(HbDynamicObject).IsAssignableFrom(oClass) ? new HbMemberSlot(cName, typeof(object), null, null) : null;
+    }
+
+    // Where a value is read: a declared member, else a name the object's bag holds
+    public static HbMemberSlot? FindReadable(object oObject, string cName) => FindReadable(oObject, cName, out _);
+
+    public static HbMemberSlot? FindReadable(object oObject, string cName, out bool fAmbiguous)
+    {
+        HbMemberSlot? oSlot = Declared(oObject.GetType(), cName, false, out fAmbiguous);
+        if (oSlot != null || fAmbiguous)
+            return oSlot;
+        return oObject is HbDynamicObject oBag && oBag.TryBagGet(cName, out _)
+            ? new HbMemberSlot(cName, typeof(object), null, null) : null;
+    }
+
+    // A declared property or field, readable or writable as fWrite asks; two
+    // that differ only in case are no slot (fAmbiguous)
+    public static HbMemberSlot? Declared(Type oClass, string cName, bool fWrite, out bool fAmbiguous)
+    {
+        var oKey = (oClass, cName.ToUpperInvariant(), fWrite);
+        if (!s_declared.TryGetValue(oKey, out var oFound))
+            oFound = s_declared.GetOrAdd(oKey, Find(oClass, cName, fWrite));
+        fAmbiguous = oFound.fAmbiguous;
+        return oFound.oSlot;
+    }
+
+    static (HbMemberSlot? oSlot, bool fAmbiguous) Find(Type oClass, string cName, bool fWrite)
+    {
+        try
+        {
+            var oProperty = oClass.GetProperty(cName, Flags);
+            if (oProperty != null && oProperty.GetIndexParameters().Length == 0 &&
+                (fWrite ? oProperty.GetSetMethod(true) : oProperty.GetGetMethod(true)) != null)
+                return (new HbMemberSlot(oProperty.Name, oProperty.PropertyType, oProperty, null), false);
+            var oField = oClass.GetField(cName, Flags);
+            if (oField != null && !oField.IsLiteral && !(fWrite && oField.IsInitOnly))
+                return (new HbMemberSlot(oField.Name, oField.FieldType, null, oField), false);
+            return (null, false);
+        }
+        catch (System.Reflection.AmbiguousMatchException)
+        {
+            return (null, true);
+        }
+    }
+
+    public bool SameMember(HbMemberSlot oOther) =>
+        oProperty != null ? oProperty == oOther.oProperty :
+        oField != null ? oField == oOther.oField :
+        oOther.oProperty == null && oOther.oField == null &&
+        string.Equals(Name, oOther.Name, StringComparison.OrdinalIgnoreCase);
+
+    public bool TryGet(object oObject, out object? xValue)
+    {
+        if (oProperty != null)
+        {
+            xValue = oProperty.GetValue(oObject);
+            return true;
+        }
+        if (oField != null)
+        {
+            xValue = oField.GetValue(oObject);
+            return true;
+        }
+        if (oObject is HbDynamicObject oBag && oBag.TryBagGet(Name, out dynamic xBagValue))
+        {
+            xValue = xBagValue;
+            return true;
+        }
+        xValue = null;
+        return false;
+    }
+
+    // The value in the member's type
+    public object? Convert(object? xValue)
+    {
+        if (xValue == null || oType == typeof(object) || oType.IsInstanceOfType(xValue))
+            return xValue;
+        return System.Convert.ChangeType(xValue, Nullable.GetUnderlyingType(oType) ?? oType,
+                                         CultureInfo.InvariantCulture);
+    }
+
+    public void Set(object oObject, object? xValue)
+    {
+        if (oProperty != null)
+            oProperty.SetValue(oObject, xValue);
+        else if (oField != null)
+            oField.SetValue(oObject, xValue);
+        else
+            ((HbDynamicObject)oObject).BagSet(Name, xValue);
+    }
+}
+
 public static partial class HbRuntime
 {
     // X():New( ... ) for a class that declares Init() and no New():
@@ -137,48 +251,26 @@ public static partial class HbRuntime
         System.Reflection.BindingFlags.Instance |
         System.Reflection.BindingFlags.IgnoreCase;
 
+    // A member by name, as `o:&( cName )` reads it: a property, a field, else
+    // a column in an HbDynamicObject's bag; NIL when there is none
     public static dynamic GETMEMBER(object obj, string name)
     {
         if (obj == null || string.IsNullOrEmpty(name)) return null;
-        var t = obj.GetType();
-        var prop = t.GetProperty(name, MemberFlags);
-        if (prop != null) return prop.GetValue(obj);
-        // Class DATA members now emit as plain fields (so they can be
-        // passed by ref). Fall back to a field lookup.
-        var field = t.GetField(name, MemberFlags);
-        if (field != null) return field.GetValue(obj);
-        // Dynamic class: a column held only in the dictionary bag.
-        if (obj is HbDynamicObject hdo && hdo.TryBagGet(name, out dynamic bagVal))
-            return bagVal;
-        return null;
+        HbMemberSlot oSlot = HbMemberSlot.FindReadable(obj, name, out bool fAmbiguous);
+        if (fAmbiguous)
+            throw new System.Reflection.AmbiguousMatchException("Ambiguous member " + name);
+        return oSlot != null && oSlot.TryGet(obj, out object xValue) ? xValue : null;
     }
 
+    // `o:&( cName ) := x`: the value in the member's type; an HbDynamicObject's
+    // bag takes a name it does not declare, any other object ignores it
     public static void SETMEMBER(object obj, string name, dynamic value)
     {
         if (obj == null || string.IsNullOrEmpty(name)) return;
-        var t = obj.GetType();
-        var prop = t.GetProperty(name, MemberFlags);
-        if (prop != null)
-        {
-            object coerced = value;
-            if (value != null && prop.PropertyType != typeof(object) &&
-                prop.PropertyType != value.GetType())
-                coerced = Convert.ChangeType(value, prop.PropertyType);
-            prop.SetValue(obj, coerced);
-            return;
-        }
-        var field = t.GetField(name, MemberFlags);
-        if (field == null)
-        {
-            // Dynamic class: store the column in the dictionary bag.
-            if (obj is HbDynamicObject hdo) hdo.BagSet(name, value);
-            return;
-        }
-        object coercedf = value;
-        if (value != null && field.FieldType != typeof(object) &&
-            field.FieldType != value.GetType())
-            coercedf = Convert.ChangeType(value, field.FieldType);
-        field.SetValue(obj, coercedf);
+        HbMemberSlot oSlot = HbMemberSlot.FindWritable(obj.GetType(), name, out bool fAmbiguous);
+        if (fAmbiguous)
+            throw new System.Reflection.AmbiguousMatchException("Ambiguous member " + name);
+        oSlot?.Set(obj, oSlot.Convert((object)value));
     }
 
     public static dynamic SENDMSG(object obj, string name, params dynamic[] args)

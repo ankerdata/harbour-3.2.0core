@@ -18,8 +18,8 @@
 //     calls (the transpiler README, DESTRUCTOR)
 //   - an index is 1-based, as Harbour counts columns
 //   - text crosses as UTF-8 through the Harbour string, a byte per char
-//     (the Latin-1 convention HbRuntime's hb_StrToUTF8() / hb_UTF8ToStr()
-//     keep): a character the string cannot hold comes back as '?'
+//     (HbRuntime's HbText, as hb_StrToUTF8() / hb_UTF8ToStr() have it): a
+//     character the string cannot hold comes back as '?'
 //   - a dead or missing handle is the argument error (EG_ARG, subCode 0)
 //   - a failed open or prepare is NIL, where core.c returns an empty
 //     pointer: the ruling HbRuntime's sockets follow (EasiPOS asks Empty()
@@ -270,7 +270,7 @@ public static partial class HbSqlit3
             return "";
         string cUtf16 = nBytes < 0 ? Marshal.PtrToStringUTF8(pText) ?? ""
                                    : Marshal.PtrToStringUTF8(pText, nBytes);
-        return Encoding.Latin1.GetString(Encoding.Latin1.GetBytes(cUtf16));
+        return HbText.FromUnicode(cUtf16);
     }
 
     // ---- the native library ------------------------------------------------

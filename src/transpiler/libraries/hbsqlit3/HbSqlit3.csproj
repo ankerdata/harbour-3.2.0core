@@ -22,6 +22,10 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\HbRuntime\HbRuntime.csproj" />
+  </ItemGroup>
+
   <Target Name="CheckSqlite3mc" BeforeTargets="BeforeBuild">
     <Error Condition="!Exists('native\x86\sqlite3mc.dll') Or !Exists('native\x64\sqlite3mc.dll') Or !Exists('native\arm64\sqlite3mc.dll')"
            Text="sqlite3mc.dll is missing: run $(MSBuildThisFileDirectory)native\build.bat" />

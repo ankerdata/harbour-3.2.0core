@@ -524,14 +524,8 @@ public static partial class HbRuntime
 
     // hb_UTF8ToStr( <cUTF8> ): a character the byte string cannot hold
     // becomes '?', as a codepage translation does.
-    public static string hb_UTF8ToStr(string? cText)
-    {
-        if (cText == null)
-            return "";
-        var aBytes = s_byteCP.GetBytes(cText);
-        return s_byteCP.GetString(
-            Encoding.Convert(Encoding.UTF8, Encoding.Latin1, aBytes));
-    }
+    public static string hb_UTF8ToStr(string? cText) =>
+        cText == null ? "" : HbText.FromUnicode(Encoding.UTF8.GetString(s_byteCP.GetBytes(cText)));
 
     // ---- regular expressions -------------------------------------------
     //
@@ -579,4 +573,17 @@ public static partial class HbRuntime
             aResult.Add(m.Groups[i].Success ? m.Groups[i].Value : "");
         return aResult;
     }
+}
+
+/// <summary>
+/// Text as a Harbour string holds it, a byte per character (Latin-1), for
+/// HbRuntime and the libraries that meet Unicode text: hbsqlit3's strings
+/// from SQLite.
+/// </summary>
+public static class HbText
+{
+    // A Unicode string as a Harbour string: a character a byte cannot hold
+    // becomes '?', as a codepage translation does
+    public static string FromUnicode(string cText) =>
+        Encoding.Latin1.GetString(Encoding.Latin1.GetBytes(cText));
 }

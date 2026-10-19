@@ -69,6 +69,21 @@ RULINGS = os.path.join(HERE, "rulings.tsv")
 DEFAULT_NEEDED = os.path.join(ROOT, "..", "easipos-transpiled", "notes", "hbruntime.txt")
 
 TRANSPILER = runsuite.TRANSPILER
+# A module's project: an exe of its own over the HbRuntime this harness stages
+CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>%s</RootNamespace>
+    <AssemblyName>%s</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../HbRuntime/HbRuntime.csproj" />
+  </ItemGroup>
+</Project>
+"""
 # No \b after the verdict: an unhandled exception's text follows the last
 # line directly (QOut writes its newline first), "rt_math:353 PASSUnhandled"
 RESULT_RE = re.compile(r"^(\S+:\d+) (PASS|FAIL|RTE)(.*)$")
@@ -251,7 +266,7 @@ def build_cs(name):
     if err:
         return name, err, {}
     with open(os.path.join(d, name + ".csproj"), "w") as fh:
-        fh.write(runsuite.CSPROJ % (name, name))
+        fh.write(CSPROJ % (name, name))
     quarantined = {}
     for _ in range(50):
         r = subprocess.run(["dotnet", "build", "--no-dependencies", "-v", "q", "--nologo"],
