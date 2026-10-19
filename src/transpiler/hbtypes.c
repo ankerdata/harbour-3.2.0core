@@ -1181,6 +1181,9 @@ typedef struct
    char         szFuncKey[ 256 ];   /* the reftab key of the routine being
                                        walked (W0043 reads its parameters),
                                        else "" */
+   const char * szDeclRet;          /* the routine's declared return type
+                                       (`FUNCTION f() AS INTEGER`), for the
+                                       refine pass's audit, else NULL */
 } HB_TYPEENV;
 
 static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
@@ -1191,6 +1194,7 @@ static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
    pEnv->szFile  = szFile;
    pEnv->szSelfClass[ 0 ] = '\0';
    pEnv->szFuncKey[ 0 ] = '\0';
+   pEnv->szDeclRet = NULL;
 }
 
 /* The current file's function list (the compiler's ast.pFuncList),
@@ -4486,6 +4490,235 @@ static void hb_astMemberDivEvidence( PHB_EXPR pMember, HB_TYPEENV * pEnv,
 
 static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine );
 
+/* ---- WHOLE-IN-DECIMAL (audit only; plan E21's migration list) ----
+   A def field declared with decimals (N 13,3) meeting a whole number:
+   written from an INTEGER member, local or call, read into one, or
+   returned by a routine declared AS INTEGER. The code says the value is
+   whole and the def says the column holds fractions: each is a field to
+   make N n,0 in the batched migration, or a whole number that is wrong
+   (Alex, 2026-10-19, after the "NoOf" totals went whole). ORM-NARROW sees
+   the reads into members; nothing else sees the writes. A literal says
+   nothing (every total is reset with 0), so the whole side is a value the
+   scan types INTEGER: a variable, a member, a call, their arithmetic. */
+
+/* pExpr, or the expression inside an Int() around it, as an ORM field
+   whose map row has decimals: "Class:accessor" and "DBNAME N len,dec". */
+static HB_BOOL hb_astDecimalField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                   char * szSym, HB_SIZE nSym,
+                                   char * szShape, HB_SIZE nShape )
+{
+   const char * szClass;
+   const char * szDb = NULL;
+   int          iLen = 0;
+   int          iDec = 0;
+   int          iDepth;
+   HB_BOOL      fFound = HB_FALSE;
+
+   if( pExpr && pExpr->ExprType == HB_ET_FUNCALL &&
+       pExpr->value.asFunCall.pFunName &&
+       pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+       pExpr->value.asFunCall.pFunName->value.asSymbol.name &&
+       hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "INT" ) == 0 )
+   {
+      PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+      pExpr = pParms;
+      if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                      pParms->ExprType == HB_ET_ARGLIST ) )
+         pExpr = pParms->value.asList.pExprList;
+   }
+   if( ! pExpr || pExpr->ExprType != HB_ET_SEND ||
+       ! pExpr->value.asMessage.szMessage )
+      return HB_FALSE;
+   szClass = hb_astOrmRecvClass( pExpr->value.asMessage.pObject, pEnv );
+   for( iDepth = 0; szClass && iDepth < 8; iDepth++ )
+   {
+      if( hb_fieldTypesMemberShape( szClass, pExpr->value.asMessage.szMessage,
+                                    &szDb, &iLen, &iDec ) )
+      {
+         fFound = HB_TRUE;
+         break;
+      }
+      szClass = hb_fieldTypesClassParent( szClass );
+   }
+   if( ! fFound || iDec <= 0 )
+      return HB_FALSE;
+   {
+      const char * szCanon = hb_fieldTypesClassCanon( szClass );
+      hb_snprintf( szSym, nSym, "%s:%s", szCanon ? szCanon : szClass,
+                   pExpr->value.asMessage.szMessage );
+   }
+   hb_snprintf( szShape, nShape, "%s N %d,%d", szDb ? szDb : "?", iLen, iDec );
+   return HB_TRUE;
+}
+
+/* What a whole value is called in a row: a variable's name, `recv:member`
+   down a chain (`oPOSStatus:oFree:iQty`), `Call()`, else "an INTEGER
+   expression". */
+static void hb_astWholeLabel( PHB_EXPR pExpr, char * szName, HB_SIZE nName )
+{
+   if( pExpr->ExprType == HB_ET_VARIABLE && pExpr->value.asSymbol.name )
+      hb_strncpy( szName, pExpr->value.asSymbol.name, nName - 1 );
+   else if( pExpr->ExprType == HB_ET_SEND && pExpr->value.asMessage.szMessage )
+   {
+      PHB_EXPR pRecv = pExpr->value.asMessage.pObject;
+      char     szRecv[ 160 ];
+
+      if( pRecv && ( pRecv->ExprType == HB_ET_VARIABLE || pRecv->ExprType == HB_ET_SEND ) )
+         hb_astWholeLabel( pRecv, szRecv, sizeof( szRecv ) );
+      else
+         hb_strncpy( szRecv, "?", sizeof( szRecv ) - 1 );
+      hb_snprintf( szName, nName, "%s:%s", szRecv, pExpr->value.asMessage.szMessage );
+   }
+   else if( pExpr->ExprType == HB_ET_FUNCALL && pExpr->value.asFunCall.pFunName &&
+            pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+            pExpr->value.asFunCall.pFunName->value.asSymbol.name )
+      hb_snprintf( szName, nName, "%s()",
+                   pExpr->value.asFunCall.pFunName->value.asSymbol.name );
+   else
+      hb_strncpy( szName, "an INTEGER expression", nName - 1 );
+}
+
+/* A constant: a number, or a number negated */
+static HB_BOOL hb_astNumericConstant( PHB_EXPR pExpr )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   if( pExpr->ExprType == HB_ET_NUMERIC )
+      return HB_TRUE;
+   return pExpr->ExprType == HB_EO_NEGATE &&
+          pExpr->value.asOperator.pLeft &&
+          pExpr->value.asOperator.pLeft->ExprType == HB_ET_NUMERIC;
+}
+
+/* A value the scan types INTEGER that is not a constant */
+static HB_BOOL hb_astWholeTyped( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                 char * szName, HB_SIZE nName )
+{
+   const char * szT;
+
+   if( ! pExpr || hb_astNumericConstant( pExpr ) )
+      return HB_FALSE;
+   szT = hb_astInferExprType( pExpr, pEnv );
+   if( ! szT || strcmp( szT, "INTEGER" ) != 0 )
+      return HB_FALSE;
+   hb_astWholeLabel( pExpr, szName, nName );
+   return HB_TRUE;
+}
+
+/* Two sends of one member to one variable: `oT:nItems` and `oT:nItems` */
+static HB_BOOL hb_astSameSend( PHB_EXPR pA, PHB_EXPR pB )
+{
+   PHB_EXPR pRa;
+   PHB_EXPR pRb;
+
+   if( ! pA || ! pB || pA->ExprType != HB_ET_SEND || pB->ExprType != HB_ET_SEND ||
+       ! pA->value.asMessage.szMessage || ! pB->value.asMessage.szMessage ||
+       hb_stricmp( pA->value.asMessage.szMessage, pB->value.asMessage.szMessage ) != 0 )
+      return HB_FALSE;
+   pRa = pA->value.asMessage.pObject;
+   pRb = pB->value.asMessage.pObject;
+   return pRa && pRb && pRa->ExprType == HB_ET_VARIABLE &&
+          pRb->ExprType == HB_ET_VARIABLE &&
+          pRa->value.asSymbol.name && pRb->value.asSymbol.name &&
+          hb_stricmp( pRa->value.asSymbol.name, pRb->value.asSymbol.name ) == 0;
+}
+
+static void hb_astWholeDecimalEmit( HB_TYPEENV * pEnv, int iLine,
+                                    const char * szSym, const char * szShape,
+                                    const char * szHow, const char * szWhole )
+{
+   char szDetail[ 320 ];
+
+   hb_snprintf( szDetail, sizeof( szDetail ), "%s %s %s", szShape, szHow, szWhole );
+   hb_auditEmit( "WHOLE-IN-DECIMAL", pEnv->szFile, iLine, szSym, szDetail,
+                 "the field N n,0 in plan E21's migration, or the whole number is wrong" );
+}
+
+/* `oT:nItems := iCount`, `oT:nItems += iCount`, `oT:nItems := oT:nItems +
+   iCount`: the field written from a whole value; `iCount := oT:nItems`,
+   `::iX := Int( oT:nItems )`: a whole target read from the field. */
+static void hb_astWholeDecimalAssign( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                      int iLine )
+{
+   PHB_EXPR pLhs = pExpr->value.asOperator.pLeft;
+   PHB_EXPR pRhs = pExpr->value.asOperator.pRight;
+   char     szSym[ 160 ];
+   char     szShape[ 64 ];
+   char     szWhole[ 160 ];
+
+   if( ! hb_auditActive() || ! pLhs || ! pRhs ||
+       ( pExpr->ExprType != HB_EO_ASSIGN && pExpr->ExprType != HB_EO_PLUSEQ &&
+         pExpr->ExprType != HB_EO_MINUSEQ ) )
+      return;
+
+   if( pLhs->ExprType == HB_ET_SEND &&
+       hb_astDecimalField( pLhs, pEnv, szSym, sizeof( szSym ), szShape, sizeof( szShape ) ) )
+   {
+      PHB_EXPR pWhole = pRhs;
+      if( pExpr->ExprType == HB_EO_ASSIGN &&
+          ( pRhs->ExprType == HB_EO_PLUS || pRhs->ExprType == HB_EO_MINUS ) )
+      {
+         if( hb_astSameSend( pRhs->value.asOperator.pLeft, pLhs ) )
+            pWhole = pRhs->value.asOperator.pRight;
+         else if( pRhs->ExprType == HB_EO_PLUS &&
+                  hb_astSameSend( pRhs->value.asOperator.pRight, pLhs ) )
+            pWhole = pRhs->value.asOperator.pLeft;
+      }
+      if( hb_astWholeTyped( pWhole, pEnv, szWhole, sizeof( szWhole ) ) )
+         hb_astWholeDecimalEmit( pEnv, iLine, szSym, szShape, "written from", szWhole );
+      return;
+   }
+
+   if( hb_astDecimalField( pRhs, pEnv, szSym, sizeof( szSym ), szShape, sizeof( szShape ) ) )
+   {
+      const char * szT = NULL;
+      if( pLhs->ExprType == HB_ET_VARIABLE && pLhs->value.asSymbol.name )
+         szT = hb_typeEnvGet( pEnv, pLhs->value.asSymbol.name );
+      else if( pLhs->ExprType == HB_ET_SEND )
+         szT = hb_astInferExprType( pLhs, pEnv );
+      if( szT && strcmp( szT, "INTEGER" ) == 0 )
+      {
+         hb_astWholeLabel( pLhs, szWhole, sizeof( szWhole ) );
+         hb_astWholeDecimalEmit( pEnv, iLine, szSym, szShape, "read into", szWhole );
+      }
+   }
+}
+
+/* `LOCAL iCount := oT:nItems`: a whole local initialised from the field */
+static void hb_astWholeDecimalInit( const char * szVar, PHB_EXPR pInit,
+                                    HB_TYPEENV * pEnv, int iLine )
+{
+   const char * szT;
+   char         szSym[ 160 ];
+   char         szShape[ 64 ];
+
+   if( ! hb_auditActive() || ! szVar || ! pInit )
+      return;
+   szT = hb_typeEnvGet( pEnv, szVar );
+   if( szT && strcmp( szT, "INTEGER" ) == 0 &&
+       hb_astDecimalField( pInit, pEnv, szSym, sizeof( szSym ), szShape, sizeof( szShape ) ) )
+      hb_astWholeDecimalEmit( pEnv, iLine, szSym, szShape, "read into", szVar );
+}
+
+/* `RETURN oT:nItems` in a routine declared AS INTEGER */
+static void hb_astWholeDecimalReturn( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                      int iLine )
+{
+   char szSym[ 160 ];
+   char szShape[ 64 ];
+   char szWhole[ 300 ];
+
+   if( ! hb_auditActive() || ! pExpr || ! pEnv->szDeclRet ||
+       hb_stricmp( pEnv->szDeclRet, "INTEGER" ) != 0 )
+      return;
+   if( hb_astDecimalField( pExpr, pEnv, szSym, sizeof( szSym ), szShape, sizeof( szShape ) ) )
+   {
+      hb_snprintf( szWhole, sizeof( szWhole ), "%s() AS INTEGER",
+                   pEnv->szFuncKey[ 0 ] ? pEnv->szFuncKey : "?" );
+      hb_astWholeDecimalEmit( pEnv, iLine, szSym, szShape, "returned by", szWhole );
+   }
+}
+
 static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
 {
    PHB_AST_NODE pStmt;
@@ -4503,6 +4736,7 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
             hb_astRefineExpr( pStmt->value.asExprStmt.pExpr, pEnv, iLine );
             break;
          case HB_AST_RETURN:
+            hb_astWholeDecimalReturn( pStmt->value.asReturn.pExpr, pEnv, iLine );
             hb_astRefineExpr( pStmt->value.asReturn.pExpr, pEnv, iLine );
             break;
          case HB_AST_QOUT:
@@ -4578,6 +4812,9 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
          case HB_AST_STATIC:
          case HB_AST_PUBLIC:
          case HB_AST_PRIVATE:
+            if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC )
+               hb_astWholeDecimalInit( pStmt->value.asVar.szName,
+                                       pStmt->value.asVar.pInit, pEnv, iLine );
             hb_astRefineExpr( pStmt->value.asVar.pInit, pEnv, iLine );
             break;
          default:
@@ -4850,6 +5087,8 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          /* Typed-field write checks (W0029/W0030/W0031) — scan-phase
             surfacing of CS0266/CS0037/CS0029 at ORM field writes. */
          hb_astOrmAssignCheck( pExpr, pEnv, iLine );
+         /* WHOLE-IN-DECIMAL: a decimal field meeting a whole number */
+         hb_astWholeDecimalAssign( pExpr, pEnv, iLine );
          /* MEMBER-TYPE evidence, both directions:
               ::member  := oOrm:field   (member takes the field's type)
               oOrm:field := ::member    (member feeds a typed field) */
@@ -6243,6 +6482,7 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       body. Only runs when the refTab is available (the scanner in
       -GF mode always supplies it; legacy callers that don't have a
       table get this skipped and behave as before). */
+   env.szDeclRet = szDeclRet;
    if( env.pRefTab )
       hb_astRefineBlock( pBody, &env );
 

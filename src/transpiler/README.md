@@ -1187,8 +1187,15 @@ fraction" so anything fractional flowing into one needs `Int()` or
   value into a class-typed parameter, converted (or refused) at run
   time (`Self` counts as its method's class and `@var` as the variable's
   type, as C# binds them), and ARG-DOWNCAST rows the calls that pass a parent into a
-  parameter of its subclass, cast at the call. It is a leaderboard, not a
-  gate.
+  parameter of its subclass, cast at the call. WHOLE-IN-DECIMAL rows
+  (2026-10-19) are a def field declared with decimals meeting a whole
+  number: written from an INTEGER member, local or call (or `f := f + i`),
+  read into one, or returned by a routine declared AS INTEGER, the field's
+  DBF name, length and decimals read from fieldtypes.tsv's columns 4 to 6
+  (hb_fieldTypesMemberShape()); a literal does not count, every total
+  being reset with 0. It is the list for EasiPOS's batched def migration
+  (its plan E21), and its first run found a 2023 slip besides (E26). It is
+  a leaderboard, not a gate.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.

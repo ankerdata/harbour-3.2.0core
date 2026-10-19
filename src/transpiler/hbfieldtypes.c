@@ -18,6 +18,10 @@ typedef struct HB_FTENTRY_
    char *               szType;     /* C# type token for member rows, NULL for class rows — owned */
    char *               szParent;   /* class rows only: family base from an
                                        `=inherit` row, else NULL — owned */
+   char *               szDbField;  /* member rows: the DBF field name, or
+                                       NULL when the map has none — owned */
+   int                  iLen;       /* member rows: the field's length and */
+   int                  iDec;       /* decimals, -1 when the map has none */
    struct HB_FTENTRY_ * pNext;
 } HB_FTENTRY, * PHB_FTENTRY;
 
@@ -121,6 +125,9 @@ static void hb_ftInsert( const char * szClass, const char * szMember,
    e->szCanon  = hb_ftDup( szCanon );
    e->szType   = ( szType && *szType ) ? hb_ftDup( szType ) : NULL;
    e->szParent = NULL;
+   e->szDbField = NULL;
+   e->iLen     = -1;
+   e->iDec     = -1;
    e->pNext    = s_table[ slot ];
    s_table[ slot ] = e;
 }
@@ -158,6 +165,8 @@ void hb_fieldTypesFree( void )
             hb_xfree( e->szType );
          if( e->szParent )
             hb_xfree( e->szParent );
+         if( e->szDbField )
+            hb_xfree( e->szDbField );
          hb_xfree( e );
          e = pNext;
       }
@@ -188,6 +197,7 @@ void hb_fieldTypesLoad( void )
       char * szMember;
       char * szType;
       char * szEnd;
+      char * szRest = NULL;
 
       if( szLine[ 0 ] == '#' || szLine[ 0 ] == '\n' || szLine[ 0 ] == '\0' )
          continue;
@@ -204,7 +214,11 @@ void hb_fieldTypesLoad( void )
 
       szEnd = strpbrk( szType, "\t\r\n" );
       if( szEnd )
+      {
+         if( *szEnd == '\t' )
+            szRest = szEnd + 1;     /* DBFIELD<TAB>len<TAB>dec<TAB>deffile */
          *szEnd = '\0';
+      }
 
       if( ! *szClass || ! *szMember || ! *szType )
          continue;
@@ -240,6 +254,28 @@ void hb_fieldTypesLoad( void )
       }
 
       hb_ftInsert( szClass, szMember, szMember, szType );
+
+      /* the field's shape, for the type audit */
+      if( szRest )
+      {
+         PHB_FTENTRY eMem = hb_ftFind( szClass, szMember );
+         char * szDb = szRest;
+         char * szLen = strchr( szDb, '\t' );
+         char * szDec = szLen ? strchr( szLen + 1, '\t' ) : NULL;
+
+         if( eMem && ! eMem->szDbField && szLen && szDec )
+         {
+            *szLen++ = '\0';
+            *szDec++ = '\0';
+            szEnd = strpbrk( szDec, "\t\r\n" );
+            if( szEnd )
+               *szEnd = '\0';
+            if( *szDb )
+               eMem->szDbField = hb_ftDup( szDb );
+            eMem->iLen = atoi( szLen );
+            eMem->iDec = atoi( szDec );
+         }
+      }
    }
 
    fclose( fp );
@@ -323,6 +359,30 @@ const char * hb_fieldTypesMember( const char * szClass,
    if( pszCanonMember )
       *pszCanonMember = e->szCanon;
    return e->szType;
+}
+
+HB_BOOL hb_fieldTypesMemberShape( const char * szClass,
+                                  const char * szMember,
+                                  const char ** pszDbField,
+                                  int * piLen, int * piDec )
+{
+   PHB_FTENTRY e;
+
+   if( ! szClass || ! *szClass || ! szMember || ! *szMember )
+      return HB_FALSE;
+   if( ! s_fLoaded )
+      hb_fieldTypesLoad();
+
+   e = hb_ftFind( szClass, szMember );
+   if( ! e || ! e->szType || e->iDec < 0 )
+      return HB_FALSE;
+   if( pszDbField )
+      *pszDbField = e->szDbField;
+   if( piLen )
+      *piLen = e->iLen;
+   if( piDec )
+      *piDec = e->iDec;
+   return HB_TRUE;
 }
 
 const char * hb_fieldTypesHbType( const char * szCsToken )

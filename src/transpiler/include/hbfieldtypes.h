@@ -14,8 +14,10 @@
  *
  *     Class<TAB>accessor<TAB>cstype<TAB>DBFIELD<TAB>len<TAB>dec<TAB>deffile
  *
- * Only the first three columns are read here; the rest are audit
- * context. cstype is one of int|long|decimal|string|bool|date|timestamp.
+ * The first three columns type the members; DBFIELD, len and dec are
+ * kept for the type audit (WHOLE-IN-DECIMAL, hb_fieldTypesMemberShape)
+ * and may be missing. cstype is one of
+ * int|long|decimal|string|bool|date|timestamp.
  * Two kinds of row say something of classes instead:
  *
  *     Class<TAB>=inherit<TAB>Base       the model's parent class
@@ -79,6 +81,14 @@ extern const char * hb_fieldTypesClassParent( const char * szClass );
 extern const char * hb_fieldTypesMember( const char * szClass,
                                          const char * szMember,
                                          const char ** pszCanonMember );
+
+/* A mapped field's DBF name, length and decimals (the map's columns 4
+   to 6), for the type audit: HB_FALSE when the member is not a mapped
+   field of szClass or its row has no such columns. */
+extern HB_BOOL hb_fieldTypesMemberShape( const char * szClass,
+                                         const char * szMember,
+                                         const char ** pszDbField,
+                                         int * piLen, int * piDec );
 
 /* Map a fieldtypes C# token to the transpiler's Harbour type tag
    (int -> INTEGER, long/decimal -> NUMERIC, string -> STRING,
