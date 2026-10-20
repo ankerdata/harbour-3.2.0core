@@ -51,6 +51,11 @@ set "SRC=%SRC% src\compiler\hbfunchk.c src\compiler\hbgenerr.c src\compiler\hbid
 set "SRC=%SRC% %T%\src\compiler\hbusage.c"
 set "SRC=%SRC% src\main\harbour.c %T%\src\pp\ppcore.c"
 
+rem Every source below is compiled on every run, and the link takes
+rem obj\<arch>\*.obj: emptied first, so an object whose source left the
+rem list is not linked in with the rest.
+del /q "%OBJDIR%\*.obj" 2>nul
+
 echo Compiling transpiler sources...
 rem No /MD|/MT here on purpose: the Harbour libs are built without an
 rem explicit CRT flag, so we take the same default and avoid a mismatch.
