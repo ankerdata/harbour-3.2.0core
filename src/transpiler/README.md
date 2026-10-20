@@ -1956,6 +1956,45 @@ runtime harness work.
 | `buildall.py` | scan → gen → build for one target, stopping at the first failure | — | a fresh clone's bootstrap |
 | `transpile_common.py` | Not run: the module every stage imports, with the targets, the paths, the environment overrides and the one transpiler invocation | — | — |
 
+#### check.py's sixteen stages
+
+In the order the summary lists them. Each stage writes its output to
+easipos-transpiled's `notes/check/<lane>-<stage>.log`, and the summary
+gives its exit code, its time and the results line it prints, never a
+tail. `--quick` changes the three marked rows and leaves out the audits
+and the scenarios; `--skip` and `--only` choose lanes.
+
+| Stage | What it runs | Passes when | Results line |
+|---|---|---|---|
+| easipos scan | `scan.py all --target easipos` (`--warm` with `--quick`), beside testeasipos's scan | no file fails and none warns: every warning gates | `Scan results: 647 passed, 0 failed, 0 warnings (4 passes)` |
+| easipos gen | `gen_cs.py all --target easipos` (`--changed` with `--quick`), once both targets are scanned, since it reconciles with the other's reftab | every file emitted without a failure or warning, and no W0045 from the reconcile | `Codegen results: 647 passed, 0 failed, 0 warnings` |
+| easipos audit | `audit.py --target easipos` (not with `--quick`) | it ran: the totals never gate, they are compared with the last check's | `TOTAL 1307` |
+| easipos build | `build.py --target easipos`: the merge, the stub report, `dotnet build -c Release` of `src/easipos.csproj` | 0 errors; warnings are reported, not gated | `0 errors, 3 warnings, 00:00:29.91` (and the top error codes when there are any) |
+| testeasipos scan | as easipos's, `--target testeasipos` | as easipos's | `Scan results: 658 passed, …` |
+| testeasipos gen | as easipos's | as easipos's | `Codegen results: 658 passed, …` |
+| testeasipos audit | as easipos's | as easipos's | `TOTAL 1337` |
+| testeasipos build | `build.py --target testeasipos`: `src/testeasipos.csproj` | as easipos's | `0 errors, 2 warnings, …` |
+| testeasipos unit | `run_unit.py`: the C# TestEasiPos, `--unit --no-input --no-nav-uierror`, in `targets/testeasipos/run/` | every unit test passes (the program's ErrorLevel; 124 when the timeout ends it) | `Summary: 121 passed in 3.502s` |
+| testeasipos scenarios | `run_unit.py --scenarios`, beside the Harbour lane (not with `--quick`); needs the fixture databases | every component scenario passes; a `Failed:` line names each that does not | `Scenarios: 135 run, 135 passed, 0 failed` |
+| targets signatures | `check_signatures.py`, when both targets ran and both gens passed | every routine both builds define is declared alike in their C#, defaults included | `Signatures: 4024 routines both builds define (3981 from the same file, 43 stand-ins), 0 declared differently` |
+| targets merge | `merge_cs.py`: both targets' `cs/` into `src/` | every file merges (one that does not is named, exit 1) | `Merge: 1101 files into src/: 839 identical, 37 merged …; 674 written, 2 removed` |
+| harbour hbmk2 | EasiPOS's `mk2.ps1 easiutil.hbp easipos.hbp testeasipos.hbp` (hbmk2 with mkall's environment; not mkall) | hbmk2 builds all three | `easipos.exe and testeasipos.exe linked by this run`, `no exe linked by this run`, or `mk2: FAILED …` |
+| harbour unresolved | `audit/unresolved.py` over all eleven targets' symbol tables, recompiling only what changed | no name is newly unresolved since its last `--save` | `NEWLY UNRESOLVED: 0, 0 resolved` |
+| harbour unit | `run_unit.py --harbour`: Harbour's testeasipos.exe in `targets/testeasipos/run-harbour/` | as the C# unit run | `Summary: 121 passed in 1.17s` |
+| harbour scenarios | `run_unit.py --harbour --scenarios` (not with `--quick`) | as the C# scenarios | `Scenarios: 135 run, 135 passed, 0 failed` |
+
+A target's gen runs only when its scan passed, its audit only when its
+gen did, and its build only when all three did; testeasipos's unit run
+needs its build. The Harbour lane stops at its first failure, the other
+lanes still run, and a stage that did not run is `not run` in the
+summary and fails the check. When a target's scan, gen, audit and build
+pass, its emitted C#, reftab and audit are kept in
+`targets/<target>/notes/check/last/` (the one before in `prev/`), and
+the summary ends with what moved since then: the changed `.cs` files,
+`dynamic`, the audit categories, and whether the transpiler binary
+changed. `check: PASSED, 16 stages in 7m53s` is the last line of a full
+check that passed.
+
 ### What the stages call
 
 | Script | What it does | Reads → writes | When |
