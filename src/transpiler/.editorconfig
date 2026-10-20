@@ -1,0 +1,28 @@
+# Editor settings for the transpiler's C#: HbRuntime, the contrib
+# libraries, the tools and the test suite's reference output. They carry
+# Harbour's names (hb_DateTime, SETMEMBER, AAdd, wapi_Sleep) and the
+# transpiled code's Hungarian ones, which C#'s naming conventions would
+# flag, so the naming inspections are off. Their classes are in the global
+# namespace, as the transpiled program's are, so the namespace-and-folder
+# check is off too.
+
+[*.cs]
+# JetBrains (ReSharper, Rider, the VS Code extension): Inconsistent Naming
+resharper_inconsistent_naming_highlighting = none
+# Roslyn's naming rules (Visual Studio, C# Dev Kit)
+dotnet_diagnostic.IDE1006.severity = none
+# Namespace does not correspond to file location: JetBrains, then Roslyn
+resharper_check_namespace_highlighting = none
+dotnet_diagnostic.IDE0130.severity = none
+# A field with no initialiser starts as NIL, null in C#, as a Harbour VAR
+# without INIT does: not a member left uninitialised. JetBrains, then the
+# compiler's own (silent anyway under <Nullable>annotations</Nullable>)
+resharper_not_null_or_required_member_is_not_initialized_highlighting = none
+dotnet_diagnostic.CS8618.severity = none
+# Nor is a reference that has no `?` known not to be NIL: the null test the
+# Harbour's `!= NIL` became is real. JetBrains' checks that read the nullable
+# annotations as a promise ("Expression is always true", `??` and `?.` on a
+# value that cannot be null)
+resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
+resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract_highlighting = none
+resharper_conditional_access_qualifier_is_non_nullable_according_to_api_contract_highlighting = none
