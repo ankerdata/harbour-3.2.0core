@@ -29,11 +29,11 @@ public static partial class Program
         List<dynamic> aAmounts135 = new List<dynamic> { 1.5m, 2.25m };
         List<dynamic> aCounts135 = new List<dynamic> { 3, 4 };
         List<dynamic> aWhole135 = new List<dynamic> { (decimal)(10) / 2 };
-        string cName135 = default;
-        List<dynamic> aRow135 = default;
-        OrderedDictionary<string, dynamic> hField135 = default;
-        decimal nAmount135 = default;
-        long iCount135 = default;
+        string cName135;
+        List<dynamic> aRow135;
+        OrderedDictionary<string, dynamic> hField135;
+        decimal nAmount135;
+        long iCount135;
         string cOut = "";
         decimal nSum = 0;
         long iTotal = 0;

@@ -51,8 +51,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         dynamic fAdd = FuncPtr("AddOne");
-        dynamic fGreet = default;
-        Widget oWidget = default;
+        dynamic fGreet;
+        Widget oWidget;
 
         fGreet = FuncPtr("SayHello");
 

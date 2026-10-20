@@ -19,7 +19,7 @@ public static partial class Program
         DateOnly dBirth = new DateOnly(1970, 1, 1);
         // DATE() → DateOnly
         DateOnly dToday = Date();
-        string cFormatted = default;
+        string cFormatted;
 
         cFormatted = DToS(dBirth);
         QOut("birth:", cFormatted);

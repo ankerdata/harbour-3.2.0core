@@ -53,7 +53,7 @@ public static partial class Program
     public static OrderedDictionary<long, dynamic> BuildPanels()
     {
         OrderedDictionary<long, dynamic> hnOut = new OrderedDictionary<long, dynamic> {  };
-        long nKey = default;
+        long nKey;
 
         for (nKey = 1; nKey <= 5; nKey++)
         {

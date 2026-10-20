@@ -15,7 +15,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
-        long i = default;
+        long i;
         long nIdx = 1;
         long nLast = (long)(Len(aItems));
         // division → stays decimal, W0026

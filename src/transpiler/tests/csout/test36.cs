@@ -22,12 +22,12 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        decimal nVal = default;
+        decimal nVal;
         decimal nA = 0;
         decimal nB = 0;
-        decimal nC = default;
-        decimal nD = default;
-        decimal nE = default;
+        decimal nC;
+        decimal nD;
+        decimal nE;
 
         // --- Plain assignment statements (the common case by far) ---
         //

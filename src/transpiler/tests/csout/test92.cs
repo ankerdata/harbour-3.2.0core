@@ -51,8 +51,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic xItem = default;
-        Tandem oTandem = default;
+        dynamic xItem;
+        Tandem oTandem;
         xItem = new Gadget();
         oTandem = new Tandem().New(xItem, 2);
         QOut("count=" + LTrim(Str(oTandem.nCount)) + " item=" + oTandem.oItem.cName);

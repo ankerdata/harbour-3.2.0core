@@ -20,7 +20,7 @@ public static partial class Program
             1,
             new List<dynamic> { 2, 3 }
         };
-        List<dynamic> aCopy = default;
+        List<dynamic> aCopy;
         OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
 
         // AScan with a codeblock — 20 is at index 2

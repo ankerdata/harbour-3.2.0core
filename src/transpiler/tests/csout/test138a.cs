@@ -44,7 +44,7 @@ public static partial class Program
     public static decimal SumValues138(Till138 oTill138 = default)
     {
         decimal nTotal = 0;
-        long iPos = default;
+        long iPos;
         for (iPos = 1; iPos <= Len(oTill138.aLines); iPos++)
         {
             if (((Line138)oTill138.aLines[I(iPos)]).nKind != 0)

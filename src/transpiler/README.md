@@ -1215,6 +1215,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 |----------------------------------|------------------------------------------------------------|
 | `LOCAL x AS NUMERIC`             | `decimal x`                                               |
 | `LOCAL x := 5`                   | `decimal x = 5;`                                         |
+| `LOCAL x`, no initialiser        | `decimal x;` where C# sees an assignment before every read, `decimal x = default;` (NIL) where a read may come first: the emitter walks the routine as C#'s definite-assignment rules do, branches met, loops, SWITCH and SEQUENCE leaving the state they found, `@x` a read, a codeblock reading where it is created; anything it does not model keeps the default (hb_csDaNeedsDefault, test159) |
 | `:=` / `==` / `=`                | `=` / `==` / `==` (assignment vs equality)               |
 | `.T.` / `.F.` / `NIL`            | `true` / `false` / `null`                                |
 | `"€/kg"`, `"Signaturzähler"` — a string literal | `"\u00E2\u0082\u00AC/kg"`, `"Signaturz\u00E4hler"` — a Harbour string is bytes, and a source may hold them in any encoding (EasiPOS has Windows-1252 beside UTF-8): every byte above 0x7E, and every control byte but `\n` `\r` `\t`, is its own char, `\u00XX`, as file, socket and serial I/O carry one char per byte (Latin-1). Copied raw, the C# compiler read them as UTF-8: a lone high byte became U+FFFD, a UTF-8 euro sign one char, and lengths and truncation moved. String `#define`s alike (gendefines.py reads Latin-1 and escapes; it had written `chr(13) + chr(10)` raw, which the file's line endings made CR CR LF). test147 |
@@ -1671,7 +1672,7 @@ surface moved; `gen` always transpiles every test, since they share one
 reftab — and `runtests.bat all --full` rebuilds everything, the
 occasional sweep.
 
-Current counts (2026-10-20): **160 tests (168 source files: eight are
+Current counts (2026-10-20): **161 tests (169 source files: eight are
 a/b multi-file pairs, each with its tracked reference output under
 `csout/`) + 31 negative test files with 78 checks (`errors/run.py`)**.
 The `tests/defines/<Name>Const.cs` classes that `gendefines.py` harvests
@@ -1784,6 +1785,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 114       | `BREAK` throws `HbBreak` carrying its value, a plain `BEGIN SEQUENCE` catches only that, `WITH { \|e\| break(e) }` catches every exception and RECOVER USING gets `HbError.From`'s Error object (zero divisor: 5 BASE 1340); ALWAYS without RECOVER lets the BREAK go on; a BREAK in RECOVER goes to the next sequence out; `Break()` in a block reaches its sequence through `Eval()`; `ErrorBlock()`. BREAK had been `throw new Exception(x)`, RECOVER USING got the .NET exception, and WITH was dropped |
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 158       | An error in a thread keeps its traceback: FuncPtr() (the thread's function) and InvokeBlock() (a block) call through compiled delegates, not reflection, so the error block, run before the stack unwinds, sees the routine that failed and its caller, as Harbour's does |
+| 159       | A LOCAL with no initialiser is `T name;` where C# sees it assigned before every read (assigned first, both IF branches, every CASE with OTHERWISE, a FOR counter, a codeblock created after), `= default` where a read may come first (an IF without ELSE, a loop body's assignment, a SEQUENCE body's, `@x`, the right operand of .AND.) |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

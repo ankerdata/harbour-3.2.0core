@@ -44,7 +44,7 @@ public static partial class Program
         string cVar = "alpha,one";
         List<dynamic> aArr = new List<dynamic> { "beta,two" };
         OrderedDictionary<string, dynamic> oObj = new OrderedDictionary<string, dynamic> {  };
-        string cTaken = default;
+        string cTaken;
         oObj["cField"] = "gamma,three";
 
         /* @cVar — writeback expected: cVar advances past the comma */

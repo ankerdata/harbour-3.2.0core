@@ -3,10 +3,10 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        long i = default;
+        long i;
         decimal nSum = 0;
         List<dynamic> aItems = new List<dynamic> { "apple", "banana", "cherry" };
-        string cItem = default;
+        string cItem;
 
         // FOR with STEP
         for (i = 0; i <= 20; i += 5)

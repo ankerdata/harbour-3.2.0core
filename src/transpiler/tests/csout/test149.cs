@@ -13,7 +13,7 @@ public static partial class Program
     public static long test149_siCalls149 = 0;
     public static long Calls149(ref bool lFirst)
     {
-        long iCalls = default;
+        long iCalls;
         test149_siCalls149++;
         lFirst = (test149_siCalls149 == 1);
         iCalls = test149_siCalls149;
@@ -28,7 +28,7 @@ public static partial class Program
 
     public static string Label149(string cPrefix, ref string cLabel, decimal nWidth = 8)
     {
-        string cOut = default;
+        string cOut;
         cLabel = PadR(cPrefix + "-" + Str(Calls149(), 1), nWidth, ".");
         cOut = Upper(cLabel);
         return cOut;
@@ -71,7 +71,7 @@ public static partial class Program
         string cLabel = "";
         decimal nLength = 0;
         bool lOdd = false;
-        decimal nHalf = default;
+        decimal nHalf;
 
         // the full call, by reference
         QOut(Calls149(ref lFirst), lFirst);

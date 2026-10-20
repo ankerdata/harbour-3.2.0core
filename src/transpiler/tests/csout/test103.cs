@@ -31,7 +31,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Beacon oBeacon = new Beacon();
-        dynamic oCom = default;
+        dynamic oCom;
         QOut(oBeacon.ToString());
         if (oBeacon.nCode > 100)
         {

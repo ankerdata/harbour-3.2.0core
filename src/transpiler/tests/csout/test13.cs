@@ -19,7 +19,7 @@ public static partial class Program
     public static decimal SumEvenTo(decimal nMax = default)
     {
         decimal nSum = 0;
-        long i = default;
+        long i;
 
         for (i = 1; i <= nMax; i++)
         {
@@ -41,7 +41,7 @@ public static partial class Program
     {
         string cItem = default;
         decimal nPos = 0;
-        long i = default;
+        long i;
 
         // Nested FOR with EXIT
         for (i = 1; i <= Len(aItems); i++)

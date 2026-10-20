@@ -77,14 +77,14 @@ public static partial class Program
     public static void Main(string[] args)
     {
         TableDef aDef = PluDef155();
-        FieldRow aRow = default;
+        FieldRow aRow;
         FieldRow[] aFields = aDef.aFields;
         // a list of records, grown
         List<dynamic> aMore = new List<dynamic>
         {
             new FieldRow("TAX", "N", 1, 0)
         };
-        long iPos = default;
+        long iPos;
 
         // fields of the def, the fixed array's length
         QOut(aDef.cAlias, aDef.cDatabase, Len(aDef.aFields));
@@ -161,8 +161,8 @@ public static partial class Program
     }
     public static void Dump155(dynamic xAny = default)
     {
-        dynamic xItem = default;
-        FieldRow aRow = default;
+        dynamic xItem;
+        FieldRow aRow;
         QOut(ValType(xAny), Len(xAny));
         foreach (dynamic __hb_fe_xItem in HbEnumValues(xAny))
         {

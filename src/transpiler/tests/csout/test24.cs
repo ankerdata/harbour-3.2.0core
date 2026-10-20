@@ -32,7 +32,7 @@ public static partial class Program
         // C2
         // comment with no ; here
         List<dynamic> aCodes = new List<dynamic> { "alpha", "bravo", "charlie" };
-        long n = default;
+        long n;
 
         // comment on IF line
         if (x == 1)

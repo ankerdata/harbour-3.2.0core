@@ -13,8 +13,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         dynamic pMtx = hb_mutexCreate();
-        dynamic xGot = default;
-        dynamic pThread = default;
+        dynamic xGot;
+        dynamic pThread;
 
         // each thread its own THREAD STATIC, starting from its declared value
         xGot = "none";

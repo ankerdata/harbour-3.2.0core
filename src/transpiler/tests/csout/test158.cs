@@ -11,7 +11,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        dynamic pThread = default;
+        dynamic pThread;
 
         pThread = hb_threadStart(FuncPtr("Thr158Run"));
         hb_threadWait(pThread, 5);

@@ -5,7 +5,7 @@ public static partial class Program
     {
         decimal x = 5;
         decimal y = 10;
-        decimal z = default;
+        decimal z;
 
         z = x + y;
 

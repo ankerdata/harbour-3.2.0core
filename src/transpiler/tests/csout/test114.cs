@@ -14,11 +14,11 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbError oError = default;
+        HbError oError;
         dynamic xGot = "unset";
         decimal nZero = 0;
         string cTrail = "";
-        dynamic bOld = default;
+        dynamic bOld;
 
         // BREAK with a value, from a called function
         try

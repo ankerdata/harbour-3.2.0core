@@ -7006,6 +7006,426 @@ static PHB_AST_NODE hb_csDroppedFinalReturn( PHB_AST_NODE pBody )
    return pLast && pLast->type == HB_AST_RETURN ? pLast : NULL;
 }
 
+/* ---- Definite assignment: which LOCALs keep `= default` ----
+
+   A LOCAL with no initialiser is NIL until it is assigned, and C# needs it
+   assigned before it is read (CS0165), so the emitter wrote each one
+   `T name = default;`. Where every read follows an assignment on every
+   path a C# author writes `T name;`, and so does the emitter. This walks
+   a routine's body as C#'s definite-assignment rules walk the C# emitted
+   for it, and claims no more than they would:
+   - an expression's reads are checked against the state before it, and
+     its assignments count after it; one in the right operand of .AND. /
+     .OR., in an IIF's branch or in a codeblock does not count;
+   - `@x` is a read, as C# `ref` needs an assigned variable, and so is a
+     compound assignment or ++ / --;
+   - IF / ELSEIF / ELSE and DO CASE (an if/else chain) meet their
+     branches, a missing ELSE / OTHERWISE being a branch that assigns
+     nothing;
+   - a loop, a SWITCH and a BEGIN SEQUENCE leave the state they found:
+     their bodies may run partly or not at all; a FOR assigns its
+     variable before its body, a FOR EACH its variable in its body, RECOVER
+     USING its variable in RECOVER;
+   - nothing after RETURN, BREAK, EXIT or LOOP is read on that path;
+   - a codeblock reads where it is created, its parameters hiding the
+     routine's names.
+   A routine with anything it does not model (a macro, an alias, a C#
+   block) keeps every `= default`, and so does a local never read. */
+
+#define HB_CS_DA_MAX 256
+
+typedef struct
+{
+   HB_BOOL       fDead;                    /* no path reaches here */
+   unsigned char a[ HB_CS_DA_MAX ];        /* local i is definitely assigned */
+} HB_CS_DASTATE;
+
+static struct
+{
+   HB_BOOL       fActive;                  /* the routine being emitted was walked */
+   HB_BOOL       fAbort;                   /* something not modelled: keep every default */
+   int           iCount;
+   const char *  aszName[ HB_CS_DA_MAX ];
+   unsigned char aNeed[ HB_CS_DA_MAX ];    /* a read may come before an assignment */
+   unsigned char aRead[ HB_CS_DA_MAX ];    /* read at all */
+   PHB_CBVAR     apShadow[ 32 ];           /* the codeblocks a read stands in */
+   int           iShadow;
+} s_da;
+
+static int hb_csDaIndex( const char * szName )
+{
+   int i;
+   if( ! szName )
+      return -1;
+   for( i = 0; i < s_da.iShadow; i++ )
+   {
+      PHB_CBVAR pVar;
+      for( pVar = s_da.apShadow[ i ]; pVar; pVar = pVar->pNext )
+         if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+            return -1;
+   }
+   for( i = 0; i < s_da.iCount; i++ )
+      if( hb_stricmp( s_da.aszName[ i ], szName ) == 0 )
+         return i;
+   return -1;
+}
+
+static void hb_csDaRead( const char * szName, HB_CS_DASTATE * pS )
+{
+   int i = hb_csDaIndex( szName );
+   if( i >= 0 )
+   {
+      s_da.aRead[ i ] = 1;
+      if( ! pS->fDead && ! pS->a[ i ] )
+         s_da.aNeed[ i ] = 1;
+   }
+}
+
+static void hb_csDaAssign( const char * szName, HB_CS_DASTATE * pS )
+{
+   int i = hb_csDaIndex( szName );
+   if( i >= 0 )
+      pS->a[ i ] = 1;
+}
+
+static void hb_csDaMeet( HB_CS_DASTATE * pAcc, const HB_CS_DASTATE * pB )
+{
+   int i;
+   if( pB->fDead )
+      return;
+   if( pAcc->fDead )
+   {
+      *pAcc = *pB;
+      return;
+   }
+   for( i = 0; i < s_da.iCount; i++ )
+      pAcc->a[ i ] &= pB->a[ i ];
+}
+
+static void hb_csDaReads( PHB_EXPR p, HB_CS_DASTATE * pS );
+
+static void hb_csDaReadsList( PHB_EXPR p, HB_CS_DASTATE * pS )
+{
+   for( ; p; p = p->pNext )
+      hb_csDaReads( p, pS );
+}
+
+/* Every variable an expression reads, checked against pS. */
+static void hb_csDaReads( PHB_EXPR p, HB_CS_DASTATE * pS )
+{
+   if( ! p )
+      return;
+   switch( p->ExprType )
+   {
+      case HB_ET_NONE: case HB_ET_NIL: case HB_ET_NUMERIC: case HB_ET_DATE:
+      case HB_ET_TIMESTAMP: case HB_ET_STRING: case HB_ET_LOGICAL:
+      case HB_ET_SELF: case HB_ET_FUNREF: case HB_ET_FUNNAME:
+         break;
+      case HB_ET_VARIABLE:
+      case HB_ET_VARREF:
+         hb_csDaRead( p->value.asSymbol.name, pS );
+         break;
+      case HB_ET_REFERENCE:
+         hb_csDaReads( p->value.asReference, pS );
+         break;
+      case HB_ET_CODEBLOCK:
+         if( s_da.iShadow < ( int ) HB_SIZEOFARRAY( s_da.apShadow ) )
+         {
+            s_da.apShadow[ s_da.iShadow++ ] = p->value.asCodeblock.pLocals;
+            hb_csDaReadsList( p->value.asCodeblock.pExprList, pS );
+            s_da.iShadow--;
+         }
+         else
+            s_da.fAbort = HB_TRUE;
+         break;
+      case HB_ET_ARRAY: case HB_ET_HASH: case HB_ET_IIF:
+      case HB_ET_LIST: case HB_ET_ARGLIST:
+         hb_csDaReadsList( p->value.asList.pExprList, pS );
+         break;
+      case HB_ET_ARRAYAT:
+         hb_csDaReads( p->value.asList.pExprList, pS );
+         hb_csDaReads( p->value.asList.pIndex, pS );
+         break;
+      case HB_ET_FUNCALL:
+         hb_csDaReadsList( p->value.asFunCall.pParms, pS );
+         break;
+      case HB_ET_SEND:
+         if( p->value.asMessage.pMessage )
+            s_da.fAbort = HB_TRUE;            /* o:&( cName ) */
+         hb_csDaReads( p->value.asMessage.pObject, pS );
+         hb_csDaReadsList( p->value.asMessage.pParms, pS );
+         break;
+      case HB_ET_SETGET:
+         hb_csDaReads( p->value.asSetGet.pVar, pS );
+         hb_csDaReads( p->value.asSetGet.pExpr, pS );
+         break;
+      case HB_EO_ASSIGN:
+         if( ! p->value.asOperator.pLeft ||
+             p->value.asOperator.pLeft->ExprType != HB_ET_VARIABLE )
+            hb_csDaReads( p->value.asOperator.pLeft, pS );
+         hb_csDaReads( p->value.asOperator.pRight, pS );
+         break;
+      default:
+         if( p->ExprType >= HB_EO_POSTINC && p->ExprType <= HB_EO_PREDEC )
+         {
+            hb_csDaReads( p->value.asOperator.pLeft, pS );
+            hb_csDaReads( p->value.asOperator.pRight, pS );
+         }
+         else
+            s_da.fAbort = HB_TRUE;            /* a macro, an alias, PUBLIC / PRIVATE */
+         break;
+   }
+}
+
+static void hb_csDaWrites( PHB_EXPR p, HB_CS_DASTATE * pS );
+
+static void hb_csDaWritesList( PHB_EXPR p, HB_CS_DASTATE * pS )
+{
+   for( ; p; p = p->pNext )
+      hb_csDaWrites( p, pS );
+}
+
+/* The variables an expression assigns on every path through it. */
+static void hb_csDaWrites( PHB_EXPR p, HB_CS_DASTATE * pS )
+{
+   if( ! p )
+      return;
+   switch( p->ExprType )
+   {
+      case HB_EO_ASSIGN: case HB_EO_PLUSEQ: case HB_EO_MINUSEQ: case HB_EO_MULTEQ:
+      case HB_EO_DIVEQ: case HB_EO_MODEQ: case HB_EO_EXPEQ:
+         hb_csDaWrites( p->value.asOperator.pRight, pS );
+         if( p->value.asOperator.pLeft &&
+             p->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+            hb_csDaAssign( p->value.asOperator.pLeft->value.asSymbol.name, pS );
+         else
+            hb_csDaWrites( p->value.asOperator.pLeft, pS );
+         break;
+      case HB_EO_AND:
+      case HB_EO_OR:
+         hb_csDaWrites( p->value.asOperator.pLeft, pS );   /* the right may not run */
+         break;
+      case HB_ET_IIF:
+         hb_csDaWrites( p->value.asList.pExprList, pS );   /* the condition alone */
+         break;
+      case HB_ET_ARRAY: case HB_ET_HASH: case HB_ET_LIST: case HB_ET_ARGLIST:
+         hb_csDaWritesList( p->value.asList.pExprList, pS );
+         break;
+      case HB_ET_ARRAYAT:
+         hb_csDaWrites( p->value.asList.pExprList, pS );
+         hb_csDaWrites( p->value.asList.pIndex, pS );
+         break;
+      case HB_ET_FUNCALL:
+         hb_csDaWritesList( p->value.asFunCall.pParms, pS );
+         break;
+      case HB_ET_SEND:
+         hb_csDaWrites( p->value.asMessage.pObject, pS );
+         hb_csDaWritesList( p->value.asMessage.pParms, pS );
+         break;
+      case HB_ET_REFERENCE:
+         hb_csDaWrites( p->value.asReference, pS );
+         break;
+      default:
+         if( p->ExprType >= HB_EO_POSTINC && p->ExprType <= HB_EO_PREDEC )
+         {
+            hb_csDaWrites( p->value.asOperator.pLeft, pS );
+            hb_csDaWrites( p->value.asOperator.pRight, pS );
+         }
+         break;                               /* a codeblock assigns nothing here */
+   }
+}
+
+static void hb_csDaExpr( PHB_EXPR p, HB_CS_DASTATE * pS )
+{
+   hb_csDaReads( p, pS );
+   hb_csDaWrites( p, pS );
+}
+
+static void hb_csDaStmt( PHB_AST_NODE p, HB_CS_DASTATE * pS );
+
+static void hb_csDaBlock( PHB_AST_NODE pBlock, HB_CS_DASTATE * pS )
+{
+   PHB_AST_NODE p;
+   if( ! pBlock )
+      return;
+   if( pBlock->type != HB_AST_BLOCK )
+   {
+      hb_csDaStmt( pBlock, pS );
+      return;
+   }
+   for( p = pBlock->value.asBlock.pFirst; p; p = p->pNext )
+      hb_csDaStmt( p, pS );
+}
+
+static void hb_csDaStmt( PHB_AST_NODE p, HB_CS_DASTATE * pS )
+{
+   HB_CS_DASTATE acc, b;
+
+   switch( p->type )
+   {
+      case HB_AST_LOCAL:
+      case HB_AST_PRIVATE:
+      case HB_AST_PUBLIC:
+         hb_csDaExpr( p->value.asVar.pInit, pS );
+         break;
+      case HB_AST_STATIC: case HB_AST_MEMVAR: case HB_AST_FIELD:
+      case HB_AST_PARAMETERS: case HB_AST_COMMENT: case HB_AST_PPDEFINE:
+      case HB_AST_CLASSMETHOD:
+         break;
+      case HB_AST_BLOCK:
+         hb_csDaBlock( p, pS );
+         break;
+      case HB_AST_EXPRSTMT:
+         hb_csDaExpr( p->value.asExprStmt.pExpr, pS );
+         break;
+      case HB_AST_QOUT:
+      case HB_AST_QQOUT:
+         hb_csDaReadsList( p->value.asQOut.pExprList, pS );
+         hb_csDaWritesList( p->value.asQOut.pExprList, pS );
+         break;
+      case HB_AST_RETURN:
+         hb_csDaReads( p->value.asReturn.pExpr, pS );
+         pS->fDead = HB_TRUE;
+         break;
+      case HB_AST_BREAK:
+         hb_csDaReads( p->value.asBreak.pExpr, pS );
+         pS->fDead = HB_TRUE;
+         break;
+      case HB_AST_EXIT:
+      case HB_AST_LOOP:
+         pS->fDead = HB_TRUE;
+         break;
+      case HB_AST_IF:
+      {
+         PHB_AST_NODE pE;
+         hb_csDaExpr( p->value.asIf.pCondition, pS );
+         acc = *pS;
+         hb_csDaBlock( p->value.asIf.pThen, &acc );
+         for( pE = p->value.asIf.pElseIfs; pE; pE = pE->pNext )
+         {
+            hb_csDaExpr( pE->value.asElseIf.pCondition, pS );
+            b = *pS;
+            hb_csDaBlock( pE->value.asElseIf.pBody, &b );
+            hb_csDaMeet( &acc, &b );
+         }
+         b = *pS;
+         hb_csDaBlock( p->value.asIf.pElse, &b );
+         hb_csDaMeet( &acc, &b );
+         *pS = acc;
+         break;
+      }
+      case HB_AST_DOCASE:
+      {
+         PHB_AST_NODE pC;
+         acc = *pS;
+         acc.fDead = HB_TRUE;
+         for( pC = p->value.asDoCase.pCases; pC; pC = pC->pNext )
+         {
+            hb_csDaExpr( pC->value.asCase.pCondition, pS );
+            b = *pS;
+            hb_csDaBlock( pC->value.asCase.pBody, &b );
+            hb_csDaMeet( &acc, &b );
+         }
+         b = *pS;
+         hb_csDaBlock( p->value.asDoCase.pOtherwise, &b );
+         hb_csDaMeet( &acc, &b );
+         *pS = acc;
+         break;
+      }
+      case HB_AST_DOWHILE:
+         hb_csDaExpr( p->value.asWhile.pCondition, pS );
+         b = *pS;
+         hb_csDaBlock( p->value.asWhile.pBody, &b );
+         break;
+      case HB_AST_FOR:
+         hb_csDaExpr( p->value.asFor.pStart, pS );
+         hb_csDaAssign( p->value.asFor.szVar, pS );
+         hb_csDaExpr( p->value.asFor.pEnd, pS );
+         hb_csDaReads( p->value.asFor.pStep, pS );
+         b = *pS;
+         hb_csDaBlock( p->value.asFor.pBody, &b );
+         break;
+      case HB_AST_FOREACH:
+      {
+         PHB_EXPR pVar = p->value.asForEach.pVar;
+         hb_csDaExpr( p->value.asForEach.pEnum, pS );
+         b = *pS;
+         if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+            pVar = pVar->value.asList.pExprList;
+         if( pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) )
+            hb_csDaAssign( pVar->value.asSymbol.name, &b );
+         hb_csDaBlock( p->value.asForEach.pBody, &b );
+         break;
+      }
+      case HB_AST_SWITCH:
+      {
+         PHB_AST_NODE pC;
+         hb_csDaExpr( p->value.asSwitch.pSwitch, pS );
+         for( pC = p->value.asSwitch.pCases; pC; pC = pC->pNext )
+         {
+            b = *pS;
+            hb_csDaReads( pC->value.asCase.pCondition, &b );
+            hb_csDaBlock( pC->value.asCase.pBody, &b );
+         }
+         b = *pS;
+         hb_csDaBlock( p->value.asSwitch.pDefault, &b );
+         break;
+      }
+      case HB_AST_BEGINSEQ:
+         b = *pS;
+         hb_csDaBlock( p->value.asSeq.pBody, &b );
+         b = *pS;
+         if( p->value.asSeq.szRecoverVar && p->value.asSeq.pRecover )
+            hb_csDaAssign( p->value.asSeq.szRecoverVar, &b );
+         hb_csDaBlock( p->value.asSeq.pRecover, &b );
+         b = *pS;
+         hb_csDaBlock( p->value.asSeq.pAlways, &b );
+         break;
+      case HB_AST_WITHOBJECT:
+         hb_csDaReads( p->value.asWithObj.pObject, pS );
+         hb_csDaBlock( p->value.asWithObj.pBody, pS );
+         break;
+      default:
+         s_da.fAbort = HB_TRUE;               /* a C# block, or anything else */
+         break;
+   }
+}
+
+/* Walk a routine's body before it is emitted; its LOCALs ask
+   hb_csDaNeedsDefault() while it is. */
+static void hb_csDaAnalyse( PHB_AST_NODE pBody )
+{
+   PHB_AST_NODE p;
+   HB_CS_DASTATE s;
+
+   memset( &s_da, 0, sizeof( s_da ) );
+   memset( &s, 0, sizeof( s ) );
+   for( p = hb_csBlockFirstStmt( pBody ); p; p = p->pNext )
+      if( p->type == HB_AST_LOCAL && p->value.asVar.szName &&
+          ! p->value.asVar.pInit && ! p->value.asVar.fArrayDim )
+      {
+         if( s_da.iCount >= HB_CS_DA_MAX )
+         {
+            s_da.fAbort = HB_TRUE;
+            break;
+         }
+         s_da.aszName[ s_da.iCount++ ] = p->value.asVar.szName;
+      }
+   if( ! s_da.fAbort && s_da.iCount )
+      hb_csDaBlock( pBody, &s );
+   s_da.iShadow = 0;
+   s_da.fActive = HB_TRUE;
+}
+
+static HB_BOOL hb_csDaNeedsDefault( const char * szName )
+{
+   int i;
+   if( ! s_da.fActive || s_da.fAbort )
+      return HB_TRUE;
+   i = hb_csDaIndex( szName );
+   return i < 0 || s_da.aNeed[ i ] || ! s_da.aRead[ i ];
+}
+
 /* A SWITCH case body that already ends in a jump needs no `break;`. */
 static HB_BOOL hb_csBlockEndsWithBreak( PHB_AST_NODE pBlock )
 {
@@ -7503,13 +7923,16 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             else
             {
-               /* No initializer — always emit the local. Later FOREACH
-                  / catch statements whose loop variable shadows this
-                  local are handled in their own emit paths (HB_AST_FOREACH
-                  renames via __hb_fe_<name> and assigns to the outer). */
+               /* No initializer: NIL, `= default`, unless C# sees it
+                  assigned before every read (hb_csDaNeedsDefault). Later
+                  FOREACH / catch statements whose loop variable shadows
+                  this local are handled in their own emit paths
+                  (HB_AST_FOREACH renames via __hb_fe_<name> and assigns
+                  to the outer). */
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "%s %s = default;\n", hb_csTypeMap( szType ),
-                        pNode->value.asVar.szName );
+               fprintf( yyc, "%s %s%s;\n", hb_csTypeMap( szType ),
+                        pNode->value.asVar.szName,
+                        hb_csDaNeedsDefault( pNode->value.asVar.szName ) ? " = default" : "" );
             }
          }
          break;
@@ -9278,18 +9701,22 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             an unreachable `return this;`, CS0162 — test107's Tenfold). */
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
          s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
+         hb_csDaAnalyse( pFunc->value.asFunc.pBody );
          while( pStmt )
          {
             hb_csEmitNode( pStmt, yyc, iIndent + 1 );
             pStmt = pStmt->pNext;
          }
          s_pDroppedReturn = NULL;
+         s_da.fActive = HB_FALSE;
       }
       else
          {
          s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
+         hb_csDaAnalyse( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
          s_pDroppedReturn = NULL;
+         s_da.fActive = HB_FALSE;
       }
    }
    hb_csEmitIndent( yyc, iIndent );
@@ -10420,8 +10847,10 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    if( pFunc->value.asFunc.pBody )
       {
          s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
+         hb_csDaAnalyse( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
          s_pDroppedReturn = NULL;
+         s_da.fActive = HB_FALSE;
       }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );

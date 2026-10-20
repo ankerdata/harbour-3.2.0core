@@ -55,8 +55,8 @@ public static partial class Program
             { 1, "one" },
             { 2, "two" }
         };
-        FieldRow156 aRow = default;
-        string cKey = default;
+        FieldRow156 aRow;
+        string cKey;
 
         // a record into the hash: its constructor
         hb_HSet(test156_shByName, "PRICE1", new FieldRow156("PRICE1", "N", 12, 3));
@@ -107,7 +107,7 @@ public static partial class Program
     public static long Count156(OrderedDictionary<string, FieldRow156> hRows = default)
     {
         long iTotal = 0;
-        FieldRow156 aRow = default;
+        FieldRow156 aRow;
         foreach (FieldRow156 __hb_fe_aRow in HbEnumValues(hRows))
         {
             aRow = __hb_fe_aRow;

@@ -29,14 +29,14 @@ public static partial class Program
             { "a", new List<dynamic> { 1, 2 } },
             { "b", new OrderedDictionary<string, dynamic> { { "x", 1 } } }
         };
-        OrderedDictionary<string, dynamic> hCopy = default;
+        OrderedDictionary<string, dynamic> hCopy;
         List<dynamic> aSrc = new List<dynamic>
         {
             new OrderedDictionary<string, dynamic> { { "k", 1 } }
         };
-        List<dynamic> aCopy = default;
+        List<dynamic> aCopy;
         long nId = 7;
-        string cKey = default;
+        string cKey;
         string cKeys = "";
 
         hb_HDel(hStock, "milk");

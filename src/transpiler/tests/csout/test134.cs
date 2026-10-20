@@ -69,7 +69,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Bag134 oStore134 = new Bag134();
-        Viewer134 oShow134 = default;
+        Viewer134 oShow134;
 
         oStore134.Put134("cLabel134", "tin");
         oShow134 = new Viewer134().New(oStore134);

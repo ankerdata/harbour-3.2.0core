@@ -37,11 +37,11 @@ public static partial class Program
             new List<dynamic> {  },
             new List<dynamic> {  }
         };
-        List<dynamic> aAlias125 = default;
+        List<dynamic> aAlias125;
         List<dynamic> aGrid125 = Array(2, 3);
         List<dynamic> aSeen125 = new List<dynamic> { 1, 2 };
         Stock125 oStock125 = new Stock125().Fill125();
-        dynamic x = default;
+        dynamic x;
 
         // an element grows in place
         AAdd(aRows125[I(1)], "a");

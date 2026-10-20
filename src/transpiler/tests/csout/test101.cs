@@ -49,7 +49,7 @@ public static partial class Program
         decimal nSpan = (decimal)(dEnd.DayNumber - dStart.DayNumber);
         Voyage oVoyage = new Voyage().New(dStart, "Lisbon");
         string cPort = "Lis";
-        DateOnly dNext = default;
+        DateOnly dNext;
         Set(_SET_EXACT, "ON");
         QOut("span=" + LTrim(Str(nSpan)));
         QOut("half=" + (((decimal)(dEnd.DayNumber - dStart.DayNumber)) / 2 > 4 ? "y" : "n"));

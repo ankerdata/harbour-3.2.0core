@@ -43,8 +43,8 @@ public static partial class Program
     public static Test74Holder test74_soTest74Holder;
     public static void Main(string[] args)
     {
-        Test74Holder oTest74Holder = default;
-        dynamic oNotAClass = default;
+        Test74Holder oTest74Holder;
+        dynamic oNotAClass;
 
         oTest74Holder = SeedObject(true);
         oNotAClass = SeedObject(true);

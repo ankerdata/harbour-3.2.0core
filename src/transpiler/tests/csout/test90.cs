@@ -53,7 +53,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Base o = default;
+        Base o;
 
         o = new Base().New("base", lFlag: true);
         o.Show();

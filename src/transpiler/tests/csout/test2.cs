@@ -4,8 +4,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nSum = 0;
-        long i = default;
-        string cResult = default;
+        long i;
+        string cResult;
 
         for (i = 1; i <= 10; i++)
         {

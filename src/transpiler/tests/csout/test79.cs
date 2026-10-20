@@ -33,7 +33,7 @@ public static partial class Program
     {
         Animal oAnimal = new Animal();
         Dog oDog = new Dog();
-        Animal oPet = default;
+        Animal oPet;
 
         oDog.cName = "rex";
         oDog.cSound = "woof";

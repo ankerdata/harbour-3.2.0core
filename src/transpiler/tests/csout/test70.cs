@@ -28,7 +28,7 @@ public static partial class Program
         List<dynamic> aConfirm = Array(5);
         // 2-D — only outer dim sized eagerly
         List<dynamic> aGrid = Array(2, 3);
-        long nI = default;
+        long nI;
 
         for (nI = 1; nI <= 3; nI++)
         {

@@ -38,7 +38,7 @@ public static partial class Program
 
     public static void AddDelta(List<dynamic> aArr = default, decimal nDelta = default)
     {
-        long nI = default;
+        long nI;
         for (nI = 1; nI <= Len(aArr); nI++)
         {
             aArr[I(nI)] = aArr[I(nI)] + nDelta;

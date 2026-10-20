@@ -75,11 +75,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Till137 oTill137 = new Till137();
-        Line137 oLine = default;
-        ItemLine137 oItemLine137 = default;
-        FcnLine137 oFcn = default;
+        Line137 oLine;
+        ItemLine137 oItemLine137;
+        FcnLine137 oFcn;
         decimal nTotal = 0;
-        long iPos = default;
+        long iPos;
 
         oTill137.Add(new ItemLine137().New("tea", 3, 2));
         oTill137.Add(new FcnLine137().New("discount", 7));

@@ -25,7 +25,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        long i = default;
+        long i;
         decimal nHits = 0;
 
         for (i = 1; i <= 10; i++)

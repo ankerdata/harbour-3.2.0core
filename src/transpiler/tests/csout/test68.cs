@@ -15,7 +15,7 @@ public static partial class Program
 {
     public static dynamic MinMax(List<dynamic> aData, ref dynamic xLo, ref dynamic xHi)
     {
-        long i = default;
+        long i;
         xLo = aData[I(1)];
         xHi = aData[I(1)];
         for (i = 2; i <= Len(aData); i++)

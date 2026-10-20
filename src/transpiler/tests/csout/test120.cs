@@ -19,8 +19,8 @@ public static partial class Program
         long iCount = 0;
         long iLen = (long)(Len(aItems));
         decimal nPrice = 2.5m;
-        long iPos = default;
-        long iWhole = default;
+        long iPos;
+        long iWhole;
 
         for (iPos = 1; iPos <= iLen; iPos++)
         {

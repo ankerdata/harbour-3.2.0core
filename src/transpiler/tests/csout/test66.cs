@@ -55,7 +55,7 @@ public static partial class Program
         dynamic buf = default;
         // decimal
         decimal nCount = 10;
-        bool lOK = default;
+        bool lOK;
         // statement-context reverse shim
         {
             string _hbref_buf = buf;

@@ -81,7 +81,7 @@ public static partial class Program
     public static decimal BlockCount(List<dynamic> aItems = default, dynamic bFor = default)
     {
         decimal nHits = 0;
-        decimal nItem = default;
+        decimal nItem;
 
         foreach (decimal __hb_fe_nItem in HbEnumValues(aItems))
         {

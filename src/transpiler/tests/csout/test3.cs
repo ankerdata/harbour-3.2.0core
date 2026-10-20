@@ -5,7 +5,7 @@ public static partial class Program
     {
         decimal nChoice = 2;
         List<dynamic> aItems = new List<dynamic> { "apple", "banana", "cherry" };
-        string cItem = default;
+        string cItem;
         string cResult = "";
         dynamic oErr = default;
 

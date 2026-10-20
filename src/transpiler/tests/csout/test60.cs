@@ -19,8 +19,8 @@ public static partial class Program
         };
         // note the duplicate 1
         List<dynamic> aNums = new List<dynamic> { 3, 1, 2, 1 };
-        long i = default;
-        string cOut = default;
+        long i;
+        string cOut;
 
         QOut("round_2.5=" + LTrim(Str(Round(2.5m, 0))));
         QOut("round_0.5=" + LTrim(Str(Round(0.5m, 0))));

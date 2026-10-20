@@ -68,7 +68,7 @@ public static partial class Program
     {
         decimal nOut = 0;
         decimal n = 5;
-        decimal i = default;
+        decimal i;
         bool lReset = true;
         string cWord = "tea";
         List<dynamic> aLog = new List<dynamic> {  };

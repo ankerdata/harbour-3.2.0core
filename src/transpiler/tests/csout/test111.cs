@@ -13,7 +13,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nStep = -1;
-        decimal nI = default;
+        decimal nI;
         string cTrail = "";
 
         for (nI = 5; ForTest(nI, 1, nStep); nI += nStep)

@@ -55,7 +55,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         TestDeptDef oDept = new TestDeptDef(TestDeptDef());
-        decimal nNext = default;
+        decimal nNext;
 
         oDept.nNo = 5;
         // 10 digits — needs long in C#

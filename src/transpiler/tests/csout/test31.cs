@@ -48,7 +48,7 @@ public static partial class Program
 
     public static void Echo(params dynamic[] hbva)
     {
-        dynamic xArg = default;
+        dynamic xArg;
         decimal nIdx = 1;
         foreach (dynamic __hb_fe_xArg in HbEnumValues(new List<dynamic>(hbva)))
         {

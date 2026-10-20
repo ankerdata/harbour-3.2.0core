@@ -74,10 +74,10 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Crate136 oCrate = new Crate136();
-        Gizmo136 oAny = default;
+        Gizmo136 oAny;
         List<dynamic> aNames = new List<dynamic> {  };
-        Gizmo136 oItem = default;
-        long iPos = default;
+        Gizmo136 oItem;
+        long iPos;
 
         oCrate.Add(new Gizmo136().New("bolt", 3));
         oCrate.Add(new Gizmo136().New("beam", 9));
@@ -113,7 +113,7 @@ public static partial class Program
     public static Gizmo136 Biggest136(List<dynamic> aList = default)
     {
         Gizmo136 oBest = default;
-        Gizmo136 oOne = default;
+        Gizmo136 oOne;
         foreach (Gizmo136 __hb_fe_oOne in HbEnumValues(aList))
         {
             oOne = __hb_fe_oOne;
@@ -129,7 +129,7 @@ public static partial class Program
     public static List<dynamic> test136_Names136(List<dynamic> aList = default)
     {
         List<dynamic> aOut = new List<dynamic> {  };
-        long iPos = default;
+        long iPos;
         for (iPos = 1; iPos <= Len(aList); iPos++)
         {
             AAdd(aOut, ((Gizmo136)aList[I(iPos)]).cName);
@@ -141,7 +141,7 @@ public static partial class Program
     public static decimal test136_Total136()
     {
         decimal nTotal = 0;
-        Gizmo136 oG = default;
+        Gizmo136 oG;
         foreach (Gizmo136 __hb_fe_oG in HbEnumValues(test136_saShelf136))
         {
             oG = __hb_fe_oG;

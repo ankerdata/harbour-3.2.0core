@@ -39,7 +39,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aData = new List<dynamic> {  };
-        decimal nCount = default;
+        decimal nCount;
 
         test86_soStore = new Store();
 

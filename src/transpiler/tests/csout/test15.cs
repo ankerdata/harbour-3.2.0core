@@ -23,15 +23,15 @@ public static partial class Program
         };
         List<dynamic> aEmpty = new List<dynamic> {  };
         decimal nTotal = 0;
-        decimal nLen = default;
-        decimal nPos = default;
-        long i = default;
-        string cName = default;
-        decimal nItem = default;
+        decimal nLen;
+        decimal nPos;
+        long i;
+        string cName;
+        decimal nItem;
         string cText = "  Hello World  ";
-        string cUpper = default;
-        string cTrimmed = default;
-        string cSub = default;
+        string cUpper;
+        string cTrimmed;
+        string cSub;
 
         // Array subscript access
         nTotal = aNumbers[I(1)] + aNumbers[I(3)] + aNumbers[I(5)];

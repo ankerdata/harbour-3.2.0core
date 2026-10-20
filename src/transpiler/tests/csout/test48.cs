@@ -13,8 +13,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aFields = new List<dynamic> { "one", "two", "three" };
-        string cMemberName = default;
-        long i = default;
+        string cMemberName;
+        long i;
         string cAccum = "";
 
         // Use cMemberName inside a FOR-loop body first (nested scope).

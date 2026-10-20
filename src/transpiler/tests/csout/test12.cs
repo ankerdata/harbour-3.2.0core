@@ -5,10 +5,10 @@ public static partial class Program
     {
         decimal nX = 10;
         decimal nY = 20;
-        string cResult = default;
+        string cResult;
         bool lFlag = true;
         bool lOther = false;
-        decimal nVal = default;
+        decimal nVal;
         Func<dynamic, dynamic, dynamic> bAdd = ((Func<dynamic, dynamic, dynamic>)((a, b) => a + b));
 
         // Compound assignment operators

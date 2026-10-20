@@ -16,7 +16,7 @@ public static partial class Program
             { "ann", 31 },
             { "bob", 42 }
         };
-        dynamic xItem = default;
+        dynamic xItem;
         string cOut = "";
         decimal nTotal = 0;
 

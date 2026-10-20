@@ -32,11 +32,11 @@ public static partial class Program
         List<dynamic> aParcels = new List<dynamic> {  };
         List<dynamic> aLoose = new List<dynamic> { new Parcel141().New("Crate", 3) };
         List<dynamic> aCounts = new List<dynamic> {  };
-        long iCount = default;
+        long iCount;
         decimal nTotal = 0;
         long iSum = 0;
         Func<string, string> bShout = ((Func<string, string>)((cWord) => Upper(cWord) + "!"));
-        decimal nPos = default;
+        decimal nPos;
 
         AAdd(aParcels, new Parcel141().New("Books", 4));
         AAdd(aParcels, new Parcel141().New("Lamp", 2));

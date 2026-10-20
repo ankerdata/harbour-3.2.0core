@@ -37,7 +37,7 @@ public static partial class Program
     {
         decimal nGot = 0;
         string cGot = "";
-        bool lOk = default;
+        bool lOk;
         Holder oH = new Holder().New();
 
         // bare call statement — typed numeric variable by-ref

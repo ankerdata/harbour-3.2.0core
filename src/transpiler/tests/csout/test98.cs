@@ -54,8 +54,8 @@ public static partial class Program
         string cOut = "";
         List<dynamic> aList = new List<dynamic> { "a", "b", "c" };
         string cAll = "";
-        decimal nLen = default;
-        long i = default;
+        decimal nLen;
+        long i;
 
         SetLamp(Test98PrgConst.LAMP_LOW);
         test98_snHalf = ((decimal)(Test98PrgConst.LAMP_LOW) / 2);

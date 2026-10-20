@@ -43,8 +43,8 @@ public static partial class Program
     public static bool test144_s_lWorks144 = false;
     public static void Main(string[] args)
     {
-        Device144 oDevice144 = default;
-        Remote144 oRemote144 = default;
+        Device144 oDevice144;
+        Remote144 oRemote144;
 
         oDevice144 = new Device144().Init();
         QOut("Init() of a device that cannot start:", (oDevice144 == null ? "NIL" : "an object"));

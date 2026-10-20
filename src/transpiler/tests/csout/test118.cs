@@ -15,7 +15,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         OrderedDictionary<long, dynamic> hnCount118 = new OrderedDictionary<long, dynamic> {  };
-        long nKey = default;
+        long nKey;
 
         for (nKey = 1; nKey <= 3; nKey++)
         {

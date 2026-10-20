@@ -23,7 +23,7 @@ public static partial class Program
     {
         List<dynamic> aWords145 = new List<dynamic> { "one", "two ", "three" };
         Func<dynamic, dynamic> bNote145 = ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; }));
-        dynamic xResult = default;
+        dynamic xResult;
 
         // x says nothing of its type: the call binds at run time
         AEval(aWords145, ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; })));
