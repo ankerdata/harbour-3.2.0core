@@ -216,6 +216,15 @@ static PHB_AST_NODE s_pFileDeclFunc = NULL;
    (currently file-static class fields) and cleared right after, so
    incidental expression emits elsewhere are unaffected. */
 static int s_iExprIndent = 0;
+/* The level of the line being emitted (hb_csEmitIndent): a literal laid
+   out over several lines where s_iExprIndent sets no column puts its
+   braces there and its elements one level deeper (hb_csLiteralColumn). */
+static int s_iLineIndent = 0;
+
+static int hb_csLiteralColumn( void )
+{
+   return s_iLineIndent > 0 ? ( s_iLineIndent + 1 ) * 4 : 12;
+}
 
 /* C# key type an empty/key-less hash literal should emit with —
    pointed at the declared variable's key type around decl-init
@@ -3830,6 +3839,7 @@ static void hb_csEmitBlankLines( FILE * yyc, int iLine )
 static void hb_csEmitIndent( FILE * yyc, int iIndent )
 {
    int i;
+   s_iLineIndent = iIndent;
    for( i = 0; i < iIndent; i++ )
       fprintf( yyc, "    " );
 }
@@ -5907,14 +5917,15 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                (HB_ET_HASH): a table's 155 rows were one line of 12 KB. A
                literal of scalars stays inline whatever its length. The
                column is s_iExprIndent where a declaration set it (a file
-               static's initialiser), else the method-body default. */
+               static's initialiser), else that of the line it opens on:
+               braces at its level, elements one deeper. */
             for( ; pItem; pItem = pItem->pNext )
                if( pItem->ExprType == HB_ET_ARRAY || pItem->ExprType == HB_ET_HASH )
                   fComplex = HB_TRUE;
             if( ! fComplex )
                iInd = 0;
             else if( iInd <= 0 )
-               iInd = 12;
+               iInd = hb_csLiteralColumn();
             pItem = pExpr->value.asList.pExprList;
             /* a record's literal (plan C12): its constructor, each argument
                under its field's type; over several lines the arguments
@@ -5954,6 +5965,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             HB_BOOL fComplex = HB_FALSE;
             int    iPairs = 0;
             int    iInd = s_iExprIndent;
+            const int iEntryInd = s_iExprIndent;   /* put back on the way out */
             /* a typed hash's literal (`AS HASH OF RECORD X := { … }`): the
                dictionary of the declared key and value types, each value
                under the value type (a record's constructor) */
@@ -6009,12 +6021,11 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                initializer or more than four pairs broke, and a
                jsonify-style payload dict in argument position was one
                multi-KB line). A hash of one pair, or none, stays
-               inline. Contexts that don't track a column (locals,
-               arguments — s_iExprIndent 0) get a method-body default:
-               items at 12, braces at 8. C# doesn't care and it reads
-               fine even when the opener sits deeper. */
+               inline. Where no declaration set a column (s_iExprIndent
+               0: a statement, an argument) the braces stand at the level
+               of the line the literal opens on and the pairs one deeper. */
             if( iInd <= 0 && ( fComplex || iPairs > 1 ) )
-               iInd = 12;
+               iInd = hb_csLiteralColumn();
 
             if( fComplex || iPairs > 1 )
             {
@@ -6038,7 +6049,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   }
                   fprintf( yyc, " }%s\n", pItem ? "," : "" );
                }
-               s_iExprIndent = iInd;
+               s_iExprIndent = iEntryInd;
                fprintf( yyc, "%*s}", iInd - 4, "" );
             }
             else
