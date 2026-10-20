@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 102: a file-static variadic function keeps its named parameters,
 // and PCount() inside a widened function is the argument count.
 //

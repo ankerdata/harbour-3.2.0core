@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 14: Two classes with inheritance, constructor params, method chaining
 public class Animal : IHbObject
 {

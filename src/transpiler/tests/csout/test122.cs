@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 122: DESTRUCTOR runs, and a READONLY member is assigned by its class.
 //
 // A DESTRUCTOR was emitted as an ordinary method nothing called: C# needs a

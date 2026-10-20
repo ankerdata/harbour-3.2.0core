@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 94: sends on typed receivers — four shapes C# needs help with.
 //
 // (1) `Teapot():New( 2 ):Serve()` — the constructor call is cast to its

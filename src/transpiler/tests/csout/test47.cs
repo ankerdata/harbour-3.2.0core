@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 47: --preload-list header-rule injection with filtered
 // #xcommand / #translate / macro-define directives.
 //

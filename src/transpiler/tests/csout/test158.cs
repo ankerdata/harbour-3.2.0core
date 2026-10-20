@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 158: an error in a thread keeps its traceback.
 //
 // hb_threadStart() calls the thread's function through FuncPtr(), and a

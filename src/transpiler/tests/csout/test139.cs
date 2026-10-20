@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 139: `!` over a relational or arithmetic operand.
 //
 // Harbour's `!` binds looser than every relational and arithmetic

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 50: Function-pointer typing via 'f' prefix.
 //
 // In Harbour, @FuncName() takes the address of a function and yields

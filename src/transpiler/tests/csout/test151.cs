@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 151: every array subscript goes through Ix().
 //
 // Harbour's subscript is 1-based, a List's 0-based. The emitter rebased

@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 136: declared types, `AS CLASS X` and `AS ARRAY OF …` (plan C11).
 //
 // A name types a variable as far as a prefix can: `o<Class>` names a

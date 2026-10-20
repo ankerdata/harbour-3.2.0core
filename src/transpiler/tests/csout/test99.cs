@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 99: sends on a DYNAMIC receiver; ACCESS / ASSIGN INLINE bodies.
 //
 // A receiver the transpiler cannot type is `dynamic` in C#, and the

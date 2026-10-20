@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 120: an `i` name is a whole number, C# long.
 //
 // The Hungarian `n` is a Harbour number, C# decimal. An `i` name says the

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 103: METHOD ToString() overrides object.ToString; a local built
 // by `X():New()` on a name the reftab does not know as a class stays
 // dynamic.

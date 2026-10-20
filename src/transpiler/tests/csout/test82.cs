@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 82: numeric #define type tiering.
 //
 // A numeric #define is typed by its literal value: ANY integer ->

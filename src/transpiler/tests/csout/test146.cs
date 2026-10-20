@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 146: an argument left out of a by-reference slot is NIL every time.
 //
 // A parameter some caller passes with @ is `ref` in C# for every caller, so a

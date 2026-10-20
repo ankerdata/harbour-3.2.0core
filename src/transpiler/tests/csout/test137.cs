@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 137: downcasts (plan C11).
 //
 // A name or a declaration of a subclass, given a value of its parent,

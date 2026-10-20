@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 78: INTEGER inference (Pass 2.5 int candidacy).
 //
 // decimal stays the default for Harbour numerics, but a variable whose

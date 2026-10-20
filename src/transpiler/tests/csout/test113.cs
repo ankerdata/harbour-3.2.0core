@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 113: a hash keeps Harbour's order and finds its keys by value.
 //
 // A Harbour hash keeps its keys in the order they were added, deletes

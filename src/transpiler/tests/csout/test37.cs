@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 37: class DATA INIT with trailing line comment.
 //
 // Copied from sharedx/transaction.prg style: a VAR with INIT value

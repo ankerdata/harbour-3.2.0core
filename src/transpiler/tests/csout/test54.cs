@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 54: paren preservation around binary infix ops nested in
 // higher-precedence parents (typically unary `!` or `-`).
 //

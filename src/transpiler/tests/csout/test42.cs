@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 42: dynamic member access via obj:&(name).
 //
 // Harbour's `::&(cMemberName)` reads/writes a property whose name is

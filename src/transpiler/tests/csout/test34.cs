@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 34: Harbour Error object stopgap round-trip.
 //
 // Covers the HbError POCO added to HbRuntime.cs: ErrorNew() returns

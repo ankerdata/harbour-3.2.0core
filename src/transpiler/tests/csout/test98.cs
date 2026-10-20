@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 98: integral lvalues fed a decimal; an assignment as an operand.
 //
 // The transpiler types a LOCAL or a file STATIC seeded from an integer

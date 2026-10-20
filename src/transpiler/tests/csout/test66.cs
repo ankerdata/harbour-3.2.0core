@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 66: ref-invariance shim in both directions and in expression
 // context.
 //

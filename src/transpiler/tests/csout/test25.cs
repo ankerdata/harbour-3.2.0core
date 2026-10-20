@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 25: four-bug regression test for the C# emitter.
 //
 // Each section exercises one of the fixes landed in gencsharp.c /

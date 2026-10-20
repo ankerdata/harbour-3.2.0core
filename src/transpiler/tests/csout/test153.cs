@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 153: a write through `::` into an inherited AS INTEGER member is
 // coerced like one through a typed receiver.
 //

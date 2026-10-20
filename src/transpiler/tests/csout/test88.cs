@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 88: non-constant declared defaults — nullable at the boundary,
 // strict inside.
 //

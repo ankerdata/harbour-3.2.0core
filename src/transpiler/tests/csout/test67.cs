@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 67: array by-ref elision.
 //
 // An array parameter passed by-ref (`@aArr`) only needs C# `ref` when the

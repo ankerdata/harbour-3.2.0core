@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 11: CLASS with METHOD/PROCEDURE, standalone FUNCTIONs, constructor pattern
 public class Calculator : IHbObject
 {

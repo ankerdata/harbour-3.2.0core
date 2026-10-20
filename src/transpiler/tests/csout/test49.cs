@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 49: Super / className handling.
 //
 // Covers all four forms the transpiler maps:

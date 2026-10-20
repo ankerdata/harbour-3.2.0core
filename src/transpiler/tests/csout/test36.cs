@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 36: source-level parens around ASSIGN survive to C#.
 //
 // Harbour allows `(var := expr) <op> other` as a compact way to

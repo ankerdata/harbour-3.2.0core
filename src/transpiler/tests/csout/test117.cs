@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 117: a method that only returns Self is typed as its own class.
 //
 // Harbour's constructors and chaining methods end in RETURN Self, which

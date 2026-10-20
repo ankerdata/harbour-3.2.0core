@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 89: a function-final RETURN no path reaches, and SWITCH cases
 // that already end in a jump.
 //

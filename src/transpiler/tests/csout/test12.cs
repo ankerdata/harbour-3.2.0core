@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 12: Expressions — IIF, codeblocks, compound assignment, logical operators
 public static partial class Program
 {

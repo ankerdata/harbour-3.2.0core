@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 148: a whole-number parameter of a method whose receiver's class
 // is unknown at the call.
 //

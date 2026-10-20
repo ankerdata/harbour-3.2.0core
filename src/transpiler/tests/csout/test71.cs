@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 71: non-`@` args to by-ref params get a value-in / no-writeback shim.
 //
 // Harbour treats a parameter as a local copy at the *call* site —

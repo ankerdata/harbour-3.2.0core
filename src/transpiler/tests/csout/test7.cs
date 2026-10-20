@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 7: #define constants, #include directives
 public static partial class Program
 {

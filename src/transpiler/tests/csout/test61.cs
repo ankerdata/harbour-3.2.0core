@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 61: more HbRuntime correctness fixes.
 //
 //   AScan  — the codeblock form: scan evaluating a block per element.

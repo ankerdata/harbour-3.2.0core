@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 44: --defines-map → per-source const class.
 //
 // Harbour headers don't flow into the transpiler parser (setNoInclude),

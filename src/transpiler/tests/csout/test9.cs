@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 9: Type inference from initializers and Hungarian notation
 public class Inherited : IHbObject
 {

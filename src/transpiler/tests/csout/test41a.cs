@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 41 (multi-file pair): STATIC function file-scope mangling.
 //
 // Harbour `STATIC FUNCTION` / `STATIC PROCEDURE` is file-private —

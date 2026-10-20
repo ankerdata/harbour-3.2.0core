@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 110: a codeblock with several expressions runs every one of them.
 //
 // `{|| a, b, c }` evaluates a, b and c in order and yields c. The

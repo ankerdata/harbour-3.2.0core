@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 45b: Main that calls LoadFlags (from test45a.prg) at full
 // arity. A 1-arg call to LoadFlags lives in a dead `IF .F.` branch
 // below: the emitter compiles the call (see test45a.prg), but Harbour

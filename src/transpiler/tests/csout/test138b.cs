@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 138 (multi-file pair): the classes, in a file the scan reaches after
 // their users (test138a.prg says why).
 public class Line138 : IHbObject

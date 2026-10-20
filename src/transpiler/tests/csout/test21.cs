@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 21: class method with by-reference parameter.
 //
 // Exercises the (Class::Method)-keyed by-ref scan:

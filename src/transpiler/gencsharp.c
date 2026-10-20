@@ -1463,13 +1463,13 @@ static HB_BOOL hb_csMemberShadowsFunc( const char * szName )
 }
 
 /* An HbRuntime method as a call names it: bare, as C# a person writes
-   would, since every emitted file says `using static HbRuntime;`. It
+   would, since the program's project imports HbRuntime statically. It
    keeps `HbRuntime.` where C# would bind the bare name to something
    nearer: a parameter, local or codeblock parameter of that name, a
    member of the class being emitted or of an ancestor (Queue's and
    Stack's `Len`, SQLtTable's `Eval`), or a program function the reftab
-   has (`using static Program` imports it beside HbRuntime's, and C#
-   would choose between the two). */
+   has (Program is imported statically beside HbRuntime, and C# would
+   choose between the two). */
 static const char * hb_csRuntime( const char * szName )
 {
    static char s_szBuf[ 4 ][ 160 ];
@@ -3871,10 +3871,9 @@ static const char * hb_csFuncMap( const char * szName )
       avoid the shadow:
         - if a user PROCEDURE/FUNCTION ToString is declared in the
           corpus (reftab will have the entry), emit `Program.ToString`
-          so the user's implementation wins. The call-site static
-          `using static Program` isn't enough because the instance
-          method takes precedence; the explicit `Program.` qualifier
-          sidesteps that.
+          so the user's implementation wins. Program's static import
+          isn't enough because the instance method takes precedence;
+          the explicit `Program.` qualifier sidesteps that.
         - otherwise fall back to a thin HbRuntime.ToString stub
           (delegates to Str) so the number-to-string idiom used by
           easipos authors coming from C# keeps compiling even in
@@ -10745,21 +10744,10 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
 
    /* ---- Emit C# output ---- */
 
-   fprintf( yyc, "using System;\n" );
-   if( pClassList && pClassList->pNext )
-      fprintf( yyc, "using System.Collections.Generic;\n" );
-   fprintf( yyc, "using static HbRuntime;\n" );
-   /* `using static Program;` pulls the merged partial-class static
-      members into file scope so class methods (which live in their
-      own `public class Foo {}` and don't inherit Program's member
-      lookup) can call cross-file free functions like SetErrorCode,
-      ConstructORMTable, hb_eol, etc. without qualification. Self-
-      references from the Program partial resolve directly, so no
-      ambiguity. Ambiguity between Program and HbRuntime members
-      (same bare name in both) would surface as CS0229 — none in the
-      current corpus but worth noting if it happens later. */
-   fprintf( yyc, "using static Program;\n" );
-   fprintf( yyc, "\n" );
+   /* No using lines: the program's project imports what every file needs
+      (EasiPOS's host/GlobalUsings.cs) — System's namespaces, HbRuntime,
+      whose functions the calls name bare, and Program, so a method of any
+      class calls the program's own functions bare. */
 
    /* The comments at file scope, from the startup function */
    {

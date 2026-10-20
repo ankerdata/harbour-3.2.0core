@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 152: the scan knows Harbour's Error class, HbRuntime's HbError.
 //
 // `oError` held Harbour's error object everywhere (ErrorNew(), a RECOVER

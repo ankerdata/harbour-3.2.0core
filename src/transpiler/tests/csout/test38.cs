@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 38: IIF as statement, with empty branches.
 //
 // Real-prg idiom from easiposx/easikds.prg:

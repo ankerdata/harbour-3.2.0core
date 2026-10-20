@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 123: a subscript in an INLINE method is rebased as one in a method
 // body is.
 //

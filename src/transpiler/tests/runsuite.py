@@ -384,12 +384,15 @@ def wrapped_source(name, path):
     classes apart (eight class names, Animal, Dog, Person and Widget among
     them, are declared by more than one test), and a test's file statics
     initialise only when its Program is first touched, as in its own
-    executable. The file's `using` lines stay at its top, inside the
-    namespace, where `using static Program` names the test's own; a Const
-    class or an ORM fixture stays global and is found from inside."""
+    executable. The emitted C# has no using lines, the program's project
+    supplies them, so the namespace opens with HbRuntime's and Program's
+    static imports, where `Program` names the test's own (System's
+    namespaces are the suite project's implicit usings); a Const class or
+    an ORM fixture stays global and is found from inside."""
     with open(path, encoding="utf-8", newline="") as fh:
         text = fh.read()
-    return "namespace %s\n{\n%s%s}\n" % (name, text, "" if text.endswith("\n") else "\n")
+    return "namespace %s\n{\nusing static HbRuntime;\nusing static Program;\n\n%s%s}\n" % (
+        name, text, "" if text.endswith("\n") else "\n")
 
 
 def dispatcher(names):

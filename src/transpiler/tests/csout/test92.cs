@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 92: `::Super:Method(...)` with dynamic arguments.
 //
 // C# binds a `base.Method(...)` call statically and cannot when any

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 109: a function the program defines wins over an HbRuntime
 // method of the same name.
 //

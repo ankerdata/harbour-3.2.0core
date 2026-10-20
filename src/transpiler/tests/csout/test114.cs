@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 114: BREAK, BEGIN SEQUENCE and the Error object (family 9).
 //
 // BREAK emitted `throw new Exception(x)`, which binds an Error object to

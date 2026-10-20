@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 79: INHERIT-aware type relations in the reftab.
 //
 // The reftab records INHERIT edges (I=<Parent> tail rows), and the

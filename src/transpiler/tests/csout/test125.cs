@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 125: a Harbour array is a List<dynamic>, one object every holder
 // shares.
 //

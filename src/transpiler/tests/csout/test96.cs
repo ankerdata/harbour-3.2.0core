@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 96: FOR EACH with the enumerator messages.
 //
 // Harbour's FOR EACH binds the variable to the VALUE and exposes the

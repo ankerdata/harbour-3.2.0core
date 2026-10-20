@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 85: def-class FAMILY BASES — polymorphic params widen to a
 // typed base instead of dynamic USUAL.
 //

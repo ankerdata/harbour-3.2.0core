@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 107: `#pragma BEGINCSHARP` inside a routine — C# statements in place.
 //
 // test105's blocks are file scope: type declarations, flushed at namespace

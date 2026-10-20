@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 138 (multi-file pair): downcasts across files, and an element's
 // subclass member left uncast (plan C11).
 //

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 13: Nested control flow, multiple returns, LOOP
 public static partial class Program
 {

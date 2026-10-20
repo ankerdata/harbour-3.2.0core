@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 33: regression for the dropped-PARAM parser bug.
 //
 // Before commit 9ce8f0ab76, any file with a file-scope STATIC

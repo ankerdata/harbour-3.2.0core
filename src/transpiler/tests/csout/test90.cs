@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 90: middle gaps in method sends and constructor calls.
 //
 // A function call with a gap — `Foo(a, , c)` — has emitted the later

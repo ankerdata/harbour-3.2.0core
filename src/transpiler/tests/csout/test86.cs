@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 86: `@` array parameter forwarded into a typed-receiver method.
 //
 // Store:Fill() reassigns its by-ref parameter (aOut := {...}). Wrap()

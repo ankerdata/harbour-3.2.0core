@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 59: a dynamic class reaching a member it does not declare.
 //
 // A class that uses `::&(name)` emits as a C# DynamicObject. Such a

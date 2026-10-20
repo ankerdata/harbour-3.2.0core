@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 140: a write through a typed member into a whole-number field.
 //
 // A member named for a class (`VAR oGauge140`, no AS) is declared as that

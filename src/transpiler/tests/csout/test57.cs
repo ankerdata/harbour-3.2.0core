@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 57: ref-shim for a typed lvalue passed by-ref to a USUAL
 // (`ref dynamic`) parameter.
 //

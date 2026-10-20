@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 17: by-reference parameters via @ at call sites
 public static partial class Program
 {

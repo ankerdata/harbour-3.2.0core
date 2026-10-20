@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 124: `X():New( ... )` answers the object when X declares only Init().
 //
 // HBObject's New() (rtl/tobject.prg) runs Init( ... ) and returns Self,

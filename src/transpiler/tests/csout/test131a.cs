@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 131 (multi-file pair): a member inherited from a class declared in
 // another file is an ordinary C# member access.
 //

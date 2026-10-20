@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 108: a function the program defines wins over a contrib library's
 // function of the same name.
 //

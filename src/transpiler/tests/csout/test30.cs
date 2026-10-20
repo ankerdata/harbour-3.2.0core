@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 30: EXIT (and STATIC) keyword disambiguation with trailing
 // preserved `//` comments.
 //

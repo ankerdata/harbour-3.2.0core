@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 131 (multi-file pair): the subclass, in a file of its own, sends its
 // parent's member and methods through Self (test131a.prg says why).
 public class Child131 : Base131

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 100: a local shadowing a function's name; ++ / -- on a date.
 //
 // Harbour resolves `name( ... )` as a function call whatever locals are

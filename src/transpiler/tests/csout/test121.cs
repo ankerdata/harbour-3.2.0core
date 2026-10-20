@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 121: `i` names beyond locals, and what returns long.
 //
 // test120 pinned `i` locals, statics, parameters and returns. This pins the

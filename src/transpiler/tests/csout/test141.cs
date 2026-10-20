@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 141: typed codeblock parameters and results (plan C9).
 //
 // A codeblock is a C# lambda cast to a Func. Its parameters were all

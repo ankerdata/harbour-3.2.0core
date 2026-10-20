@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 115: threads (family 10) — what the emitter does for them.
 //
 // THREAD STATIC was emitted as a plain static, one for every thread; it

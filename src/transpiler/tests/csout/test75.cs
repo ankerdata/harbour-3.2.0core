@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 75: hb_csTranslateInline coverage for constructs that used to
 // leak raw Harbour into C# expression-bodied members: iif() (must
 // become a lazy ternary), NIL, <> (the PP-canonical form of !=),

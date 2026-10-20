@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 53: value-typed Hungarian parameters (n/l/d/t prefix) are
 // non-nullable in the C# emit, even when the body has a NIL guard.
 //

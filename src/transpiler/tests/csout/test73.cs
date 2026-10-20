@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 73: header #defines used in CLASS VAR INIT positions resolve
 // via the per-source Const class.
 //

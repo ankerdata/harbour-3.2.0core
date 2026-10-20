@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 133: a model named after its factory's stem, and an o<Class>
 // parameter nothing refines, typed by its name.
 //

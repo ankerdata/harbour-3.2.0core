@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 69: nested ref-shim blocks need the depth prefix.
 //
 // A ref-passing call in an IF condition is hoisted into a brace block;

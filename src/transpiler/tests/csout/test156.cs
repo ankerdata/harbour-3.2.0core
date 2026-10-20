@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 156: typed hashes (plan C12 / C16). `AS HASH OF RECORD X` is a
 // hash keyed by strings whose values are records, `AS INTEGER HASH OF
 // CHARACTER` one keyed by whole numbers whose values are strings; C# gets

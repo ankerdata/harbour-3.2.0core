@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 149: the short overload returns what the canonical returns.
 //
 // A function with a by-reference parameter gets a second, shorter C#

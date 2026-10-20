@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 135: a FOR EACH's C# temporary takes its loop variable's type.
 //
 // Harbour's loop variable is an ordinary local that lives on after the

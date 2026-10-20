@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 129: a call to a STATIC function types what it is assigned to.
 //
 // A STATIC function's reftab row is keyed `<FileBase>::<Name>`, and the

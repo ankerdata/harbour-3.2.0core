@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 63a: a file-scoped STATIC function whose name collides with
 // a global function defined in another file (test63b's Render63).
 //

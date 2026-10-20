@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 35: file-scope MEMVAR declaration.
 //
 // Pairs with test33 (file-scope STATIC). File-scope MEMVAR is

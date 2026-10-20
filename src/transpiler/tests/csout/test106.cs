@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 106: a contrib library's function is routed to that library's
 // class; a core Harbour function stays on HbRuntime.
 //

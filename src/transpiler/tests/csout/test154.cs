@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 154: a method send with a reference shim, standing in an expression.
 //
 // A call whose `@` argument needs a shim (the variable's type is not the

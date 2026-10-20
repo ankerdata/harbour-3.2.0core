@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 46a + 46b: an array passed with @ to a function in another file,
 // every caller at the full arity.
 //

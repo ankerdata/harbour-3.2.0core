@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 43: multiple classes in one .prg file.
 public class Foo : IHbObject
 {

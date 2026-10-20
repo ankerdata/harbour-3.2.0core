@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 48: local variable used both inside a FOR-loop body and later
 // as a FOREACH iterator. The transpiler used to suppress the `local`
 // declaration if ANY later FOREACH used the same name, walking only

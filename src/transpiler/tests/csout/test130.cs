@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 130: inside a method, a call to a function that shares a member's
 // name is the function.
 //

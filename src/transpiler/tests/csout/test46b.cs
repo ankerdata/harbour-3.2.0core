@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 46b: every call to SaveFlags uses the full arity. See
 // test46a.prg.
 public static partial class Program

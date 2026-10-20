@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 20a + 20b: cross-file return-type propagation.
 //
 // These two files exercise the type-inference engine's ability to

@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 93: a `Class():New(...)` call site refines the constructor's slots.
 //
 // The refinement walker types a send's receiver to pick the method row

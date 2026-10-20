@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 83: ORM def-class field typing (--fieldtypes / fieldtypes.tsv).
 //
 // `ConstructORMTable(TestDeptDef())` names its def class lexically; with

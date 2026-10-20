@@ -240,12 +240,15 @@ ABS     NUMERIC      HbRuntime
   HbRuntime's `AClone<T>( T[] )` and `hb_HClone<K, V>` keep the C# type.
 - **PREFIX** — namespace to remap to when emitting C#. A row with
   `HbRuntime` is HbRuntime's function, called by its bare name,
-  `NAME(...)`, since every emitted file says `using static HbRuntime;`.
+  `NAME(...)`, since the program's project imports HbRuntime statically
+  (the emitted C# has no using lines: EasiPOS's host/GlobalUsings.cs,
+  the suite's namespace wrapper and the RTL harness's project supply
+  them).
   The call keeps `HbRuntime.NAME(...)` where C# would bind the bare name
   to something nearer: a parameter, local or codeblock parameter of that
   name, a member of the class being emitted or of an ancestor (Queue's
   and Stack's `Len`, SQLtTable's `Eval`), or a program function of the
-  name, which `using static Program` imports beside HbRuntime's
+  name, which Program's static import brings in beside HbRuntime's
   (`hb_csRuntime` in gencsharp.c). The emitter's own helpers (`StrCmp`,
   `FuncPtr`, `GETMEMBER` …) follow the same rule. `-` means "leave the
   name alone".

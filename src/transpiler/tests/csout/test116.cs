@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 116: a core function whose C# return type says nothing.
 //
 // hbfuncs.tab gives each HbRuntime function the return type of its C#

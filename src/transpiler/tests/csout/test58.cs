@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 58: `Self:` access to a CLASS VAR (static class-level member).
 //
 // Harbour's `CLASS VAR` is one value shared across every instance —

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 95: three by-ref call shapes at method sends and in conditions.
 //
 // (1) `GetBrewer():Measure( "tea", @nOut )` — the receiver is a

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 105: C# written in the .prg — `#pragma BEGINCSHARP` /
 // `#pragma ENDCSHARP`.
 //

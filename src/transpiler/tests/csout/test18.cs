@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 18: default parameters and middle-gap call sites.
 //
 // `nA` is non-nullable (numeric Hungarian, strict-typing rule). `xB`

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 101: date arithmetic and string ordering — both operators C#
 // refuses (CS0019: DateOnly has no arithmetic, string has no `<`).
 //

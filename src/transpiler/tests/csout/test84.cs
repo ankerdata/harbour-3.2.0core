@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 84: Harbour float-division semantics over C#-integral operands.
 //
 // Harbour `/` is ALWAYS float: 7/2 == 3.5. Every int source the C#

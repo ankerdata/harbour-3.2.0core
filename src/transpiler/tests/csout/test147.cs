@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 147: a string literal is its bytes.
 //
 // A Harbour string is bytes, and a source may hold them in any encoding:

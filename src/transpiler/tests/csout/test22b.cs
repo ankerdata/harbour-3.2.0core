@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 22b: companion to test22a — second class also has an `Add`
 // method, but with a STRING parameter instead of NUMERIC. Plus the
 // Main that exercises both. See test22a.prg for the rationale.

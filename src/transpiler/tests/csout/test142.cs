@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 142: a member declared a dynamic class reaches its bag.
 //
 // A dynamic class (one that sends ::&( name ) to itself, EasiPOS's

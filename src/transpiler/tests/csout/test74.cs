@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 74: `o<ClassName>` (and easipos STATIC `so<ClassName>`) infer
 // the variable as that specific class, not generic OBJECT.
 //

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 77: function-scope STATIC isolation.
 //
 // Harbour scopes a STATIC declared inside a function body to that

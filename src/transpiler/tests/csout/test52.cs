@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 52: `x`-prefix USUAL parameters are sticky in the reftab.
 //
 // When a parameter name starts with `x` or `X`, the user has chosen

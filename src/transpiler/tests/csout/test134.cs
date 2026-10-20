@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 134: a dynamic class is its own C# type.
 //
 // A class that sends ::&( name ) to itself extends HbDynamicObject in C#

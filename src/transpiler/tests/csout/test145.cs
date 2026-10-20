@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 145: a codeblock whose last expression calls a PROCEDURE yields NIL.
 //
 // A PROCEDURE is void in C#, and the emitter wrote every block as `=> call`.

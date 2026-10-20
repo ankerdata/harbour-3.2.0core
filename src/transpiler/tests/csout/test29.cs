@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 29: SWITCH ... CASE against #define symbols.
 //
 // Standard Harbour requires every CASE label to reduce to a numeric

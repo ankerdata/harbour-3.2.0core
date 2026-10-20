@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 104: W0018 — the extra-argument check — in the scan walk.
 //
 // Harbour drops arguments beyond the declaration silently; C# refuses

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 56: a function whose FIRST parameter is by-reference, called
 // both bare (for its return value) and with `@arg`.
 //

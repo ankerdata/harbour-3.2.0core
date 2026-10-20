@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 155: records and fixed arrays (plan C12 / C16).
 //
 // An array used as a record declares its positions once, by name and

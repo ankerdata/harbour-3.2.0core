@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 132: a method's return type reaches its caller through a send.
 //
 // The inference read only member rows (`Class::member`) for a send, never a

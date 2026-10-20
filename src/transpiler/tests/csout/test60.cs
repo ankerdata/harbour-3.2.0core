@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 60: HbRuntime correctness fixes.
 //
 //   Round  — half-away-from-zero, not C#'s banker's rounding.

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 64: a plain variable passed to a by-ref parameter without
 // Harbour's `@`.
 //

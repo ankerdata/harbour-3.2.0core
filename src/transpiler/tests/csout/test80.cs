@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 80: faithful by-value semantics for un-@'d arguments.
 //
 // Harbour passes parameters BY VALUE; `@` opts into by-reference. C#

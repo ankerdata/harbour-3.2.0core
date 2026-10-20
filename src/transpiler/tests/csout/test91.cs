@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 91: ref-shims at method sends.
 //
 // C# `ref` is invariant: a typed lvalue cannot bind a `ref dynamic`

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 128: an empty argument slot on an untyped receiver takes the
 // parameter's declared default.
 //

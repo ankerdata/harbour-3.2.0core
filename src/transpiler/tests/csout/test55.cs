@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 55: the `$` (IN) operator — substring containment when the
 // right operand is a string, key containment when it's a hash.
 //

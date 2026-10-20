@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 15: Array and hash operations
 public static partial class Program
 {

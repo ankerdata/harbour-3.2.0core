@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 65: "discard-the-outputs" overload for by-ref OUTPUT params.
 //
 // ErrText65 has a by-ref output param (lLog) sitting before a by-value

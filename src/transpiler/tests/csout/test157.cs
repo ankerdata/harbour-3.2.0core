@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 157: a PUBLIC named after a class is that class (plan C13).
 //
 // `PUBLIC oGauge157 := Gauge157():New()` with CLASS Gauge157: the field on

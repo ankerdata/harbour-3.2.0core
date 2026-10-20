@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 111: a FOR loop counts in the direction of its step's sign.
 //
 // Harbour's code generator takes the direction from a constant step

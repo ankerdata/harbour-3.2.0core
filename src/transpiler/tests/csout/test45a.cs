@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 45a + 45b: an array passed with @ to a function in another file,
 // and a call that stops before the array.
 //

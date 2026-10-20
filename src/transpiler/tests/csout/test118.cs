@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 118: a hash literal assigned to an integer-keyed hash takes its key type.
 //
 // A declaration's initializer already did: LOCAL hById := { => } on a hash

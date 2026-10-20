@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 51: PUBLIC sized-array (`PUBLIC name[size]`) emits as
 // `dynamic[]`, not `dynamic`.
 //

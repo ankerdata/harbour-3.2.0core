@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 81: the call-site by-value marker.
 //
 // A block comment whose content is `@`, placed immediately before a

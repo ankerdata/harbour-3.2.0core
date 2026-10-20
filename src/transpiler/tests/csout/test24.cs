@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 24: comment preservation vs. parser interactions.
 //
 // When -k comment preservation is on (the transpiler always runs

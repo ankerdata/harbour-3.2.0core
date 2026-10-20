@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 70: Clipper sized-array declarations for LOCAL and STATIC.
 //
 // `LOCAL aFoo[N]` and `STATIC aBar[N]` declare an array of N nil-filled

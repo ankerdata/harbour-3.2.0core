@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 62: a file-scoped STATIC function called with an omitted
 // middle argument.
 //

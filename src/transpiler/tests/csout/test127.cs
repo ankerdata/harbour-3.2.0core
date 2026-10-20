@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 127: a hash keyed by numbers is named hn<...> (Alex, 2026-09-27).
 //
 // C# commits a dictionary to one key type. The inference used to guess it

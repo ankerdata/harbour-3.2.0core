@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 119: an IIF is the type its two branches share.
 //
 // easiutil/settflag.prg and shared/buffflag.prg set and clear a bit in 100

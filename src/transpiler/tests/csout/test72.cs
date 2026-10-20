@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 72: HB_SYMBOL_UNUSED(x) is a no-op at C# emit.
 //
 // std.ch defines:

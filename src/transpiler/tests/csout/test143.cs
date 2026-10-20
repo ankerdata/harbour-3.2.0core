@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 143: #ifdef, #ifndef and defined() answered as Harbour answers
 // them. The transpiler's preprocessor registers none of the file's own
 // #defines (it keeps them for the emitter) and opens no #include, so it

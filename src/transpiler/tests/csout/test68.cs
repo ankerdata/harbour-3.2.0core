@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 68: ref-shim temp naming.
 //
 // The by-ref shim names each temp after the lvalue it backs — a plain

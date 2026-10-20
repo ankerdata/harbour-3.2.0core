@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 87: declared parameter defaults on strict value slots.
 //
 // `DEFAULT p TO v` (common.ch: `IF p == NIL ; p := v ; END`) and

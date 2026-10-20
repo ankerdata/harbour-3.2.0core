@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 76: hash key-type inference (HASH / HASHC / HASHN family).
 //
 // Harbour hashes are keyed by strings or numerics; C# dictionaries

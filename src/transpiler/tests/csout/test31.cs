@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 31: `...` varargs forwarding inside a short codeblock.
 //
 // `{ |...| Foo(...) }` — Clipper-style short codeblock that forwards

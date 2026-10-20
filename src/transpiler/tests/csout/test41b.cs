@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 41 (multi-file pair): see test41a.prg for rationale.
 //
 // Declares STATIC Helper() / HelperNum() with different bodies so

@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 97: MESSAGE aliases, bare method sends, INLINE method rows.
 //
 // `MESSAGE Len METHOD StackLen` (hbclass.ch) declares Len as another

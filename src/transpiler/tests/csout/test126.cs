@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 126: a SWITCH runs on from the matching CASE until an EXIT.
 //
 // Harbour's SWITCH falls through: `CASE "C"; CASE "M"; x := ""; EXIT` is one

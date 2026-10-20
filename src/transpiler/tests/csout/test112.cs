@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 112: hb_ADel / hb_AIns with lAutoSize shrink and grow the array.
 //
 // Harbour's hb_ADel( a, n, .T. ) deletes and shortens, hb_AIns( a, n, x,

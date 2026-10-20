@@ -69,7 +69,9 @@ RULINGS = os.path.join(HERE, "rulings.tsv")
 DEFAULT_NEEDED = os.path.join(ROOT, "..", "easipos-transpiled", "notes", "hbruntime.txt")
 
 TRANSPILER = runsuite.TRANSPILER
-# A module's project: an exe of its own over the HbRuntime this harness stages
+# A module's project: an exe of its own over the HbRuntime this harness stages,
+# importing what the emitted C# leaves to the project: System's namespaces,
+# HbRuntime and Program
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -81,6 +83,8 @@ CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../HbRuntime/HbRuntime.csproj" />
+    <Using Include="HbRuntime" Static="true" />
+    <Using Include="Program" Static="true" />
   </ItemGroup>
 </Project>
 """

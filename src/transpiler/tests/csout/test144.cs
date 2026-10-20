@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using static HbRuntime;
-using static Program;
-
 // Test 144: `X():Method()` with no arguments sends the method to the new
 // instance and answers its result; only New() is the constructor.
 //

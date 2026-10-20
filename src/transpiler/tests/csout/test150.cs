@@ -1,7 +1,3 @@
-using System;
-using static HbRuntime;
-using static Program;
-
 // Test 150: a call binds the short overload, and a short overload is
 // emitted only where a call binds it.
 //
