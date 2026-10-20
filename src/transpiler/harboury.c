@@ -3965,9 +3965,9 @@ yyreduce:
 #line 371 "harbour.y" /* yacc.c:1646  */
     { hb_compVariableAdd( HB_COMP_PARAM, (yyvsp[-1].string), (yyvsp[0].asVarType) ); (yyval.iNumber) = 1;
 #ifdef HB_TRANSPILER
-      /* A `@` marker on a FORMAL PARAMETER is the declaration-site kind
-         (re-synthesized by genhb from the reftab); it must NOT arm the
-         call-site by-value flag, or it would leak into the body. */
+      /* A `@` marker on a FORMAL PARAMETER is the declaration-site kind,
+         which the reftab records; it must NOT arm the call-site by-value
+         flag, or it would leak into the body. */
       HB_COMP_PARAM->fByRefSkipPending = HB_FALSE;
 #endif
     }

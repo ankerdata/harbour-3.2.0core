@@ -10,9 +10,9 @@
 //   Replace() reassigns the variable -> param stays `ref dynamic[]` so
 //             the new array reaches the caller.
 //
-// Both forms must round-trip identically through -GT (Harbour) and -GS
-// (C#): the elided one because element writes share the reference, the
-// ref one because the reassignment is passed back.
+// Both forms must behave identically in Harbour and in C#: the elided
+// one because element writes share the reference, the ref one because
+// the reassignment is passed back.
 
 FUNCTION Scale( aArr, nFactor )         // element mutation only
    LOCAL i

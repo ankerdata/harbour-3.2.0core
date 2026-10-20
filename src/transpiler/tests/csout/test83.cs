@@ -11,7 +11,7 @@ using static Program;
 // long (len >= 10 overflows Int32), nRate decimal, cName string,
 // lDisable bool, dSince DateOnly.
 //
-// Guarded two ways. Mistyping is a COMPILE error in buildcs.sh: a wrong
+// Guarded two ways. Mistyping is a COMPILE error in the suite's C# build: a wrong
 // field type in the model (or a wrongly-typed local inferred from a
 // field read) will not convert. And the RUNTIME output must match the
 // Harbour (.prg) run, where ConstructORMTable is the plain dynamic

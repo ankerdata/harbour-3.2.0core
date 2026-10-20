@@ -18,7 +18,7 @@
 // local), proving the same machinery picks up scopes that ride the
 // HB_VSCOMP_STATIC bit (HB_VSCOMP_TH_STATIC = STATIC | THREAD).
 //
-// Output must round-trip identically through -GT and -GS.
+// The output must be the same in Harbour and in C#.
 
 STATIC saTotals[3]
 

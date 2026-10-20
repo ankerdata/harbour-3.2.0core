@@ -13,8 +13,8 @@ using static Program;
 // named argument (ErrText65(7, lUpper: true)).
 //
 // This also exercises the prefix overload (nCode only) and the
-// canonical signature (passing @lLog), so all three forms must round
-// trip identically through -GT (Harbour) and -GS (C#).
+// canonical signature (passing @lLog), so all three forms must behave
+// identically in Harbour and in C#.
 public static partial class Program
 {
     public static string ErrText65(decimal nCode, ref bool lLog, bool lUpper = default)

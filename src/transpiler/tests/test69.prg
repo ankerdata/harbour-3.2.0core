@@ -18,8 +18,8 @@
 //         }
 //     }
 //
-// Both Probe69 calls increment nN by 1, so the result must round-trip
-// identically through -GT and -GS — proving the two temps don't collide.
+// Both Probe69 calls increment nN by 1, so the result must be the same
+// in Harbour and in C# — proving the two temps don't collide.
 
 FUNCTION Probe69( xVal )          // USUAL by-ref output
    xVal := xVal + 1

@@ -1,8 +1,7 @@
 # Harbour Transpiler
 
 A whole-program source-to-source transpiler that turns Harbour `.prg`
-code into either canonical Harbour `.prg` (round-trip) or strongly-typed
-C# `.cs`.
+code into strongly-typed C# `.cs`.
 
 It is built **on top of** the Harbour 3.2 compiler front-end: it reuses
 the lexer, preprocessor, parser, and symbol/type machinery, but
@@ -27,11 +26,6 @@ strongly-typed C# output from dynamically-typed Harbour source.
 bash src/transpiler/build.sh      # macOS/Linux (clang)
 src\transpiler\build.bat          # Windows (MSVC)
 
-# Round-trip a single .prg back to canonical Harbour. Always pass -o:
-# -GT output keeps the .prg extension, so without it the input file
-# is overwritten in place.
-bin/hbtranspiler -Iinclude -osrc/transpiler/tests/hbout/ src/transpiler/tests/test1.prg -GT
-
 # Generate C# from a single .prg.
 bin/hbtranspiler -Iinclude -osrc/transpiler/tests/csout/ src/transpiler/tests/test1.prg -GS
 ```
@@ -48,20 +42,14 @@ The transpiler is invoked the same way as the Harbour compiler. The
 
 | Flag  | Output                  | Description                                          |
 |-------|--------------------------|------------------------------------------------------|
-| `-GT` | `<o-dir>/<file>.prg`     | Round-trip to canonical Harbour source — pass `-o`  |
 | `-GS` | `<file>.cs`              | Strongly-typed C# source                             |
-| `-GF` | *(none — updates table)* | Function-table scan only; required before `-GS`/`-GT` on multi-file projects |
-
-`-GT` is useful as a regression test: re-parsing the generated `.prg`
-under stock Harbour should produce a binary that runs identically to
-the binary built from the original `.prg`. The test suite enforces
-this on every test (see [tests/](tests/)).
+| `-GF` | *(none — updates table)* | Function-table scan only; required before `-GS` on multi-file projects |
 
 Additional CLI flags:
 
 | Flag                    | Purpose                                                           |
 |-------------------------|-------------------------------------------------------------------|
-| `-o<dir>/`              | Redirect `.cs` / `.prg` output to `<dir>/` instead of alongside the source. **Required for `-GT`**, whose output shares the `.prg` extension and otherwise overwrites the input |
+| `-o<dir>/`              | Redirect `.cs` output to `<dir>/` instead of alongside the source |
 | `--reftab=<path>`       | Override the default `hbreftab.tab` location                      |
 | `--defines-map=<path>`  | Qualify identifier references to per-source `<Name>Const` classes and type `#define` references (see [Defines map](#defines-map)) |
 | `--fieldtypes=<path>`   | ORM def-class field-type map (`fieldtypes.tsv`) — `ConstructORMTable(XxxDef())` receivers type as the model `XxxTable` and their field accesses resolve to exact C# types (see [ORM def-class typing](#orm-def-class-typing)) |
@@ -99,22 +87,22 @@ canonical command line).
                 │      AST         │   hbast.c
                 └────────┬─────────┘
                          │
-        ┌────────────────┼────────────────┐
-        ▼                ▼                ▼
-   hb_compGenScan   hb_compGenTranspile  hb_compGenCSharp
-   (genscan.c)      (genhb.c)            (gencsharp.c)
-        │                │                │
-        ▼                ▼                ▼
-  hbreftab.tab         .prg             .cs
+              ┌──────────┴──────────┐
+              ▼                     ▼
+        hb_compGenScan        hb_compGenCSharp
+        (genscan.c)           (gencsharp.c)
+              │                     │
+              ▼                     ▼
+        hbreftab.tab              .cs
 ```
 
 The AST is built once during parsing and is then walked by whichever
-back-end the `-G*` flag selected. All three back-ends share the same
-helper machinery in [`hbast.c`](hbast.c) and the type-inference engine
-in [`hbtypes.c`](hbtypes.c).
+back-end the `-G*` flag selected. Both back-ends share the same helper
+machinery in [`hbast.c`](hbast.c) and the type-inference engine in
+[`hbtypes.c`](hbtypes.c).
 
-The `-GS` and `-GT` back-ends **load** `hbreftab.tab` at startup and
-consult it for every function declaration and call site. The `-GF`
+The `-GS` back-end **loads** `hbreftab.tab` at startup and consults it
+for every function declaration and call site. The `-GF`
 scanner **writes** the table by walking the AST and running the same
 inference engine that `-GS` uses.
 
@@ -149,7 +137,6 @@ inference engine that `-GS` uses.
 | [`hbfilecase.c`](hbfilecase.c)   | `--filename-casing` loader: file-stem CamelCase map                |
 | [`hbhbxcanon.c`](hbhbxcanon.c)   | `--hbx` loader: canonical function-name casing, and each name's owning contrib library, from `.hbx` files |
 | **Back-ends**                     |                                                                          |
-| [`genhb.c`](genhb.c)              | `-GT` Harbour round-trip emitter                                        |
 | [`gencsharp.c`](gencsharp.c)      | `-GS` C# emitter                                                         |
 | [`genscan.c`](genscan.c)          | `-GF` scan-only entry point                                             |
 | **Runtime + tooling**             |                                                                          |
@@ -163,7 +150,7 @@ inference engine that `-GS` uses.
 | [`tools/netsurface/`](tools/netsurface/) | Writes the `--extern=` table from .NET assemblies' metadata: the classes a program reaches through COM, their methods' parameters (`out`, `ref`) and types (`dotnet run --project tools/netsurface -- <out.tab> <dll>...`) |
 | [`tools/exceptionlog/`](tools/exceptionlog/) | A .NET startup hook for a transpiled program (`DOTNET_STARTUP_HOOKS=<…>\ExceptionLog.dll`, the log in `EXCEPTIONLOG`): every distinct exception logged once with its thread's whole stack as it is thrown, caught or not, and a summary by count at exit. It finds what the program's own traceback cannot: an error in a thread, whose frames below `hb_threadStart()`'s reflection call are lost to it, and the exceptions HbRuntime throws and catches itself |
 | **Tests**                         |                                                                          |
-| [`tests/`](tests/)                | Numbered `.prg` test cases + drivers: `verify.sh` over the bash stages (`runtests.sh`, `buildprg.sh`, `buildhb.sh`, `buildcs.sh`, …) on macOS/Linux, `runtests.bat` → `runsuite.py` on Windows |
+| [`tests/`](tests/)                | Numbered `.prg` test cases, their reference outputs (`csout/`, `defines/`), the negative tests (`errors/`, `errors/run.py`) and the runner, `runtests.bat` → `runsuite.py` — see [Tests](#tests) |
 | **Vendored Harbour sources**      |                                                                          |
 | [`include/`](include/), [`src/`](src/) | Copies of the handful of stock-Harbour files the transpiler must tweak, so the Harbour tree itself stays pristine — see [Vendored Harbour sources](#vendored-harbour-sources) |
 
@@ -1089,8 +1076,8 @@ strongest. Later rungs override earlier ones.
    read. A record or a FIXED array keeps its type into an undeclared slot
    (a C# array or a class is what the value is), and an `a` name takes
    it. Harbour sees arrays: astype.ch removes the RECORD line and reads
-   the declarations as `AS ARRAY`, and the `-GT` round trip writes them so
-   (tests/errors/fixed_record.prg has the warnings).
+   the declarations as `AS ARRAY` (tests/errors/fixed_record.prg has the
+   warnings).
    **`AS HASH OF …`, `AS INTEGER HASH [OF …]`, `AS STRING HASH [OF …]`**
    (2026-10-17; test156) type a hash as the arrays are typed: the keys by
    kind (`INTEGER` whole numbers, `STRING` or nothing strings, what an
@@ -1106,7 +1093,7 @@ strongest. Later rungs override earlier ones.
    of an `h` parameter given a typed hash by its callers takes the type
    (hb_refTabAddFunc keeps a refined family type over the prefix's weak
    one, for FIXED arrays too). A bare `AS HASH` stays what it was, keys
-   by use. Harbour sees `AS HASH` (astype.ch, the round trip).
+   by use. Harbour sees `AS HASH` (astype.ch).
 3. **Initialisers and defines**: a `#define` with an integer value is
    integer tier (the defines map), and a LOCAL or STATIC initialised
    from an integer literal, such a define, or another integer variable
@@ -1590,131 +1577,89 @@ arg shape ──┤
                    └─ param is by-value → emit as-is
 ```
 
----
+#### `/*@*/` at a call site: by value on purpose
 
-## Harbour round-trip emitter (`-GT`)
-
-The `-GT` mode regenerates idiomatic Harbour from the AST. Its job is
-to be the test oracle: a `.prg` → transpiled `.prg` → compile-with-stock-Harbour
-loop should produce a working binary, semantically equivalent to the
-direct `.prg` → compile path.
-
-A few non-obvious things it preserves:
-
-- **`AS TYPE` annotations** on locals, parameters, and return values
-  (inferred when not in the source). Stripped at parse time by
-  [`include/astype.ch`](../../include/astype.ch) which is auto-included
-  by every emitted file so stock Harbour ignores the annotations.
-  Parameter types come from the same `hbreftab.tab` the C# emitter
-  uses, so the two outputs stay in lockstep.
-- **`@` at call sites** — `Foo(@x, @y)` round-trips intact.
-- **`/*@*/` markers** on parameters that the by-ref scan determined
-  must be by-ref. Harbour itself has no syntax for declaring a by-ref
-  parameter in a `FUNCTION`/`PROCEDURE` signature (by-ref is purely
-  call-site in the language), so these are emitted as inline comments
-  that stock Harbour treats as whitespace.
-- **`/*@*/` at call sites** — the *mirror* of the parameter marker: on
-  a call argument, `Foo(/*@*/x)` means "I know this parameter is by-ref;
-  I am passing by value here on purpose." It suppresses **W0020** ("omits
-  '@' on ref parameter") for that one argument. Emission is unchanged —
-  the argument still passes by value (the faithful discard default);
-  only the warning is silenced. Detected in the lexer
-  ([`complex.c`](complex.c)) — which treats it as a special token, *not*
-  an ordinary comment, so it is never filed as a floating
-  `HB_AST_COMMENT` — and carried on the variable expression
-  (`HB_EXPRFLAG_BYREFSKIP`, set in the `Variable : IdentName` grammar
-  action) to the W0020 check in [`gencsharp.c`](gencsharp.c). A formal
-  parameter reduction (`ParamList`) disarms it, so a declaration-site
-  `/*@*/` on a parameter cannot leak into the body. On `-GT`, genhb
-  re-emits it inline attached to its argument (like the declaration-site
-  marker, synthesized from the reftab), so it round-trips faithfully.
-  Place it immediately before the variable argument — see
-  [`test81.prg`](tests/test81.prg).
-- **Empty argument slots** — `Fred(x, , z)` round-trips intact.
+On a call argument, `Foo(/*@*/x)` means "I know this parameter is
+by-ref; I am passing by value here on purpose." It suppresses **W0020**
+("omits '@' on ref parameter") for that one argument. Emission is
+unchanged — the argument still passes by value (the faithful discard
+default); only the warning is silenced. Detected in the lexer
+([`complex.c`](complex.c)) — which treats it as a special token, *not*
+an ordinary comment, so it is never filed as a floating
+`HB_AST_COMMENT` — and carried on the variable expression
+(`HB_EXPRFLAG_BYREFSKIP`, set in the `Variable : IdentName` grammar
+action) to the W0020 check in [`gencsharp.c`](gencsharp.c). A formal
+parameter reduction (`ParamList`) disarms it, so a declaration-site
+`/*@*/` on a parameter, the developer's mark of an out-parameter
+(`tools/verify-atref.py` checks it against the reftab), cannot leak into
+the body. Place it immediately before the variable argument — see
+[`test81.prg`](tests/test81.prg).
 
 ---
 
 ## Tests
 
-```bash
-cd src/transpiler/tests
-
-# CI-style single entry point — runs every driver below + the
-# compare{hb,cs}.sh steps that catch silent runtime divergences,
-# plus errors/run.sh for the negative tests.
-bash verify.sh
-
-# Or run individual stages:
-bash runtests.sh    # Round-trip every .prg through -GT
-bash buildprg.sh    # Compile each .prg with stock Harbour (baseline)
-bash buildhb.sh     # Compile each generated hbout/*.prg with stock Harbour
-bash buildcs.sh     # Compile each generated .cs with dotnet
-bash runprg.sh      # Run prgexe/ and record stdout
-bash runhb.sh       # Run hbexe/ and record stdout
-bash runcs.sh       # Run csexe/ via dotnet run and record stdout
-bash comparehb.sh   # round-trip stdout must match original .prg stdout
-bash comparecs.sh   # .cs stdout must match .prg stdout
-bash errors/run.sh  # Negative tests — each .prg must fail -GS with a specific error
-```
-
-On Windows the `.sh` drivers fail two ways — they hand `hbmk2` and
-`dotnet` absolute POSIX paths (`-o/c/Users/...`), and running them
-through Git Bash puts `/usr/bin` ahead of MSVC so GNU `link` shadows
-`link.exe` — so use the Python runner instead:
-
 ```bat
 cd src\transpiler\tests
-runtests.bat            rem gen + prg + cs + run
-runtests.bat gen        rem regenerate hbout/ and csout/ only
-runtests.bat prg|cs|run rem a single stage
-runtests.bat all --full rem rebuild every test, not only what changed
+runtests.bat               rem gen, prg, cs, run: the whole suite
+runtests.bat gen           rem regenerate csout/ only
+runtests.bat prg|cs|run    rem a single stage
+runtests.bat all --full    rem rebuild every test, not only what changed
 runtests.bat all --test test151       rem one test (or test45a,test56): its files
                                       rem scanned, emitted, built and run alone,
                                       rem the shared reftab kept; the whole suite
                                       rem once at the end of a change
-```
-
-gen runs the transpiler one process per 150 files, as the pipeline's
-scan does. The C# tests build as one assembly, `tests/csexe/suite`:
-each test's emitted files wrapped in a namespace named for it, so every
-test keeps its own `Program`, `Main`, statics and classes, behind a
-generated `Suite.cs` that runs the test named on the command line
-(`suite.exe test56`) after `HbRuntime.SetProgramType()` names that
-test's `Program` for the runtime's reflection. One build instead of 153,
-and a change to the runtime's public surface rebuilds it once.
-
-```
+py errors\run.py           rem the negative tests
 ```
 
 [`runtests.bat`](tests/runtests.bat) sets up `vcvarsall` and the
 Harbour `bin` directory, then calls [`runsuite.py`](tests/runsuite.py)
-directly — never through a shell, which is what keeps the linker
-straight. Overrides: `HB_ARCH` (vcvarsall target, default `x86` to
-match the stock Harbour install the tests link against), `HB_INSTALL`
-(the Harbour prefix providing `hbmk2`), `HBTRANSPILER` (the binary,
-default `bin/hbtranspiler.exe`). `gen` reproduces the bash reftab
-protocol exactly — clear `hbreftab.tab`, `-GF` every source, `-GT`,
-then `-GF` again *without* clearing, `-GS` — because clearing before
-the `-GS` pass produces false diffs (test79 emits `Animal` vs
-`dynamic`). `runsuite.py` covers the `.prg`-vs-`.cs` stages
-(`runtests.sh` + `buildcs.sh`, `buildprg.sh`, `runprg.sh` /
-`runcs.sh` / `comparecs.sh`); the `-GT` round-trip build
-(`buildhb.sh` / `runhb.sh` / `comparehb.sh`), `verifyreftab.sh` and
-`errors/run.sh` are bash-only.
+directly — never through a shell: Git Bash puts `/usr/bin` ahead of
+MSVC on `PATH`, so GNU `link` shadows `link.exe` and `hbmk2` fails with
+"link: unknown option -- n". Overrides: `HB_TEST_ARCH` (the vcvarsall
+target, default `x86` to match the stock Harbour install the tests link
+against; not `HB_ARCH`, which is `build.bat`'s), `HB_INSTALL` (the
+Harbour prefix providing `hbmk2`), `HBTRANSPILER` (the binary, default
+`bin/hbtranspiler.exe`). The suite runs on Windows: runsuite.py's `.exe`
+names and runtests.bat's `vcvarsall` are what another platform would
+need changed. Each stage prints a results line:
 
-Current counts (2026-09-19): **115 positive tests (121 source files —
-some are a/b multi-file pairs; 242 tracked reference outputs under
-`hbout/` and `csout/`) + 9 negative tests (`errors/run.sh`, which
-`HBTRANSPILER` points at a binary other than `bin/hbtranspiler`)**.
-`runtests.bat` builds incrementally — a Harbour exe only when its
-`.prg`/`.ch` are newer, a C# test only when its staged `.cs` or the
-runtime assembly beside it changed; `gen` always transpiles every test,
-since they share one reftab — and `runtests.bat all --full` rebuilds
-everything, the occasional sweep. The `tests/defines/<Name>Const.cs` classes that
-`gendefines.py` harvests from the tests' `.ch` and `.prg` files during
-`gen` are tracked as reference output too — the C# build compiles them
-— so a diff there after a regeneration means `gendefines.py` changed.
-Its `defines_map.txt` sibling is an emitter-side intermediate like
+- **gen** (`csout/  regenerated`) runs `tools/test_gendefines.py`
+  first, then clears `hbreftab.tab`, scans every source with `-GF`,
+  scans again *without* clearing and emits `-GS` into `csout/` — one
+  scan alone gives false diffs (test79 emits `Animal` vs `dynamic`).
+  The first scan is repeated into a throwaway reftab, and the two tables
+  must be byte for byte the same: the pipeline's scan stops when the
+  reftab's md5 stops changing, so a table that differed between identical
+  scans would run every scan to its pass limit. The transpiler runs one
+  process per 150 files, as the pipeline's scan does.
+- **prg** (`hbmk2:`) builds each test with `hbmk2` into `prgexe/`: the
+  reference.
+- **cs** (`dotnet:`) builds HbRuntime with every library's sources, then
+  the tests' C# as one assembly, `tests/csexe/suite`: each test's emitted
+  files wrapped in a namespace named for it, so every test keeps its own
+  `Program`, `Main`, statics and classes, behind a generated `Suite.cs`
+  that runs the test named on the command line (`suite.exe test56`)
+  after `HbRuntime.SetProgramType()` names that test's `Program` for the
+  runtime's reflection. One build instead of 153, and a change to the
+  runtime's public surface rebuilds it once.
+- **run** (`compare:`) runs both, each test in a directory of its own,
+  and compares the C# output with Harbour's.
+
+Builds are incremental — a Harbour exe only when its `.prg`/`.ch` are
+newer, the C# assembly only when a staged `.cs` changed or the runtime's public
+surface moved; `gen` always transpiles every test, since they share one
+reftab — and `runtests.bat all --full` rebuilds everything, the
+occasional sweep.
+
+Current counts (2026-10-20): **159 tests (167 source files: eight are
+a/b multi-file pairs, each with its tracked reference output under
+`csout/`) + 31 negative test files with 78 checks (`errors/run.py`)**.
+The `tests/defines/<Name>Const.cs` classes that `gendefines.py` harvests
+from the tests' `.ch` and `.prg` files during `gen` are tracked as
+reference output too — the C# build compiles them — so a diff there
+after a regeneration means `gendefines.py` changed. Its
+`defines_map.txt` sibling is an emitter-side intermediate like
 `hbreftab.tab` and is ignored.
 
 The test suite is intentionally small and incremental — each numbered
@@ -1750,8 +1695,8 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 42        | Dynamic member access via `obj:&(name)`              |
 | 43        | Multiple classes in one file                         |
 | 44        | `--defines-map` → per-source `const` class           |
-| 45a + 45b | Short-overload emission — typed params, caller arities |
-| 46a + 46b | Short overload suppressed when no caller uses a short arity |
+| 45a + 45b | An array passed with `@` to another file's function is the List itself, no `ref`; a call that stops before it pads the slot |
+| 46a + 46b | The same pair, every caller at the full arity        |
 | 47        | `--preload-list` header-rule injection; a define the defines map knows stays a name, unless it is conditional |
 | 48        | LOCAL used inside a `FOR` body and after it           |
 | 49        | `Super` / `className` (incl. `::Super:Method()` → `base.Method()`) |
@@ -1810,10 +1755,10 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 102       | A file-static variadic function (one reading `PCount()`) re-binds its named parameters from `hbva` like a public one — the re-bind used the bare name where the row is `file::func` (CS0103 ×10, trace.prg); `PCount()` inside a widened function is `hbva.Length`, not the runtime stub that returns 0 |
 | 103       | A parameterless `METHOD ToString()` emits `public override string ToString()` — it is object.ToString (CS0114); `X():New()` types the receiving local as X only when X is a class in the reftab, so a local from an RTL class function (`hbClass()`, `TOleAuto()`) stays dynamic instead of naming a C# type that does not exist (CS0246) |
 | 104       | W0018 in the scan walk: a call passing more positional arguments than the callee declares warns at `-GF`, where the gate reads it — free functions, method sends on typed receivers, and a method the class only inherits (resolved through the parent links); the emitter still drops the extras, so both sides run |
-| 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is; `-GT` writes it back inside the guard |
+| 105       | `#pragma BEGINCSHARP` … `ENDCSHARP`: C# carried in the .prg under `#ifdef __HB_TRANSPILER__`, captured as a raw stream and emitted verbatim at namespace level; a class the block names in `partial class X` is emitted `partial`, and `Program` is |
 | 108       | A contrib library's name the program defines itself (`Random`, `FileSize`, both hbct's) is the program's function, called as any user function in its declared spelling — Harbour's linker takes a library member only for a symbol no object file defines |
 | 109       | A function the program defines is the program's even where hbfuncs.tab routes the name to HbRuntime (`Pow`, `StrCmp` — helpers HbRuntime.cs declares for the emitter): the call is to the program's own function, as Harbour's linker has it; the rule test108 applies to a contrib name |
-| 110       | A codeblock with several expressions runs all of them: `{\|\| a(), n := 0, x }` is a statement lambda, each expression but the last a statement, the last returned; a `...` block runs them all before `return null`, and `-GT` writes the whole list. The emitter had written only the first, so EasiPOS's Z resets read each row and never zeroed it |
+| 110       | A codeblock with several expressions runs all of them: `{\|\| a(), n := 0, x }` is a statement lambda, each expression but the last a statement, the last returned; a `...` block runs them all before `return null`. The emitter had written only the first, so EasiPOS's Z resets read each row and never zeroed it |
 | 111       | A FOR loop counts in the direction of its step's sign: a constant step (`hb_compExprAsNumSign`) picks `<=` or `>=`, a negative decimal literal included; any other step is `HbRuntime.ForTest(i, end, step)`, tested on every pass with the end evaluated before the step. `STEP nStep` with a negative nStep had looped forever on `<=` |
 | 112       | `hb_ADel(a, n, .T.)` / `hb_AIns(a, n, x, .T.)` pass the array by `ref`, as `AAdd` / `ASize` do, so it shrinks and grows — a local, a typed DATA, an `x`-named (dynamic) DATA and a parameter the routine resizes. Every EasiPOS call passes `.T.` (the sale buffer's line delete and insert), and without the `ref` the C# array kept its length |
 | 113       | A hash is .NET 9's `OrderedDictionary` — Harbour's default hash keeps insertion order across deletes, where a `Dictionary` reuses the deleted slot — `<long, dynamic>` for a numeric-keyed one, the key cast at the subscript; HbRuntime converts a key to the hash's key type (7 and 7.0 are one key); `hb_HKeyAt`, `hb_HPos`, `hb_HSet`, `hb_HGet`, `hb_HClone` (deep, as `AClone` now is), `hb_HKeepOrder`; `$` finds nothing for an empty string |
@@ -1828,7 +1773,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 141       | Typed codeblocks: a parameter typed by its name (`nValue`, `iWhole`, `cWord`, `oParcel141`) or by the declared array AScan, AEval and ASort scan (`x`, both of ASort's), the result `bool` for a comparison and `string` for a string expression, a local initialised with a block declared with the lambda's signature; a number held as `long` reaching a `decimal` parameter and one held as `decimal` a `long` one through HbRuntime's InvokeBlock; a string parameter left out is NIL |
 | 138       | (pair) Downcasts across files: a parameter named for its class keeps it although its first caller, scanned before the classes' file, passes the parent; a member only a subclass declares, read off an element of a declared array, is not cast |
 | 137       | Downcasts: a subclass's name or declaration given its parent keeps its class and the C# casts, for a view by name and by declaration, a local's initialiser, a parameter named and one declared, a declared member and a declared return; an element of a declared array is not cast |
-| 136       | Declared types, `AS CLASS X` and `AS ARRAY OF …`, in every position: locals, parameters, file and routine statics, members, a function's and a method's return; element sends cast to the declared class, FOR EACH variables typed by the array's element type, the round trip writing the declarations back as written |
+| 136       | Declared types, `AS CLASS X` and `AS ARRAY OF …`, in every position: locals, parameters, file and routine statics, members, a function's and a method's return; element sends cast to the declared class, FOR EACH variables typed by the array's element type |
 | 134       | A class that sends `::&( name )` to itself (a dynamic class, `HbDynamicObject`) is its own C# type: a parameter, member, local and Self return of it are typed, its declared members and methods are sent statically, a member no class declares goes through `((dynamic)o)`; a class that sends a macro to another object is not dynamic |
 | 133       | The ORM models are named `<Stem>Table` after their factories (`=model` rows); an `o<Class>` or `o<Model>` parameter no caller refines is declared as that class |
 | 132       | A method's return type reaches its caller through a send (`RETURN oObj:Label132()`, `x := oObj:Reading132()`), as a function's does through a call |
@@ -1848,7 +1793,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 107       | `#pragma BEGINCSHARP` inside a routine: a block that is not a type declaration is C# statements, emitted where it stands — a method body, a function, an IF's body — re-indented; one ending in `return` drops the unreachable Harbour RETURN after the guard. A comment-only block stays file scope (test105 unchanged) |
 | 106       | A contrib library's function is routed to that library's class (`HbWin.wapi_Sleep(1)`), a core function stays on `HbRuntime` (`HbRuntime.Upper(…)`); the suite compiles every `libraries/<lib>/` source, stubs included, into its runtime assembly |
 
-Negative tests live under `tests/errors/` and are run by `errors/run.sh`.
+Negative tests live under `tests/errors/` and are run by `errors/run.py`.
 Each must surface a specific **warning** on stderr during `-GS` — the
 test asserts the warning is emitted, *not* that codegen hard-fails. Most
 are `W0016` unsupported-construct cases (the emitter substitutes a
@@ -1883,7 +1828,7 @@ the errors, where the file fails and the test asserts the error line:
 | `cond_unread.prg`             | `W0042` | a `#ifdef` after an `#include` of a header the transpiler cannot find; exactly that one warning |
 | `reconcile_shared.prg` `reconcile_a.prg` `reconcile_b.prg` | `W0045` | one file built twice, each build with its own caller and table: before `--reconcile` the C# signatures differ, after it they are identical (by-ref plus the short overload from either build, two classes merged to their ancestor), and two classes with no common ancestor are W0045 once each way |
 | `omitted_default.prg`         | `W0043` `W0044` | a parameter a caller leaves out handed on to a declared default, and an `x` value to a constant one; the same default declared on the forwarding parameter, every caller passing it, a callee default of 0, and a number passed, quiet; exactly the two, on two scan passes |
-| `rename_param_*.prg`          | (a row)  | a parameter renamed to a name that names a class (`oLine` → `oItemLineRn`) takes that class on a warm scan, where the reftab still holds the type its callers gave the old name (the two files scanned in turn on a private reftab; run.sh reads the row) |
+| `rename_param_*.prg`          | (a row)  | a parameter renamed to a name that names a class (`oLine` → `oItemLineRn`) takes that class on a warm scan, where the reftab still holds the type its callers gave the old name (the two files scanned in turn on a private reftab; run.py reads the row) |
 
 ### The runtime library — `rtltest/`
 
@@ -1932,7 +1877,7 @@ runrtl.bat all date own_bits  rem just these modules
   try/catch in `#pragma BEGINCSHARP`, so a stub's exception fails one
   line, not the run.
 - [`runrtl.py`](rtltest/runrtl.py) builds each module with hbmk2 and
-  runs it — `hbref/<name>.txt` is the reference, tracked as `hbout/` is —
+  runs it — `hbref/<name>.txt` is the reference, tracked as `csout/` is —
   then transpiles it and builds it against HbRuntime **alone**, with
   no generated stubs: a function HbRuntime does not implement is CS0117.
   Compile triage comments out the TEST_CALL each error falls in and
@@ -1957,6 +1902,113 @@ runrtl.bat all date own_bits  rem just these modules
 Our own tests, `own/own_<family>.prg`, are written exactly as hbtest's
 (`#include "rt_main.ch"`, `HBTEST <expr> IS <result>`), and Harbour runs
 them first: an expectation Harbour does not meet is a wrong test.
+
+---
+
+## The pipeline's scripts
+
+Every script of the pipeline, easipos-transpiled's and this
+directory's: what it does, what it reads and writes, and when it runs.
+**When** is one of: a **check** stage (easipos-transpiled's `check.py`
+runs it; the check is the gate before a commit), **called** by another
+script, **on demand** (run by hand when its trigger comes up), a
+**rewrite** (it changes 9.0's source: a dry run unless `--apply`, the
+result read and checked by hand, kept while 9.0 still gains the code it
+rewrites) or an **analysis** (read-only: a report printed or written
+under `notes/`). easipos-transpiled's paths are relative to that
+repository; a *target*'s files are in its `targets/<target>/`
+(`easipos` or `testeasipos`, chosen with `--target` or
+`EASIPOS_TARGET`), and 9.0's source is `EASIPOS_SRC`
+(`../easipos-9.0/EasiPOS`). easipos-transpiled's README says how the
+stages fit together, and [Tests](#tests) above how the suite and the
+runtime harness work.
+
+### The check and its stages (easipos-transpiled `scripts/`)
+
+| Script | What it does | Reads → writes | When |
+|---|---|---|---|
+| `check.py` | The complete check: each target's scan → gen → audit → build, the C# TestEasiPos and its component scenarios, the signatures and the merge, then Harbour's hbmk2 of easiutil, easipos and testeasipos (EasiPOS's `mk2.ps1`), unresolved, and Harbour's TestEasiPos and scenarios; one results line per stage and what moved since the last check (the changed `.cs` files, `dynamic`, the audit categories, the transpiler binary). `--quick`: a warm scan, `gen_cs.py --changed`, no audit, baseline or scenarios | the stages below → `notes/check/<lane>-<stage>.log`; the baseline in a target's `notes/check/last/` and `prev/` | before every commit; `--quick` between edits |
+| `scan.py` | The `-GF` walk over a target's corpus, repeated until `reftab.tab` stops changing, after regenerating the file-lists, the defines and the ORM models. Exit 1 on any warning or failure: the CI gate. `--warm` keeps the reftab | the `.hbp` files and their `.prg` → `reftab.tab`, `file-lists/`, `cs/defines/`, `fieldtypes.tsv`, `cs/orm/`, `notes/scan/warnings.txt`, `failures.txt` | check stage |
+| `gen_cs.py` | Reconciles the target's reftab with the other target's (`--reconcile`), then `-GS` per file; refuses while the scan log is not empty. `--changed` regenerates only what changed | `reftab.tab` and the other target's, the defines map, `fieldtypes.tsv`, `shimtypes.tab` → `reftab.gen.tab`, `cs/<lib>/*.cs`, `notes/gen/` | check stage |
+| `audit.py` | The type-debt leaderboard: a `-GF` pass with the audit sink, the reftab's slot categories, NAME-DYNAMIC and RET-DYNAMIC from the emitted C#, and `tools/verify-atref.py`'s two categories. Never gates | the converged reftab, the `.prg`, `cs/` → `notes/type-audit.tsv`, `type-audit-summary.txt`, `atref-mismatches.txt` | check stage, after gen |
+| `build.py` | `merge_cs.py`, `gen_stubs.py`, then `dotnet build -c Release` of the target's project in the one tree `src/`, its own bin/obj wiped first so every warning is reported. `--fast` skips the stubs and the wipe, `--clean` rebuilds the referenced projects too | `src/` → `src/bin/<project>/`, `notes/build.log` | check stage |
+| `merge_cs.py` | Writes `src/` from both targets' `cs/`: a file both emit alike once, one they emit differently once with the test build's differences under `#if TESTX`, every merged file checked by resolving it both ways | both targets' `cs/` → `src/**/*.cs`, `src/<target>.files.props` | check stage, and called by build.py |
+| `check_signatures.py` | A routine both builds define must be declared alike in their C#, defaults included: the test build's stand-ins and the routines both compile from one file | both targets' `cs/` → report | check stage |
+| `run_unit.py` | Runs TestEasiPos from a run folder laid out as CI's: the C# build (`--config`) or Harbour's (`--harbour`); `--scenarios` the component scenarios; `--test Suite[:Test]` one suite or test | the built program, the EasiPOS root's `*.pem`, `*.dbf` and `easipos/test`, the fixture databases → `targets/testeasipos/run/` or `run-harbour/`, `notes/unit*.log`, `notes/scenarios*.log` | check stage; one test while working on it |
+| `audit/unresolved.py` | The names a target calls that nothing in it defines, the check Harbour's linker cannot make, over all eleven targets; exit 1 on a name new since `--save` | the targets' symbol tables (`harbour -gc`, recompiling only what changed) → `notes/audit/unresolved-base.tsv` (`--save`) | check stage; `--save` before deleting a function |
+| `buildall.py` | scan → gen → build for one target, stopping at the first failure | — | a fresh clone's bootstrap |
+| `transpile_common.py` | Not run: the module every stage imports, with the targets, the paths, the environment overrides and the one transpiler invocation | — | — |
+
+### What the stages call
+
+| Script | What it does | Reads → writes | When |
+|---|---|---|---|
+| `gen_filelists.py` | A target's file-lists from its `.hbp` files, the one definition of its corpus | `easipos.hbp` or `testeasipos.hbp`, `easiutil.hbp` → `file-lists/<lib>.txt`, `all.txt` | called by scan.py |
+| `gen_fieldtypes.py` | The ORM map, each def class's accessors with their C# types, from the def files' field arrays and accessor hashes; `--emit-models` writes the models | `filedefinitions/*def.prg`, `cs/defines/` → `fieldtypes.tsv`, `cs/orm/*.cs`, `notes/fieldtypes-report.txt` | called by scan.py |
+| `tools/gendefines.py` | Literal `#define`s of the headers and the `.prg` files as `<Name>Const` classes, and the defines map the transpiler reads | the `.ch` and `.prg` files → `<Name>Const.cs`, `defines_map.txt` | called by scan.py and by runsuite.py's gen |
+| `tools/filter_w0022.py` | Drops from a warning log the W0022s the converged reftab shows were transient (no `C` flag) | `warnings.txt`, `reftab.tab` → `warnings.txt` | called by scan.py and gen_cs.py |
+| `tools/verify-atref.py` | `/*@*/` parameter annotations against the reftab's W and R flags: ANNOTATED-NOT-ASSIGNED, OUTPARAM-UNANNOTATED | the `.prg`, `reftab.tab` → `notes/atref-mismatches.txt`, rows appended to `type-audit.tsv` | called by audit.py |
+| `gen_stubs.py` | What the emitted C# calls on HbRuntime and on the libraries, each name implemented, stub or missing | every target's `cs/`, HbRuntime's and the libraries' sources → `notes/hbruntime.txt`, a target's `notes/libraries.txt` | called by build.py (not `--fast`) |
+
+### On demand (easipos-transpiled `scripts/`)
+
+| Script | What it does | Reads → writes | When |
+|---|---|---|---|
+| `gen_library_stubs.py` | Rewrites each contrib library's `<Class>.Stubs.cs` from the emitted call shapes of every generated target, creating a missing project | every target's `cs/`, `libraries/<lib>/<Class>.cs` → `libraries/<lib>/<Class>.Stubs.cs` here | after gen, when a library call fails the build as CS0117 |
+| `gen_native_stubs.py` | The same for EasiPOS's own C functions (`HB_FUNC` in BEGINDUMP sections and in the linked `.c` files), in EasiPosNative | the `.prg` and `.c` files, every target's `cs/`, `native/<source>.cs` → `native/<source>.Stubs.cs` | after gen, when a C function's call fails as CS0103 |
+| `gen_shim_table.py` | Builds each COM shim's .NET DLL and runs `tools/netsurface` over them: the classes, methods and `out` parameters the transpiler types a shim variable with | `shims.txt`, the shim projects → `shimtypes.tab` (`--extern=`) | when `shims.txt` or a shim's public methods change, then a full check |
+| `filename_casing.py` | The file stems `filename_casing.txt` has no spelling for, each with a proposal; exit 1 when one is missing | every target's corpus and headers, `filename_casing.txt` → report | after adding a `.prg` or `.ch` file |
+| `run_pos.py` | Runs the C# EasiPos.exe against a real POS from a folder of its own and leaves it running; reports its output, what it added to TRACE.ATL and, with `--log-exceptions`, every distinct exception (`tools/exceptionlog`) | the Release build, `C:\EASIPOS` → `C:\EASIPOS\CS`, `targets/easipos/notes/pos/` | trying the product by hand |
+| `member-types.py` | Per-member naming proposals in the `i` convention from the audit's MEMBER-TYPE and MEMBER-DIV rows | a target's `notes/type-audit.tsv` → report | analysis, before a member rename |
+| `dead-funcs.py` | Functions the reftab never sees called, and files whose every function is so: a lead, not a delete list | `reftab.tab`, the `.prg` → report (`--output`) | analysis |
+
+### Rewrites of 9.0's source (easipos-transpiled `scripts/`)
+
+| Script | What it does | Reads → writes | When |
+|---|---|---|---|
+| `line_views.py` | A branch that tests `E:nType == KIND` on a sale-buffer line gets the typed view `oKindTranLine := E` and reads E through it; refused where lines may move | the named `.prg` → the same (`--apply`) | rewrite (plan C11) |
+| `line_builders.py` | A builder fills the line `IncBuffIdx()` returns through a view | the named `.prg` → the same | rewrite (C11) |
+| `split_conditions.py` | Splits an IF so its condition reads the line through a view | the named `.prg` → the same | rewrite (C11) |
+| `rename_members.py` | A class's whole-number members to their `i` names, receiver by receiver, every product's source read | every `.prg` and `.ch` under EasiPOS, the reftab, `src/` → the `.prg` | rewrite (C4), name by name |
+| `rename_locals.py` | Whole-number locals and parameters to their `i` names, routine by routine, from the audit's ORM-NARROW rows or named sites | `type-audit.tsv`, the `.prg` → the `.prg` | rewrite (C5); goes when C5 is done |
+| `sweep_defs.py` | Declares the def files' field rows, index lists, accessor hashes and factories | `filedefinitions/*.prg` → the same | rewrite (C16); goes when its first pass is done |
+| `audit/prune.py` | Deletes the functions `intersect.py` found dead in every product | `notes/audit/dead-intersected.tsv`, the `.prg` → the `.prg` | rewrite, after an `unresolved.py --save` |
+
+### Analyses (easipos-transpiled `scripts/`)
+
+| Script | What it does | Reads → writes | When |
+|---|---|---|---|
+| `line_census.py` | Every member access off a sale-buffer line, typed or not, by where it sits | the product corpus → `notes/line-sites.tsv` | analysis (C11) |
+| `buffer_safe.py` | Whether a routine inserts or deletes buffer lines through its calls, N levels down: the lead for `--trust` | `easipos/`, `shared/`, `easiutil/` → report | analysis (C11) |
+| `stale_views.py` | A view read after a call that may move lines | `easipos/`, `shared/` → report | after a C11 rewrite |
+| `shadowed_views.py` | A view read after an inner block gave its name another line | `easipos/`, `shared/` → report | after a C11 rewrite |
+| `view_flow.py` | Not run: the block-structured flow stale_views.py and shadowed_views.py walk | — | — |
+| `audit/reach.py` | Module-level reachability of one target from its entry point, from Harbour's symbol tables | the target's sources → `notes/audit/unreached-<target>.txt` | analysis |
+| `audit/fnreach.py` | Function-level reachability, statics resolved per module | the target's sources → `notes/audit/dead-<target>.tsv` | analysis, before intersect.py |
+| `audit/intersect.py` | The functions dead in every product that compiles them, vetted against every build's symbol tables | `notes/audit/dead-*.tsv` → `notes/audit/dead-intersected.tsv` | analysis, before prune.py |
+| `audit/matrix.py` | Which targets reach each module, so where a file belongs (`shared/`, `sharedboh/`, `easipos/`); no answer when a target fails to compile | every target's sources → `notes/audit/usage-matrix.tsv` | analysis, after a prune or a move |
+| `audit/audit_common.py` | Not run: the reachability tools' compiling (`harbour -gc`, `HARBOUR_BIN`, incremental) and walking | — | — |
+| `audit/table_types.py` | Every C# variable named `o…Table` or typed as a table model, grouped; exit 1 for a "table" holding something else | `src/` → report | analysis |
+| `audit/table_names.py` | Each `ConstructORMTable()` variable not named for its table, with the name the rule asks for | the `.prg`, `fieldtypes.tsv` → report | analysis |
+| `audit/changed_routines.py` | The routines a branch changed, from git, with their added lines | git, 9.0's `.prg` → `notes/coverage/changed_routines.tsv` | before coverage.py |
+| `audit/coverage.py` | What a coverage build of testeasipos reached, against the changed routines | `easipos/test/coverage.c`'s output, `changed_routines.tsv` → `notes/coverage/report.txt`, `changed_run.tsv`, `changed_not_run.tsv` | analysis, after a coverage run |
+| `audit/scenario_stats.py` | The component scenarios' steps, assertions, PLUs, and the fixed functions pressed and never pressed | the scenario JSON, `testbuttons.json`, `fixedbuttons.json` → report | analysis |
+| `audit/key_reach.py` | Which function keys and ECRTran() handlers the scenarios reach | `fixedarr.prg`, `function.ch`, `ecrtran.prg`, the scenarios → report | analysis |
+
+### The transpiler's own (harbour-core `src/transpiler/`)
+
+| Script | What it does | Reads → writes | When |
+|---|---|---|---|
+| `tests/runtests.bat` → `tests/runsuite.py` | The suite: gen, prg, cs, run ([Tests](#tests)) | `tests/test*.prg` → `csout/`, `defines/` (tracked), `prgexe/`, `csexe/`, `hbreftab.tab` | after a change to the transpiler or HbRuntime |
+| `tests/errors/run.py` | The negative tests: each file reports its warning or error, and its quiet lines nothing | `tests/errors/*.prg` → report | with the suite |
+| `rtltest/runrtl.bat` → `rtltest/runrtl.py` | HbRuntime against Harbour's own RTL tests, assertion by assertion ([the runtime library](#the-runtime-library--rtltest)) | `generated/`, `rulings.tsv` → `hbref/` (tracked), `status.tsv`, `work/` | after a change to HbRuntime |
+| `rtltest/extract.py` | hbtest's `rt_*.prg` and `own/own_*.prg` as test programs, every assertion given its disposition | `utils/hbtest/`, `own/`, `rulings.tsv`, easipos-transpiled's `notes/hbruntime.txt` → `generated/`, `manifest.tsv` | when hbtest, `own/` or the application's calls change |
+| `tools/genfunctab.py` | `hbfuncs.tab`: HbRuntime's functions and the return types in Harbour's doc blocks | `HbRuntime/*.cs`, `doc/`, `contrib/`, `src/rtl` and the rest → `hbfuncs.tab` | after a function is added to HbRuntime |
+| `tools/test_gendefines.py` | gendefines.py's tests of its `#define` value reading | — | called first by runsuite.py's gen |
+| `tools/netsurface/` | .NET assemblies' classes and methods as an `--extern=` table | the DLLs → the table | called by gen_shim_table.py |
+| `tools/exceptionlog/` | A startup hook that logs every distinct exception of a transpiled program with its stack | — → the `EXCEPTIONLOG` file | called by run_pos.py `--log-exceptions` |
+| `build.bat`, `build.sh` | Build the transpiler: MSVC on Windows (x86 by default; `HB_ARCH=arm64`, `HB_LIBDIR`, `HB_OUT` for the native ARM64 binary, after harbour-core's `call-win-make-arm64.bat`), clang on macOS and Linux | the sources, Harbour's libraries → `bin/hbtranspiler[.exe]` | after a change to the transpiler's C |
+| `libraries/hbsqlit3/native/build.bat` | SQLite3 Multiple Ciphers, the amalgamation Harbour's hbsqlit3 uses, as a DLL for HbSqlit3 | `contrib/3rd/sqlite3/sqlite3.c` → `native/<arch>/sqlite3mc.dll` | once per machine and architecture |
 
 ---
 
@@ -2152,10 +2204,6 @@ RETURN IIf( nWatts > 50, "bright", "dim" )
   call emits bare and C# resolves it against `Program`, and none of
   its parameters are refined, by-ref-marked or arity-checked (W0018
   is silent for them). Keep such members simple at the boundary.
-- **Round trip.** `-GT` writes the block back inside the same guard
-  (the preprocessor resolved the conditional, so the emitter restores
-  it), which is what keeps the `hbout/` build under stock Harbour
-  clean.
 
 [test105.prg](tests/test105.prg) is the shape above, plus a second
 block placed inside a function to show it is hoisted.
@@ -2335,7 +2383,7 @@ emitter through the defines map, and a `#if` that uses a value (`#if X >
 | `harboury.c`, `harboury.h`| `harbour.yyc` (run `cp harbour.yyc harboury.c` after editing) |
 | `hbfuncs.tab`             | `tools/genfunctab.py`                           |
 | `hbreftab.tab`            | `bin/hbtranspiler -GF`                          |
-| `tests/hbout/`, `tests/csout/`, `tests/defines/` | The test runners' `gen` stage — reference outputs, regenerated and diffed, never edited |
+| `tests/csout/`, `tests/defines/` | runsuite.py's `gen` stage — reference outputs, regenerated and diffed, never edited |
 
 ---
 
@@ -2357,6 +2405,5 @@ emitter through the defines map, and a `#if` that uses a value (`#if X >
 - Optional: Python 3 for `runsuite.py`, `tools/gendefines.py` and
   regenerating `hbfuncs.tab` (`py` on Windows — the `python` shim
   there is a Store alias).
-- Optional: a stock Harbour install — `harbour` on the `PATH` for
-  `buildhb.sh` / `buildprg.sh`, `hbmk2` (via `HB_INSTALL`) for
-  `runtests.bat`.
+- Optional: a stock Harbour install, whose `hbmk2` (via `HB_INSTALL`)
+  `runtests.bat` and `rtltest/runrtl.bat` build with.

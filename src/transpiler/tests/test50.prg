@@ -20,8 +20,8 @@
 //      ...fFixedOutput:exec(cRecType, ...)
 //
 // All declarations must pass the W0021 Hungarian audit silently and
-// runtime evaluation must produce identical output across the .prg,
-// .hb, and .cs pipelines.
+// runtime evaluation must produce identical output in the .prg and
+// the .cs builds.
 
 #include "hbclass.ch"
 

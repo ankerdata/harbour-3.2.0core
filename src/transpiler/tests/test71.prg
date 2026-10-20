@@ -24,7 +24,7 @@
 //   • oObj["cField"]  — hash lookup, shim with no writeback
 //   • literal         — STRING, shim with no writeback
 // The before/after `?` outputs make the writeback contrast directly
-// observable across .prg / .hb / .cs.
+// observable in the .prg and the .cs.
 
 FUNCTION Consume( cString, cSep )
    LOCAL cFirst := ""

@@ -1,26 +1,18 @@
-// Test 45a: short-overload emission — typed parameters and caller-
-// observed arity gating.
+// Test 45a + 45b: an array passed with @ to a function in another file,
+// and a call that stops before the array.
 //
-// test45a defines a function with a ref param, called from test45b with
-// BOTH the full arity (@-ref form) and a short arity (just the first
-// param). C# `ref` params are required, so the canonical
+// test45a defines LoadFlags( cFile, aFlag, nCount ), which sizes and
+// fills aFlag; test45b calls it with the full arity, the array by
+// reference, and in a dead branch with the first argument alone. An
+// array is a reference in C#, so its parameter is the List itself, not a
+// `ref`, and cFile is a string from its prefix:
 //
-//    LoadFlags(string cFile, ref dynamic[] aFlag, decimal nCount = default)
+//    LoadFlags(string cFile, List<dynamic> aFlag, decimal nCount = default)
 //
-// can't accept the 1-arg call. The emitter generates a short overload
-// that covers arities 0..iFirstRef (= 0..1 here):
-//
-//    LoadFlags(string cFile = default)
-//
-// Two things this pair guards:
-//   1. The short overload is emitted (else the 1-arg call CS1501s).
-//   2. Its pre-ref parameter is typed `string` — Hungarian-inferred from
-//      the `c` prefix — NOT `dynamic`. A dynamic short overload would
-//      hide the typing the canonical exposes and collapse every pre-ref
-//      slot back to untyped Harbour idiom.
-//
-// Companion test46 covers the other side: a function whose callers
-// never use a short form must NOT emit the overload.
+// The short call pads the slot that has no default:
+// `LoadFlags("short.dat", default(List<dynamic>))`. The short overload a
+// by-reference scalar gets is test149's and test150's; test46 is this
+// pair with full-arity callers only.
 
 PROCEDURE LoadFlags( cFile, aFlag, nCount )
 

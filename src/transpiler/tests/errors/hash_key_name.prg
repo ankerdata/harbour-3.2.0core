@@ -1,7 +1,7 @@
 // W0035: a hash used with keys its name does not declare (Alex,
 // 2026-09-27). h<...> is keyed by strings, hn<...> by numbers, and C#
 // commits the dictionary to the name's key type. Each kind of
-// contradiction has its own wording, so run.sh checks each; the lines
+// contradiction has its own wording, so run.py checks each; the lines
 // marked "quiet" must not warn.
 
 PROCEDURE Main()

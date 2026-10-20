@@ -1,5 +1,4 @@
 prgexe/
-hbexe/
 csexe/
 # defines/*Const.cs are tracked reference output (the C# build compiles
 # them); the map is an emitter-side intermediate like hbreftab.tab.

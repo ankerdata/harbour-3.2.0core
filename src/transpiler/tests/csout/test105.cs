@@ -22,7 +22,6 @@ using static Program;
 // A block is file-scope by design: it is appended beside the CLASS
 // nodes, never inside a function body, so placement in the .prg is
 // free and the order of statements around it cannot be disturbed.
-// The round-trip emitter writes it back inside the same guard.
 // Members added this way are invisible to the reftab: a send to one
 // emits as a plain member call (`oTorch.Glow()`), which compiles
 // because the partial class supplies it, and a free function call

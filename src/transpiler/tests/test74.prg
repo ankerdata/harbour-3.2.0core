@@ -25,9 +25,9 @@
 //   • LOCAL oNotAClass          → suffix matches no class; falls
 //                                  through to OBJECT / dynamic
 //
-// All three pipelines (.prg / .hb / .cs) must produce identical
-// output. The .cs side is where the inference matters — the .prg /
-// .hb pipelines are dynamic-typed throughout and run regardless.
+// The .prg and the .cs builds must produce identical output. The .cs
+// side is where the inference matters — the .prg build is
+// dynamic-typed throughout and runs regardless.
 
 #include "hbclass.ch"
 

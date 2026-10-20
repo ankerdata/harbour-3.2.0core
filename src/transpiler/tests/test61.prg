@@ -7,7 +7,7 @@
 //   StrZero— a negative number keeps its sign: StrZero(-5,4) -> "-005".
 //   DToC   — honours SET DATEFORMAT.
 //
-// Not covered here (can't round-trip through Harbour standalone):
+// Not covered here (no Harbour program shows them):
 // GETMEMBER/SETMEMBER reaching the dynamic bag, and hb_mutexLock's
 // timeout — both fixed in HbRuntime alongside these.
 

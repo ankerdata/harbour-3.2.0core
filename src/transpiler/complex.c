@@ -703,13 +703,11 @@ hb_comp_yylex_restart:
       case HB_PP_TOKEN_COMMENT:
       {
          /* A `@` block comment is NOT an ordinary comment: it is the
-            call-site by-value marker. Don't file it as a floating
-            HB_AST_COMMENT (which would detach from its argument on
-            round-trip and could misalign on a multi-arg call). Instead
-            arm the next variable; the marker is re-synthesized inline by
-            genhb from HB_EXPRFLAG_BYREFSKIP — the mirror of how the
-            declaration-site marker is synthesized from the reftab.
-            A formal-parameter reduction disarms it (see harbour.y). */
+            call-site by-value marker, which belongs to its argument.
+            Don't file it as a floating HB_AST_COMMENT; arm the next
+            variable instead (HB_EXPRFLAG_BYREFSKIP), which the C#
+            emitter's W0020 check reads. A formal-parameter reduction
+            disarms it (see harbour.y). */
          if( hb_comp_isByRefSkipComment( pToken->value ) )
          {
             HB_COMP_PARAM->fByRefSkipPending = HB_TRUE;

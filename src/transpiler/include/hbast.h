@@ -524,10 +524,6 @@ extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );
 extern const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok,
                                            int * piUsed );
 
-/* === Transpiler output (genhb.c) === */
-
-extern void         hb_compGenTranspile( HB_COMP_DECL, PHB_FNAME pFileName );
-
 /* === C# output (gencsharp.c) === */
 
 extern void         hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName );

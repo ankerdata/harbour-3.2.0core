@@ -10,7 +10,7 @@
 //
 // MinMax has two USUAL by-ref outputs (x-prefixed); the caller passes
 // numeric locals, so each @arg mismatches the `ref dynamic` parameter and
-// is shimmed. The values must round-trip identically through -GT and -GS.
+// is shimmed. The values must come out the same in Harbour and in C#.
 
 FUNCTION MinMax( aData, xLo, xHi )
    LOCAL i

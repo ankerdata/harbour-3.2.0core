@@ -18,8 +18,8 @@ using static Program;
 // passed by-ref to LoadAFlag(cFile, aArr, nNoFlags) — 80+ sites
 // in loadopt.cs alone, all the same failure.
 //
-// This test exercises the round-trip so the .prg, .hb, and .cs
-// pipelines all build and produce identical output.
+// The .prg and the .cs builds of this test must both build and
+// produce identical output.
 public static partial class Program
 {
     public static List<dynamic> aFlag;

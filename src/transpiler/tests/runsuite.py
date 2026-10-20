@@ -1,24 +1,18 @@
 #!/usr/bin/env python3
-"""Windows runner for the transpiler test suite.
+"""The transpiler test suite: every tests/test*.prg transpiled, built by
+Harbour and as C#, run both ways, the outputs compared.
 
-The .sh scripts are macOS-first and fail on Windows two ways:
+Run runtests.bat, which sets up vcvarsall and the Harbour bin directory
+and calls this directly, never through a shell: Git Bash puts /usr/bin
+ahead of MSVC on PATH, so GNU link shadows link.exe and hbmk2 dies with
+"link: unknown option -- n".
 
-  * they pass $SCRIPTDIR as an absolute POSIX path, so hbmk2.exe and
-    dotnet receive -o/c/Users/... and every build fails;
-  * driving them through Git Bash puts /usr/bin ahead of MSVC on PATH,
-    so GNU link shadows link.exe and hbmk2 dies with
-    "link: unknown option -- n".
-
-This does the same work in Python with relative paths, and runtests.bat
-calls it directly rather than through a shell, which is what keeps the
-linker straight. Run runtests.bat; it sets up vcvarsall and the Harbour
-bin directory first.
-
-Stages (default "all"):
-  gen   regenerate hbout/ and csout/     (runtests.sh + buildcs.sh)
-  prg   build the Harbour reference exes (buildprg.sh)
-  cs    build the emitted C#             (buildcs.sh)
-  run   run both and diff the output     (runprg.sh/runcs.sh/comparecs.sh)
+Stages (default "all", which runs them in this order):
+  gen   scan (-GF) and regenerate csout/ (-GS); the reftab must come out
+        of two scans of the same sources byte for byte
+  prg   build the Harbour reference exes into prgexe/
+  cs    build HbRuntime and the emitted C# into csexe/
+  run   run both, compare the C# output with Harbour's
 
 Builds are incremental: a Harbour exe is rebuilt only when it is older
 than its .prg sources or a local .ch they include. The C# tests build as
@@ -38,7 +32,7 @@ incremental checks cannot see.
 
 --test testNNN[,testNNN...] runs the stages for those tests alone (a
 pair member, test45a, names its pair): gen keeps the shared reftab and
-scans, round-trips and emits only their files, so a change to the named
+scans and emits only their files, so a change to the named
 test is seen in seconds. Another test's output can change with it, since
 the reftab is shared, so the whole suite still runs once at the end of a
 change. Without a reftab yet, gen does the whole suite first.
@@ -54,11 +48,11 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 TESTS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(TESTS, "..", "..", ".."))
-HBOUT = os.path.join(TESTS, "hbout")
 CSOUT = os.path.join(TESTS, "csout")
 CSEXE = os.path.join(TESTS, "csexe")
 PRGEXE = os.path.join(TESTS, "prgexe")
@@ -135,13 +129,16 @@ def sources(name, ext, subdir):
 
 # --------------------------------------------------------------- gen ----
 def stage_gen(only=None):
-    """Reproduce runtests.sh, then buildcs.sh.
+    """Clear hbreftab.tab, scan every source with -GF, scan AGAIN without
+    clearing, and emit -GS into csout/. The second scan sees what the
+    first recorded; csout/ was made so, and one scan alone gives false
+    diffs (test79 emits Animal vs dynamic).
 
-    runtests.sh clears hbreftab.tab, scans every source with -GF, then
-    emits -GT into hbout/. buildcs.sh then scans AGAIN without clearing
-    and emits -GS into csout/. Clearing before the -GS pass produces
-    false diffs (test79 emits Animal vs dynamic), so both the order and
-    the not-clearing matter.
+    The whole suite's first scan is repeated into a throwaway reftab and
+    the two must be byte for byte the same: the pipeline's scan loop
+    stops when the reftab's md5 stops changing, so a reftab that
+    differs between identical scans (an unsorted table) would run every
+    scan to its pass limit.
 
     With `only` (test names, --test) the reftab is kept and the passes
     run over those tests' files alone: their rows replace what the last
@@ -161,8 +158,7 @@ def stage_gen(only=None):
     if r.returncode != 0:
         print((r.stdout + r.stderr).strip())
         sys.exit("gen: tools/test_gendefines.py failed")
-    for d in (HBOUT, CSOUT):
-        os.makedirs(d, exist_ok=True)
+    os.makedirs(CSOUT, exist_ok=True)
 
     if only:
         srcs = [os.path.basename(s) for n in only for s in sources(n, ".prg", ".")]
@@ -182,7 +178,7 @@ def stage_gen(only=None):
     def run(args):
         r = subprocess.run(args, cwd=TESTS, capture_output=True, text=True, errors="replace")
         if r.returncode != 0:
-            mode = next((a for a in args if a in ("-GF", "-GT", "-GS")), "?")
+            mode = next((a for a in args if a in ("-GF", "-GS")), "?")
             src = next((a for a in args if SRC_RE.match(os.path.basename(a))), "?")
             text = (r.stdout + r.stderr).strip().splitlines()
             failed.append("   FAIL %-12s %s exit %d: %s"
@@ -210,10 +206,15 @@ def stage_gen(only=None):
     if not only and os.path.isfile(REFTAB):
         os.remove(REFTAB)
     run_batched(base, srcs, ["-GF", "-q"])
-    run_batched(base + ["-o" + HBOUT + os.sep], srcs, ["-GT"])
-    print("hbout/  regenerated (%s)" %
-          (", ".join(srcs) if only else "%d sources" % len(srcs)))
-
+    if not only and not failed:
+        fd, again = tempfile.mkstemp(suffix=".tab")
+        os.close(fd)
+        try:
+            run_batched(base + ["--reftab=" + again], srcs, ["-GF", "-q"])
+            if not failed and not same_bytes(REFTAB, again):
+                failed.append("   FAIL reftab: two scans of the same sources wrote different tables")
+        finally:
+            os.remove(again)
     run_batched(base, srcs, ["-GF", "-q"])   # deliberately NOT clearing the reftab
 
     if os.path.isdir(DEFINES):
@@ -233,7 +234,8 @@ def stage_gen(only=None):
     if os.path.isfile(ftypes) and os.path.getsize(ftypes):
         opts.append("--fieldtypes=" + ftypes)
     run_batched(base + opts + ["-o" + CSOUT + os.sep], srcs, ["-GS", "-q"])
-    print("csout/  regenerated" + (" (%s)" % ", ".join(srcs) if only else ""))
+    print("csout/  regenerated (%s)" %
+          (", ".join(srcs) if only else "%d sources" % len(srcs)))
     if failed:
         print("gen: %d transpiler run(s) failed" % len(failed))
         for line in failed:

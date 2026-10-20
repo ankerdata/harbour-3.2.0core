@@ -13,10 +13,9 @@
 // numerics like D_1Yes or strings from GetDescM(). Pre-fix, xAnswer1
 // was typed STRING and 25+ call sites failed at the C# build.
 //
-// This test exercises the round-trip with a `xVal` parameter that
-// the body dispatches on (string vs numeric) and call sites that
-// pass each type. All three pipelines (.prg / .hb / .cs) must
-// produce the same output.
+// This test exercises a `xVal` parameter that the body dispatches
+// on (string vs numeric) and call sites that pass each type. Both
+// builds (.prg / .cs) must produce the same output.
 
 PROCEDURE Main()
 

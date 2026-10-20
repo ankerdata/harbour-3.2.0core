@@ -9,8 +9,8 @@
 // named argument (ErrText65(7, lUpper: true)).
 //
 // This also exercises the prefix overload (nCode only) and the
-// canonical signature (passing @lLog), so all three forms must round
-// trip identically through -GT (Harbour) and -GS (C#).
+// canonical signature (passing @lLog), so all three forms must behave
+// identically in Harbour and in C#.
 
 FUNCTION ErrText65( nCode, lLog, lUpper )
    lLog := ( nCode > 0 )            // written back -> marks lLog by-ref

@@ -14,7 +14,7 @@ using static Program;
 // the last is a statement — a call, an assignment or a step as it
 // stands, a value with no effect dropped, an IIF as if/else, any other
 // value discarded — and the last is returned. A `...` block runs them
-// all before its `return null`. -GT writes the whole list back.
+// all before its `return null`.
 // #include "hbclass.ch"
 public class BlockTally : IHbObject
 {

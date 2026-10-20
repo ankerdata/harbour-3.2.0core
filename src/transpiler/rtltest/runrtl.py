@@ -5,7 +5,7 @@ assertion by assertion.
 For every generated/<name>.prg (extract.py writes them):
 
   prg   hbmk2 builds it with harness.prg and runs it; the output is the
-        reference, hbref/<name>.txt (tracked, like the suite's hbout/)
+        reference, hbref/<name>.txt (tracked, like the suite's csout/)
   cs    the transpiler turns both files into C# (-GF, then -GS, into a
         reftab of the test's own); dotnet builds them against HbRuntime
         ALONE — no generated stubs — so a function HbRuntime does not

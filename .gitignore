@@ -55,7 +55,7 @@ build-arm64.log
 # the same run's emit. Content is a function of the test .prg set,
 # so tracking it produces noisy diffs without adding any assertion
 # value beyond what the .prg change itself says. Determinism is
-# covered by src/transpiler/tests/verifyreftab.sh.
+# checked by src/transpiler/tests/runsuite.py's gen stage.
 /src/transpiler/hbreftab.tab
 
 # Python bytecode caches, wherever a script runs (tools/, rtltest/, tests/)

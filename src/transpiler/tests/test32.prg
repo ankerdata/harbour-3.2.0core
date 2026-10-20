@@ -13,7 +13,7 @@
 // the token chain before running #define / #translate / #command rule
 // matching, then splice them back onto the expanded result so the
 // lexer's comment-preservation hook (complex.c HB_PP_TOKEN_COMMENT
-// branch) still captures them as AST nodes for .hb / .cs round-trip.
+// branch) still captures them as AST nodes for the C# output.
 //
 // This test exercises two patterns that previously hung:
 //   - A plain #command match (SET CENTURY ON // ...)

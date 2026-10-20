@@ -1,7 +1,7 @@
 // W0024 for an `i` name (a whole number, C# long) given a value that may
 // hold a fraction - a division, a power, a literal with decimals - which the
 // emitter's (long) cast would drop where Harbour keeps it. Each warning has
-// its own wording, so run.sh checks each; the lines marked "quiet" must not
+// its own wording, so run.py checks each; the lines marked "quiet" must not
 // warn (Int() says the fraction goes, a whole literal and a call say nothing).
 
 PROCEDURE Main()

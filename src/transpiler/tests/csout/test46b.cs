@@ -2,9 +2,8 @@ using System;
 using static HbRuntime;
 using static Program;
 
-// Test 46b: every call to SaveFlags uses the full arity, so the
-// emitter's short-overload guard sees no bit in 0..iFirstRef and
-// skips overload emission. See test46a.prg for details.
+// Test 46b: every call to SaveFlags uses the full arity. See
+// test46a.prg.
 public static partial class Program
 {
     public static void Main(string[] args)

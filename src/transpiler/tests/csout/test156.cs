@@ -13,8 +13,8 @@ using static Program;
 // `h[ k ]` is the value, so `h[ k ][ FLD_LEN ]` is the record's field;
 // FOR EACH over the hash types the loop variable. A key of the other
 // kind is W0035, a value of another type W0041 (tests/errors/
-// typed_hash.prg). Harbour sees AS HASH: astype.ch, and the -GT round
-// trip, write the declarations so.
+// typed_hash.prg). Harbour sees a plain hash: astype.ch removes the
+// declarations.
 
 // #include "../include/astype.ch"
 public sealed class FieldRow156

@@ -1,7 +1,7 @@
 // A parameter renamed to a name that names a class takes that class on a
-// warm scan (run.sh scans this file, then rename_param_after.prg, on one
+// warm scan (run.py scans this file, then rename_param_after.prg, on one
 // reftab). Here the parameter is a generic oLine, which its caller makes
-// a LineRn: the row records oLine:LineRn. Not a warning test: run.sh reads
+// a LineRn: the row records oLine:LineRn. Not a warning test: run.py reads
 // the row.
 
 #include "hbclass.ch"

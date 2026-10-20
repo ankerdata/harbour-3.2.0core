@@ -12,7 +12,8 @@ repo (see its CLAUDE.md and README.md).
 cp src/transpiler/harbour.yyc src/transpiler/harboury.c   # ALWAYS after editing harbour.yyc
 bash src/transpiler/build.sh                              # → bin/hbtranspiler (macOS/Linux)
 src\transpiler\build.bat                                  # → bin/hbtranspiler.exe (Windows/MSVC)
-bash src/transpiler/tests/verify.sh                       # full suite (~60 s)
+src\transpiler\tests\runtests.bat                         # the suite (Windows)
+py src\transpiler\tests\errors\run.py                     # the negative tests
 ```
 
 - The build compiles `harboury.c`, not `harbour.yyc`. Forgetting the
@@ -27,8 +28,7 @@ bash src/transpiler/tests/verify.sh                       # full suite (~60 s)
   once merged two registries silently (SIGSEGV). Keep an eye on it.
 - Windows build works (`build.bat`, MSVC/x86, links the `hbcommon` +
   `hbnortl` that `call-win-make.bat` produces). Verified by
-  regenerating `tests/hbout/` + `tests/csout/` — 186 tracked reference
-  files, byte-identical to the macOS output.
+  regenerating `tests/csout/`, byte-identical to the macOS output.
 - On an ARM64 Windows host, prefer the native build: run
   `call-win-make-arm64.bat`, then `build.bat` with `HB_ARCH=arm64`,
   `HB_LIBDIR=lib\win\msvcarm64` and
@@ -38,9 +38,8 @@ bash src/transpiler/tests/verify.sh                       # full suite (~60 s)
   `PROCESSOR_ARCHITECTURE` reads `AMD64` inside an emulated shell, so
   auto-detection would silently pick the wrong target.
 
-Run modes: `-GS` C# emit, `-GT` Harbour round-trip (emits `.prg` into
-`-o<dir>/` — without `-o` it overwrites the input), `-GF -q`
-scan-only (populate `--reftab=`). Flags the pipeline always passes:
+Run modes: `-GS` C# emit (into `-o<dir>/`; without `-o` the `.cs` lands
+beside the input), `-GF -q` scan-only (populate `--reftab=`). Flags the pipeline always passes:
 `--reftab --preload-list --var-types --defines-map --fieldtypes
 --filename-casing -DECR -DMULTITHREAD` plus the include paths — see
 `easipos-transpiled/scripts/transpile_common.py` for the single
@@ -51,12 +50,16 @@ canonical invocation.
 - **Never disable a test to get green.** Fix the code, fix the test,
   or delete it with a commit message saying why. No skip lists — a
   visible `FAIL:` line forces the conversation.
-- **Check every stage of verify.sh**, not the last line. Grep the log
-  for `FAIL:|differ|Results:|exited non-zero` and confirm the exit
-  code.
-- **Don't re-run verify.sh to look at the same failure twice.**
-  Diagnose from the output already on disk (`tests/*.cs`, `*.hb`, the
-  dotnet output); re-run only the narrow test.
+- **Check every stage of the suite**, not the last line. Each stage
+  prints a results line (`csout/`, `hbmk2:`, `dotnet:`, `compare:`);
+  grep the log for `FAIL|DIFFER|SKIP` and
+  confirm the exit code. The negative tests end `Results: N passed, M
+  failed`.
+- **Don't re-run the suite to look at the same failure twice.**
+  Diagnose from the output already on disk (`tests/csout/*.cs`, the
+  `<test>.txt` outputs in `tests/prgexe/` and `tests/csexe/`, the dotnet
+  output); re-run only the narrow test (`runtests.bat all --test
+  testNNN`).
 - **Transpile, don't infer.** The class parser recognises the keywords
   the source wrote (CLASS, VAR, METHOD, INIT, ACCESS…) and never
   supplies semantics the source didn't state (e.g. binding a bare

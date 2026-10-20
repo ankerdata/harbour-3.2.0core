@@ -3,15 +3,14 @@
 // A block comment whose content is `@`, placed immediately before a
 // call argument, marks a DELIBERATE by-value pass to a by-ref
 // parameter. At transpile time it suppresses W0020 for that argument
-// (verified manually — verify.sh checks runtime output, not warnings).
+// (verified manually — the suite compares runtime output, not warnings).
 // At run time it changes nothing: the argument passes by value either
 // way, so the callee's write-back is discarded. This test pins that
-// runtime semantics, which must be identical across .prg, round-tripped
-// .hb, and generated .cs.
+// runtime semantics, which must be identical in the .prg and the
+// generated .cs.
 //
-// The marker is a special token, not an ordinary comment: genhb
-// re-emits it inline (attached to its argument) on -GT round-trip,
-// mirroring how the declaration-site marker is synthesized.
+// The marker is a special token, not an ordinary comment: the lexer
+// attaches it to its argument (HB_EXPRFLAG_BYREFSKIP).
 
 PROCEDURE Main()
    LOCAL n := 5

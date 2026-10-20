@@ -6,7 +6,7 @@ using static Program;
 // #xcommand / #translate / macro-define directives.
 //
 // The `#include "test47.ch"` below is needed so the Harbour baseline
-// (buildprg.sh → hbmk2) can resolve the constants at compile time.
+// (the suite's prg stage, hbmk2) can resolve the constants at compile time.
 // The transpiler runs with setNoInclude=TRUE so the directive is
 // captured as an AST node but the file is NOT opened or tokenised —
 // every TEST47_* reference below therefore arrives via the preload

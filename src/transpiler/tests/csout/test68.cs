@@ -14,7 +14,7 @@ using static Program;
 //
 // MinMax has two USUAL by-ref outputs (x-prefixed); the caller passes
 // numeric locals, so each @arg mismatches the `ref dynamic` parameter and
-// is shimmed. The values must round-trip identically through -GT and -GS.
+// is shimmed. The values must come out the same in Harbour and in C#.
 public static partial class Program
 {
     public static dynamic MinMax(List<dynamic> aData, ref dynamic xLo, ref dynamic xHi)

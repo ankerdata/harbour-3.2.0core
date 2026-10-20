@@ -8082,9 +8082,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                signature carries `ref` on the right slots, so the
                comment has no residual purpose. Drop it rather than
                forwarding an orphan marker into the emitted method
-               body where it's just noise. The .hb emitter keeps
-               the marker because the Harbour baseline scanner
-               re-reads it on round-trip. szText arrives with the
+               body where it's just noise. szText arrives with the
                block-comment delimiters intact; char-by-char test
                below so we don't embed them literally in the
                enclosing block comment. */

@@ -6,8 +6,8 @@ using static Program;
 //
 // These two files demonstrate why the transpiler needs a separate scan
 // pass (-GF) before generating code for a multi-file project. The pair
-// is built into a single executable test19 in prgexe/, hbexe/, and csexe/
-// (special-cased in the build scripts).
+// is built into a single executable test19 in prgexe/ and is one test
+// of csexe/'s suite (runsuite.py's PAIRS).
 //
 //    test19a.prg  defines  PROCEDURE Swap( nX, nY )
 //                          ↑ no @ call sites in this file
@@ -32,13 +32,13 @@ using static Program;
 //    hbtranspiler -GF -Iinclude test19a.prg
 //    hbtranspiler -GF -Iinclude test19b.prg
 //
-//    # 2. Now transpile each file. -GS / -GT both auto-load
-//    #    hbreftab.tab so they see the cross-file by-ref data.
+//    # 2. Now transpile each file. -GS auto-loads
+//    #    hbreftab.tab so it sees the cross-file by-ref data.
 //    hbtranspiler -GS -Iinclude test19a.prg
 //    hbtranspiler -GS -Iinclude test19b.prg
 //
-// runtests.sh / buildcs.sh / buildhb.sh / buildprg.sh in this directory
-// all run the -GF pre-scan automatically before the per-file work.
+// The suite's gen stage (runsuite.py) runs the -GF pre-scan over every
+// source before the per-file work.
 public static partial class Program
 {
     public static void Swap(ref decimal nX, ref decimal nY)

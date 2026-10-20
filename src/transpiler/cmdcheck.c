@@ -497,11 +497,6 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
                   szSwPtr += 2;
                   break;
 
-               case 'T':
-                  HB_COMP_PARAM->iLanguage = HB_LANG_TRANSPILE;
-                  szSwPtr += 2;
-                  break;
-
                case 'S':
                   HB_COMP_PARAM->iLanguage = HB_LANG_CSHARP;
                   szSwPtr += 2;
@@ -510,7 +505,7 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
                case 'F':
                   /* -GF: scan-only mode. Build the user-function
                      signature table and append to it; no codegen.
-                     Used for whole-codebase pre-scan before -GS/-GT. */
+                     Used for whole-codebase pre-scan before -GS. */
                   HB_COMP_PARAM->iLanguage = HB_LANG_SCAN;
                   szSwPtr += 2;
                   break;

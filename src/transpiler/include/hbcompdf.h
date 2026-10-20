@@ -61,7 +61,6 @@ typedef enum
    HB_LANG_PORT_OBJ,               /* Portable objects <file.hrb> */
    HB_LANG_PORT_OBJ_BUF            /* Portable objects in memory buffer */
 #ifdef HB_TRANSPILER
-   , HB_LANG_TRANSPILE             /* Transpiled source output <file.hb> */
    , HB_LANG_CSHARP                /* C# source output <file.cs> */
    , HB_LANG_SCAN                  /* Function-table scan only, no codegen */
 #endif
@@ -69,8 +68,7 @@ typedef enum
 
 #ifdef HB_TRANSPILER
 /* Check if current language mode requires AST building */
-#define HB_COMP_ISAST( p )  ( (p)->iLanguage == HB_LANG_TRANSPILE || \
-                               (p)->iLanguage == HB_LANG_CSHARP   || \
+#define HB_COMP_ISAST( p )  ( (p)->iLanguage == HB_LANG_CSHARP || \
                                (p)->iLanguage == HB_LANG_SCAN )
 #endif
 

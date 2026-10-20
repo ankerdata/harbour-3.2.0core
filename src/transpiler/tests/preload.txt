@@ -1,5 +1,5 @@
 # Preload list for the transpiler test suite — consumed by
-# --preload-list in runtests.sh and buildcs.sh.
+# --preload-list in runsuite.py's gen stage.
 #
 # Each line names a .ch whose `#define`s should register globally
 # (in addition to the baked-in std.ch + common.ch). See test47.ch

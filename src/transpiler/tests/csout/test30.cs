@@ -5,8 +5,8 @@ using static Program;
 // Test 30: EXIT (and STATIC) keyword disambiguation with trailing
 // preserved `//` comments.
 //
-// The transpiler runs with comment preservation so comments can
-// round-trip into the output. Preserved comments appear in the PP
+// The transpiler runs with comment preservation so comments can be
+// carried into the output. Preserved comments appear in the PP
 // token stream between a keyword and the following newline. The
 // lexer must skip those comment tokens when deciding whether a
 // keyword like EXIT is acting as a statement or an identifier.

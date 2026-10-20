@@ -22,8 +22,8 @@ using static Program;
 //         }
 //     }
 //
-// Both Probe69 calls increment nN by 1, so the result must round-trip
-// identically through -GT and -GS — proving the two temps don't collide.
+// Both Probe69 calls increment nN by 1, so the result must be the same
+// in Harbour and in C# — proving the two temps don't collide.
 public static partial class Program
 {
     public static bool Probe69(ref dynamic xVal)

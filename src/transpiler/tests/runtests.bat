@@ -1,8 +1,9 @@
 @echo off
-rem Run the transpiler test suite on Windows (counterpart of the .sh scripts).
+rem Run the transpiler test suite on Windows: runsuite.py, with MSVC and
+rem Harbour set up.
 rem
 rem   runtests.bat            gen + prg + cs + run
-rem   runtests.bat gen        regenerate hbout/ and csout/ only
+rem   runtests.bat gen        regenerate csout/ only
 rem   runtests.bat prg|cs|run a single stage
 rem
 rem Overrides:

@@ -40,7 +40,7 @@ if not exist "%OBJDIR%" mkdir "%OBJDIR%"   & rem per-arch: obj\<arch>
 if not exist "%ROOT%\bin" mkdir "%ROOT%\bin"
 
 set "T=src\transpiler"
-set "SRC=%T%\cmdcheck.c %T%\complex.c %T%\expropta.c %T%\genhb.c %T%\gencsharp.c"
+set "SRC=%T%\cmdcheck.c %T%\complex.c %T%\expropta.c %T%\gencsharp.c"
 set "SRC=%SRC% %T%\genscan.c %T%\genstubs.c %T%\hbast.c %T%\hbclsparse.c %T%\hbcomp.c"
 set "SRC=%SRC% %T%\hbmain.c %T%\hbtypes.c %T%\hbreftab.c %T%\hbdefinemap.c"
 set "SRC=%SRC% %T%\hbfieldtypes.c %T%\hbhbxcanon.c %T%\hbfilecase.c %T%\hbfunctab.c"

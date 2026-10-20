@@ -39,8 +39,8 @@ using static Program;
 // -GS pass on test20b sees the cross-file information and emits
 // `public static decimal QuadrupleIt(decimal n)`.
 //
-// Both files together verify the round-trip behaviour and that the
-// runtime output is identical to the .prg / .hb compiled binaries.
+// Both files together verify the cross-file typing and that the
+// runtime output is identical to the .prg compiled binary's.
 public static partial class Program
 {
     public static decimal DoubleIt(decimal n = default)

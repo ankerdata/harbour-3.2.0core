@@ -16,7 +16,7 @@ using static Program;
 // shape (HB_ET_VARIABLE, literal, bare obj:member access, etc.) and
 // skips the emit entirely.
 //
-// The .prg / .hb / .cs pipelines must all produce the same output:
+// The .prg and the .cs builds must produce the same output:
 // the procedure's `?` lines print, the HB_SYMBOL_UNUSED line has no
 // runtime effect. (Harbour silently no-ops it through `((x))`; C#
 // silently no-ops it through omitted emission.)

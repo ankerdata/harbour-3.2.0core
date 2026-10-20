@@ -7,8 +7,8 @@
 // which work in vanilla mode because the expression is pre-reduced to
 // a string literal before the check runs.
 //
-// The transpiler preserves expressions verbatim so they can round-trip
-// into .hb and into C# field initializers, so the check sees them
+// The transpiler preserves expressions verbatim so they can become C#
+// field initializers, so the check sees them
 // unreduced. C# static field initializers accept any expression (only
 // `const` requires a literal), so the check is skipped under
 // HB_TRANSPILER in include/hbexpra.c.

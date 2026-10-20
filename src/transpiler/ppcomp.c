@@ -1252,7 +1252,7 @@ static void hb_pp_directiveCapture( void * cargo, const char * szDirective,
       synthetic startup function's body (file scope), not in whichever user
       function happens to be mid-parse when the preprocessor fires. Without
       this, a #define between two functions gets attached to the first
-      function's body and both the -GT and -GS emitters drop it in the
+      function's body and the -GS emitter drops it in the
       wrong place (e.g. a `const` decl after `return`, invisible to sibling
       functions). Mirrors how CLASS nodes are handled. */
    if( strcmp( szDirective, "INCLUDE" ) == 0 )
@@ -1287,7 +1287,7 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
 
 #ifdef HB_TRANSPILER
       /* Transpiler mode: source #include directives are captured as
-         AST nodes (for round-tripping in .hb output) but the included
+         AST nodes (the C# keeps each as a comment) but the included
          files themselves are NOT expanded into the source — we don't
          want their content flowing into the parser.
 

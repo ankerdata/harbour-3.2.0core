@@ -6,7 +6,7 @@
 // return declared `AS RECORD X` holds one; `AS FIXED ARRAY OF RECORD X`
 // an array of them that never grows or shrinks. Harbour sees arrays
 // (astype.ch removes the RECORD line and reads the declarations as AS
-// ARRAY; the -GT round trip writes them so), C# a class of the fields
+// ARRAY), C# a class of the fields
 // built by its constructor from the `{ … }` literal, and a C# array for
 // FIXED. A read with a constant subscript — a literal or a #define — is
 // the field itself (`aRow.iLen`), typed and checked when C# builds. The

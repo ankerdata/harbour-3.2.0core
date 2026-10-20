@@ -19,7 +19,6 @@
 //   - Scanner: hbreftab.c marks fCalledVarargs on any function reached
 //     via a `...` call argument; the persisted reftab carries the flag
 //     across scan/codegen runs.
-//   - .hb emitter (gentr.c): round-trips `|...|` and `...` literally.
 //   - C# emitter (gencsharp.c):
 //       * `|...|` codeblock → `((Func<dynamic[], dynamic>)((dynamic[]
 //         hbva) => { ...; return null; }))`
@@ -34,8 +33,8 @@
 //     trailing args into a dynamic[].
 //
 // Echo iterates its varargs with hb_AParams() + FOR EACH in both
-// pipelines so the runtime output matches byte-for-byte between the
-// .prg, .hb, and .cs outputs.
+// builds so the runtime output matches byte-for-byte between the
+// .prg and the .cs.
 //
 // Hit in easiposx: easicmremote, easiglory, easiwt, easizvt, easiwig,
 // pptio — 6 sites across 6 files.
