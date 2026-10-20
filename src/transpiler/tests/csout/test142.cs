@@ -20,9 +20,6 @@ using static Program;
 // argument past its parameters runs, the extra dropped as Harbour drops
 // it: the DLR cannot bind such a call, and HbRuntime's fallback used to
 // report "Parameter count mismatch" (HbDynamicObject.TryInvokeMember).
-
-// #include "../include/astype.ch"
-// #include "hbclass.ch"
 public class Bag142 : HbDynamicObject
 {
     public string cLabel142 = "";
@@ -30,14 +27,14 @@ public class Bag142 : HbDynamicObject
 
     public virtual Bag142 Put142(string cName = default, dynamic xValue = default)
     {
-        HbRuntime.SETMEMBER(this, cName, xValue);
+        SETMEMBER(this, cName, xValue);
         nCount142 += 1;
         return this;
     }
 
     public virtual string Repeat142(string cWhat = default, decimal nTimes = 1)
     {
-        return HbRuntime.Replicate(cWhat, nTimes);
+        return Replicate(cWhat, nTimes);
     }
 }
 
@@ -75,8 +72,8 @@ public static partial class Program
         Keeper142 oKeeper = (Keeper142)new Keeper142().New(new Bag142());
         List<dynamic> aLoose = new List<dynamic> { new Bag142() };
 
-        HbRuntime.QOut(oHolder.Count142(), oKeeper.Count142(), oHolder.oHeld.cLabel142);
-        HbRuntime.QOut(aLoose[Ix(1)].Repeat142("ab", 2, "extra"), aLoose[Ix(1)].Repeat142("c"));
+        QOut(oHolder.Count142(), oKeeper.Count142(), oHolder.oHeld.cLabel142);
+        QOut(aLoose[Ix(1)].Repeat142("ab", 2, "extra"), aLoose[Ix(1)].Repeat142("c"));
         return;
     }
 }

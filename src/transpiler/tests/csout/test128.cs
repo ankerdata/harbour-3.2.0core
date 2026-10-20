@@ -13,14 +13,12 @@ using static Program;
 // ormtestsuite.prg's TestEval on ::oOrmTable failed that way. When every class
 // declaring the method gives it the same parameters, an untyped receiver's
 // call names them too.
-
-// #include "hbclass.ch"
 public class Counter128 : IHbObject
 {
 
     public virtual string Tally128(string cLabel = default, decimal nStart = 1, decimal nStep = 10, bool lShout = false)
     {
-        return (lShout ? HbRuntime.Upper(cLabel) : cLabel) + " " + HbRuntime.hb_ntos(nStart + nStep);
+        return (lShout ? Upper(cLabel) : cLabel) + " " + hb_ntos(nStart + nStep);
     }
 }
 
@@ -31,10 +29,10 @@ public static partial class Program
         // a hash's value is untyped in C#, so every send below is dynamic
         OrderedDictionary<string, dynamic> hBox128 = new OrderedDictionary<string, dynamic> { { "counter", new Counter128() } };
 
-        HbRuntime.QOut(hBox128["counter"].Tally128("a"));
-        HbRuntime.QOut(hBox128["counter"].Tally128("b", nStep: 5));
-        HbRuntime.QOut(hBox128["counter"].Tally128("c", lShout: true));
-        HbRuntime.QOut(hBox128["counter"].Tally128("d", 2, lShout: true));
+        QOut(hBox128["counter"].Tally128("a"));
+        QOut(hBox128["counter"].Tally128("b", nStep: 5));
+        QOut(hBox128["counter"].Tally128("c", lShout: true));
+        QOut(hBox128["counter"].Tally128("d", 2, lShout: true));
 
         return;
     }

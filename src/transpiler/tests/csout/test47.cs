@@ -20,15 +20,13 @@ using static Program;
 // preload filter actually preserves #ifdef / #else / #endif — a
 // flatten-all-defines filter would pick up both 42 and 7 and
 // arbitrarily keep one.
-
-// #include "test47.ch"
 public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("base=" + HbRuntime.AllTrim(HbRuntime.Str(Test47Const.TEST47_BASE)));
-        HbRuntime.QOut("cond=" + HbRuntime.AllTrim(HbRuntime.Str(7)));
-        HbRuntime.QOut("label=" + Test47Const.TEST47_LABEL);
+        QOut("base=" + AllTrim(Str(Test47Const.TEST47_BASE)));
+        QOut("cond=" + AllTrim(Str(7)));
+        QOut("label=" + Test47Const.TEST47_LABEL);
         return;
     }
 }

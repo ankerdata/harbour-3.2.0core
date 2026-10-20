@@ -21,7 +21,6 @@ using static Program;
 // AFTER the trailing-comment strip — a `->` in an INLINE line's `//`
 // comment must not stub the method.
 
-// #include "hbclass.ch"
 // Bump exercises the AST SEND path: a CLASS VAR and an instance VAR
 // both written via `::`.
 public class Counter : IHbObject
@@ -54,12 +53,12 @@ public static partial class Program
         oB.Bump();
 
         // INLINE read of CLASS VAR
-        HbRuntime.QOut("a_total=" + HbRuntime.LTrim(HbRuntime.Str(oA.Total())));
-        HbRuntime.QOut("b_total=" + HbRuntime.LTrim(HbRuntime.Str(oB.Total())));
-        HbRuntime.QOut("a_local=" + HbRuntime.LTrim(HbRuntime.Str(oA.nLocal)));
-        HbRuntime.QOut("b_local=" + HbRuntime.LTrim(HbRuntime.Str(oB.nLocal)));
+        QOut("a_total=" + LTrim(Str(oA.Total())));
+        QOut("b_total=" + LTrim(Str(oB.Total())));
+        QOut("a_local=" + LTrim(Str(oA.nLocal)));
+        QOut("b_local=" + LTrim(Str(oB.nLocal)));
         // INLINE body, arrow in comment
-        HbRuntime.QOut("doubled=" + HbRuntime.LTrim(HbRuntime.Str(oA.Doubled())));
+        QOut("doubled=" + LTrim(Str(oA.Doubled())));
         return;
     }
 }

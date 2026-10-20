@@ -11,8 +11,6 @@ using static Program;
 // of the line comment and broke C#. Same path prevented `.F.`/`.T.`/
 // `NIL` from matching the canonical conversions because the trailing
 // whitespace + comment meant the exact-string compare failed.
-
-// #include "hbclass.ch"
 public class Widget : IHbObject
 {
     public decimal nCount = 0;
@@ -28,24 +26,24 @@ public static partial class Program
     {
         Widget oW = new Widget();
 
-        HbRuntime.QOut("count: " + HbRuntime.Str(oW.nCount, 4));
-        HbRuntime.QOut("name:  " + "[" + oW.cName + "]");
+        QOut("count: " + Str(oW.nCount, 4));
+        QOut("name:  " + "[" + oW.cName + "]");
         if (oW.lEnabled)
         {
-            HbRuntime.QOut("enabled: yes");
+            QOut("enabled: yes");
         }
         else
         {
-            HbRuntime.QOut("enabled: no");
+            QOut("enabled: no");
         }
 
         if (oW.lHidden)
         {
-            HbRuntime.QOut("hidden: yes");
+            QOut("hidden: yes");
         }
         else
         {
-            HbRuntime.QOut("hidden: no");
+            QOut("hidden: no");
         }
 
         return;

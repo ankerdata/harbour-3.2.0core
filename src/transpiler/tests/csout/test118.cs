@@ -27,15 +27,15 @@ public static partial class Program
             test118_shnSeen118[nKey] = true;
         }
 
-        HbRuntime.QOut("filled:", HbRuntime.Len(hnCount118), HbRuntime.Len(test118_shnSeen118), hnCount118[2]);
+        QOut("filled:", Len(hnCount118), Len(test118_shnSeen118), hnCount118[2]);
 
         hnCount118 = new OrderedDictionary<long, dynamic> {  };
         test118_shnSeen118 = new OrderedDictionary<long, dynamic> {  };
-        HbRuntime.QOut("emptied:", HbRuntime.Len(hnCount118), HbRuntime.Len(test118_shnSeen118));
+        QOut("emptied:", Len(hnCount118), Len(test118_shnSeen118));
 
         hnCount118[7] = 70;
         test118_shnSeen118[7] = true;
-        HbRuntime.QOut("again:", hnCount118[7], HbRuntime.hb_HHasKey(test118_shnSeen118, 7), HbRuntime.Len(hnCount118), HbRuntime.Len(test118_shnSeen118));
+        QOut("again:", hnCount118[7], hb_HHasKey(test118_shnSeen118, 7), Len(hnCount118), Len(test118_shnSeen118));
 
         return;
     }

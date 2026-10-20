@@ -21,7 +21,6 @@ using static Program;
 // paths: the AST SEND emitter (Stamp) and the INLINE textual
 // translator (Tag).
 
-// #include "hbclass.ch"
 // The `::&(name)` here is what marks Base a dynamic class (so it
 // emits `: HbDynamicObject`). Never called — it exists only to
 // trigger that classification.
@@ -31,7 +30,7 @@ public class Base : HbDynamicObject
     public dynamic Tag() => ((dynamic)this).cTag;
     public virtual Base MacroPoke(string cName = default, dynamic xVal = default)
     {
-        HbRuntime.SETMEMBER(this, cName, xVal);
+        SETMEMBER(this, cName, xVal);
         return this;
 
         // nMark is declared on Child, not Base — `::nMark` here is undeclared
@@ -59,9 +58,9 @@ public static partial class Program
         Child o = new Child();
 
         // AST SEND: read + write
-        HbRuntime.QOut("stamp=" + HbRuntime.LTrim(HbRuntime.Str(o.Stamp())));
+        QOut("stamp=" + LTrim(Str(o.Stamp())));
         // INLINE read
-        HbRuntime.QOut("tag=" + o.Tag());
+        QOut("tag=" + o.Tag());
         return;
     }
 }

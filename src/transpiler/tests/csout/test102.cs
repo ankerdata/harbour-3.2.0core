@@ -22,7 +22,7 @@ public static partial class Program
         dynamic cA = hbva.Length > 0 ? hbva[0] : null;
         dynamic cB = hbva.Length > 1 ? hbva[1] : null;
         dynamic cC = hbva.Length > 2 ? hbva[2] : null;
-        string cOut = "muster=" + HbRuntime.LTrim(HbRuntime.Str(hbva.Length)) + ":" + cA;
+        string cOut = "muster=" + LTrim(Str(hbva.Length)) + ":" + cA;
         if (hbva.Length >= 2)
         {
             cOut += "," + cB;
@@ -39,16 +39,16 @@ public static partial class Program
     {
         dynamic cFirst = hbva.Length > 0 ? hbva[0] : null;
         dynamic cSecond = hbva.Length > 1 ? hbva[1] : null;
-        return "convoy=" + HbRuntime.LTrim(HbRuntime.Str(hbva.Length)) + ":" + (hbva.Length >= 2 ? cSecond : cFirst);
+        return "convoy=" + LTrim(Str(hbva.Length)) + ":" + (hbva.Length >= 2 ? cSecond : cFirst);
     }
 
     public static void Main(string[] args)
     {
-        HbRuntime.QOut(test102_Muster("one"));
-        HbRuntime.QOut(test102_Muster("one", "two"));
-        HbRuntime.QOut(test102_Muster("one", "two", "three"));
-        HbRuntime.QOut(Convoy("solo"));
-        HbRuntime.QOut(Convoy("a", "b"));
+        QOut(test102_Muster("one"));
+        QOut(test102_Muster("one", "two"));
+        QOut(test102_Muster("one", "two", "three"));
+        QOut(Convoy("solo"));
+        QOut(Convoy("a", "b"));
         return;
     }
 }

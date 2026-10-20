@@ -32,7 +32,7 @@ public static partial class Program
     {
         Bump();
         Bump();
-        HbRuntime.QOut(Greet("Alex", true, "!"));
+        QOut(Greet("Alex", true, "!"));
         return;
     }
 

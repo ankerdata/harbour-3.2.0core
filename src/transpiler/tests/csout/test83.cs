@@ -21,8 +21,6 @@ using static Program;
 // TestDeptDef: in the C# build that name belongs to the generated
 // model; in the Harbour run the def name only appears as the factory
 // function, exactly like the real orm.prg flow.
-
-// #include "hbclass.ch"
 public class TestOrmRec : IHbObject
 {
     public decimal nNo;
@@ -73,13 +71,13 @@ public static partial class Program
 
         nNext = oDept.nNo + 1;
 
-        HbRuntime.QOut("no=" + HbRuntime.LTrim(HbRuntime.Str(oDept.nNo)));
-        HbRuntime.QOut("next=" + HbRuntime.LTrim(HbRuntime.Str(nNext)));
-        HbRuntime.QOut("clerk=" + HbRuntime.LTrim(HbRuntime.Str(oDept.nClerkNo)));
-        HbRuntime.QOut("name=" + oDept.cName);
-        HbRuntime.QOut("dis=" + (oDept.lDisable ? "T" : "F"));
-        HbRuntime.QOut("rate=" + HbRuntime.LTrim(HbRuntime.Str(oDept.nRate, 6, 2)));
-        HbRuntime.QOut("since=" + HbRuntime.DToS(oDept.dSince));
+        QOut("no=" + LTrim(Str(oDept.nNo)));
+        QOut("next=" + LTrim(Str(nNext)));
+        QOut("clerk=" + LTrim(Str(oDept.nClerkNo)));
+        QOut("name=" + oDept.cName);
+        QOut("dis=" + (oDept.lDisable ? "T" : "F"));
+        QOut("rate=" + LTrim(Str(oDept.nRate, 6, 2)));
+        QOut("since=" + DToS(oDept.dSince));
         return;
     }
 }

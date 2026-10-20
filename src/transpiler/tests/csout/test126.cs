@@ -87,10 +87,10 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        HbRuntime.QOut(test126_Kind126("C"), test126_Kind126("M"), test126_Kind126("B"));
-        HbRuntime.QOut(test126_Kind126("N"), test126_Kind126("I"), test126_Kind126("L"), test126_Kind126("D") == null);
-        HbRuntime.QOut(test126_Grade126(3) + "|" + test126_Grade126(2) + "|" + test126_Grade126(1) + "|" + test126_Grade126(9));
-        HbRuntime.QOut(test126_Tail126("a"), test126_Tail126("b"), test126_Tail126("z"), test126_Tail126(7));
+        QOut(test126_Kind126("C"), test126_Kind126("M"), test126_Kind126("B"));
+        QOut(test126_Kind126("N"), test126_Kind126("I"), test126_Kind126("L"), test126_Kind126("D") == null);
+        QOut(test126_Grade126(3) + "|" + test126_Grade126(2) + "|" + test126_Grade126(1) + "|" + test126_Grade126(9));
+        QOut(test126_Tail126("a"), test126_Tail126("b"), test126_Tail126("z"), test126_Tail126(7));
 
         return;
     }

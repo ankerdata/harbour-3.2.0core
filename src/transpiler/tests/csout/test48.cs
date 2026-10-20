@@ -22,23 +22,23 @@ public static partial class Program
         string cAccum = "";
 
         // Use cMemberName inside a FOR-loop body first (nested scope).
-        for (i = 1; i <= HbRuntime.Len(aFields); i++)
+        for (i = 1; i <= Len(aFields); i++)
         {
             cMemberName = aFields[Ix(i)];
             cAccum += "[" + cMemberName + "]";
         }
 
-        HbRuntime.QOut("via-for: " + cAccum);
+        QOut("via-for: " + cAccum);
 
         // Then reuse the same name as a FOREACH iterator.
         cAccum = "";
-        foreach (string __hb_fe_cMemberName in HbRuntime.HbEnumValues(aFields))
+        foreach (string __hb_fe_cMemberName in HbEnumValues(aFields))
         {
             cMemberName = __hb_fe_cMemberName;
             cAccum += "<" + cMemberName + ">";
         }
 
-        HbRuntime.QOut("via-each: " + cAccum);
+        QOut("via-each: " + cAccum);
 
         return;
     }

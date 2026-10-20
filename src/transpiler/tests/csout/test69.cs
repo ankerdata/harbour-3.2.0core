@@ -53,7 +53,7 @@ public static partial class Program
             }
         }
 
-        HbRuntime.QOut("nN=" + HbRuntime.Str(nN, 2));
+        QOut("nN=" + Str(nN, 2));
         return;
     }
 }

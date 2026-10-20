@@ -23,7 +23,6 @@ using static Program;
 // public `nLevy` takes one — the deliberate collision. Counting
 // against the bare name once dropped 23 of rmio2700's 27 RoomCharge
 // arguments (the public RoomCharge takes four).
-// #include "hbclass.ch"
 public class Bursar : IHbObject
 {
     public decimal nTotal = 0;
@@ -56,11 +55,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Treasurer oT = new Treasurer();
-        HbRuntime.QOut("tariff=" + HbRuntime.LTrim(HbRuntime.Str(Tariff(10, 2))));
+        QOut("tariff=" + LTrim(Str(Tariff(10, 2))));
         oT.Post(5);
-        HbRuntime.QOut("total=" + HbRuntime.LTrim(HbRuntime.Str(oT.nTotal)));
-        HbRuntime.QOut("plain=" + HbRuntime.LTrim(HbRuntime.Str(Tariff(3, 4))));
-        HbRuntime.QOut("levy=" + HbRuntime.LTrim(HbRuntime.Str(test104_nLevy(1, 2, 3))));
+        QOut("total=" + LTrim(Str(oT.nTotal)));
+        QOut("plain=" + LTrim(Str(Tariff(3, 4))));
+        QOut("levy=" + LTrim(Str(test104_nLevy(1, 2, 3))));
         return;
     }
 }

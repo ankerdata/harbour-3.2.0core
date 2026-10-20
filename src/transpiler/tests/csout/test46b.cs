@@ -12,8 +12,8 @@ public static partial class Program
 
         SaveFlags("out.dat", aArr, 3);
 
-        HbRuntime.QOut("saved[1]=" + aArr[Ix(1)]);
-        HbRuntime.QOut("saved[3]=" + aArr[Ix(3)]);
+        QOut("saved[1]=" + aArr[Ix(1)]);
+        QOut("saved[3]=" + aArr[Ix(3)]);
 
         return;
     }

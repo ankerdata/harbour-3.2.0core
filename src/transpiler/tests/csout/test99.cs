@@ -17,7 +17,6 @@ using static Program;
 // body goes through the inline text translator (as an INLINE method's
 // does), which now maps a single-colon send (`::oProxy:member`); it
 // does not rebase a 1-based subscript, so those stay in a method.
-// #include "hbclass.ch"
 public class Bin : IHbObject
 {
     protected List<dynamic> aItems = new List<dynamic>();
@@ -26,14 +25,14 @@ public class Bin : IHbObject
     public dynamic Len => Heft();
     public virtual dynamic Push(dynamic xItem = default)
     {
-        HbRuntime.AAdd(aItems, xItem);
+        AAdd(aItems, xItem);
         return xItem;
     }
 
     public virtual dynamic Pop()
     {
         dynamic xLast = Last();
-        HbRuntime.ASize(aItems, HbRuntime.Len(aItems) - 1);
+        ASize(aItems, HbRuntime.Len(aItems) - 1);
         return xLast;
     }
 
@@ -56,10 +55,10 @@ public static partial class Program
         Bin xBin = new Bin();
         xBin.Push("jar");
         xBin.Push("tin");
-        HbRuntime.QOut("heft=" + HbRuntime.LTrim(HbRuntime.Str(xBin.Heft())) + " len=" + HbRuntime.LTrim(HbRuntime.Str(xBin.Len)));
-        HbRuntime.QOut("top=" + xBin.Peak);
+        QOut("heft=" + LTrim(Str(xBin.Heft())) + " len=" + LTrim(Str(xBin.Len)));
+        QOut("top=" + xBin.Peak);
         xBin.Peak = "box";
-        HbRuntime.QOut("top=" + xBin.Peak + " heft=" + HbRuntime.LTrim(HbRuntime.Str(xBin.Heft())));
+        QOut("top=" + xBin.Peak + " heft=" + LTrim(Str(xBin.Heft())));
         return;
     }
 }

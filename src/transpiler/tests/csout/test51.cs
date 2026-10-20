@@ -25,19 +25,19 @@ public static partial class Program
     public static List<dynamic> aFlag;
     public static void Main(string[] args)
     {
-        aFlag = HbRuntime.Array(3);
+        aFlag = Array(3);
 
         aFlag[Ix(1)] = 10;
         aFlag[Ix(2)] = 20;
         aFlag[Ix(3)] = 30;
-        HbRuntime.QOut("before:" + HbRuntime.Str(aFlag[Ix(1)], 4) + HbRuntime.Str(aFlag[Ix(2)], 4) + HbRuntime.Str(aFlag[Ix(3)], 4));
+        QOut("before:" + Str(aFlag[Ix(1)], 4) + Str(aFlag[Ix(2)], 4) + Str(aFlag[Ix(3)], 4));
 
         /* AddDelta only mutates elements of its array parameter, so the array
       is passed plain (no `@`): element writes propagate through the shared
       reference, C# arrays being reference types. aFlag still emits as
       `dynamic[]` — the PUBLIC sized-array fix this test guards. */
         AddDelta(aFlag, 5);
-        HbRuntime.QOut("after: " + HbRuntime.Str(aFlag[Ix(1)], 4) + HbRuntime.Str(aFlag[Ix(2)], 4) + HbRuntime.Str(aFlag[Ix(3)], 4));
+        QOut("after: " + Str(aFlag[Ix(1)], 4) + Str(aFlag[Ix(2)], 4) + Str(aFlag[Ix(3)], 4));
 
         return;
     }
@@ -45,7 +45,7 @@ public static partial class Program
     public static void AddDelta(List<dynamic> aArr = default, decimal nDelta = default)
     {
         long nI = default;
-        for (nI = 1; nI <= HbRuntime.Len(aArr); nI++)
+        for (nI = 1; nI <= Len(aArr); nI++)
         {
             aArr[Ix(nI)] = aArr[Ix(nI)] + nDelta;
         }

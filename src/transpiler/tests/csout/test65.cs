@@ -21,7 +21,7 @@ public static partial class Program
     {
         // written back -> marks lLog by-ref
         lLog = (nCode > 0);
-        return (lUpper == true ? "CODE" : "code") + HbRuntime.Str(nCode, 2);
+        return (lUpper == true ? "CODE" : "code") + Str(nCode, 2);
     }
 
     public static string ErrText65(decimal nCode = default)
@@ -35,12 +35,12 @@ public static partial class Program
     {
         bool lLog = false;
         // omit lLog + lUpper -> short overload
-        HbRuntime.QOut(ErrText65(5));
+        QOut(ErrText65(5));
         // skip lLog, pass lUpper -> by-value overload
-        HbRuntime.QOut(ErrText65(7, ref HbDiscard<bool>.Value, true));
+        QOut(ErrText65(7, ref HbDiscard<bool>.Value, true));
         // pass @lLog -> canonical (writes lLog back)
-        HbRuntime.QOut(ErrText65(3, ref lLog));
-        HbRuntime.QOut("lLog=" + (lLog ? "Y" : "N"));
+        QOut(ErrText65(3, ref lLog));
+        QOut("lLog=" + (lLog ? "Y" : "N"));
         return;
     }
 }

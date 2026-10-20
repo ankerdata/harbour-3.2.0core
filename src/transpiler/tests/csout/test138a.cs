@@ -49,7 +49,7 @@ public static partial class Program
     {
         decimal nTotal = 0;
         long iPos = default;
-        for (iPos = 1; iPos <= HbRuntime.Len(oTill138.aLines); iPos++)
+        for (iPos = 1; iPos <= Len(oTill138.aLines); iPos++)
         {
             if (((Line138)oTill138.aLines[Ix(iPos)]).nKind != 0)
             {

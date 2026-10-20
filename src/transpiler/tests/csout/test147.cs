@@ -19,10 +19,10 @@ public static partial class Program
         string cUmlaut147 = "z\u00E4hler";
         string cEsc147 = "\u001B@";
 
-        HbRuntime.QOut("euro:", HbRuntime.Len(cEuro147), HbRuntime.Asc(cEuro147), HbRuntime.Asc(HbRuntime.SubStr(cEuro147, 2)), HbRuntime.Asc(HbRuntime.SubStr(cEuro147, 3)));
-        HbRuntime.QOut("cut to 9:", HbRuntime.Len(HbRuntime.Left(cEuro147, 9)), HbRuntime.Asc(HbRuntime.Right(HbRuntime.Left(cEuro147, 9), 1)));
-        HbRuntime.QOut("umlaut:", HbRuntime.Len(cUmlaut147), HbRuntime.Asc(HbRuntime.SubStr(cUmlaut147, 2)));
-        HbRuntime.QOut("escape:", HbRuntime.Len(cEsc147), HbRuntime.Asc(cEsc147));
+        QOut("euro:", Len(cEuro147), Asc(cEuro147), Asc(SubStr(cEuro147, 2)), Asc(SubStr(cEuro147, 3)));
+        QOut("cut to 9:", Len(Left(cEuro147, 9)), Asc(Right(Left(cEuro147, 9), 1)));
+        QOut("umlaut:", Len(cUmlaut147), Asc(SubStr(cUmlaut147, 2)));
+        QOut("escape:", Len(cEsc147), Asc(cEsc147));
 
         return;
     }

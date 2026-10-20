@@ -26,9 +26,9 @@ public static partial class Program
     {
         /* Mixed-type call sites — without the sticky guard, the first
       caller's type would narrow xVal and the second would CS1503. */
-        HbRuntime.QOut("string: " + Describe("hello"));
-        HbRuntime.QOut("number: " + Describe(42));
-        HbRuntime.QOut("logical:" + Describe(true));
+        QOut("string: " + Describe("hello"));
+        QOut("number: " + Describe(42));
+        QOut("logical:" + Describe(true));
 
         return;
     }
@@ -36,15 +36,15 @@ public static partial class Program
     public static dynamic Describe(dynamic xVal = default)
     {
         /* Body does VALTYPE() dispatch — the canonical USUAL pattern. */
-        if (HbRuntime.ValType(xVal) == "C")
+        if (ValType(xVal) == "C")
         {
             return "string-" + xVal;
         }
-        else if (HbRuntime.ValType(xVal) == "N")
+        else if (ValType(xVal) == "N")
         {
-            return "number-" + HbRuntime.LTrim(HbRuntime.Str(xVal));
+            return "number-" + LTrim(Str(xVal));
         }
-        else if (HbRuntime.ValType(xVal) == "L")
+        else if (ValType(xVal) == "L")
         {
             return "bool-" + (xVal ? "T" : "F");
         }

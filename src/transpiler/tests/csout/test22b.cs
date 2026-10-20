@@ -5,7 +5,6 @@ using static Program;
 // Test 22b: companion to test22a — second class also has an `Add`
 // method, but with a STRING parameter instead of NUMERIC. Plus the
 // Main that exercises both. See test22a.prg for the rationale.
-// #include "hbclass.ch"
 public class Names : IHbObject
 {
     public string cAll = "";
@@ -24,7 +23,7 @@ public class Names : IHbObject
 
     public virtual Names Show()
     {
-        HbRuntime.QOut("all=" + cAll);
+        QOut("all=" + cAll);
         return this;
     }
 }

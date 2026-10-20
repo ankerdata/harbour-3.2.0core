@@ -18,7 +18,7 @@ public static partial class Program
             nSum = nSum + i;
         }
 
-        HbRuntime.QOut("nSum after STEP=" + HbRuntime.Str(nSum));
+        QOut("nSum after STEP=" + Str(nSum));
 
         // FOR counting down with negative STEP
         for (i = 10; i >= 1; i += -1)
@@ -26,16 +26,16 @@ public static partial class Program
             nSum = nSum + i;
         }
 
-        HbRuntime.QOut("nSum after DOWN=" + HbRuntime.Str(nSum));
+        QOut("nSum after DOWN=" + Str(nSum));
 
         // FOR EACH with DESCEND
-        foreach (string __hb_fe_cItem in HbRuntime.HbEnumValues(aItems, true))
+        foreach (string __hb_fe_cItem in HbEnumValues(aItems, true))
         {
             cItem = __hb_fe_cItem;
-            nSum = nSum + HbRuntime.Len(cItem);
+            nSum = nSum + Len(cItem);
         }
 
-        HbRuntime.QOut("nSum=" + HbRuntime.Str(nSum));
+        QOut("nSum=" + Str(nSum));
 
         return;
     }

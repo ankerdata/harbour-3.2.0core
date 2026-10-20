@@ -17,10 +17,10 @@ public static partial class Program
     {
         long i = default;
 
-        HbRuntime.ASize(aFlag, nCount);
+        ASize(aFlag, nCount);
         for (i = 1; i <= nCount; i++)
         {
-            aFlag[Ix(i)] = cFile + "#" + HbRuntime.Str(i, 1);
+            aFlag[Ix(i)] = cFile + "#" + Str(i, 1);
         }
 
         return;

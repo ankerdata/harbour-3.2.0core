@@ -42,45 +42,45 @@ public static partial class Program
         decimal nSum = 0;
         long iTotal = 0;
 
-        foreach (string __hb_fe_cName135 in HbRuntime.HbEnumValues(aNames135))
+        foreach (string __hb_fe_cName135 in HbEnumValues(aNames135))
         {
             cName135 = __hb_fe_cName135;
             cOut += cName135 + ";";
         }
 
-        foreach (List<dynamic> __hb_fe_aRow135 in HbRuntime.HbEnumValues(aRows135))
+        foreach (List<dynamic> __hb_fe_aRow135 in HbEnumValues(aRows135))
         {
             aRow135 = __hb_fe_aRow135;
-            cOut += aRow135[Ix(1)] + HbRuntime.hb_ntos(aRow135[Ix(2)]) + ";";
+            cOut += aRow135[Ix(1)] + hb_ntos(aRow135[Ix(2)]) + ";";
         }
 
-        foreach (OrderedDictionary<string, dynamic> __hb_fe_hField135 in HbRuntime.HbEnumValues(aHashes135))
+        foreach (OrderedDictionary<string, dynamic> __hb_fe_hField135 in HbEnumValues(aHashes135))
         {
             hField135 = __hb_fe_hField135;
             cOut += hField135["k"] + ";";
         }
 
-        foreach (decimal __hb_fe_nAmount135 in HbRuntime.HbEnumValues(aAmounts135))
+        foreach (decimal __hb_fe_nAmount135 in HbEnumValues(aAmounts135))
         {
             nAmount135 = __hb_fe_nAmount135;
             nSum += nAmount135;
         }
 
-        foreach (long __hb_fe_iCount135 in HbRuntime.HbEnumValues(aCounts135))
+        foreach (long __hb_fe_iCount135 in HbEnumValues(aCounts135))
         {
             iCount135 = __hb_fe_iCount135;
             iTotal += iCount135;
         }
 
-        foreach (long __hb_fe_iCount135 in HbRuntime.HbEnumValues(aWhole135))
+        foreach (long __hb_fe_iCount135 in HbEnumValues(aWhole135))
         {
             iCount135 = __hb_fe_iCount135;
             iTotal += iCount135;
         }
 
-        HbRuntime.QOut(cOut);
-        HbRuntime.QOut(nSum);
-        HbRuntime.QOut(iTotal);
+        QOut(cOut);
+        QOut(nSum);
+        QOut(iTotal);
         return;
     }
 }

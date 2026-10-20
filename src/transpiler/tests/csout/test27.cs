@@ -15,8 +15,6 @@ using static Program;
 // `new DateTime(/* date: 0x... */)` stubs that compiled to a zero
 // argument list (syntax error). They now decode the Julian day via
 // hb_dateDecode and emit proper DateOnly / DateTime constructors.
-
-// #include "common.ch"
 public static partial class Program
 {
     public static void Main(string[] args)
@@ -24,19 +22,19 @@ public static partial class Program
         // DATE literal → DateOnly(1970, 1, 1)
         DateOnly dBirth = new DateOnly(1970, 1, 1);
         // DATE() → DateOnly
-        DateOnly dToday = HbRuntime.Date();
+        DateOnly dToday = Date();
         string cFormatted = default;
 
-        cFormatted = HbRuntime.DToS(dBirth);
-        HbRuntime.QOut("birth:", cFormatted);
+        cFormatted = DToS(dBirth);
+        QOut("birth:", cFormatted);
 
         if (dToday >= dBirth)
         {
-            HbRuntime.QOut("chronology holds");
+            QOut("chronology holds");
         }
         else
         {
-            HbRuntime.QOut("time flows backwards");
+            QOut("time flows backwards");
         }
 
         return;

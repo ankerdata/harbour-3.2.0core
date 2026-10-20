@@ -16,7 +16,6 @@ using static Program;
 // slot (statically bound, converts to dynamic for free), the slot's
 // own type for a typed one. Concrete-typed arguments are left alone so
 // a real mismatch still reads as CS1503.
-// #include "hbclass.ch"
 public class Gadget : IHbObject
 {
     public string cName = "gadget";
@@ -61,7 +60,7 @@ public static partial class Program
         Tandem oTandem = default;
         xItem = new Gadget();
         oTandem = new Tandem().New(xItem, 2);
-        HbRuntime.QOut("count=" + HbRuntime.LTrim(HbRuntime.Str(oTandem.nCount)) + " item=" + oTandem.oItem.cName);
+        QOut("count=" + LTrim(Str(oTandem.nCount)) + " item=" + oTandem.oItem.cName);
         return;
     }
 }

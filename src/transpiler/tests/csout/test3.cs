@@ -17,39 +17,39 @@ public static partial class Program
         if (nChoice == 1)
         {
             cResult = "first";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
         else if (nChoice == 2)
         {
             cResult = "second";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
         else
         {
             cResult = "other";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
 
         // FOR EACH
-        foreach (string __hb_fe_cItem in HbRuntime.HbEnumValues(aItems))
+        foreach (string __hb_fe_cItem in HbEnumValues(aItems))
         {
             cItem = __hb_fe_cItem;
             cResult = cResult + cItem;
         }
 
-        HbRuntime.QOut("cResult=" + cResult);
+        QOut("cResult=" + cResult);
 
         // BEGIN SEQUENCE
         try
         {
             cResult = DoSomething();
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
         catch (HbBreak __hb_brk1)
         {
             oErr = __hb_brk1.Value;
             cResult = "error caught";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
         finally
         {

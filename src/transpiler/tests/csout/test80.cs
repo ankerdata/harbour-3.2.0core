@@ -40,7 +40,7 @@ public static partial class Program
         // sees 10 in, returns via param, but stays 10
         Grow(nInOut);
         // 10 * 3 = 30 as the RETURN
-        HbRuntime.QOut("grow-returned=", Grow(nInOut));
+        QOut("grow-returned=", Grow(nInOut));
 
         // String out-param, same rules.
         // by ref   -> cRef becomes "new"
@@ -54,11 +54,11 @@ public static partial class Program
             AddTo(ref _hbref_arg_0, 5);
         }
 
-        HbRuntime.QOut("nRef=", nRef);
-        HbRuntime.QOut("nBare=", nBare);
-        HbRuntime.QOut("nInOut=", nInOut);
-        HbRuntime.QOut("cRef=", cRef);
-        HbRuntime.QOut("cBare=", cBare);
+        QOut("nRef=", nRef);
+        QOut("nBare=", nBare);
+        QOut("nInOut=", nInOut);
+        QOut("cRef=", cRef);
+        QOut("cBare=", cBare);
 
         return;
     }

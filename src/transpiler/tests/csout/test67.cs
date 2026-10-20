@@ -23,19 +23,19 @@ public static partial class Program
     {
         // element mutation only
         long i = default;
-        for (i = 1; i <= HbRuntime.Len(aArr); i++)
+        for (i = 1; i <= Len(aArr); i++)
         {
             aArr[Ix(i)] = aArr[Ix(i)] * nFactor;
         }
 
-        return HbRuntime.Len(aArr);
+        return Len(aArr);
     }
 
     public static decimal Replace(ref List<dynamic> aArr)
     {
         // reassigns the whole variable
         aArr = new List<dynamic> { 7, 8, 9 };
-        return HbRuntime.Len(aArr);
+        return Len(aArr);
     }
 
     public static void Main(string[] args)
@@ -43,10 +43,10 @@ public static partial class Program
         List<dynamic> aData = new List<dynamic> { 1, 2, 3 };
         // elided: aData[i] mutated in place
         Scale(aData, 10);
-        HbRuntime.QOut("scaled=" + HbRuntime.Str(aData[Ix(1)], 4) + HbRuntime.Str(aData[Ix(2)], 4) + HbRuntime.Str(aData[Ix(3)], 4));
+        QOut("scaled=" + Str(aData[Ix(1)], 4) + Str(aData[Ix(2)], 4) + Str(aData[Ix(3)], 4));
         // ref kept: aData is repointed
         Replace(ref aData);
-        HbRuntime.QOut("replaced=" + HbRuntime.Str(aData[Ix(1)], 4) + HbRuntime.Str(aData[Ix(2)], 4) + HbRuntime.Str(aData[Ix(3)], 4));
+        QOut("replaced=" + Str(aData[Ix(1)], 4) + Str(aData[Ix(2)], 4) + Str(aData[Ix(3)], 4));
         return;
     }
 }

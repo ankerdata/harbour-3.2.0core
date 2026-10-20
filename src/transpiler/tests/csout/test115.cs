@@ -16,30 +16,30 @@ public static partial class Program
     [ThreadStatic] public static decimal test115_snSeen = 0;
     public static void Main(string[] args)
     {
-        dynamic pMtx = HbRuntime.hb_mutexCreate();
+        dynamic pMtx = hb_mutexCreate();
         dynamic xGot = default;
         dynamic pThread = default;
 
         // each thread its own THREAD STATIC, starting from its declared value
         xGot = "none";
         test115_snSeen = 7;
-        pThread = HbRuntime.hb_threadStart(HbRuntime.FuncPtr("test115_Thr115Bump"), pMtx);
-        HbRuntime.hb_threadWait(pThread, 5);
-        HbRuntime.hb_mutexSubscribe(pMtx, 5, ref xGot);
-        HbRuntime.QOut("thread static:", xGot, test115_snSeen);
+        pThread = hb_threadStart(FuncPtr("test115_Thr115Bump"), pMtx);
+        hb_threadWait(pThread, 5);
+        hb_mutexSubscribe(pMtx, 5, ref xGot);
+        QOut("thread static:", xGot, test115_snSeen);
 
         // a codeblock around a call Harbour returns NIL from
-        pThread = HbRuntime.hb_threadStart(((Func<dynamic>)(() => HbRuntime.hb_idleSleep(0.01m))));
-        HbRuntime.QOut("block thread:", HbRuntime.hb_threadWait(pThread, 5));
+        pThread = hb_threadStart(((Func<dynamic>)(() => hb_idleSleep(0.01m))));
+        QOut("block thread:", hb_threadWait(pThread, 5));
 
         // QUIT in a thread, inside BEGIN SEQUENCE WITH: the thread ends there,
         // the sequence does not take it, the program goes on
         xGot = "none";
-        pThread = HbRuntime.hb_threadStart(HbRuntime.FuncPtr("test115_Thr115Quit"), pMtx);
-        HbRuntime.QOut("quit thread:", HbRuntime.hb_threadWait(pThread, 5));
-        HbRuntime.hb_mutexSubscribe(pMtx, 0.2m, ref xGot);
-        HbRuntime.QOut("after quit:", xGot);
-        HbRuntime.QOut("main goes on");
+        pThread = hb_threadStart(FuncPtr("test115_Thr115Quit"), pMtx);
+        QOut("quit thread:", hb_threadWait(pThread, 5));
+        hb_mutexSubscribe(pMtx, 0.2m, ref xGot);
+        QOut("after quit:", xGot);
+        QOut("main goes on");
 
         return;
     }
@@ -47,7 +47,7 @@ public static partial class Program
     public static void test115_Thr115Bump(dynamic pMtx = default)
     {
         test115_snSeen++;
-        HbRuntime.hb_mutexNotify(pMtx, test115_snSeen);
+        hb_mutexNotify(pMtx, test115_snSeen);
 
         return;
     }
@@ -56,14 +56,14 @@ public static partial class Program
     {
         try
         {
-            HbRuntime.__Quit();
+            __Quit();
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
-            HbRuntime.hb_mutexNotify(pMtx, "recovered");
+            hb_mutexNotify(pMtx, "recovered");
         }
 
-        HbRuntime.hb_mutexNotify(pMtx, "went on");
+        hb_mutexNotify(pMtx, "went on");
 
         return;
     }

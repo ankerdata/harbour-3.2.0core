@@ -27,8 +27,6 @@ using static Program;
 // A MODULE FRIENDLY class lets the functions of its own file use its
 // PROTECTED and HIDDEN members (ormsql.prg's PreparedSeek() reads SQLtTable's
 // hSeekStmts): `protected internal` / `internal` in C#.
-
-// #include "hbclass.ch"
 public class Handle122 : IHbObject
 {
     public string cLabel122 { get; protected set; }
@@ -49,7 +47,7 @@ public class Handle122 : IHbObject
         // spelled otherwise than its declaration: the definition takes the declared Peek122
     }
 
-    ~Handle122() => HbRuntime.RunDestructor(() => Release122());
+    ~Handle122() => RunDestructor(() => Release122());
 }
 
 public class Vault122 : IHbObject
@@ -59,7 +57,7 @@ public class Vault122 : IHbObject
 
     public virtual string Peek122()
     {
-        return HbRuntime.hb_ntos(nInside122) + " " + cSealed122;
+        return hb_ntos(nInside122) + " " + cSealed122;
 
         // a function of the file, reaching the FRIENDLY class's protected members
     }
@@ -78,12 +76,12 @@ public static partial class Program
     public static void Main(string[] args)
     {
         test122_Open122("first");
-        HbRuntime.hb_gcAll(true);
-        HbRuntime.QOut("freed:", test122_snFreed122);
+        hb_gcAll(true);
+        QOut("freed:", test122_snFreed122);
 
         test122_Open122("second");
-        HbRuntime.hb_gcAll(true);
-        HbRuntime.QOut("freed:", test122_snFreed122);
+        hb_gcAll(true);
+        QOut("freed:", test122_snFreed122);
 
         test122_Vault122Check();
 
@@ -96,7 +94,7 @@ public static partial class Program
         Handle122 oHandle = new Handle122();
 
         oHandle.Label122(cLabel);
-        HbRuntime.QOut("label:", oHandle.cLabel122);
+        QOut("label:", oHandle.cLabel122);
 
         return;
     }
@@ -106,7 +104,7 @@ public static partial class Program
         Vault122 oVault = new Vault122();
 
         test122_Fill122(oVault);
-        HbRuntime.QOut("vault:", oVault.Peek122());
+        QOut("vault:", oVault.Peek122());
 
         return;
     }

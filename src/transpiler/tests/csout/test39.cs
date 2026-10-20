@@ -22,8 +22,6 @@ using static Program;
 //
 // Real-code analogues: sharedx/transaction.prg (hash-backed class
 // DATAs), easiposx/spoolprt.prg (DLE+EOT CHR-string LOCALs).
-
-// #include "hbclass.ch"
 public class Bag : IHbObject
 {
     public string cHello = "ab" + "cd";
@@ -33,20 +31,20 @@ public class Bag : IHbObject
 
 public static partial class Program
 {
-    public static string test39_s_cStatic = HbRuntime.Chr(27) + "02" + HbRuntime.Chr(1);
+    public static string test39_s_cStatic = Chr(27) + "02" + Chr(1);
     public static void Main(string[] args)
     {
         string cLocal = "ab" + "cd";
-        string cPayload = HbRuntime.Chr(16) + HbRuntime.Chr(4);
+        string cPayload = Chr(16) + Chr(4);
         OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
         Bag oB = new Bag();
 
-        HbRuntime.QOut("local:  " + cLocal);
-        HbRuntime.QOut("llen:   " + HbRuntime.Str(HbRuntime.Len(cPayload), 4));
-        HbRuntime.QOut("static: " + HbRuntime.Str(HbRuntime.Len(test39_s_cStatic), 4));
-        HbRuntime.QOut("class:  " + oB.cHello);
-        HbRuntime.QOut("hsize:  " + HbRuntime.Str(HbRuntime.Len(hEmpty), 4));
-        HbRuntime.QOut("hclas:  " + HbRuntime.Str(HbRuntime.Len(oB.hTable), 4));
+        QOut("local:  " + cLocal);
+        QOut("llen:   " + Str(Len(cPayload), 4));
+        QOut("static: " + Str(Len(test39_s_cStatic), 4));
+        QOut("class:  " + oB.cHello);
+        QOut("hsize:  " + Str(Len(hEmpty), 4));
+        QOut("hclas:  " + Str(Len(oB.hTable), 4));
 
         return;
     }

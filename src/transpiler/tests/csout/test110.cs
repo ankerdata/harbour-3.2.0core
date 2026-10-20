@@ -15,7 +15,6 @@ using static Program;
 // stands, a value with no effect dropped, an IIF as if/else, any other
 // value discarded — and the last is returned. A `...` block runs them
 // all before its `return null`.
-// #include "hbclass.ch"
 public class BlockTally : IHbObject
 {
     public decimal nPunches = 0;
@@ -37,52 +36,52 @@ public static partial class Program
         string cTrail = "";
         List<dynamic> aNums = new List<dynamic> { 3, 1, 2 };
         decimal nCalls = 0;
-        Func<dynamic, dynamic> bPair = ((Func<dynamic, dynamic>)((x) => { HbRuntime.AAdd(aSeen, x); return x * 10; }));
+        Func<dynamic, dynamic> bPair = ((Func<dynamic, dynamic>)((x) => { AAdd(aSeen, x); return x * 10; }));
         Func<decimal> bThree = ((Func<decimal>)(() => { nSum += 1; nSum += 10; return nSum; }));
         BlockTally oTally = new BlockTally();
 
-        HbRuntime.QOut(HbRuntime.Eval(bPair, 4));
-        HbRuntime.QOut(HbRuntime.Len(aSeen));
-        HbRuntime.QOut(HbRuntime.Eval(bThree));
+        QOut(Eval(bPair, 4));
+        QOut(Len(aSeen));
+        QOut(Eval(bThree));
 
-        HbRuntime.AEval(aNums, ((Func<dynamic, dynamic>)((n) => { nSum += n; return cTrail += HbRuntime.Str(n, 1); })));
-        HbRuntime.QOut(nSum);
-        HbRuntime.QOut(cTrail);
+        AEval(aNums, ((Func<dynamic, dynamic>)((n) => { nSum += n; return cTrail += Str(n, 1); })));
+        QOut(nSum);
+        QOut(cTrail);
 
-        HbRuntime.ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return a < b; })));
-        HbRuntime.QOut(aNums[Ix(1)], aNums[Ix(2)], aNums[Ix(3)]);
-        HbRuntime.QOut(nCalls > 0);
+        ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return a < b; })));
+        QOut(aNums[Ix(1)], aNums[Ix(2)], aNums[Ix(3)]);
+        QOut(nCalls > 0);
 
         // a value that is only discarded; a value with no effect at all
         // (`nSum`, `nSum > 0`) is Harbour's own W0027, which -es2 rejects
-        HbRuntime.QOut(HbRuntime.Eval(((Func<string>)(() => { _ = nSum > 0 && BlockSay("and"); return "kept"; }))));
+        QOut(Eval(((Func<string>)(() => { _ = nSum > 0 && BlockSay("and"); return "kept"; }))));
 
         // an IIF in the middle, a procedure, a member assigned through a send
-        HbRuntime.AEval(aNums, ((Func<dynamic, dynamic>)((n) => { if (n > 1) { HbRuntime.AAdd(aSeen, n); } else { } BlockNote("n"); return n; })));
-        HbRuntime.QOut(HbRuntime.Len(aSeen));
-        HbRuntime.Eval(((Func<dynamic>)(() => { oTally.Punch(); return oTally.nDayTotal = 0; })));
-        HbRuntime.QOut(oTally.nPunches, oTally.nDayTotal);
+        AEval(aNums, ((Func<dynamic, dynamic>)((n) => { if (n > 1) { AAdd(aSeen, n); } else { } BlockNote("n"); return n; })));
+        QOut(Len(aSeen));
+        Eval(((Func<dynamic>)(() => { oTally.Punch(); return oTally.nDayTotal = 0; })));
+        QOut(oTally.nPunches, oTally.nDayTotal);
 
         // a FOR-style condition: the block's value is its last expression
-        HbRuntime.QOut(BlockCount(aNums, ((Func<dynamic, bool>)((n) => { nCalls = 0; return n >= 2; }))));
-        HbRuntime.QOut(nCalls);
+        QOut(BlockCount(aNums, ((Func<dynamic, bool>)((n) => { nCalls = 0; return n >= 2; }))));
+        QOut(nCalls);
 
         // a `...` block runs every expression too
-        HbRuntime.Eval(((Func<dynamic[], dynamic>)((dynamic[] hbva) => { nSum += 100; BlockNote("v"); return null; })), 1, 2);
-        HbRuntime.QOut(nSum);
+        Eval(((Func<dynamic[], dynamic>)((dynamic[] hbva) => { nSum += 100; BlockNote("v"); return null; })), 1, 2);
+        QOut(nSum);
 
         return;
     }
 
     public static void BlockNote(string cWhat = default)
     {
-        HbRuntime.QOut("note " + cWhat);
+        QOut("note " + cWhat);
         return;
     }
 
     public static bool BlockSay(string cWhat = default)
     {
-        HbRuntime.QOut("say " + cWhat);
+        QOut("say " + cWhat);
         return true;
     }
 
@@ -91,10 +90,10 @@ public static partial class Program
         decimal nHits = 0;
         decimal nItem = default;
 
-        foreach (decimal __hb_fe_nItem in HbRuntime.HbEnumValues(aItems))
+        foreach (decimal __hb_fe_nItem in HbEnumValues(aItems))
         {
             nItem = __hb_fe_nItem;
-            if (HbRuntime.Eval(bFor, nItem))
+            if (Eval(bFor, nItem))
             {
                 nHits++;
             }

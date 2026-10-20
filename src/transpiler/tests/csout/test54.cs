@@ -28,34 +28,34 @@ public static partial class Program
       itself a binary op. Three-level nesting. */
         if (!(cPath + aFile[Ix(1)] == cZipFile))
         {
-            HbRuntime.QOut("different");
+            QOut("different");
         }
         else
         {
-            HbRuntime.QOut("match");
+            QOut("match");
         }
 
         /* Negation around an arithmetic expression. */
-        HbRuntime.QOut("neg= " + HbRuntime.LTrim(HbRuntime.Str(-(nA + nB))));
+        QOut("neg= " + LTrim(Str(-(nA + nB))));
 
         /* `!` over a logical AND — both sides are comparisons. */
         if (!(nA > 0 && nB > 0))
         {
-            HbRuntime.QOut("one zero");
+            QOut("one zero");
         }
         else
         {
-            HbRuntime.QOut("both pos");
+            QOut("both pos");
         }
 
         /* `!` over a logical OR. */
         if (!(nA == 0 || nB == 0))
         {
-            HbRuntime.QOut("neither zero");
+            QOut("neither zero");
         }
         else
         {
-            HbRuntime.QOut("some zero");
+            QOut("some zero");
         }
 
         return;

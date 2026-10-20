@@ -34,10 +34,10 @@ public static partial class Program
     public static string Consume(ref string cString, string cSep = default)
     {
         string cFirst = "";
-        if (!HbRuntime.Empty(cSep) && HbRuntime.HbIn(cSep, cString))
+        if (!Empty(cSep) && HbIn(cSep, cString))
         {
-            cFirst = HbRuntime.Left(cString, HbRuntime.At(cSep, cString) - 1);
-            cString = HbRuntime.SubStr(cString, HbRuntime.At(cSep, cString) + HbRuntime.Len(cSep));
+            cFirst = Left(cString, At(cSep, cString) - 1);
+            cString = SubStr(cString, At(cSep, cString) + Len(cSep));
         }
 
         return cFirst;
@@ -53,28 +53,28 @@ public static partial class Program
 
         /* @cVar — writeback expected: cVar advances past the comma */
         cTaken = Consume(ref cVar, ",");
-        HbRuntime.QOut("@var   in=alpha,one  out=" + cVar + "  took=" + cTaken);
+        QOut("@var   in=alpha,one  out=" + cVar + "  took=" + cTaken);
 
         /* aArr[1] — value-in only: aArr[1] must still read "beta,two" after */
         {
             string _hbref_aArr_0 = aArr[Ix(1)];
             cTaken = Consume(ref _hbref_aArr_0, ",");
         }
-        HbRuntime.QOut(" elem  in=beta,two   out=" + aArr[Ix(1)] + "  took=" + cTaken);
+        QOut(" elem  in=beta,two   out=" + aArr[Ix(1)] + "  took=" + cTaken);
 
         /* oObj["cField"] — value-in only: the hash entry stays "gamma,three" */
         {
             string _hbref_oObj_0 = oObj["cField"];
             cTaken = Consume(ref _hbref_oObj_0, ",");
         }
-        HbRuntime.QOut(" hash  in=gamma,three out=" + oObj["cField"] + "  took=" + cTaken);
+        QOut(" hash  in=gamma,three out=" + oObj["cField"] + "  took=" + cTaken);
 
         /* literal — there is no storage to write back to */
         {
             string _hbref_arg_0 = "delta,four";
             cTaken = Consume(ref _hbref_arg_0, ",");
         }
-        HbRuntime.QOut(" lit                  out=(literal)        took=" + cTaken);
+        QOut(" lit                  out=(literal)        took=" + cTaken);
         return;
     }
 }

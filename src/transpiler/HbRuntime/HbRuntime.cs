@@ -32,12 +32,12 @@ public static partial class HbRuntime
     // other a Func of one parameter per block parameter, each typed as its
     // Hungarian name says or as the elements of a declared array it scans
     // (`dynamic` when neither does), and its result typed when the body's
-    // is certain. Eval invokes it through reflection (InvokeBlock).
+    // is certain. Eval invokes it as C# calls a delegate (InvokeBlock).
     public static dynamic Eval(dynamic block, params dynamic[] args) =>
         block is Delegate d ? InvokeBlock(d, args ?? System.Array.Empty<dynamic>()) : null;
 
     // Eval()'s work, also the error launcher's: hidden from ProcName(),
-    // like the reflection frames under it.
+    // like the compiled call under it.
     [System.Diagnostics.StackTraceHidden]
     internal static dynamic InvokeBlock(Delegate d, dynamic[] args)
     {
@@ -58,16 +58,130 @@ public static partial class HbRuntime
             for (int i = 0; i < fitted.Length; i++)
                 fitted[i] = FitBlockArg(fitted[i], ps[i].ParameterType);
         }
-        // Invoked without reflection's TargetInvocationException wrapper:
-        // a BREAK in the block must reach its BEGIN SEQUENCE as HbBreak,
-        // and a runtime error reach the error launcher with the block's
-        // frames still on the stack. A static method closed over its
-        // first argument cannot be invoked that way; DynamicInvoke it.
+        // Called as C# calls the delegate, through an invoker compiled for
+        // its type: a BREAK in the block reaches its BEGIN SEQUENCE as
+        // HbBreak, and a runtime error reaches the error launcher with the
+        // block's frames, and every frame under them, still on the stack.
+        // (Reflection's first calls of a method go through the runtime's
+        // native invoke, which rethrows an exception from its own frame, so
+        // the launcher saw the stack only from there up.) Arguments that
+        // are not already their parameters' types go through reflection,
+        // which converts them as it always has; so does a static method
+        // closed over its first argument, whose delegate takes one argument
+        // fewer than the method.
         if (d.Method.IsStatic && d.Target != null)
             return d.DynamicInvoke(fitted);
+        var invoke = DelegateInvoker(d.GetType());
+        if (invoke != null && ArgsFit(ps, fitted))
+            return invoke(d, fitted);
         return d.Method.Invoke(d.Target, System.Reflection.BindingFlags.DoNotWrapExceptions,
                                null, fitted, null);
     }
+
+    // ---- Compiled calls ----
+    // A delegate or a method called directly from an argument array, as
+    // InvokeBlock() and FuncPtr() call theirs: a lambda compiled once per
+    // delegate type or method, which casts each argument to its parameter
+    // (NIL to a value type is its zero, as reflection gives it) and makes
+    // the call. Null when it cannot be compiled (a by-reference parameter
+    // of a delegate, an open generic method): the caller uses reflection.
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Func<Delegate, object?[], object?>?>
+        s_delegateInvokers = new();
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<System.Reflection.MethodInfo, Func<object?[], object?>?>
+        s_methodInvokers = new();
+    static readonly System.Reflection.MethodInfo s_argOf =
+        typeof(HbRuntime).GetMethod(nameof(ArgOf), System.Reflection.BindingFlags.NonPublic |
+                                                   System.Reflection.BindingFlags.Static)!;
+
+    [System.Diagnostics.StackTraceHidden]
+    static T ArgOf<T>(object? o) => o is null ? default! : (T) o;
+
+    // True when every argument is NIL or already of its parameter's type:
+    // the compiled call's casts then do what reflection's conversions would.
+    static bool ArgsFit(System.Reflection.ParameterInfo[] ps, object?[] args)
+    {
+        if (args.Length != ps.Length)
+            return false;
+        for (int i = 0; i < ps.Length; i++)
+        {
+            Type t = ps[i].ParameterType;
+            if (t.IsByRef)
+                t = t.GetElementType()!;
+            if (args[i] != null && t != typeof(object) && !t.IsInstanceOfType(args[i]))
+                return false;
+        }
+        return true;
+    }
+
+    static System.Linq.Expressions.Expression ArgExpr(System.Linq.Expressions.ParameterExpression a,
+                                                      int i, Type t) =>
+        System.Linq.Expressions.Expression.Call(s_argOf.MakeGenericMethod(t),
+            System.Linq.Expressions.Expression.ArrayIndex(a, System.Linq.Expressions.Expression.Constant(i)));
+
+    static System.Linq.Expressions.Expression Boxed(System.Linq.Expressions.Expression call, Type tReturn) =>
+        tReturn == typeof(void)
+            ? System.Linq.Expressions.Expression.Block(call,
+                  System.Linq.Expressions.Expression.Constant(null, typeof(object)))
+            : System.Linq.Expressions.Expression.Convert(call, typeof(object));
+
+    static Func<Delegate, object?[], object?>? DelegateInvoker(Type tDelegate) =>
+        s_delegateInvokers.GetOrAdd(tDelegate, t =>
+        {
+            var invoke = t.GetMethod("Invoke");
+            if (invoke == null || invoke.ReturnType.IsByRef ||
+                invoke.GetParameters().Any(p => p.ParameterType.IsByRef))
+                return null;
+            try
+            {
+                var d = System.Linq.Expressions.Expression.Parameter(typeof(Delegate), "d");
+                var a = System.Linq.Expressions.Expression.Parameter(typeof(object?[]), "a");
+                var call = System.Linq.Expressions.Expression.Invoke(
+                    System.Linq.Expressions.Expression.Convert(d, t),
+                    invoke.GetParameters().Select((p, i) => ArgExpr(a, i, p.ParameterType)));
+                return System.Linq.Expressions.Expression
+                    .Lambda<Func<Delegate, object?[], object?>>(Boxed(call, invoke.ReturnType), d, a)
+                    .Compile();
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException or NotSupportedException)
+            {
+                return null;
+            }
+        });
+
+    // A method with by-reference parameters is called with a local for
+    // each, as reflection's call is with its argument array's element;
+    // what the method writes there is not handed back, as FuncPtr()'s
+    // callers never asked for it.
+    static Func<object?[], object?>? MethodInvoker(System.Reflection.MethodInfo method) =>
+        s_methodInvokers.GetOrAdd(method, m =>
+        {
+            if (m.ContainsGenericParameters || m.ReturnType.IsByRef)
+                return null;
+            try
+            {
+                var a = System.Linq.Expressions.Expression.Parameter(typeof(object?[]), "a");
+                var locals = new List<System.Linq.Expressions.ParameterExpression>();
+                var body = new List<System.Linq.Expressions.Expression>();
+                var args = m.GetParameters().Select((p, i) =>
+                {
+                    Type t = p.ParameterType;
+                    if (!t.IsByRef)
+                        return ArgExpr(a, i, t);
+                    var v = System.Linq.Expressions.Expression.Variable(t.GetElementType()!);
+                    locals.Add(v);
+                    body.Add(System.Linq.Expressions.Expression.Assign(v, ArgExpr(a, i, v.Type)));
+                    return (System.Linq.Expressions.Expression) v;
+                }).ToArray();
+                body.Add(Boxed(System.Linq.Expressions.Expression.Call(m, args), m.ReturnType));
+                return System.Linq.Expressions.Expression.Lambda<Func<object?[], object?>>(
+                    System.Linq.Expressions.Expression.Block(typeof(object), locals, body), a).Compile();
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException or NotSupportedException)
+            {
+                return null;
+            }
+        });
 
     // An argument for a typed block parameter. Reflection converts only
     // what C# would without a cast between primitives, and decimal is not
@@ -284,7 +398,10 @@ public static partial class HbRuntime
         else
         {
             var parms = method.GetParameters();
-            result = args =>
+            var invoke = MethodInvoker(method);
+            // HbRuntime's frame between the caller and the function: hidden
+            // from ProcName(), as Harbour's call by reference has none
+            result = [System.Diagnostics.StackTraceHidden] (args) =>
             {
                 args ??= System.Array.Empty<dynamic>();
                 var invokeArgs = new object[parms.Length];
@@ -310,6 +427,10 @@ public static partial class HbRuntime
                             ? Activator.CreateInstance(parms[i].ParameterType)
                             : null;
                 }
+                // a compiled call when the arguments are their parameters'
+                // types (InvokeBlock() says why), else reflection's
+                if (invoke != null && ArgsFit(parms, invokeArgs))
+                    return invoke(invokeArgs);
                 return method.Invoke(null, System.Reflection.BindingFlags.DoNotWrapExceptions,
                                      null, invokeArgs, null);
             };

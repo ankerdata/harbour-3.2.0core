@@ -13,8 +13,6 @@ using static Program;
 // the name is evidence. Until 2026-10-18 every PUBLIC was dynamic; EasiPOS's
 // hardware settings, the array aHWFlag, became the class HWFlags held by
 // the PUBLIC oHWFlags, read 1,300 times across the products.
-
-// #include "hbclass.ch"
 public class Gauge157 : IHbObject
 {
     public decimal nLevel = 0;
@@ -31,7 +29,7 @@ public static partial class Program
     {
         oGauge157 = new Gauge157();
         xBag157 = "anything";
-        aSlots157 = HbRuntime.Array(3);
+        aSlots157 = Array(3);
 
         oGauge157.nLevel = 42;
         aSlots157[Ix(1)] = "x";
@@ -42,7 +40,7 @@ public static partial class Program
 
     public static void Show157()
     {
-        HbRuntime.QOut(oGauge157.nLevel, oGauge157.cUnit, xBag157, HbRuntime.Len(aSlots157));
+        QOut(oGauge157.nLevel, oGauge157.cUnit, xBag157, Len(aSlots157));
 
         return;
     }

@@ -24,30 +24,30 @@ public static partial class Program
         string cOut = "";
         decimal nTotal = 0;
 
-        foreach (var __hb_kv_xItem in HbRuntime.HbEnumPairs(hAges))
+        foreach (var __hb_kv_xItem in HbEnumPairs(hAges))
         {
             xItem = __hb_kv_xItem.Value;
-            cOut += __hb_kv_xItem.Key + "=" + HbRuntime.LTrim(HbRuntime.Str(xItem)) + " ";
+            cOut += __hb_kv_xItem.Key + "=" + LTrim(Str(xItem)) + " ";
         }
 
-        HbRuntime.QOut(cOut);
+        QOut(cOut);
 
-        foreach (var __hb_kv_xItem in HbRuntime.HbEnumPairs(hAges))
+        foreach (var __hb_kv_xItem in HbEnumPairs(hAges))
         {
             xItem = __hb_kv_xItem.Value;
             nTotal += __hb_kv_xItem.Value;
         }
 
-        HbRuntime.QOut("total=" + HbRuntime.LTrim(HbRuntime.Str(nTotal)));
+        QOut("total=" + LTrim(Str(nTotal)));
 
         // no message: emitted as before
-        foreach (dynamic __hb_fe_xItem in HbRuntime.HbEnumValues(hAges))
+        foreach (dynamic __hb_fe_xItem in HbEnumValues(hAges))
         {
             xItem = __hb_fe_xItem;
             nTotal += xItem;
         }
 
-        HbRuntime.QOut("twice=" + HbRuntime.LTrim(HbRuntime.Str(nTotal)));
+        QOut("twice=" + LTrim(Str(nTotal)));
         return;
     }
 }

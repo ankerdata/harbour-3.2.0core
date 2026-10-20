@@ -19,8 +19,6 @@ using static Program;
 // for a member typed by its name: it takes the name's class there too
 // (EasiPOS's `oPOSStatus:oFree:nFixedNo := nTran`, once POSStatus's
 // `oFree` lost its AS OBJECT).
-
-// #include "hbclass.ch"
 public class Gauge140 : IHbObject
 {
     public long nLevel = 0;
@@ -58,10 +56,10 @@ public static partial class Program
         decimal nAmount = nTotal / 2;
 
         oPanel.FillGauge140(nAmount);
-        HbRuntime.QOut(HbRuntime.Str(oPanel.oGauge140.nLevel, 4));
-        HbRuntime.QOut(HbRuntime.Str(oPanel.HalfLevel140(), 6, 2));
+        QOut(Str(oPanel.oGauge140.nLevel, 4));
+        QOut(Str(oPanel.HalfLevel140(), 6, 2));
         oPanel.oGauge140.nLevel = (long)(nAmount + 1);
-        HbRuntime.QOut(HbRuntime.Str(oPanel.oGauge140.nLevel, 4));
+        QOut(Str(oPanel.oGauge140.nLevel, 4));
         return;
     }
 }

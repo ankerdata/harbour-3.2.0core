@@ -15,8 +15,6 @@ using static Program;
 // FOR's bounds and HbRuntime's own 1-based positions are untouched.
 // A fraction is the one deliberate divergence: Harbour truncates it, the
 // C# reports it, so that case runs as C# beside the Harbour line.
-
-// #include "hbclass.ch"
 public class Shelf151 : IHbObject
 {
     public List<dynamic> aSlots;
@@ -42,57 +40,57 @@ public static partial class Program
         };
         OrderedDictionary<string, dynamic> hByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
         long iSlot = default;
-        decimal nPos = HbRuntime.Val("2");
+        decimal nPos = Val("2");
         HbError oError = default;
         Shelf151 oShelf = new Shelf151();
 
         oShelf.aSlots = new List<dynamic> { "a", "b", "c" };
         // literals keep their value
-        HbRuntime.QOut(aList[Ix(1)], aList[Ix(4)]);
+        QOut(aList[Ix(1)], aList[Ix(4)]);
         // a whole-number local
-        for (iSlot = 1; iSlot <= HbRuntime.Len(aList); iSlot++)
+        for (iSlot = 1; iSlot <= Len(aList); iSlot++)
         {
-            HbRuntime.QOut(iSlot, aList[Ix(iSlot)]);
+            QOut(iSlot, aList[Ix(iSlot)]);
         }
 
         // a decimal local, an expression
-        HbRuntime.QOut(aList[Ix(nPos)], aList[Ix(nPos + 1)]);
+        QOut(aList[Ix(nPos)], aList[Ix(nPos + 1)]);
         // a define
-        HbRuntime.QOut(aList[Ix(Test151PrgConst.POS151_THIRD)]);
+        QOut(aList[Ix(Test151PrgConst.POS151_THIRD)]);
         // two dimensions
-        HbRuntime.QOut(aGrid[Ix(2)][Ix(1)], aGrid[Ix(1)][Ix(2)]);
+        QOut(aGrid[Ix(2)][Ix(1)], aGrid[Ix(1)][Ix(2)]);
         // assignment targets
         aList[Ix(nPos)] = 25;
         aList[Ix(3)] += 5;
-        HbRuntime.QOut(aList[Ix(2)], aList[Ix(3)]);
+        QOut(aList[Ix(2)], aList[Ix(3)]);
         // hash keys pass as they are
-        HbRuntime.QOut(hnByNo[2], hByName["x"]);
+        QOut(hnByNo[2], hByName["x"]);
         // INLINE bodies
-        HbRuntime.QOut(oShelf.Slot(3), oShelf.Second());
+        QOut(oShelf.Slot(3), oShelf.Second());
         // a 1-based position from the runtime
-        HbRuntime.QOut(aList[Ix(HbRuntime.AScan(aList, 40))]);
+        QOut(aList[Ix(AScan(aList, 40))]);
 
         try
         {
             // index 0: Harbour's bound error
-            HbRuntime.QOut(aList[Ix(0)]);
+            QOut(aList[Ix(0)]);
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             oError = HbError.From(__hb_ex1);
-            HbRuntime.QOut("index 0:", (oError == null ? "no error" : "bound error"));
+            QOut("index 0:", (oError == null ? "no error" : "bound error"));
         }
 
-        nPos = HbRuntime.Val("9");
+        nPos = Val("9");
         try
         {
             // past the end: the List's
-            HbRuntime.QOut(aList[Ix(nPos)]);
+            QOut(aList[Ix(nPos)]);
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             oError = HbError.From(__hb_ex1);
-            HbRuntime.QOut("index 9:", (oError == null ? "no error" : "bound error"));
+            QOut("index 9:", (oError == null ? "no error" : "bound error"));
         }
 
         // a fraction: Harbour truncates 2.5 to 2 and reads on, the C# reports it

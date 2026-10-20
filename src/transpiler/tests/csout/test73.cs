@@ -21,9 +21,6 @@ using static Program;
 //   public decimal nPanel = Test73Const.TEST73_BASE_PANEL;
 //
 // so the C# compiles and the constants flow through at runtime.
-
-// #include "hbclass.ch"
-// #include "test73.ch"
 public class Test73Holder : IHbObject
 {
     public decimal nPanel = Test73Const.TEST73_BASE_PANEL;
@@ -36,8 +33,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Test73Holder oH = new Test73Holder();
-        HbRuntime.QOut("nPanel=" + HbRuntime.AllTrim(HbRuntime.Str(oH.nPanel)));
-        HbRuntime.QOut("cName=" + oH.cName);
+        QOut("nPanel=" + AllTrim(Str(oH.nPanel)));
+        QOut("cName=" + oH.cName);
         return;
     }
 }

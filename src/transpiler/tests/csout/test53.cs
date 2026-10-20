@@ -26,10 +26,10 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("result1=" + HbRuntime.LTrim(HbRuntime.Str(AddPair(2, 3))));
-        HbRuntime.QOut("result2=" + HbRuntime.LTrim(HbRuntime.Str(AddPair(10, 20))));
-        HbRuntime.QOut("result3=" + (IsLargeFlag(150, true) ? "Y" : "N"));
-        HbRuntime.QOut("result4=" + (IsLargeFlag(50, false) ? "Y" : "N"));
+        QOut("result1=" + LTrim(Str(AddPair(2, 3))));
+        QOut("result2=" + LTrim(Str(AddPair(10, 20))));
+        QOut("result3=" + (IsLargeFlag(150, true) ? "Y" : "N"));
+        QOut("result4=" + (IsLargeFlag(50, false) ? "Y" : "N"));
         return;
 
         /* `nA`/`nB`: numeric per Hungarian. Even if some caller passed a

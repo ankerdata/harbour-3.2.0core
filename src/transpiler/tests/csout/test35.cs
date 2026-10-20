@@ -23,7 +23,7 @@ public static partial class Program
         Bump();
         Bump();
         Bump();
-        HbRuntime.QOut("count=" + HbRuntime.Str(gCount));
+        QOut("count=" + Str(gCount));
         return;
     }
 

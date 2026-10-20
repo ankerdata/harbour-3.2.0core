@@ -15,7 +15,6 @@ using static Program;
 // which is how a device class says it could not connect (easipos fmde.prg);
 // `X():New( ... )` can never say so.
 
-// #include "hbclass.ch"
 // NIL on failure, Self on success, as the device classes do
 public class Gadget124 : IHbObject
 {
@@ -25,7 +24,7 @@ public class Gadget124 : IHbObject
     public virtual Gadget124 Init(string cPort = default)
     {
         cPort124 = cPort;
-        lOpen124 = !HbRuntime.Empty(cPort);
+        lOpen124 = !Empty(cPort);
         if (!lOpen124)
         {
             return null;
@@ -52,13 +51,13 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Ledger124 oLedger = HbRuntime.Initialised(new Ledger124(), self => self.Init());
-        Gadget124 oGadget = HbRuntime.Initialised(new Gadget124(), self => self.Init(""));
+        Ledger124 oLedger = Initialised(new Ledger124(), self => self.Init());
+        Gadget124 oGadget = Initialised(new Gadget124(), self => self.Init(""));
 
-        HbRuntime.QOut(oLedger == null, oLedger.nLines124);
-        HbRuntime.QOut(oGadget == null, oGadget.lOpen124);
-        HbRuntime.QOut((HbRuntime.Initialised(new Gadget124(), self => self.Init("COM1"))).cPort124);
-        HbRuntime.QOut(new Gadget124().Init("") == null, new Gadget124().Init("COM2") == null);
+        QOut(oLedger == null, oLedger.nLines124);
+        QOut(oGadget == null, oGadget.lOpen124);
+        QOut((Initialised(new Gadget124(), self => self.Init("COM1"))).cPort124);
+        QOut(new Gadget124().Init("") == null, new Gadget124().Init("COM2") == null);
 
         return;
     }

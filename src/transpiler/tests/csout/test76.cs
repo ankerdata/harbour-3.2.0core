@@ -41,14 +41,14 @@ public static partial class Program
         hnById[7] = "seven";
         hnById[8] = "eight";
 
-        HbRuntime.QOut("a=", hnLit[10]);
-        HbRuntime.QOut("b=", hnLit[20]);
-        HbRuntime.QOut("c=", hnById[7]);
-        HbRuntime.QOut("d=", hnById[8]);
-        HbRuntime.QOut("e=", GetPanel(3));
-        HbRuntime.QOut("f=", GetPanel(4));
-        HbRuntime.QOut("g=", test76_shNames["alpha"] + test76_shNames["beta"]);
-        HbRuntime.QOut("h=", HbRuntime.Len(test76_shnPanels));
+        QOut("a=", hnLit[10]);
+        QOut("b=", hnLit[20]);
+        QOut("c=", hnById[7]);
+        QOut("d=", hnById[8]);
+        QOut("e=", GetPanel(3));
+        QOut("f=", GetPanel(4));
+        QOut("g=", test76_shNames["alpha"] + test76_shNames["beta"]);
+        QOut("h=", Len(test76_shnPanels));
 
         return;
 
@@ -63,7 +63,7 @@ public static partial class Program
 
         for (nKey = 1; nKey <= 5; nKey++)
         {
-            hnOut[nKey] = "panel" + HbRuntime.AllTrim(HbRuntime.Str(nKey));
+            hnOut[nKey] = "panel" + AllTrim(Str(nKey));
         }
 
         return hnOut;

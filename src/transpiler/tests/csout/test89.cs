@@ -20,12 +20,12 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("sign=" + SignOf(5) + SignOf(-5) + SignOf(0));
-        HbRuntime.QOut("kind=" + Kind(1) + Kind(2) + Kind(9));
-        HbRuntime.QOut("count=" + HbRuntime.LTrim(HbRuntime.Str(CountTo(3))));
-        HbRuntime.QOut("first=" + HbRuntime.LTrim(HbRuntime.Str(FirstOver(new List<dynamic> { 1, 5, 9 }, 4))));
-        HbRuntime.QOut("none=" + HbRuntime.LTrim(HbRuntime.Str(FirstOver(new List<dynamic> { 1, 2 }, 4))));
-        HbRuntime.QOut("name=" + Ordinal(1) + Ordinal(2) + Ordinal(3));
+        QOut("sign=" + SignOf(5) + SignOf(-5) + SignOf(0));
+        QOut("kind=" + Kind(1) + Kind(2) + Kind(9));
+        QOut("count=" + LTrim(Str(CountTo(3))));
+        QOut("first=" + LTrim(Str(FirstOver(new List<dynamic> { 1, 5, 9 }, 4))));
+        QOut("none=" + LTrim(Str(FirstOver(new List<dynamic> { 1, 2 }, 4))));
+        QOut("name=" + Ordinal(1) + Ordinal(2) + Ordinal(3));
         return;
 
         /* Every arm returns: the final RETURN is not emitted. */
@@ -85,7 +85,7 @@ public static partial class Program
         while (true)
         {
             i++;
-            if (i > HbRuntime.Len(aList))
+            if (i > Len(aList))
             {
                 break;
             }

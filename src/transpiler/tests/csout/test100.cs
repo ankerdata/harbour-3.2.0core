@@ -24,13 +24,13 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nLevy = 5;
-        DateOnly dDay = HbRuntime.SToD("20260909");
-        HbRuntime.QOut("levy=" + HbRuntime.LTrim(HbRuntime.Str(Program.nLevy(2) + nLevy)));
+        DateOnly dDay = SToD("20260909");
+        QOut("levy=" + LTrim(Str(Program.nLevy(2) + nLevy)));
         dDay = dDay.AddDays(1);
-        HbRuntime.QOut("next=" + HbRuntime.DToS(dDay));
+        QOut("next=" + DToS(dDay));
         dDay = dDay.AddDays(-1);
         dDay = dDay.AddDays(-1);
-        HbRuntime.QOut("prev=" + HbRuntime.DToS(dDay));
+        QOut("prev=" + DToS(dDay));
         return;
     }
 }

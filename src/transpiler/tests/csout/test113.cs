@@ -43,34 +43,34 @@ public static partial class Program
         string cKey = default;
         string cKeys = "";
 
-        HbRuntime.hb_HDel(hStock, "milk");
+        hb_HDel(hStock, "milk");
         hStock["salt"] = 4;
-        foreach (string __hb_fe_cKey in HbRuntime.HbEnumValues(HbRuntime.hb_HKeys(hStock)))
+        foreach (string __hb_fe_cKey in HbEnumValues(hb_HKeys(hStock)))
         {
             cKey = __hb_fe_cKey;
             cKeys += cKey + " ";
         }
 
-        HbRuntime.QOut(cKeys);
-        HbRuntime.QOut(HbRuntime.hb_HKeyAt(hStock, 2), HbRuntime.hb_HPos(hStock, "salt"), HbRuntime.hb_HPos(hStock, "milk"));
-        HbRuntime.hb_HSet(hStock, "tea", 9);
-        HbRuntime.QOut(HbRuntime.hb_HGet(hStock, "tea"), HbRuntime.hb_HKeyAt(hStock, 1), HbRuntime.Len(hStock));
-        HbRuntime.QOut(HbRuntime.HbIn("tea", hStock), HbRuntime.HbIn("milk", hStock), HbRuntime.HbIn("", "abc"), HbRuntime.HbIn("b", "abc"));
-        HbRuntime.QOut(HbRuntime.hb_HKeepOrder(hStock, true));
+        QOut(cKeys);
+        QOut(hb_HKeyAt(hStock, 2), hb_HPos(hStock, "salt"), hb_HPos(hStock, "milk"));
+        hb_HSet(hStock, "tea", 9);
+        QOut(hb_HGet(hStock, "tea"), hb_HKeyAt(hStock, 1), Len(hStock));
+        QOut(HbIn("tea", hStock), HbIn("milk", hStock), HbIn("", "abc"), HbIn("b", "abc"));
+        QOut(hb_HKeepOrder(hStock, true));
 
         hnById[nId] = "seven";
         hnById[3] = "three";
-        HbRuntime.QOut(hnById[nId], hnById[3], HbRuntime.hb_HHasKey(hnById, 7), HbRuntime.hb_HHasKey(hnById, 7.0m));
-        HbRuntime.QOut(HbRuntime.hb_HGetDef(hnById, 4, "none"), HbRuntime.hb_HKeyAt(hnById, 1) + 1);
+        QOut(hnById[nId], hnById[3], hb_HHasKey(hnById, 7), hb_HHasKey(hnById, 7.0m));
+        QOut(hb_HGetDef(hnById, 4, "none"), hb_HKeyAt(hnById, 1) + 1);
 
-        hCopy = HbRuntime.hb_HClone(hSrc);
+        hCopy = hb_HClone(hSrc);
         hCopy["a"][Ix(1)] = 9;
         hCopy["b"]["x"] = 5;
-        HbRuntime.QOut(hSrc["a"][Ix(1)], hSrc["b"]["x"], hCopy["a"][Ix(1)], hCopy["b"]["x"]);
+        QOut(hSrc["a"][Ix(1)], hSrc["b"]["x"], hCopy["a"][Ix(1)], hCopy["b"]["x"]);
 
-        aCopy = HbRuntime.AClone(aSrc);
+        aCopy = AClone(aSrc);
         aCopy[Ix(1)]["k"] = 2;
-        HbRuntime.QOut(aSrc[Ix(1)]["k"], aCopy[Ix(1)]["k"]);
+        QOut(aSrc[Ix(1)]["k"], aCopy[Ix(1)]["k"]);
 
         return;
     }

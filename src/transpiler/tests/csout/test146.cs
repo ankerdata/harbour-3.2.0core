@@ -21,7 +21,7 @@ public static partial class Program
 
     public static string test146_Tag146(ref string cTag, string cAdd = default)
     {
-        HbRuntime.hb_default(ref cTag, "");
+        hb_default(ref cTag, "");
         cTag += cAdd;
         return cTag;
     }
@@ -31,13 +31,13 @@ public static partial class Program
         decimal nMine146 = 5;
         string cMine146 = "a";
 
-        HbRuntime.QOut("number, with @:", test146_Bump146(ref nMine146, 10), nMine146);
-        HbRuntime.QOut("number, left out:", test146_Bump146(ref HbDiscard<decimal>.Value, 10));
-        HbRuntime.QOut("number, left out again:", test146_Bump146(ref HbDiscard<decimal>.Value, 10));
+        QOut("number, with @:", test146_Bump146(ref nMine146, 10), nMine146);
+        QOut("number, left out:", test146_Bump146(ref HbDiscard<decimal>.Value, 10));
+        QOut("number, left out again:", test146_Bump146(ref HbDiscard<decimal>.Value, 10));
 
-        HbRuntime.QOut("string, with @:", test146_Tag146(ref cMine146, "x"), cMine146);
-        HbRuntime.QOut("string, left out:", test146_Tag146(ref HbDiscard<string>.Value, "x"));
-        HbRuntime.QOut("string, left out again:", test146_Tag146(ref HbDiscard<string>.Value, "x"));
+        QOut("string, with @:", test146_Tag146(ref cMine146, "x"), cMine146);
+        QOut("string, left out:", test146_Tag146(ref HbDiscard<string>.Value, "x"));
+        QOut("string, left out again:", test146_Tag146(ref HbDiscard<string>.Value, "x"));
 
         return;
     }

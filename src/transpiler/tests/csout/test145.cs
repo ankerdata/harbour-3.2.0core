@@ -28,30 +28,30 @@ public static partial class Program
     public static void Main(string[] args)
     {
         List<dynamic> aWords145 = new List<dynamic> { "one", "two ", "three" };
-        Func<dynamic, dynamic> bNote145 = ((Func<dynamic, dynamic>)((x) => { Note145(HbRuntime.RTrim(x)); return null; }));
+        Func<dynamic, dynamic> bNote145 = ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; }));
         dynamic xResult = default;
 
         // x says nothing of its type: the call binds at run time
-        HbRuntime.AEval(aWords145, ((Func<dynamic, dynamic>)((x) => { Note145(HbRuntime.RTrim(x)); return null; })));
-        HbRuntime.QOut("AEval, bound at run time:", test145_s_cLog145);
+        AEval(aWords145, ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; })));
+        QOut("AEval, bound at run time:", test145_s_cLog145);
 
         // cWord is a string: the call binds when C# compiles
         test145_s_cLog145 = "";
-        HbRuntime.AEval(aWords145, ((Func<string, dynamic>)((cWord) => { Note145(cWord); return null; })));
-        HbRuntime.QOut("AEval, bound when compiled:", test145_s_cLog145);
+        AEval(aWords145, ((Func<string, dynamic>)((cWord) => { Note145(cWord); return null; })));
+        QOut("AEval, bound when compiled:", test145_s_cLog145);
 
         test145_s_cLog145 = "";
-        xResult = HbRuntime.Eval(bNote145, "four ");
-        HbRuntime.QOut("Eval:", test145_s_cLog145, "value", (xResult == null ? "NIL" : "not NIL"));
+        xResult = Eval(bNote145, "four ");
+        QOut("Eval:", test145_s_cLog145, "value", (xResult == null ? "NIL" : "not NIL"));
 
         test145_s_cLog145 = "";
-        HbRuntime.AEval(aWords145, ((Func<dynamic, dynamic>)((x) => { test145_Quiet145(x); return null; })));
-        HbRuntime.QOut("a STATIC PROCEDURE:", test145_s_cLog145);
+        AEval(aWords145, ((Func<dynamic, dynamic>)((x) => { test145_Quiet145(x); return null; })));
+        QOut("a STATIC PROCEDURE:", test145_s_cLog145);
 
         // several expressions, the last a procedure
         test145_s_cLog145 = "";
-        xResult = HbRuntime.Eval(((Func<dynamic, dynamic>)((x) => { Note145("a"); Note145(x); return null; })), "b");
-        HbRuntime.QOut("a list:", test145_s_cLog145, "value", (xResult == null ? "NIL" : "not NIL"));
+        xResult = Eval(((Func<dynamic, dynamic>)((x) => { Note145("a"); Note145(x); return null; })), "b");
+        QOut("a list:", test145_s_cLog145, "value", (xResult == null ? "NIL" : "not NIL"));
 
         return;
     }

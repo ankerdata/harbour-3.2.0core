@@ -21,7 +21,7 @@ public static partial class Program
     {
         List<dynamic> aItems = new List<dynamic> { "a", "b", "c", "d" };
         long iCount = 0;
-        long iLen = (long)(HbRuntime.Len(aItems));
+        long iLen = (long)(Len(aItems));
         decimal nPrice = 2.5m;
         long iPos = default;
         long iWhole = default;
@@ -31,17 +31,17 @@ public static partial class Program
             iCount += iPos;
         }
 
-        HbRuntime.QOut("count:", iCount, iLen);
+        QOut("count:", iCount, iLen);
 
-        iWhole = (long)(HbRuntime.Int(nPrice * 1.2m));
-        HbRuntime.QOut("whole:", iWhole, aItems[Ix(iWhole)]);
+        iWhole = (long)(Int(nPrice * 1.2m));
+        QOut("whole:", iWhole, aItems[Ix(iWhole)]);
 
-        iWhole = (long)(HbRuntime.Round(nPrice, 0) + iLen);
-        HbRuntime.QOut("rounded:", iWhole);
+        iWhole = (long)(Round(nPrice, 0) + iLen);
+        QOut("rounded:", iWhole);
 
-        HbRuntime.QOut("twice:", Twice120(iLen), Twice120(7), Twice120((long)(HbRuntime.Len("xyz"))));
-        HbRuntime.QOut("priced:", Price120(iCount, nPrice));
-        HbRuntime.QOut("calls:", test120_siCalls120);
+        QOut("twice:", Twice120(iLen), Twice120(7), Twice120((long)(Len("xyz"))));
+        QOut("priced:", Price120(iCount, nPrice));
+        QOut("calls:", test120_siCalls120);
 
         return;
     }

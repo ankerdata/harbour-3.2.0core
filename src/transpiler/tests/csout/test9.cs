@@ -4,7 +4,6 @@ using static HbRuntime;
 using static Program;
 
 // Test 9: Type inference from initializers and Hungarian notation
-// #include "hbclass.ch"
 public class Inherited : IHbObject
 {
     public static decimal nVersion = 1.0m;
@@ -26,7 +25,7 @@ public class Person : Inherited
 
     public virtual Person New()
     {
-        HbRuntime.QOut("New called");
+        QOut("New called");
         return this;
     }
 }
@@ -58,10 +57,10 @@ public static partial class Program
         dynamic counter = default;
         dynamic Temp = default;
 
-        HbRuntime.QOut("nCount=" + HbRuntime.Str(nCount));
-        HbRuntime.QOut("nPrice=" + HbRuntime.Str(nPrice, 10, 2));
-        HbRuntime.QOut("cName=" + cName);
-        HbRuntime.QOut("lFound=" + (lFound ? ".T." : ".F."));
+        QOut("nCount=" + Str(nCount));
+        QOut("nPrice=" + Str(nPrice, 10, 2));
+        QOut("cName=" + cName);
+        QOut("lFound=" + (lFound ? ".T." : ".F."));
 
         return;
     }

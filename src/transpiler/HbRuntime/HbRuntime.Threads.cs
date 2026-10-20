@@ -127,13 +127,15 @@ public static partial class HbRuntime
         _ = Self;                                   // the parent is numbered first
         var sets = CloneSets();
         var h = new HbThread(Interlocked.Increment(ref s_threadNo));
-        var thread = new Thread(() =>
+        // the thread's own start, hidden from ProcName(): a Harbour thread's
+        // stack begins with its function
+        var thread = new Thread([System.Diagnostics.StackTraceHidden] () =>
         {
             t_self = h;
             t_sets = sets;
             try
             {
-                RunEntry(() => InvokeBlock(start, aParams), true);
+                RunEntry([System.Diagnostics.StackTraceHidden] () => InvokeBlock(start, aParams), true);
             }
             finally
             {

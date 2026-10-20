@@ -15,8 +15,6 @@ using static Program;
 //
 // The class mirrors the shape of POSClass-derived objects in easipos
 // where a list of field names drives get/set loops.
-
-// #include "hbclass.ch"
 public class Record : HbDynamicObject
 {
     public string cName = "";
@@ -25,13 +23,13 @@ public class Record : HbDynamicObject
 
     public virtual Record SetByName(string cField = default, dynamic xValue = default)
     {
-        HbRuntime.SETMEMBER(this, cField, xValue);
+        SETMEMBER(this, cField, xValue);
         return this;
     }
 
     public virtual dynamic GetByName(string cField = default)
     {
-        return HbRuntime.GETMEMBER(this, cField);
+        return GETMEMBER(this, cField);
     }
 
     public virtual dynamic DumpFields(List<dynamic> aFields = default)
@@ -39,25 +37,25 @@ public class Record : HbDynamicObject
         long i = default;
         dynamic xVal = default;
         string cType = default;
-        for (i = 1; i <= HbRuntime.Len(aFields); i++)
+        for (i = 1; i <= Len(aFields); i++)
         {
-            xVal = HbRuntime.GETMEMBER(this, aFields[Ix(i)]);
-            cType = HbRuntime.ValType(xVal);
+            xVal = GETMEMBER(this, aFields[Ix(i)]);
+            cType = ValType(xVal);
             if (cType == "C")
             {
-                HbRuntime.QOut(aFields[Ix(i)] + ": " + xVal);
+                QOut(aFields[Ix(i)] + ": " + xVal);
             }
             else if (cType == "N")
             {
-                HbRuntime.QOut(aFields[Ix(i)] + ": " + HbRuntime.Str(xVal, 4));
+                QOut(aFields[Ix(i)] + ": " + Str(xVal, 4));
             }
             else if (cType == "L")
             {
-                HbRuntime.QOut(aFields[Ix(i)] + ": " + (xVal ? "T" : "F"));
+                QOut(aFields[Ix(i)] + ": " + (xVal ? "T" : "F"));
             }
             else
             {
-                HbRuntime.QOut(aFields[Ix(i)] + ": ?");
+                QOut(aFields[Ix(i)] + ": ?");
             }
         }
 
@@ -76,7 +74,7 @@ public static partial class Program
         oRec.cName = "hello";
         oRec.nValue = 42;
         oRec.lActive = true;
-        HbRuntime.QOut("direct: " + oRec.cName + ", " + HbRuntime.Str(oRec.nValue, 4) + ", " + (oRec.lActive ? "T" : "F"));
+        QOut("direct: " + oRec.cName + ", " + Str(oRec.nValue, 4) + ", " + (oRec.lActive ? "T" : "F"));
 
         // Write via dynamic member (SETMEMBER)
         oRec.SetByName("cName", "world");
@@ -84,7 +82,7 @@ public static partial class Program
         oRec.SetByName("lActive", false);
 
         // Read via dynamic member (GETMEMBER)
-        HbRuntime.QOut("dynamic: " + oRec.GetByName("cName") + ", " + HbRuntime.Str(oRec.GetByName("nValue"), 4) + ", " + (oRec.GetByName("lActive") ? "T" : "F"));
+        QOut("dynamic: " + oRec.GetByName("cName") + ", " + Str(oRec.GetByName("nValue"), 4) + ", " + (oRec.GetByName("lActive") ? "T" : "F"));
 
         // Iterate fields by name (DumpFields uses GETMEMBER in a loop)
         oRec.DumpFields(aFields);

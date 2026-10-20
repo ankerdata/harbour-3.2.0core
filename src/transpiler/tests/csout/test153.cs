@@ -15,8 +15,6 @@ using static Program;
 // constant and was CS0266 as soon as it was a decimal parameter
 // (EasiPOS, plan C4's first pass). The Self rule now walks the chain
 // through the reftab, as the receiver rule does.
-
-// #include "hbclass.ch"
 public class Base153 : IHbObject
 {
     public long nKind = 0;
@@ -50,11 +48,11 @@ public static partial class Program
         Leaf153 oLeaf = new Leaf153().New(3);
         long nValue = 5;
 
-        HbRuntime.QOut(oLeaf.nKind);
+        QOut(oLeaf.nKind);
         // through the typed receiver, as before
         oLeaf.nKind = nValue;
-        HbRuntime.QOut(oLeaf.nKind);
-        HbRuntime.QOut(oLeaf.Deeper(2), oLeaf.Deeper(1));
+        QOut(oLeaf.nKind);
+        QOut(oLeaf.Deeper(2), oLeaf.Deeper(1));
         return;
     }
 }

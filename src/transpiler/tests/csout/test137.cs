@@ -17,9 +17,6 @@ using static Program;
 // answer. An element of a declared array is `dynamic` in C# and needs no
 // cast. A class unrelated to the name still wins over it, and is W0041
 // against a declaration (tests/errors/declared_types.prg).
-
-// #include "../include/astype.ch"
-// #include "hbclass.ch"
 public class Line137 : IHbObject
 {
     public decimal nKind = 0;
@@ -67,7 +64,7 @@ public class Till137 : IHbObject
 
     public virtual Till137 Add(Line137 oLine = default)
     {
-        HbRuntime.AAdd(aLines, oLine);
+        AAdd(aLines, oLine);
         if (oLine.nKind == Test137PrgConst.KIND_ITEM)
         {
             // a member declared the subclass
@@ -93,7 +90,7 @@ public static partial class Program
         oTill137.Add(new FcnLine137().New("discount", 7));
         oTill137.Add(new ItemLine137().New("cake", 5, 1));
 
-        foreach (Line137 __hb_fe_oLine in HbRuntime.HbEnumValues(oTill137.aLines))
+        foreach (Line137 __hb_fe_oLine in HbEnumValues(oTill137.aLines))
         {
             oLine = __hb_fe_oLine;
             if (oLine.nKind == Test137PrgConst.KIND_ITEM)
@@ -106,29 +103,29 @@ public static partial class Program
             {
                 // a view by its declaration
                 oFcn = (FcnLine137)oLine;
-                HbRuntime.QOut(oFcn.cText, oFcn.nFixedNo);
+                QOut(oFcn.cText, oFcn.nFixedNo);
             }
         }
 
-        HbRuntime.QOut(nTotal);
+        QOut(nTotal);
 
-        for (iPos = 1; iPos <= HbRuntime.Len(oTill137.aLines); iPos++)
+        for (iPos = 1; iPos <= Len(oTill137.aLines); iPos++)
         {
             oLine = oTill137.aLines[Ix(iPos)];
             if (oLine.nKind == Test137PrgConst.KIND_ITEM)
             {
-                HbRuntime.QOut(Describe137((ItemLine137)oLine), Price137((ItemLine137)oLine), Qty137(oLine));
+                QOut(Describe137((ItemLine137)oLine), Price137((ItemLine137)oLine), Qty137(oLine));
             }
         }
 
-        HbRuntime.QOut(oTill137.oLastItem.cText, ItemAt137(oTill137, 1).nPrice);
+        QOut(oTill137.oLastItem.cText, ItemAt137(oTill137, 1).nPrice);
         return;
 
         // a parameter named for the subclass
     }
     public static string Describe137(ItemLine137 oItemLine137 = default)
     {
-        return oItemLine137.cText + " x" + HbRuntime.hb_ntos(oItemLine137.nQty);
+        return oItemLine137.cText + " x" + hb_ntos(oItemLine137.nQty);
 
         // a parameter declared the subclass
     }

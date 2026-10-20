@@ -33,7 +33,7 @@ public static partial class Program
         {
             xGot = __hb_brk1.Value;
         }
-        HbRuntime.QOut("value:", xGot);
+        QOut("value:", xGot);
 
         // an Error object built and broken, as easiudm.prg's print errors are
         try
@@ -43,20 +43,20 @@ public static partial class Program
         catch (HbBreak __hb_brk1)
         {
             oError = __hb_brk1.Value;
-            HbRuntime.QOut("udm:", oError.subSystem, oError.subCode, oError.description);
+            QOut("udm:", oError.subSystem, oError.subCode, oError.description);
         }
 
         // Break() in a codeblock: reaches the sequence through Eval() as the
         // BREAK it is, not wrapped by reflection
         try
         {
-            HbRuntime.Eval(((Func<dynamic>)(() => HbRuntime.Break("from a block"))));
+            Eval(((Func<dynamic>)(() => Break("from a block"))));
         }
         catch (HbBreak __hb_brk1)
         {
             xGot = __hb_brk1.Value;
         }
-        HbRuntime.QOut("block:", xGot);
+        QOut("block:", xGot);
 
         // a bare BREAK: RECOVER USING gets NIL
         try
@@ -67,28 +67,28 @@ public static partial class Program
         {
             xGot = __hb_brk1.Value;
         }
-        HbRuntime.QOut("bare:", HbRuntime.ValType(xGot));
+        QOut("bare:", ValType(xGot));
 
         // WITH { |e| break(e) }: a runtime error reaches RECOVER as an Error
         try
         {
-            HbRuntime.QOut(1 / nZero);
+            QOut(1 / nZero);
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             oError = HbError.From(__hb_ex1);
-            HbRuntime.QOut("zero:", oError.genCode, oError.subSystem, oError.subCode, oError.description, oError.operation);
+            QOut("zero:", oError.genCode, oError.subSystem, oError.subCode, oError.description, oError.operation);
         }
 
         // WITH { || break() }: the error is NIL, an explicit BREAK keeps its value
         try
         {
-            HbRuntime.QOut(1 / nZero);
+            QOut(1 / nZero);
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             xGot = HbBreak.ValueOf(__hb_ex1);
-            HbRuntime.QOut("nil block:", HbRuntime.ValType(xGot));
+            QOut("nil block:", ValType(xGot));
         }
 
         try
@@ -98,7 +98,7 @@ public static partial class Program
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             xGot = HbBreak.ValueOf(__hb_ex1);
-            HbRuntime.QOut("own value:", xGot);
+            QOut("own value:", xGot);
         }
 
         // no RECOVER: the BREAK ends at END; ALWAYS always runs, and without
@@ -129,7 +129,7 @@ public static partial class Program
             cTrail += xGot;
         }
 
-        HbRuntime.QOut("trail:", cTrail);
+        QOut("trail:", cTrail);
 
         // a BREAK inside RECOVER goes to the next sequence out
         try
@@ -147,13 +147,13 @@ public static partial class Program
         catch (HbBreak __hb_brk1)
         {
             xGot = __hb_brk1.Value;
-            HbRuntime.QOut("nested:", xGot);
+            QOut("nested:", xGot);
         }
 
         // ErrorBlock(): the one it replaced comes back
-        bOld = HbRuntime.ErrorBlock(((Func<dynamic, dynamic>)((oErr) => test114_Brk114Handler(oErr))));
-        HbRuntime.QOut("error block:", HbRuntime.Eval(HbRuntime.ErrorBlock(), test114_Brk114Udm()));
-        HbRuntime.ErrorBlock(bOld);
+        bOld = ErrorBlock(((Func<dynamic, dynamic>)((oErr) => test114_Brk114Handler(oErr))));
+        QOut("error block:", Eval(ErrorBlock(), test114_Brk114Udm()));
+        ErrorBlock(bOld);
 
         return;
     }
@@ -165,7 +165,7 @@ public static partial class Program
 
     public static HbError test114_Brk114Udm()
     {
-        HbError oError = HbRuntime.ErrorNew();
+        HbError oError = ErrorNew();
 
         oError.severity = 2;
         oError.subSystem = "UDMPRINT";

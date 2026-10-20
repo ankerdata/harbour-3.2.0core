@@ -22,13 +22,13 @@ public static partial class Program
         // @ form marks the param by-ref
         Inc(ref n);
         // 15 — write-back
-        HbRuntime.QOut("viaref=" + HbRuntime.LTrim(HbRuntime.Str(n)));
+        QOut("viaref=" + LTrim(Str(n)));
 
         n = 5;
         // Inc's RETURN is 15...
-        HbRuntime.QOut("bare=" + HbRuntime.LTrim(HbRuntime.Str(Inc(ref HbDiscard<decimal>.Seed(n)))));
+        QOut("bare=" + LTrim(Str(Inc(ref HbDiscard<decimal>.Seed(n)))));
         // ...but n stays 5 (discarded)
-        HbRuntime.QOut("kept=" + HbRuntime.LTrim(HbRuntime.Str(n)));
+        QOut("kept=" + LTrim(Str(n)));
         return;
     }
 

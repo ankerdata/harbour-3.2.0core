@@ -12,8 +12,6 @@ using static Program;
 // scanio.prg's procedure EnableScanners(), called itself until the stack
 // overflowed. The call is emitted `Program.EnableScanners()`, and so is one
 // from a subclass, where the inherited method would take it.
-
-// #include "hbclass.ch"
 public class Panel130 : IHbObject
 {
     public bool lOn130 = true;
@@ -52,7 +50,7 @@ public static partial class Program
     {
         new Panel130().Wake130();
         new Door130().Open130();
-        HbRuntime.QOut(test130_snCalls130);
+        QOut(test130_snCalls130);
         return;
     }
 }

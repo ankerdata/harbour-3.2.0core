@@ -32,7 +32,7 @@ using static Program;
 // the method `Tenfold` below.
 // Every case prints the same from both branches. The suite scans all its
 // tests into one reftab, so these names are unique across it.
-// #include "hbclass.ch"
+
 // a method: the member written as the C# member
 public class Meter : IHbObject
 {
@@ -89,13 +89,13 @@ public static partial class Program
         Meter oCounter = new Meter();
         oCounter.Raise(2);
         oCounter.Raise(3);
-        HbRuntime.QOut(oCounter.nCount);
-        HbRuntime.QOut(oCounter.Tenfold());
-        HbRuntime.QOut(Twice(21));
-        HbRuntime.QOut(Polarity(-5));
-        HbRuntime.QOut(Polarity(5));
-        HbRuntime.QOut(Grade(1));
-        HbRuntime.QOut(Grade(0));
+        QOut(oCounter.nCount);
+        QOut(oCounter.Tenfold());
+        QOut(Twice(21));
+        QOut(Polarity(-5));
+        QOut(Polarity(5));
+        QOut(Grade(1));
+        QOut(Grade(0));
         return;
     }
 }

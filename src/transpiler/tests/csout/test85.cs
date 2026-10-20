@@ -18,8 +18,6 @@ using static Program;
 // Mirrors easipos SetTable/SetTableHeader(oORMTable), which receive
 // TableIndexDef, CheckIndexDef, CSaleIndexDef and ORHeaderIndexDef —
 // four classes with one shared field set.
-
-// #include "hbclass.ch"
 public class TestOrmRec85 : IHbObject
 {
     public decimal nNo;
@@ -91,12 +89,12 @@ public static partial class Program
         oDept.nClerkNo = 9999999999;
         oBranch.nRegion = 42;
 
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(oDept.nNo, 4, 0)) + oDept.cName);
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(oBranch.nNo, 4, 0)) + oBranch.cName);
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(oDept.nClerkNo, 12, 0)));
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(oBranch.nRegion, 4, 0)));
+        QOut(LTrim(Str(oDept.nNo, 4, 0)) + oDept.cName);
+        QOut(LTrim(Str(oBranch.nNo, 4, 0)) + oBranch.cName);
+        QOut(LTrim(Str(oDept.nClerkNo, 12, 0)));
+        QOut(LTrim(Str(oBranch.nRegion, 4, 0)));
         // family-base long field divides floatly
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str((decimal)(oDept.nNo) / 2, 8, 2)));
+        QOut(LTrim(Str((decimal)(oDept.nNo) / 2, 8, 2)));
         return;
     }
 }

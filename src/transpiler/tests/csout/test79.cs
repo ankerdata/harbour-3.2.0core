@@ -15,8 +15,6 @@ using static Program;
 //     returns Dog on one path and Cat on the other; its C# return
 //     type must be Animal for both branches to compile).
 // Runtime behaviour is checked across prg/hb/cs as usual.
-
-// #include "hbclass.ch"
 public class Animal : IHbObject
 {
     public string cName = "animal";
@@ -46,22 +44,22 @@ public static partial class Program
         oDog.cSound = "woof";
 
         // Same parameter slot fed both the base and the subclass.
-        HbRuntime.QOut("a=", Describe(oAnimal));
-        HbRuntime.QOut("b=", Describe(oDog));
+        QOut("a=", Describe(oAnimal));
+        QOut("b=", Describe(oDog));
 
         // Mixed-class returns: Pick's inferred return type is Animal.
         oPet = Pick(true);
         oPet.cSound = "WOOF";
-        HbRuntime.QOut("c=", Describe(oPet));
+        QOut("c=", Describe(oPet));
         oPet = Pick(false);
-        HbRuntime.QOut("d=", Describe(oPet));
+        QOut("d=", Describe(oPet));
 
         return;
     }
 
     public static string Describe(dynamic oAnimal = default)
     {
-        return HbRuntime.RTrim(oAnimal.cName) + " says " + HbRuntime.RTrim(oAnimal.cSound);
+        return RTrim(oAnimal.cName) + " says " + RTrim(oAnimal.cSound);
 
         // Two RETURN paths, two sibling classes — merges to Animal via the
         // INHERIT chain rather than conflicting to USUAL.

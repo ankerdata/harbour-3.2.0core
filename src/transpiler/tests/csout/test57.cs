@@ -25,8 +25,6 @@ using static Program;
 // DATA field lvalue (@oH:nField, the HB_ET_REFERENCE arg form), and
 // the `var := Foo(@x)` assignment form. Expression-context calls
 // (e.g. `IF Foo(@x)`) are out of scope — they need temp hoisting.
-
-// #include "hbclass.ch"
 public class Holder : IHbObject
 {
     public decimal nField = 0;
@@ -52,7 +50,7 @@ public static partial class Program
             FetchValue(1, ref _hbref_nGot);
             nGot = _hbref_nGot;
         }
-        HbRuntime.QOut("num=" + HbRuntime.LTrim(HbRuntime.Str(nGot)));
+        QOut("num=" + LTrim(Str(nGot)));
 
         // bare call statement — typed string variable by-ref
         {
@@ -60,7 +58,7 @@ public static partial class Program
             FetchValue(2, ref _hbref_cGot);
             cGot = _hbref_cGot;
         }
-        HbRuntime.QOut("str=" + HbRuntime.RTrim(cGot));
+        QOut("str=" + RTrim(cGot));
 
         // bare call statement — typed class DATA field by-ref
         {
@@ -68,7 +66,7 @@ public static partial class Program
             FetchValue(1, ref _hbref_nField_1);
             oH.nField = _hbref_nField_1;
         }
-        HbRuntime.QOut("field=" + HbRuntime.LTrim(HbRuntime.Str(oH.nField)));
+        QOut("field=" + LTrim(Str(oH.nField)));
 
         // `var := Foo(@x)` form — the assignment-case shim
         {
@@ -76,7 +74,7 @@ public static partial class Program
             lOk = FetchValue(1, ref _hbref_nGot);
             nGot = _hbref_nGot;
         }
-        HbRuntime.QOut("into=" + HbRuntime.LTrim(HbRuntime.Str(nGot)) + " ok=" + (lOk ? "Y" : "N"));
+        QOut("into=" + LTrim(Str(nGot)) + " ok=" + (lOk ? "Y" : "N"));
         return;
 
         /* `xVal` is x-prefixed -> USUAL -> emits `ref dynamic`. It receives

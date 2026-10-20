@@ -12,8 +12,6 @@ using static Program;
 // Shape129 failed at run time in the binder - easipos ormtestsuite.prg's
 // OrmTestOrderedIds( oFirst ), oFirst from the file's SharedIdsFixtureTable().
 // Typed, the two callers widen the slot to their common ancestor.
-
-// #include "hbclass.ch"
 public class Shape129 : IHbObject
 {
     public string cKind129;
@@ -52,11 +50,11 @@ public static partial class Program
         Square129 oSq129 = (Square129)new Square129().New("square");
         Shape129 oPl129 = test129_MakeShape129();
 
-        HbRuntime.QOut(Kind129(oSq129));
-        HbRuntime.QOut(Kind129(oPl129));
-        HbRuntime.QOut(test129_Label129());
-        HbRuntime.QOut(Panel129(1.5m), Panel129(0));
-        HbRuntime.QOut(Flag129("L"));
+        QOut(Kind129(oSq129));
+        QOut(Kind129(oPl129));
+        QOut(test129_Label129());
+        QOut(Panel129(1.5m), Panel129(0));
+        QOut(Flag129("L"));
 
         return;
 
@@ -98,7 +96,7 @@ public static partial class Program
     }
     public static long Default129()
     {
-        return HbRuntime.hb_bitAnd(7, 3);
+        return hb_bitAnd(7, 3);
     }
 
     public static Shape129 test129_MakeShape129()

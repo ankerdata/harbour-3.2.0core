@@ -19,14 +19,13 @@ using static Program;
 // (3) `Nudge( @i )` on a FOR counter the transpiler types INTEGER: the
 //     shim temp is decimal and its write-back into the long takes the
 //     (long) an AS INTEGER member already got (CS0266).
-// #include "hbclass.ch"
 public class Brewer : IHbObject
 {
     public string cName = "tea";
 
     public virtual decimal Measure(string cWhat, ref decimal nOut, ref List<dynamic> aLog)
     {
-        nOut = HbRuntime.Len(cWhat) * 10;
+        nOut = Len(cWhat) * 10;
         aLog = new List<dynamic> { cWhat };
         return nOut;
     }
@@ -59,7 +58,7 @@ public static partial class Program
 
     public static string Peel(ref string cText)
     {
-        cText = HbRuntime.Left(cText, 1);
+        cText = Left(cText, 1);
         return cText;
     }
 
@@ -81,28 +80,28 @@ public static partial class Program
 
         // @aLog: the slot is by-ref
         oBrewer.Measure("coffee", ref nOut, ref aLog);
-        HbRuntime.QOut("coffee=" + HbRuntime.LTrim(HbRuntime.Str(nOut)) + " log=" + aLog[Ix(1)]);
+        QOut("coffee=" + LTrim(Str(nOut)) + " log=" + aLog[Ix(1)]);
         // aLog omitted
         test95_GetBrewer().Measure("tea", ref nOut, ref HbDiscard<List<dynamic>>.Value);
-        HbRuntime.QOut("tea=" + HbRuntime.LTrim(HbRuntime.Str(nOut)));
+        QOut("tea=" + LTrim(Str(nOut)));
 
         // @lReset: the slot is by-ref
         Tick(ref n, ref lReset);
-        HbRuntime.QOut("reset=" + HbRuntime.LTrim(HbRuntime.Str(n)) + " " + (lReset ? "T" : "F"));
+        QOut("reset=" + LTrim(Str(n)) + " " + (lReset ? "T" : "F"));
         while (Tick(ref n, ref HbDiscard<bool>.Seed((bool)(false))))
         {
-            HbRuntime.QOut("tick=" + HbRuntime.LTrim(HbRuntime.Str(n)));
+            QOut("tick=" + LTrim(Str(n)));
         }
 
         // @cWord: the slot is by-ref
         Peel(ref cWord);
         if (oBrewer.cName == "coffee")
         {
-            HbRuntime.QOut("coffee");
+            QOut("coffee");
         }
         else if (Peel(ref HbDiscard<string>.Seed((string)(oBrewer.cName))) == "t")
         {
-            HbRuntime.QOut("tea " + cWord);
+            QOut("tea " + cWord);
         }
 
         for (i = 1; i <= 2; i++)
@@ -110,7 +109,7 @@ public static partial class Program
             Nudge(ref i);
         }
 
-        HbRuntime.QOut("i=" + HbRuntime.LTrim(HbRuntime.Str(i)));
+        QOut("i=" + LTrim(Str(i)));
         return;
     }
 }

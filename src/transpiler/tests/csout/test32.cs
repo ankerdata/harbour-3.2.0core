@@ -27,8 +27,6 @@ using static Program;
 // Hit in easiposx: startup.prg (40+s timeout), buffprt.prg,
 // ttlcalc.prg — 3 files cleared.
 
-// #include "set.ch"
-// #include "common.ch"
 // doesn't auto-load it (our transpiler does),
 // so without this hbmk2 fails to compile the
 // `DEFAULT var TO val` lines below.
@@ -38,9 +36,9 @@ public static partial class Program
     {
         // #command match + trailing line comment.
         // not a set - __SetCentury
-        HbRuntime.__SetCentury("ON");
+        __SetCentury("ON");
         // needed for ASORT
-        HbRuntime.Set(_SET_EXACT, "ON");
+        Set(_SET_EXACT, "ON");
 
         Probe(1, true);
         Probe(2);
@@ -55,11 +53,11 @@ public static partial class Program
         // not ready by default
         if (lReady)
         {
-            HbRuntime.QOut("kind=" + HbRuntime.LTrim(HbRuntime.Str(nKind)) + " ready=Y");
+            QOut("kind=" + LTrim(Str(nKind)) + " ready=Y");
         }
         else
         {
-            HbRuntime.QOut("kind=" + HbRuntime.LTrim(HbRuntime.Str(nKind)) + " ready=N");
+            QOut("kind=" + LTrim(Str(nKind)) + " ready=N");
         }
 
         return;

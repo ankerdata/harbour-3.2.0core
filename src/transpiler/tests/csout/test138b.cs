@@ -5,9 +5,6 @@ using static Program;
 
 // Test 138 (multi-file pair): the classes, in a file the scan reaches after
 // their users (test138a.prg says why).
-
-// #include "../include/astype.ch"
-// #include "hbclass.ch"
 public class Line138 : IHbObject
 {
     public decimal nKind = 0;
@@ -53,10 +50,10 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Till138 oTill138 = new Till138();
-        HbRuntime.AAdd(oTill138.aLines, new FcnLine138().New(5));
-        HbRuntime.AAdd(oTill138.aLines, new GenLine138().New(7));
-        HbRuntime.QOut(FirstTotal138(oTill138), SumValues138(oTill138));
-        HbRuntime.QOut(LaterTotal138(new FcnLine138().New(2), new GenLine138().New(3)));
+        AAdd(oTill138.aLines, new FcnLine138().New(5));
+        AAdd(oTill138.aLines, new GenLine138().New(7));
+        QOut(FirstTotal138(oTill138), SumValues138(oTill138));
+        QOut(LaterTotal138(new FcnLine138().New(2), new GenLine138().New(3)));
         return;
     }
 }

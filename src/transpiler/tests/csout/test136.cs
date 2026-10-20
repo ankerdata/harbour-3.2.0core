@@ -21,9 +21,6 @@ using static Program;
 // a method or a function's return) and wants a forward declaration of a
 // class from another file; include/astype.ch removes them for it, as
 // EasiPOS's include/astype.ch does, so the generated C is the same.
-
-// #include "../include/astype.ch"
-// #include "hbclass.ch"
 public class Gizmo136 : IHbObject
 {
     public string cName = "";
@@ -38,7 +35,7 @@ public class Gizmo136 : IHbObject
 
     public virtual string Label()
     {
-        return cName + "(" + HbRuntime.hb_ntos(nSize) + ")";
+        return cName + "(" + hb_ntos(nSize) + ")";
 
         // A member only a subclass declares, read through an element declared
         // Gizmo136, is read as it stands: the element is `dynamic` in C# (a
@@ -59,7 +56,7 @@ public class Crate136 : IHbObject
 
     public virtual Crate136 Add(Gizmo136 oGizmo = default)
     {
-        HbRuntime.AAdd(aGizmos, oGizmo);
+        AAdd(aGizmos, oGizmo);
         if (oFirst == null)
         {
             oFirst = oGizmo;
@@ -92,30 +89,30 @@ public static partial class Program
         oCrate.Add(new Gizmo136().New("nut", 1));
         oCrate.Add((Bigizmo136)new Bigizmo136().New("plate", 5));
 
-        foreach (Gizmo136 __hb_fe_oItem in HbRuntime.HbEnumValues(oCrate.aGizmos))
+        foreach (Gizmo136 __hb_fe_oItem in HbEnumValues(oCrate.aGizmos))
         {
             oItem = __hb_fe_oItem;
-            HbRuntime.AAdd(aNames, oItem.Label());
+            AAdd(aNames, oItem.Label());
         }
 
-        HbRuntime.QOut(aNames[Ix(2)], HbRuntime.Len(aNames[Ix(2)]));
+        QOut(aNames[Ix(2)], Len(aNames[Ix(2)]));
 
-        for (iPos = 1; iPos <= HbRuntime.Len(oCrate.aGizmos); iPos++)
+        for (iPos = 1; iPos <= Len(oCrate.aGizmos); iPos++)
         {
-            HbRuntime.QOut(((Gizmo136)oCrate.aGizmos[Ix(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[Ix(iPos)]).nSize);
+            QOut(((Gizmo136)oCrate.aGizmos[Ix(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[Ix(iPos)]).nSize);
         }
 
-        HbRuntime.QOut(oCrate.aGizmos[Ix(4)].cColour, ((Gizmo136)oCrate.aGizmos[Ix(4)]).nSize);
+        QOut(oCrate.aGizmos[Ix(4)].cColour, ((Gizmo136)oCrate.aGizmos[Ix(4)]).nSize);
 
         oAny = oCrate.Largest();
-        HbRuntime.QOut(oAny.Label());
-        HbRuntime.QOut(oCrate.oFirst.Label());
+        QOut(oAny.Label());
+        QOut(oCrate.oFirst.Label());
 
         test136_saShelf136 = oCrate.aGizmos;
         test136_soSpare136 = test136_saShelf136[Ix(3)];
-        HbRuntime.QOut(test136_soSpare136.Label());
-        HbRuntime.QOut(HbRuntime.Len(test136_Names136(test136_saShelf136)), test136_Names136(test136_saShelf136)[Ix(1)]);
-        HbRuntime.QOut(test136_Total136());
+        QOut(test136_soSpare136.Label());
+        QOut(Len(test136_Names136(test136_saShelf136)), test136_Names136(test136_saShelf136)[Ix(1)]);
+        QOut(test136_Total136());
         return;
     }
 
@@ -123,7 +120,7 @@ public static partial class Program
     {
         Gizmo136 oBest = default;
         Gizmo136 oOne = default;
-        foreach (Gizmo136 __hb_fe_oOne in HbRuntime.HbEnumValues(aList))
+        foreach (Gizmo136 __hb_fe_oOne in HbEnumValues(aList))
         {
             oOne = __hb_fe_oOne;
             if (oBest == null || oOne.nSize > oBest.nSize)
@@ -139,9 +136,9 @@ public static partial class Program
     {
         List<dynamic> aOut = new List<dynamic> {  };
         long iPos = default;
-        for (iPos = 1; iPos <= HbRuntime.Len(aList); iPos++)
+        for (iPos = 1; iPos <= Len(aList); iPos++)
         {
-            HbRuntime.AAdd(aOut, ((Gizmo136)aList[Ix(iPos)]).cName);
+            AAdd(aOut, ((Gizmo136)aList[Ix(iPos)]).cName);
         }
 
         return aOut;
@@ -151,7 +148,7 @@ public static partial class Program
     {
         decimal nTotal = 0;
         Gizmo136 oG = default;
-        foreach (Gizmo136 __hb_fe_oG in HbRuntime.HbEnumValues(test136_saShelf136))
+        foreach (Gizmo136 __hb_fe_oG in HbEnumValues(test136_saShelf136))
         {
             oG = __hb_fe_oG;
             nTotal += oG.nSize;

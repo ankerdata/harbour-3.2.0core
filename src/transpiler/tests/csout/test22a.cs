@@ -17,7 +17,6 @@ using static Program;
 //   names::add    -  -  1  cValue:STRING:-
 //
 // and the C# emits two strongly-typed methods on two distinct classes.
-// #include "hbclass.ch"
 public class Numbers : IHbObject
 {
     public decimal nTotal = 0;
@@ -36,7 +35,7 @@ public class Numbers : IHbObject
 
     public virtual Numbers Show()
     {
-        HbRuntime.QOut("total=" + HbRuntime.Str(nTotal));
+        QOut("total=" + Str(nTotal));
         return this;
     }
 }

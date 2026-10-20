@@ -14,14 +14,12 @@ using static Program;
 // point of using a real ternary: in ResultValue below, the hash
 // subscript must not evaluate while hResultData is NIL — an eager
 // IIF() helper function would throw where Harbour's iif does not.
-
-// #include "hbclass.ch"
 public class Test75Dialog : IHbObject
 {
     public OrderedDictionary<string, dynamic> hResultData;
 
-    public dynamic ResultValue(dynamic cKey = default, dynamic xDefault = default) => ((hResultData != null && HbRuntime.hb_HHasKey(hResultData, cKey)) ? ( hResultData[cKey]) : ( xDefault));
-    public dynamic GetOrEmpty(dynamic cKey = default) => HbRuntime.hb_HGetDef(hResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
+    public dynamic ResultValue(dynamic cKey = default, dynamic xDefault = default) => ((hResultData != null && hb_HHasKey(hResultData, cKey)) ? ( hResultData[cKey]) : ( xDefault));
+    public dynamic GetOrEmpty(dynamic cKey = default) => hb_HGetDef(hResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
     public dynamic IsEmptyish(dynamic nVal = default) => nVal == 0 || ! (nVal != -1);
 }
 
@@ -34,25 +32,25 @@ public static partial class Program
         // hResultData is NIL here: iif's condition must short-circuit at
         // `!= NIL` and take the false branch without touching the hash
         // subscript. Exercises iif + NIL + .AND. + lazy branches.
-        HbRuntime.QOut("a=", oDlg.ResultValue("result", "fallback"));
+        QOut("a=", oDlg.ResultValue("result", "fallback"));
 
         oDlg.hResultData = new OrderedDictionary<string, dynamic>
         {
             { "result", "done" },
             { "count", 2 }
         };
-        HbRuntime.QOut("b=", oDlg.ResultValue("result", "fallback"));
-        HbRuntime.QOut("c=", oDlg.ResultValue("missing", 42));
+        QOut("b=", oDlg.ResultValue("result", "fallback"));
+        QOut("c=", oDlg.ResultValue("missing", 42));
 
         // { => } as an INLINE argument: missing key falls back to an empty
         // hash, which must be a real (empty) hash, not a syntax error.
-        HbRuntime.QOut("d=", HbRuntime.hb_HHasKey(oDlg.GetOrEmpty("nothere"), "x"));
-        HbRuntime.QOut("e=", HbRuntime.Len(oDlg.GetOrEmpty("nothere")));
+        QOut("d=", hb_HHasKey(oDlg.GetOrEmpty("nothere"), "x"));
+        QOut("e=", Len(oDlg.GetOrEmpty("nothere")));
 
         // .OR. / .NOT. / <> in one body.
-        HbRuntime.QOut("f=", oDlg.IsEmptyish(0));
-        HbRuntime.QOut("g=", oDlg.IsEmptyish(-1));
-        HbRuntime.QOut("h=", oDlg.IsEmptyish(7));
+        QOut("f=", oDlg.IsEmptyish(0));
+        QOut("g=", oDlg.IsEmptyish(-1));
+        QOut("h=", oDlg.IsEmptyish(7));
 
         return;
     }

@@ -16,9 +16,6 @@ using static Program;
 // number held as long (an element added from an `i` name), an `i`
 // parameter one held as decimal (Val()'s). A string parameter left out is
 // NIL, as in Harbour.
-
-// #include "../include/astype.ch"
-// #include "hbclass.ch"
 public class Parcel141 : IHbObject
 {
     public string cLabel = "";
@@ -42,40 +39,40 @@ public static partial class Program
         long iCount = default;
         decimal nTotal = 0;
         long iSum = 0;
-        Func<string, string> bShout = ((Func<string, string>)((cWord) => HbRuntime.Upper(cWord) + "!"));
+        Func<string, string> bShout = ((Func<string, string>)((cWord) => Upper(cWord) + "!"));
         decimal nPos = default;
 
-        HbRuntime.AAdd(aParcels, new Parcel141().New("Books", 4));
-        HbRuntime.AAdd(aParcels, new Parcel141().New("Lamp", 2));
-        HbRuntime.AAdd(aParcels, new Parcel141().New("Rug", 7));
+        AAdd(aParcels, new Parcel141().New("Books", 4));
+        AAdd(aParcels, new Parcel141().New("Lamp", 2));
+        AAdd(aParcels, new Parcel141().New("Rug", 7));
 
         // an element of the declared array: x is a Parcel141, the result bool
-        nPos = HbRuntime.AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
-        HbRuntime.QOut(nPos, ((Parcel141)aParcels[Ix(nPos)]).cLabel);
+        nPos = AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
+        QOut(nPos, ((Parcel141)aParcels[Ix(nPos)]).cLabel);
 
         // ASort's two parameters, both elements
-        HbRuntime.ASort(aParcels, null, null, ((Func<Parcel141, Parcel141, bool>)((x, y) => x.nWeight < y.nWeight)));
-        HbRuntime.AEval(aParcels, ((Func<Parcel141, dynamic>)((x) => HbRuntime.QOut(x.cLabel))));
+        ASort(aParcels, null, null, ((Func<Parcel141, Parcel141, bool>)((x, y) => x.nWeight < y.nWeight)));
+        AEval(aParcels, ((Func<Parcel141, dynamic>)((x) => QOut(x.cLabel))));
 
         // an o<Class> name types its parameter over an undeclared array
-        HbRuntime.QOut(HbRuntime.AScan(aLoose, ((Func<Parcel141, bool>)((oParcel141) => oParcel141.nWeight == 3))));
+        QOut(AScan(aLoose, ((Func<Parcel141, bool>)((oParcel141) => oParcel141.nWeight == 3))));
 
         // numbers held as long reach an n parameter
         for (iCount = 1; iCount <= 3; iCount++)
         {
-            HbRuntime.AAdd(aCounts, iCount * 10);
+            AAdd(aCounts, iCount * 10);
         }
 
-        HbRuntime.AEval(aCounts, ((Func<decimal, dynamic>)((nValue) => nTotal += nValue)));
-        HbRuntime.QOut(nTotal);
+        AEval(aCounts, ((Func<decimal, dynamic>)((nValue) => nTotal += nValue)));
+        QOut(nTotal);
 
         // numbers held as decimal reach an i parameter
-        HbRuntime.AEval(new List<dynamic> { HbRuntime.Val("3"), HbRuntime.Val("4") }, ((Func<long, dynamic>)((iWhole) => iSum += iWhole)));
-        HbRuntime.QOut(iSum);
+        AEval(new List<dynamic> { Val("3"), Val("4") }, ((Func<long, dynamic>)((iWhole) => iSum += iWhole)));
+        QOut(iSum);
 
         // a string parameter, a local's block, a parameter left out
-        HbRuntime.QOut(HbRuntime.Eval(bShout, "hello"));
-        HbRuntime.QOut(HbRuntime.Eval(((Func<string, string, bool>)((cFirst, cSecond) => cSecond == null)), "only"));
+        QOut(Eval(bShout, "hello"));
+        QOut(Eval(((Func<string, string, bool>)((cFirst, cSecond) => cSecond == null)), "only"));
         return;
     }
 }

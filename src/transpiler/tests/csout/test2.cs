@@ -16,22 +16,22 @@ public static partial class Program
             nSum = nSum + i;
         }
 
-        HbRuntime.QOut("nSum=" + HbRuntime.Str(nSum));
+        QOut("nSum=" + Str(nSum));
 
         if (nSum > 50)
         {
             cResult = "big";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
         else if (nSum > 20)
         {
             cResult = "medium";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
         else
         {
             cResult = "small";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
 
         while (nSum > 0)
@@ -43,7 +43,7 @@ public static partial class Program
             }
         }
 
-        HbRuntime.QOut("nSum=" + HbRuntime.Str(nSum));
+        QOut("nSum=" + Str(nSum));
 
         return;
     }

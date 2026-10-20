@@ -21,24 +21,24 @@ public static partial class Program
         List<dynamic> aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
         long i = default;
         long nIdx = 1;
-        long nLast = (long)(HbRuntime.Len(aItems));
+        long nLast = (long)(Len(aItems));
         // division → stays decimal, W0026
         decimal nHalf = (decimal)(4) / 2;
 
-        for (i = 1; i <= HbRuntime.Len(aItems); i++)
+        for (i = 1; i <= Len(aItems); i++)
         {
-            HbRuntime.QOut("i=", aItems[Ix(i)]);
+            QOut("i=", aItems[Ix(i)]);
         }
 
         // integral arithmetic keeps int
         nIdx = nIdx + 2;
-        HbRuntime.QOut("a=", aItems[Ix(nIdx)]);
-        HbRuntime.QOut("b=", aItems[Ix(nLast)]);
+        QOut("a=", aItems[Ix(nIdx)]);
+        QOut("b=", aItems[Ix(nLast)]);
         // decimal index — cast path
-        HbRuntime.QOut("c=", aItems[Ix(nHalf)]);
-        HbRuntime.QOut("d=", aItems[Ix(FirstReal(aItems))]);
+        QOut("c=", aItems[Ix(nHalf)]);
+        QOut("d=", aItems[Ix(FirstReal(aItems))]);
         // int widens into decimal math
-        HbRuntime.QOut("e=", HbRuntime.Str(nIdx * 1.5m, 6, 1));
+        QOut("e=", Str(nIdx * 1.5m, 6, 1));
         // (explicit width: Harbour's
         // derived display widths for
         // var*literal aren't modelled)
@@ -52,7 +52,7 @@ public static partial class Program
     {
         long nPos = 1;
 
-        while (nPos < HbRuntime.Len(aList) && HbRuntime.Empty(aList[Ix(nPos)]))
+        while (nPos < Len(aList) && Empty(aList[Ix(nPos)]))
         {
             nPos = nPos + 1;
         }

@@ -23,7 +23,7 @@ public static partial class Program
         catch (HbBreak)
         {
         }
-        HbRuntime.QOut("body: " + (lBodyRan ? "yes" : "no"));
+        QOut("body: " + (lBodyRan ? "yes" : "no"));
 
         return;
     }

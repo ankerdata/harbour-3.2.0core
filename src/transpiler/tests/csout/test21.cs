@@ -17,7 +17,6 @@ using static Program;
 //
 // The expected output is `40` because Adjust doubles its argument
 // in place, and we then double it again.
-// #include "hbclass.ch"
 public class Calculator : IHbObject
 {
 
@@ -40,11 +39,11 @@ public static partial class Program
         Calculator oCalc = new Calculator().New();
         decimal n = 10;
 
-        HbRuntime.QOut("before: n=" + HbRuntime.Str(n));
+        QOut("before: n=" + Str(n));
         oCalc.Adjust(ref n);
-        HbRuntime.QOut("after:  n=" + HbRuntime.Str(n));
+        QOut("after:  n=" + Str(n));
         oCalc.Adjust(ref n);
-        HbRuntime.QOut("after:  n=" + HbRuntime.Str(n));
+        QOut("after:  n=" + Str(n));
 
         return;
     }

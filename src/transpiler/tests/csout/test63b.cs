@@ -10,12 +10,12 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("b=" + Render63(42));
+        QOut("b=" + Render63(42));
         return;
     }
 
     public static string Render63(decimal nValue = default)
     {
-        return "#" + HbRuntime.LTrim(HbRuntime.Str(nValue));
+        return "#" + LTrim(Str(nValue));
     }
 }

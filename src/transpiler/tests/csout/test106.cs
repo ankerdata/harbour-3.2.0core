@@ -19,8 +19,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("sleep=" + HbRuntime.LTrim(HbRuntime.Str(HbWin.wapi_Sleep(1))));
-        HbRuntime.QOut("upper=" + HbRuntime.Upper("hbwin"));
+        QOut("sleep=" + LTrim(Str(HbWin.wapi_Sleep(1))));
+        QOut("upper=" + Upper("hbwin"));
         return;
     }
 }

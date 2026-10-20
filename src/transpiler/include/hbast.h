@@ -48,7 +48,6 @@ typedef enum
    HB_AST_CLASS,          /* CLASS ... ENDCLASS definition */
    HB_AST_CLASSDATA,      /* DATA declaration inside class */
    HB_AST_CLASSMETHOD,    /* METHOD declaration inside class */
-   HB_AST_INCLUDE,        /* #include passthrough */
    HB_AST_PPDEFINE,       /* #define passthrough */
    HB_AST_COMMENT,        /* comment passthrough */
    HB_AST_CSHARP          /* #pragma BEGINCSHARP … ENDCSHARP: raw C#, file scope or in a routine */
@@ -256,12 +255,6 @@ struct _HB_AST_NODE
          const char *   szDeclType;    /* `METHOD M( … ) AS <type>` in the class body:
                                           the declared return type, or NULL */
       } asClassMethod;
-
-      /* HB_AST_INCLUDE */
-      struct
-      {
-         const char *   szFile;        /* included filename */
-      } asInclude;
 
       /* HB_AST_PPDEFINE */
       struct

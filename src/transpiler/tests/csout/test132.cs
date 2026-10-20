@@ -9,8 +9,6 @@ using static Program;
 // `x := oObj:Method()` learned nothing of what the method returns, where a
 // call to a function passes its return type on. Read132() now returns
 // string and its local is decimal.
-
-// #include "hbclass.ch"
 public class Meter132 : IHbObject
 {
     public decimal nReading132 = 41;
@@ -31,12 +29,12 @@ public static partial class Program
     public static string Read132(Meter132 oMeter132 = default)
     {
         decimal xReading = oMeter132.Reading132();
-        return oMeter132.Label132() + " " + HbRuntime.hb_ntos(xReading);
+        return oMeter132.Label132() + " " + hb_ntos(xReading);
     }
 
     public static void Main(string[] args)
     {
-        HbRuntime.QOut(Read132(new Meter132()));
+        QOut(Read132(new Meter132()));
         return;
     }
 }

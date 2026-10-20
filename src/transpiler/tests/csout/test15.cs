@@ -39,56 +39,56 @@ public static partial class Program
 
         // Array subscript access
         nTotal = aNumbers[Ix(1)] + aNumbers[Ix(3)] + aNumbers[Ix(5)];
-        HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
+        QOut("nTotal=" + Str(nTotal));
 
         // Array subscript assignment
         aNumbers[Ix(2)] = 99;
-        HbRuntime.QOut("aNumbers[2]=" + HbRuntime.Str(aNumbers[Ix(2)]));
+        QOut("aNumbers[2]=" + Str(aNumbers[Ix(2)]));
 
         // Array length
-        nLen = HbRuntime.Len(aNumbers);
-        HbRuntime.QOut("nLen=" + HbRuntime.Str(nLen));
+        nLen = Len(aNumbers);
+        QOut("nLen=" + Str(nLen));
 
         // FOR loop with array subscript
         nTotal = 0;
-        for (i = 1; i <= HbRuntime.Len(aNumbers); i++)
+        for (i = 1; i <= Len(aNumbers); i++)
         {
             nTotal += aNumbers[Ix(i)];
         }
 
-        HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
+        QOut("nTotal=" + Str(nTotal));
 
         // FOR EACH over array
         nTotal = 0;
-        foreach (decimal __hb_fe_nItem in HbRuntime.HbEnumValues(aNumbers))
+        foreach (decimal __hb_fe_nItem in HbEnumValues(aNumbers))
         {
             nItem = __hb_fe_nItem;
             nTotal += nItem;
         }
 
-        HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
+        QOut("nTotal=" + Str(nTotal));
 
         // Nested array access
         nTotal = aMatrix[Ix(2)][Ix(1)];
-        HbRuntime.QOut("nTotal=" + HbRuntime.Str(nTotal));
+        QOut("nTotal=" + Str(nTotal));
 
         // Hash access
         cName = hPerson["name"];
-        HbRuntime.QOut("cName=" + cName);
+        QOut("cName=" + cName);
 
         // Hash assignment
         hPerson["age"] = 31;
-        HbRuntime.QOut("age=" + HbRuntime.Str(hPerson["age"]));
+        QOut("age=" + Str(hPerson["age"]));
 
         // String operations via mapped functions
-        cUpper = HbRuntime.Upper(cText);
-        HbRuntime.QOut("cUpper=" + cUpper);
-        cTrimmed = HbRuntime.AllTrim(cText);
-        HbRuntime.QOut("cTrimmed=" + cTrimmed);
-        cSub = HbRuntime.SubStr(cText, 3, 5);
-        HbRuntime.QOut("cSub=" + cSub);
-        nPos = HbRuntime.Len(cText);
-        HbRuntime.QOut("nPos=" + HbRuntime.Str(nPos));
+        cUpper = Upper(cText);
+        QOut("cUpper=" + cUpper);
+        cTrimmed = AllTrim(cText);
+        QOut("cTrimmed=" + cTrimmed);
+        cSub = SubStr(cText, 3, 5);
+        QOut("cSub=" + cSub);
+        nPos = Len(cText);
+        QOut("nPos=" + Str(nPos));
 
         return;
     }

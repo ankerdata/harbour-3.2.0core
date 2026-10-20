@@ -32,8 +32,6 @@ using static Program;
 // The .prg and the .cs builds must produce identical output. The .cs
 // side is where the inference matters — the .prg build is
 // dynamic-typed throughout and runs regardless.
-
-// #include "hbclass.ch"
 public class Test74Holder : IHbObject
 {
     public string cTag = "default";
@@ -60,9 +58,9 @@ public static partial class Program
         test74_soTest74Holder.cTag = "static";
         oNotAClass.cTag = "fallback";
 
-        HbRuntime.QOut("local:  " + oTest74Holder.Identify());
-        HbRuntime.QOut("static: " + test74_soTest74Holder.Identify());
-        HbRuntime.QOut("fallthrough: " + oNotAClass.Identify());
+        QOut("local:  " + oTest74Holder.Identify());
+        QOut("static: " + test74_soTest74Holder.Identify());
+        QOut("fallthrough: " + oNotAClass.Identify());
         return;
 
         // Polymorphic on purpose: the mixed RETURN types (object vs string)

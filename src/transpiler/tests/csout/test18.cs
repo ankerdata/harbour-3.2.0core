@@ -26,15 +26,15 @@ public static partial class Program
 
     public static void Fred(decimal nA = default, dynamic? xB = null, dynamic? xC = null)
     {
-        HbRuntime.QOut("a=" + HbRuntime.Str(nA));
+        QOut("a=" + Str(nA));
         if (xB != null)
         {
-            HbRuntime.QOut("b=" + HbRuntime.Str(xB));
+            QOut("b=" + Str(xB));
         }
 
         if (xC != null)
         {
-            HbRuntime.QOut("c=" + HbRuntime.Str(xC));
+            QOut("c=" + Str(xC));
         }
 
         return;

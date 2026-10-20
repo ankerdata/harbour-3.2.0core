@@ -22,15 +22,13 @@ using static Program;
 // Second: `FOR i := 1 TO ( nLen := Len( a ) )` — an assignment used as
 // an operand keeps its parentheses in C#, where `=` binds looser than
 // `<=` (CS0131).
-
-// #include "hbclass.ch"
 public class Ledger : IHbObject
 {
     public long nCovers = 0;
 
     public virtual long Add(decimal nQty = default)
     {
-        nCovers += (long)(HbRuntime.Int(nQty));
+        nCovers += (long)(Int(nQty));
         return nCovers;
 
         /* NUMERIC return with a by-ref parameter: the caller's assignment is
@@ -40,7 +38,7 @@ public class Ledger : IHbObject
     public virtual decimal Gauge(string cWhat, ref string cOut)
     {
         cOut = "read " + cWhat;
-        return HbRuntime.Len(cWhat) * 10;
+        return Len(cWhat) * 10;
     }
 }
 
@@ -66,17 +64,17 @@ public static partial class Program
 
         SetLamp(Test98PrgConst.LAMP_LOW);
         test98_snHalf = ((decimal)(Test98PrgConst.LAMP_LOW) / 2);
-        HbRuntime.QOut("lamp=" + HbRuntime.LTrim(HbRuntime.Str(test98_snLamp)) + " half=" + (test98_snHalf * 2 == 1 ? "kept" : "lost"));
+        QOut("lamp=" + LTrim(Str(test98_snLamp)) + " half=" + (test98_snHalf * 2 == 1 ? "kept" : "lost"));
         oLedger.Add(2.7m);
-        HbRuntime.QOut("covers=" + HbRuntime.LTrim(HbRuntime.Str(oLedger.Add(1))));
+        QOut("covers=" + LTrim(Str(oLedger.Add(1))));
         nResult = (long)(oLedger.Gauge("tea", ref cOut));
-        HbRuntime.QOut("result=" + HbRuntime.LTrim(HbRuntime.Str(nResult)) + " " + cOut);
-        for (i = 1; i <= (nLen = HbRuntime.Len(aList)); i++)
+        QOut("result=" + LTrim(Str(nResult)) + " " + cOut);
+        for (i = 1; i <= (nLen = Len(aList)); i++)
         {
             cAll += aList[Ix(i)];
         }
 
-        HbRuntime.QOut("all=" + cAll + " len=" + HbRuntime.LTrim(HbRuntime.Str(nLen)));
+        QOut("all=" + cAll + " len=" + LTrim(Str(nLen)));
         return;
     }
 }

@@ -15,8 +15,6 @@ using static Program;
 // `Bump131( 2 )`, checked by the C# compiler (test131b.prg).
 //
 // This file declares the parent.
-
-// #include "hbclass.ch"
 public class Base131 : IHbObject
 {
     public decimal nCount131 = 0;
@@ -29,7 +27,7 @@ public class Base131 : IHbObject
 
     public virtual string Label131()
     {
-        return "count " + HbRuntime.hb_ntos(nCount131);
+        return "count " + hb_ntos(nCount131);
     }
 }
 

@@ -17,7 +17,7 @@ using static Program;
 // assignment target was a member, not a variable (fnb's
 // GetProFormaSerialNo). The write-back into an AS INTEGER member takes
 // the same (long) coercion an ordinary assignment gets.
-// #include "hbclass.ch"
+
 /* USUAL slot, by-ref: a typed caller variable needs the shim. */
 public class Clicker : IHbObject
 {
@@ -68,7 +68,7 @@ public static partial class Program
     public static string NextSerial(ref decimal nSerial)
     {
         nSerial++;
-        return "S" + HbRuntime.LTrim(HbRuntime.Str(nSerial));
+        return "S" + LTrim(Str(nSerial));
     }
 
     public static void Main(string[] args)
@@ -84,32 +84,32 @@ public static partial class Program
             oClicker.Bump(ref _hbref_nLocal);
             nLocal = _hbref_nLocal;
         }
-        HbRuntime.QOut("local=" + HbRuntime.LTrim(HbRuntime.Str(nLocal)));
+        QOut("local=" + LTrim(Str(nLocal)));
         // INTEGER member into ref dynamic
         {
             dynamic _hbref_nCount_0 = oClicker.nCount;
             oClicker.Bump(ref _hbref_nCount_0);
             oClicker.nCount = (long)(_hbref_nCount_0);
         }
-        HbRuntime.QOut("member=" + HbRuntime.LTrim(HbRuntime.Str(oClicker.nCount)));
+        QOut("member=" + LTrim(Str(oClicker.nCount)));
         // dynamic into ref bool, hoisted
         if (oClicker.Flip(ref xFlag))
         {
-            HbRuntime.QOut("flag=T");
+            QOut("flag=T");
         }
         else
         {
-            HbRuntime.QOut("flag=F");
+            QOut("flag=F");
         }
 
-        HbRuntime.QOut("twice=" + HbRuntime.LTrim(HbRuntime.Str(oDoubler.Bump2(5))));
+        QOut("twice=" + LTrim(Str(oDoubler.Bump2(5))));
         // member target, member ref arg
         {
             decimal _hbref_nCount_0 = oClicker.nCount;
             oClicker.cLabel = NextSerial(ref _hbref_nCount_0);
             oClicker.nCount = (long)(_hbref_nCount_0);
         }
-        HbRuntime.QOut("serial=" + oClicker.cLabel + " count=" + HbRuntime.LTrim(HbRuntime.Str(oClicker.nCount)));
+        QOut("serial=" + oClicker.cLabel + " count=" + LTrim(Str(oClicker.nCount)));
         return;
     }
 }

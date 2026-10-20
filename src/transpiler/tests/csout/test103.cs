@@ -20,14 +20,13 @@ using static Program;
 // does not link, so the Harbour build gets a stand-in under
 // #ifndef __HB_TRANSPILER__ — the corpus's own convention for code one
 // side must not see.
-// #include "hbclass.ch"
 public class Beacon : IHbObject
 {
     public decimal nCode = 7;
 
     public override string ToString()
     {
-        return "beacon#" + HbRuntime.LTrim(HbRuntime.Str(nCode));
+        return "beacon#" + LTrim(Str(nCode));
     }
 }
 
@@ -37,14 +36,14 @@ public static partial class Program
     {
         Beacon oBeacon = new Beacon();
         dynamic oCom = default;
-        HbRuntime.QOut(oBeacon.ToString());
+        QOut(oBeacon.ToString());
         if (oBeacon.nCode > 100)
         {
             oCom = Xhb.TOleAuto().New("Scripting.Dictionary");
-            HbRuntime.QOut(oCom.Count);
+            QOut(oCom.Count);
         }
 
-        HbRuntime.QOut("done");
+        QOut("done");
         return;
     }
 }

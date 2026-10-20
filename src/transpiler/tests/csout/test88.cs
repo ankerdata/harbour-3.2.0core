@@ -29,8 +29,6 @@ using static Program;
 // slot only knows to pad null because the scan marks it `D` in the
 // reftab. A gap after the last by-ref parameter (Accrue's nStep) uses
 // named-argument form so the canonical's own default applies.
-// #include "common.ch"
-// #include "hbclass.ch"
 public class Box : IHbObject
 {
     public decimal nSize = 1;
@@ -52,23 +50,23 @@ public static partial class Program
         decimal nCnt = 0;
         Box oBox = new Box();
 
-        HbRuntime.QOut("pad1=" + Dots("ab"));
-        HbRuntime.QOut("pad2=" + Dots("ab", 4));
-        HbRuntime.QOut("pad3=" + Dots("ab", null));
-        HbRuntime.QOut("next1=" + HbRuntime.LTrim(HbRuntime.Str(NextIdx(10))));
-        HbRuntime.QOut("next2=" + HbRuntime.LTrim(HbRuntime.Str(NextIdx(10, 3))));
-        HbRuntime.QOut("gap=" + HbRuntime.LTrim(HbRuntime.Str(Stretch(5, nTimes: 2))));
-        HbRuntime.QOut("acc1=" + HbRuntime.LTrim(HbRuntime.Str(Accrue())));
+        QOut("pad1=" + Dots("ab"));
+        QOut("pad2=" + Dots("ab", 4));
+        QOut("pad3=" + Dots("ab", null));
+        QOut("next1=" + LTrim(Str(NextIdx(10))));
+        QOut("next2=" + LTrim(Str(NextIdx(10, 3))));
+        QOut("gap=" + LTrim(Str(Stretch(5, nTimes: 2))));
+        QOut("acc1=" + LTrim(Str(Accrue())));
         Accrue(ref nTot);
-        HbRuntime.QOut("acc2=" + HbRuntime.LTrim(HbRuntime.Str(nTot)));
+        QOut("acc2=" + LTrim(Str(nTot)));
         Accrue(ref nTot, nTimes: 2);
-        HbRuntime.QOut("acc3=" + HbRuntime.LTrim(HbRuntime.Str(nTot)));
+        QOut("acc3=" + LTrim(Str(nTot)));
         Tally(default(decimal?), ref nCnt);
-        HbRuntime.QOut("tally1=" + HbRuntime.LTrim(HbRuntime.Str(nCnt)));
+        QOut("tally1=" + LTrim(Str(nCnt)));
         Tally(3, ref nCnt);
-        HbRuntime.QOut("tally2=" + HbRuntime.LTrim(HbRuntime.Str(nCnt)));
-        HbRuntime.QOut("box1=" + HbRuntime.LTrim(HbRuntime.Str(oBox.Widen())));
-        HbRuntime.QOut("box2=" + HbRuntime.LTrim(HbRuntime.Str(oBox.Widen(5))));
+        QOut("tally2=" + LTrim(Str(nCnt)));
+        QOut("box1=" + LTrim(Str(oBox.Widen())));
+        QOut("box2=" + LTrim(Str(oBox.Widen(5))));
         return;
     }
 
@@ -83,7 +81,7 @@ public static partial class Program
     public static string Dots(string cText = default, decimal? nWidth = null)
     {
         decimal nWidth_ = nWidth ?? CurWidth();
-        return cText + HbRuntime.Replicate(".", nWidth_ - HbRuntime.Len(cText));
+        return cText + Replicate(".", nWidth_ - Len(cText));
 
         /* DEFAULT form; the default reads another parameter. */
     }

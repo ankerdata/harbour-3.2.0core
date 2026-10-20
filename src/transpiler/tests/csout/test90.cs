@@ -16,8 +16,6 @@ using static Program;
 // INHERIT chain (a subclass without its own New constructs through its
 // parent's), and a gap that nothing can name is passed as null —
 // Harbour's NIL — rather than dropped.
-// #include "common.ch"
-// #include "hbclass.ch"
 public class Base : IHbObject
 {
     public string cLabel = "";
@@ -25,14 +23,14 @@ public class Base : IHbObject
 
     public virtual Base New(string cLabel = default, decimal nUnused = 0, bool lFlag = false)
     {
-        this.cLabel = cLabel + HbRuntime.LTrim(HbRuntime.Str(nUnused));
+        this.cLabel = cLabel + LTrim(Str(nUnused));
         this.lFlag = lFlag;
         return this;
     }
 
     public virtual dynamic Show()
     {
-        HbRuntime.QOut(cLabel + "/" + (lFlag ? "T" : "F"));
+        QOut(cLabel + "/" + (lFlag ? "T" : "F"));
         return null;
 
         /* ::Super:New with a gap: .T. must reach lFlag, not nUnused. */

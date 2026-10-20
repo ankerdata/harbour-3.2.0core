@@ -22,7 +22,7 @@ public static partial class Program
         long i = default;
         xLo = aData[Ix(1)];
         xHi = aData[Ix(1)];
-        for (i = 2; i <= HbRuntime.Len(aData); i++)
+        for (i = 2; i <= Len(aData); i++)
         {
             if (aData[Ix(i)] < xLo)
             {
@@ -50,7 +50,7 @@ public static partial class Program
             nLo = _hbref_nLo;
             nHi = _hbref_nHi;
         }
-        HbRuntime.QOut("a lo=" + HbRuntime.Str(nLo, 2) + " hi=" + HbRuntime.Str(nHi, 2));
+        QOut("a lo=" + Str(nLo, 2) + " hi=" + Str(nHi, 2));
         // sequential call — reuses base 0
         {
             dynamic _hbref_nLo = nLo;
@@ -59,7 +59,7 @@ public static partial class Program
             nLo = _hbref_nLo;
             nHi = _hbref_nHi;
         }
-        HbRuntime.QOut("b lo=" + HbRuntime.Str(nLo, 2) + " hi=" + HbRuntime.Str(nHi, 2));
+        QOut("b lo=" + Str(nLo, 2) + " hi=" + Str(nHi, 2));
         return;
     }
 }

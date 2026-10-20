@@ -21,7 +21,6 @@ using static Program;
 // declared type, a DATA member of the current class, a member of a
 // typed receiver via its reftab row, a function's reftab return type
 // (DockDate) or its hbfuncs.tab one (Time).
-// #include "hbclass.ch"
 public class Voyage : IHbObject
 {
     public DateOnly dDepart;
@@ -44,36 +43,36 @@ public static partial class Program
 {
     public static DateOnly DockDate()
     {
-        return HbRuntime.SToD("20260315");
+        return SToD("20260315");
     }
 
     public static void Main(string[] args)
     {
-        DateOnly dStart = HbRuntime.SToD("20260301");
-        DateOnly dEnd = HbRuntime.SToD("20260310");
+        DateOnly dStart = SToD("20260301");
+        DateOnly dEnd = SToD("20260310");
         decimal nSpan = (decimal)(dEnd.DayNumber - dStart.DayNumber);
         Voyage oVoyage = new Voyage().New(dStart, "Lisbon");
         string cPort = "Lis";
         DateOnly dNext = default;
-        HbRuntime.Set(_SET_EXACT, "ON");
-        HbRuntime.QOut("span=" + HbRuntime.LTrim(HbRuntime.Str(nSpan)));
-        HbRuntime.QOut("half=" + (((decimal)(dEnd.DayNumber - dStart.DayNumber)) / 2 > 4 ? "y" : "n"));
-        HbRuntime.QOut("plus=" + HbRuntime.DToS(dStart.AddDays((int)(7))));
-        HbRuntime.QOut("swap=" + HbRuntime.DToS(dStart.AddDays((int)(7))));
-        HbRuntime.QOut("less=" + HbRuntime.DToS(dEnd.AddDays(-(int)(3))));
+        Set(_SET_EXACT, "ON");
+        QOut("span=" + LTrim(Str(nSpan)));
+        QOut("half=" + (((decimal)(dEnd.DayNumber - dStart.DayNumber)) / 2 > 4 ? "y" : "n"));
+        QOut("plus=" + DToS(dStart.AddDays((int)(7))));
+        QOut("swap=" + DToS(dStart.AddDays((int)(7))));
+        QOut("less=" + DToS(dEnd.AddDays(-(int)(3))));
         dNext = dStart;
         dNext = dNext.AddDays((int)(10));
-        HbRuntime.QOut("peq=" + HbRuntime.DToS(dNext));
+        QOut("peq=" + DToS(dNext));
         dNext = dNext.AddDays(-(int)(1));
-        HbRuntime.QOut("meq=" + HbRuntime.DToS(dNext));
-        HbRuntime.QOut("dock=" + HbRuntime.LTrim(HbRuntime.Str((decimal)(DockDate().DayNumber - oVoyage.dDepart.DayNumber))));
-        HbRuntime.QOut("arr=" + HbRuntime.DToS(oVoyage.Arrival(2)));
-        HbRuntime.QOut("lt=" + (HbRuntime.StrCmp(cPort, oVoyage.cPort) < 0 ? "y" : "n"));
-        HbRuntime.QOut("ge=" + (HbRuntime.StrCmp(oVoyage.cPort, cPort) >= 0 ? "y" : "n"));
-        HbRuntime.QOut("gt=" + (HbRuntime.StrCmp(oVoyage.cPort, cPort) > 0 ? "y" : "n"));
-        HbRuntime.QOut("le=" + (HbRuntime.StrCmp(oVoyage.cPort, "Lisbon") <= 0 ? "y" : "n"));
-        HbRuntime.QOut("time=" + (HbRuntime.StrCmp(HbRuntime.Time(), "00:00") >= 0 ? "y" : "n"));
-        HbRuntime.QOut("eq=" + (oVoyage.cPort == "Lisbon" ? "y" : "n"));
+        QOut("meq=" + DToS(dNext));
+        QOut("dock=" + LTrim(Str((decimal)(DockDate().DayNumber - oVoyage.dDepart.DayNumber))));
+        QOut("arr=" + DToS(oVoyage.Arrival(2)));
+        QOut("lt=" + (HbRuntime.StrCmp(cPort, oVoyage.cPort) < 0 ? "y" : "n"));
+        QOut("ge=" + (HbRuntime.StrCmp(oVoyage.cPort, cPort) >= 0 ? "y" : "n"));
+        QOut("gt=" + (HbRuntime.StrCmp(oVoyage.cPort, cPort) > 0 ? "y" : "n"));
+        QOut("le=" + (HbRuntime.StrCmp(oVoyage.cPort, "Lisbon") <= 0 ? "y" : "n"));
+        QOut("time=" + (HbRuntime.StrCmp(Time(), "00:00") >= 0 ? "y" : "n"));
+        QOut("eq=" + (oVoyage.cPort == "Lisbon" ? "y" : "n"));
         return;
     }
 }

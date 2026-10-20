@@ -12,8 +12,6 @@ using static Program;
 // dynamic> - for a local, a static, a member and a parameter alike. A key
 // of the other kind is W0035 (tests/errors/hash_key_name.prg); a key of no
 // known type is taken as the name says.
-
-// #include "hbclass.ch"
 public class Ledger127 : IHbObject
 {
     public OrderedDictionary<long, dynamic> hnRows127;
@@ -31,7 +29,7 @@ public static partial class Program
     public static OrderedDictionary<long, dynamic> test127_shnSeen127 = new OrderedDictionary<long, dynamic> {  };
     public static decimal test127_Count127(OrderedDictionary<long, dynamic> hnFrom = default)
     {
-        return HbRuntime.Len(hnFrom);
+        return Len(hnFrom);
     }
 
     public static void Main(string[] args)
@@ -41,15 +39,15 @@ public static partial class Program
         Ledger127 oLedger127 = new Ledger127().Fill127();
         long nId = 7;
         // a key of no known type: Eval() answers whatever its block does
-        dynamic xKey = HbRuntime.Eval(((Func<decimal>)(() => test127_Seven127() + 2)));
+        dynamic xKey = Eval(((Func<decimal>)(() => test127_Seven127() + 2)));
 
         hnById[nId] = "seven";
         hnById[(long)(xKey)] = "nine";
         hByName["seven"] = nId;
         test127_shnSeen127[3] = true;
 
-        HbRuntime.QOut(hnById[7], hnById[9], hByName["seven"], test127_Count127(hnById));
-        HbRuntime.QOut(oLedger127.hnRows127[12], HbRuntime.hb_HHasKey(test127_shnSeen127, 3), HbRuntime.Len(test127_shnSeen127));
+        QOut(hnById[7], hnById[9], hByName["seven"], test127_Count127(hnById));
+        QOut(oLedger127.hnRows127[12], hb_HHasKey(test127_shnSeen127, 3), Len(test127_shnSeen127));
 
         return;
     }

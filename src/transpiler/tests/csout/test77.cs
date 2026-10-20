@@ -20,21 +20,21 @@ public static partial class Program
     public static void Main(string[] args)
     {
         // 1  — Bump's own counter
-        HbRuntime.QOut("a=", Bump());
+        QOut("a=", Bump());
         // 2
-        HbRuntime.QOut("b=", Bump());
+        QOut("b=", Bump());
         // 1  — Count's counter, NOT Bump's
-        HbRuntime.QOut("c=", Count());
+        QOut("c=", Count());
         // 3
-        HbRuntime.QOut("d=", Bump());
+        QOut("d=", Bump());
         // 2
-        HbRuntime.QOut("e=", Count());
+        QOut("e=", Count());
         // 110 — file-level static, shared
-        HbRuntime.QOut("f=", AddShared(10));
+        QOut("f=", AddShared(10));
         // 120
-        HbRuntime.QOut("g=", AddShared(10));
+        QOut("g=", AddShared(10));
         // 120 — same file-level static elsewhere
-        HbRuntime.QOut("h=", PeekShared());
+        QOut("h=", PeekShared());
 
         return;
     }

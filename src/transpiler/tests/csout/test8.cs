@@ -23,20 +23,20 @@ public static partial class Program
         /* Single-line block comment */
         string cResult = "hello";
 
-        HbRuntime.QOut("x=" + HbRuntime.Str(x));
-        HbRuntime.QOut("y=" + HbRuntime.Str(y));
-        HbRuntime.QOut("z=" + HbRuntime.Str(z));
-        HbRuntime.QOut("cResult=" + cResult);
+        QOut("x=" + Str(x));
+        QOut("y=" + Str(y));
+        QOut("z=" + Str(z));
+        QOut("cResult=" + cResult);
 
         /* Multi-line
       block comment
       spanning three lines */
         cResult = cResult + " world";
-        HbRuntime.QOut("cResult=" + cResult);
+        QOut("cResult=" + cResult);
 
         /* inline block comment */
         x = x + 1;
-        HbRuntime.QOut("x=" + HbRuntime.Str(x));
+        QOut("x=" + Str(x));
 
         return;
     }

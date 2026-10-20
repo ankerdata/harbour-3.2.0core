@@ -15,8 +15,6 @@ using static Program;
 // The translator decides as the AST emitter does: a string or c-named
 // index, or a receiver whose name says hash, is a hash key and passes as
 // it is; anything else is an array index, rebased.
-
-// #include "hbclass.ch"
 public class Shelf123 : IHbObject
 {
     public List<dynamic> aSlots123;
@@ -25,7 +23,7 @@ public class Shelf123 : IHbObject
     public decimal nPos123;
 
     public dynamic First123() => aSlots123[Ix(1)];
-    public dynamic Last123() => aSlots123[Ix(HbRuntime.Len(aSlots123))];
+    public dynamic Last123() => aSlots123[Ix(Len(aSlots123))];
     public dynamic At123(dynamic nAt = default) => aSlots123[Ix(nAt)];
     public dynamic Current123() => aSlots123[Ix(nPos123)];
     public dynamic Cell123(dynamic nRow = default, dynamic nCol = default) => aGrid123[Ix(nRow)][Ix(nCol)];
@@ -56,11 +54,11 @@ public static partial class Program
     {
         dynamic oStore123 = new Shelf123().Fill123();
 
-        HbRuntime.QOut(oStore123.First123(), oStore123.Last123(), oStore123.At123(2), oStore123.Current123());
-        HbRuntime.QOut(oStore123.Cell123(2, 1), oStore123.Cell123(1, 2));
-        HbRuntime.QOut(oStore123.Tag123("blue"), oStore123.Red123());
+        QOut(oStore123.First123(), oStore123.Last123(), oStore123.At123(2), oStore123.Current123());
+        QOut(oStore123.Cell123(2, 1), oStore123.Cell123(1, 2));
+        QOut(oStore123.Tag123("blue"), oStore123.Red123());
         oStore123.Put123(3, "changed");
-        HbRuntime.QOut(oStore123.At123(3));
+        QOut(oStore123.At123(3));
 
         return;
     }

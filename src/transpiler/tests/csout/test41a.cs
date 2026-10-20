@@ -22,8 +22,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("41a: " + test41a_Helper() + ", " + HbRuntime.Str(test41a_HelperNum(), 4));
-        HbRuntime.QOut(HelperCallerB());
+        QOut("41a: " + test41a_Helper() + ", " + Str(test41a_HelperNum(), 4));
+        QOut(HelperCallerB());
         return;
     }
 

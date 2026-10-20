@@ -13,9 +13,9 @@ public static partial class Program
 
         z = x + y;
 
-        HbRuntime.QOut("x=" + HbRuntime.Str(x));
-        HbRuntime.QOut("y=" + HbRuntime.Str(y));
-        HbRuntime.QOut("z=" + HbRuntime.Str(z));
+        QOut("x=" + Str(x));
+        QOut("y=" + Str(y));
+        QOut("z=" + Str(z));
 
         return;
     }

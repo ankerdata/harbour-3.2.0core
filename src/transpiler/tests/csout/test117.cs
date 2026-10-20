@@ -24,8 +24,6 @@ using static Program;
 //     do it): still the class, since a class-typed C# return takes null,
 //     and the caller's == NIL test reads as it did;
 //   - Mixed117 returns Self and a string, so it is no identity: dynamic.
-
-// #include "hbclass.ch"
 public class Ledger117 : IHbObject
 {
     public string cName = "";
@@ -45,7 +43,7 @@ public class Ledger117 : IHbObject
 
     public virtual string Describe()
     {
-        return cName + " " + HbRuntime.hb_ntos(nTotal);
+        return cName + " " + hb_ntos(nTotal);
     }
 
     public virtual Ledger117 Maybe117(bool lWant = default)
@@ -100,12 +98,12 @@ public static partial class Program
         TaxLedger117 oTax = new TaxLedger117().New("vat", 3);
         PlainLedger117 oPlain = (PlainLedger117)new PlainLedger117().New("plain");
 
-        HbRuntime.QOut("chain:", oLedger.Add(5).Add(7).Describe());
-        HbRuntime.QOut("tax:", oTax.Add(100).Add(10).Describe());
-        HbRuntime.QOut("inherited New:", oPlain.Add(2).Describe());
-        HbRuntime.QOut("maybe:", HbRuntime.ValType(oLedger.Maybe117(true)), HbRuntime.ValType(oLedger.Maybe117(false)));
-        HbRuntime.QOut("maybe nil:", oLedger.Maybe117(false) == null, oLedger.Maybe117(true).Describe());
-        HbRuntime.QOut("mixed:", HbRuntime.ValType(oLedger.Mixed117(true)), oLedger.Mixed117(false));
+        QOut("chain:", oLedger.Add(5).Add(7).Describe());
+        QOut("tax:", oTax.Add(100).Add(10).Describe());
+        QOut("inherited New:", oPlain.Add(2).Describe());
+        QOut("maybe:", ValType(oLedger.Maybe117(true)), ValType(oLedger.Maybe117(false)));
+        QOut("maybe nil:", oLedger.Maybe117(false) == null, oLedger.Maybe117(true).Describe());
+        QOut("mixed:", ValType(oLedger.Mixed117(true)), oLedger.Mixed117(false));
 
         return;
     }

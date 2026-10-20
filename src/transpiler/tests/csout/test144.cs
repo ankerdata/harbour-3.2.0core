@@ -13,7 +13,6 @@ using static Program;
 // neither New nor Init became a bare `new X()`, the method never sent.
 // test124 covers the same messages with arguments.
 
-// #include "hbclass.ch"
 // NIL on failure, Self on success, as the device classes do
 public class Device144 : IHbObject
 {
@@ -53,19 +52,19 @@ public static partial class Program
         Remote144 oRemote144 = default;
 
         oDevice144 = new Device144().Init();
-        HbRuntime.QOut("Init() of a device that cannot start:", (oDevice144 == null ? "NIL" : "an object"));
+        QOut("Init() of a device that cannot start:", (oDevice144 == null ? "NIL" : "an object"));
 
-        oDevice144 = HbRuntime.Initialised(new Device144(), self => self.Init());
-        HbRuntime.QOut("New() of the same device:", (oDevice144 == null ? "NIL" : "an object"), oDevice144.lUp144);
+        oDevice144 = Initialised(new Device144(), self => self.Init());
+        QOut("New() of the same device:", (oDevice144 == null ? "NIL" : "an object"), oDevice144.lUp144);
 
         test144_s_lWorks144 = true;
         oDevice144 = new Device144().Init();
-        HbRuntime.QOut("Init() of a device that starts:", (oDevice144 == null ? "NIL" : "an object"), oDevice144.lUp144);
+        QOut("Init() of a device that starts:", (oDevice144 == null ? "NIL" : "an object"), oDevice144.lUp144);
 
-        HbRuntime.QOut("Init() as a receiver:", new Device144().Init().lUp144);
+        QOut("Init() as a receiver:", new Device144().Init().lUp144);
 
         oRemote144 = new Remote144().Start144();
-        HbRuntime.QOut("Start144() ran:", oRemote144.nStarts144);
+        QOut("Start144() ran:", oRemote144.nStarts144);
 
         return;
     }

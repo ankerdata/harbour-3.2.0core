@@ -24,14 +24,14 @@ public static partial class Program
 {
     public static void Probe72(bool lFlag = default, decimal nCount = default, string cName = default)
     {
-        HbRuntime.QOut("Probe72 ran");
+        QOut("Probe72 ran");
         return;
     }
 
     public static void Main(string[] args)
     {
         Probe72(true, 7, "alpha");
-        HbRuntime.QOut("after Probe72");
+        QOut("after Probe72");
         return;
     }
 }

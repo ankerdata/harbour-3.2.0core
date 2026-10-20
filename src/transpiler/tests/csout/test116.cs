@@ -20,24 +20,24 @@ public static partial class Program
             { "a", 1 },
             { "b", 2 }
         };
-        OrderedDictionary<string, dynamic> hCopy = HbRuntime.hb_HClone(h);
-        List<dynamic> aKeys = HbRuntime.hb_HKeys(h);
-        decimal nB = HbRuntime.hb_HGetDef(h, "b", 0);
-        dynamic xAny = HbRuntime.hb_HGetDef(h, "c", "none");
-        string cText = HbRuntime.hb_ntos(nB + 1);
+        OrderedDictionary<string, dynamic> hCopy = hb_HClone(h);
+        List<dynamic> aKeys = hb_HKeys(h);
+        decimal nB = hb_HGetDef(h, "b", 0);
+        dynamic xAny = hb_HGetDef(h, "c", "none");
+        string cText = hb_ntos(nB + 1);
         string cKey = default;
 
         hCopy["c"] = 3;
-        HbRuntime.QOut("clone:", HbRuntime.hb_ntos(HbRuntime.Len(h)), HbRuntime.hb_ntos(HbRuntime.Len(hCopy)));
-        HbRuntime.QOut("keys:");
-        foreach (string __hb_fe_cKey in HbRuntime.HbEnumValues(aKeys))
+        QOut("clone:", hb_ntos(Len(h)), hb_ntos(Len(hCopy)));
+        QOut("keys:");
+        foreach (string __hb_fe_cKey in HbEnumValues(aKeys))
         {
             cKey = __hb_fe_cKey;
-            HbRuntime.QQOut(" " + cKey);
+            QQOut(" " + cKey);
         }
 
-        HbRuntime.QOut("nB + 1:", cText);
-        HbRuntime.QOut("xAny:", xAny);
+        QOut("nB + 1:", cText);
+        QOut("xAny:", xAny);
 
         return;
     }

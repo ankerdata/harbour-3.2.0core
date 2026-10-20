@@ -23,8 +23,6 @@ using static Program;
 // shows through the other.
 // Harbour compiles this file itself for the reference run: astype.ch
 // removes the RECORD lines and reads the declarations as AS ARRAY.
-
-// #include "../include/astype.ch"
 public sealed class FieldRow
 {
     public string cName;
@@ -94,41 +92,41 @@ public static partial class Program
         long iPos = default;
 
         // fields of the def, the fixed array's length
-        HbRuntime.QOut(aDef.cAlias, aDef.cDatabase, HbRuntime.Len(aDef.aFields));
+        QOut(aDef.cAlias, aDef.cDatabase, Len(aDef.aFields));
         // the fixed array, a row's field by define
-        HbRuntime.QOut(HbRuntime.Len(aFields), aFields[Ix(1)].cName);
+        QOut(Len(aFields), aFields[Ix(1)].cName);
         // nested: a field's field, a fixed array of strings in a record
-        HbRuntime.QOut(aDef.aFields[Ix(3)].iLen, aDef.aIndexes.aNames[Ix(2)]);
+        QOut(aDef.aFields[Ix(3)].iLen, aDef.aIndexes.aNames[Ix(2)]);
         // a computed subscript, then a constant
-        for (iPos = 1; iPos <= HbRuntime.Len(aFields); iPos++)
+        for (iPos = 1; iPos <= Len(aFields); iPos++)
         {
-            HbRuntime.QOut(iPos, aFields[Ix(iPos)].cName, aFields[Ix(iPos)].iLen + aFields[Ix(iPos)].iDec);
+            QOut(iPos, aFields[Ix(iPos)].cName, aFields[Ix(iPos)].iLen + aFields[Ix(iPos)].iDec);
         }
 
         // the loop variable declared a record
-        foreach (FieldRow __hb_fe_aRow in HbRuntime.HbEnumValues(aFields))
+        foreach (FieldRow __hb_fe_aRow in HbEnumValues(aFields))
         {
             aRow = __hb_fe_aRow;
-            HbRuntime.QOut(aRow.cType, Width155(aRow));
+            QOut(aRow.cType, Width155(aRow));
         }
 
         // a row shared with the static
         aRow = aFields[Ix(2)];
         aRow.iLen = 45;
         // seen through every holder
-        HbRuntime.QOut(test155_saFields[Ix(2)].iLen, aDef.aFields[Ix(2)].iLen);
-        HbRuntime.QOut(HbRuntime.AScan(aFields, ((Func<FieldRow, bool>)((a) => a.cName == "PRICE1"))));
-        HbRuntime.QOut(HbRuntime.hb_HGet(aDef.hHash, "PLUNO"), HbRuntime.Len(aDef.aIndexes.aNames));
+        QOut(test155_saFields[Ix(2)].iLen, aDef.aFields[Ix(2)].iLen);
+        QOut(AScan(aFields, ((Func<FieldRow, bool>)((a) => a.cName == "PRICE1"))));
+        QOut(hb_HGet(aDef.hHash, "PLUNO"), Len(aDef.aIndexes.aNames));
         // the fixed array to code that takes anything
         Dump155(aDef.aFields);
         // a record into a list: the literal is its constructor
-        HbRuntime.AAdd(aMore, new FieldRow("KP", "C", 8, 0));
+        AAdd(aMore, new FieldRow("KP", "C", 8, 0));
         aMore[Ix(2)].iLen = 9;
-        HbRuntime.QOut(HbRuntime.Len(aMore), aMore[Ix(1)].cName, aMore[Ix(2)].iLen, Width155(aMore[Ix(2)]));
-        foreach (FieldRow __hb_fe_aRow in HbRuntime.HbEnumValues(aMore))
+        QOut(Len(aMore), aMore[Ix(1)].cName, aMore[Ix(2)].iLen, Width155(aMore[Ix(2)]));
+        foreach (FieldRow __hb_fe_aRow in HbEnumValues(aMore))
         {
             aRow = __hb_fe_aRow;
-            HbRuntime.QOut("  more", aRow.cName, aRow.cType);
+            QOut("  more", aRow.cName, aRow.cType);
         }
 
         return;
@@ -172,12 +170,12 @@ public static partial class Program
     {
         dynamic xItem = default;
         FieldRow aRow = default;
-        HbRuntime.QOut(HbRuntime.ValType(xAny), HbRuntime.Len(xAny));
-        foreach (dynamic __hb_fe_xItem in HbRuntime.HbEnumValues(xAny))
+        QOut(ValType(xAny), Len(xAny));
+        foreach (dynamic __hb_fe_xItem in HbEnumValues(xAny))
         {
             xItem = __hb_fe_xItem;
             aRow = xItem;
-            HbRuntime.QOut("  row", aRow.cName, aRow.iLen);
+            QOut("  row", aRow.cName, aRow.iLen);
         }
 
         return;

@@ -26,25 +26,25 @@ public static partial class Program
         long i = default;
         string cOut = default;
 
-        HbRuntime.QOut("round_2.5=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Round(2.5m, 0))));
-        HbRuntime.QOut("round_0.5=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Round(0.5m, 0))));
-        HbRuntime.QOut("round_neg=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Round(-2.5m, 0))));
+        QOut("round_2.5=" + LTrim(Str(Round(2.5m, 0))));
+        QOut("round_0.5=" + LTrim(Str(Round(0.5m, 0))));
+        QOut("round_neg=" + LTrim(Str(Round(-2.5m, 0))));
 
-        HbRuntime.QOut("len_hash=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Len(hData))));
+        QOut("len_hash=" + LTrim(Str(Len(hData))));
 
-        HbRuntime.ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((x, y) => x < y)));
+        ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((x, y) => x < y)));
         cOut = "";
-        for (i = 1; i <= HbRuntime.Len(aNums); i++)
+        for (i = 1; i <= Len(aNums); i++)
         {
-            cOut += HbRuntime.LTrim(HbRuntime.Str(aNums[Ix(i)]));
+            cOut += LTrim(Str(aNums[Ix(i)]));
         }
 
-        HbRuntime.QOut("sorted=" + cOut);
+        QOut("sorted=" + cOut);
 
-        HbRuntime.QOut("val_abc=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Val("12abc"))));
+        QOut("val_abc=" + LTrim(Str(Val("12abc"))));
         // compared, not Str()'d — Str() of a fraction ignores SET DECIMALS
-        HbRuntime.QOut("val_dec=" + (HbRuntime.Val("3.5x") == 3.5m ? "Y" : "N"));
-        HbRuntime.QOut("val_neg=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Val("-7kg"))));
+        QOut("val_dec=" + (Val("3.5x") == 3.5m ? "Y" : "N"));
+        QOut("val_neg=" + LTrim(Str(Val("-7kg"))));
         return;
     }
 }

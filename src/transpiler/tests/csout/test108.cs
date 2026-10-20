@@ -19,9 +19,9 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut(Random());
-        HbRuntime.QOut(FileSize(21));
-        HbRuntime.QOut(HbRuntime.LTrim(HbRuntime.Str(Random() + FileSize(1))));
+        QOut(Random());
+        QOut(FileSize(21));
+        QOut(LTrim(Str(Random() + FileSize(1))));
         return;
     }
 

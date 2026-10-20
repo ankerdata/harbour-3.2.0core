@@ -15,7 +15,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("a=" + test63a_Render63("hello"));
+        QOut("a=" + test63a_Render63("hello"));
         return;
     }
 

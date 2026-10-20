@@ -17,7 +17,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbError oError = HbRuntime.ErrorNew();
+        HbError oError = ErrorNew();
 
         oError.severity = 3;
         oError.genCode = 42;
@@ -27,13 +27,13 @@ public static partial class Program
         oError.canRetry = false;
         oError.canDefault = true;
 
-        HbRuntime.QOut("severity:    " + HbRuntime.Str(oError.severity, 4));
-        HbRuntime.QOut("genCode:     " + HbRuntime.Str(oError.genCode, 4));
-        HbRuntime.QOut("subSystem:   " + oError.subSystem);
-        HbRuntime.QOut("description: " + oError.description);
-        HbRuntime.QOut("canRetry:    " + (oError.canRetry ? "yes" : "no"));
-        HbRuntime.QOut("canDefault:  " + (oError.canDefault ? "yes" : "no"));
-        HbRuntime.QOut("classname:   " + HbRuntime.CLASSNAME(oError));
+        QOut("severity:    " + Str(oError.severity, 4));
+        QOut("genCode:     " + Str(oError.genCode, 4));
+        QOut("subSystem:   " + oError.subSystem);
+        QOut("description: " + oError.description);
+        QOut("canRetry:    " + (oError.canRetry ? "yes" : "no"));
+        QOut("canDefault:  " + (oError.canDefault ? "yes" : "no"));
+        QOut("classname:   " + CLASSNAME(oError));
         return;
     }
 }

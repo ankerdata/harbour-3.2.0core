@@ -33,8 +33,8 @@ public static partial class Program
     public static string Label149(string cPrefix, ref string cLabel, decimal nWidth = 8)
     {
         string cOut = default;
-        cLabel = HbRuntime.PadR(cPrefix + "-" + HbRuntime.Str(Calls149(), 1), nWidth, ".");
-        cOut = HbRuntime.Upper(cLabel);
+        cLabel = PadR(cPrefix + "-" + Str(Calls149(), 1), nWidth, ".");
+        cOut = Upper(cLabel);
         return cOut;
     }
 
@@ -59,8 +59,8 @@ public static partial class Program
 
     public static void Note149(string cText, ref decimal nLength)
     {
-        nLength = HbRuntime.Len(cText);
-        HbRuntime.QOut("note", cText);
+        nLength = Len(cText);
+        QOut("note", cText);
         return;
     }
 
@@ -79,29 +79,29 @@ public static partial class Program
         decimal nHalf = default;
 
         // the full call, by reference
-        HbRuntime.QOut(Calls149(ref lFirst), lFirst);
+        QOut(Calls149(ref lFirst), lFirst);
         // the short call: a long
-        HbRuntime.QOut(Calls149());
+        QOut(Calls149());
         nHalf = ((decimal)(Calls149()) / 2);
         // the whole-number return divides as Harbour's
-        HbRuntime.QOut(HbRuntime.Str(nHalf, 5, 2), HbRuntime.Str((decimal)(Calls149()) / 2, 5, 2));
+        QOut(Str(nHalf, 5, 2), Str((decimal)(Calls149()) / 2, 5, 2));
 
         // the full call, the width defaulted
-        HbRuntime.QOut(Label149("item", ref cLabel), cLabel);
+        QOut(Label149("item", ref cLabel), cLabel);
         // the short call: a string
-        HbRuntime.QOut(Label149("sale"));
-        HbRuntime.QOut(HbRuntime.Len(Label149("tax")));
+        QOut(Label149("sale"));
+        QOut(Len(Label149("tax")));
 
-        HbRuntime.QOut(Even149(4, ref lOdd), lOdd);
+        QOut(Even149(4, ref lOdd), lOdd);
         // the short call: a logical
-        HbRuntime.QOut(Even149(7));
+        QOut(Even149(7));
         if (Even149(10))
         {
-            HbRuntime.QOut("ten is even");
+            QOut("ten is even");
         }
 
         Note149("full", ref nLength);
-        HbRuntime.QOut(nLength);
+        QOut(nLength);
         // the short call of a procedure: void
         Note149("short");
         return;

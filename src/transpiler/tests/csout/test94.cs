@@ -24,7 +24,6 @@ using static Program;
 //     rows for TYPED members (`AS INTEGER` here, as FcnTranLine's
 //     nFixedNo in the corpus); an untyped VAR is invisible to both the
 //     spelling and the subclass lookups.
-// #include "hbclass.ch"
 public class Kettle : IHbObject
 {
     public decimal nWatts = 0;
@@ -83,12 +82,12 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nServed = new Teapot().New(2).Serve();
-        Kettle oKettle = HbRuntime.Initialised(new Kettle(), self => self.Init(1500));
+        Kettle oKettle = Initialised(new Kettle(), self => self.Init(1500));
         BigMug oBigMug = new BigMug().New();
         oKettle.lIsBoiling = true;
-        HbRuntime.QOut("served=" + HbRuntime.LTrim(HbRuntime.Str(nServed)));
-        HbRuntime.QOut("watts=" + HbRuntime.LTrim(HbRuntime.Str(oKettle.nWatts)) + " boiling=" + (oKettle.lIsBoiling ? "T" : "F"));
-        HbRuntime.QOut("mug=" + HbRuntime.LTrim(HbRuntime.Str(Handles(new Mug()))) + " big=" + HbRuntime.LTrim(HbRuntime.Str(Handles(oBigMug))));
+        QOut("served=" + LTrim(Str(nServed)));
+        QOut("watts=" + LTrim(Str(oKettle.nWatts)) + " boiling=" + (oKettle.lIsBoiling ? "T" : "F"));
+        QOut("mug=" + LTrim(Str(Handles(new Mug()))) + " big=" + LTrim(Str(Handles(oBigMug))));
         return;
     }
 }

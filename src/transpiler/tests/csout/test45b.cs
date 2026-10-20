@@ -17,8 +17,8 @@ public static partial class Program
         List<dynamic> aArr = new List<dynamic> {  };
 
         LoadFlags("full.dat", aArr, 4);
-        HbRuntime.QOut("full[1]=" + aArr[Ix(1)]);
-        HbRuntime.QOut("full[4]=" + aArr[Ix(4)]);
+        QOut("full[1]=" + aArr[Ix(1)]);
+        QOut("full[4]=" + aArr[Ix(4)]);
 
         if (false)
         {

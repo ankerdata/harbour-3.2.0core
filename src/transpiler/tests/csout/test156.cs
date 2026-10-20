@@ -15,8 +15,6 @@ using static Program;
 // kind is W0035, a value of another type W0041 (tests/errors/
 // typed_hash.prg). Harbour sees a plain hash: astype.ch removes the
 // declarations.
-
-// #include "../include/astype.ch"
 public sealed class FieldRow156
 {
     public string cName;
@@ -66,27 +64,27 @@ public static partial class Program
         string cKey = default;
 
         // a record into the hash: its constructor
-        HbRuntime.hb_HSet(test156_shByName, "PRICE1", new FieldRow156("PRICE1", "N", 12, 3));
+        hb_HSet(test156_shByName, "PRICE1", new FieldRow156("PRICE1", "N", 12, 3));
         // the value's field, by a define
         test156_shByName["PRICE1"].iLen = 15;
-        HbRuntime.QOut(HbRuntime.Len(test156_shByName), test156_shByName["CAPTION"].iLen, test156_shByName["PRICE1"].iLen);
+        QOut(Len(test156_shByName), test156_shByName["CAPTION"].iLen, test156_shByName["PRICE1"].iLen);
         // the values, typed
-        foreach (FieldRow156 __hb_fe_aRow in HbRuntime.HbEnumValues(test156_shByName))
+        foreach (FieldRow156 __hb_fe_aRow in HbEnumValues(test156_shByName))
         {
             aRow = __hb_fe_aRow;
-            HbRuntime.QOut("  row", aRow.cName, aRow.iLen);
+            QOut("  row", aRow.cName, aRow.iLen);
         }
 
-        foreach (string __hb_fe_cKey in HbRuntime.HbEnumValues(HbRuntime.hb_HKeys(test156_shByName)))
+        foreach (string __hb_fe_cKey in HbEnumValues(hb_HKeys(test156_shByName)))
         {
             cKey = __hb_fe_cKey;
-            HbRuntime.QOut("  key", cKey, Width156(test156_shByName[cKey]));
+            QOut("  key", cKey, Width156(test156_shByName[cKey]));
         }
 
         hnNames[3] = "three";
-        HbRuntime.QOut(HbRuntime.Len(hnNames), hnNames[2], hnNames[3]);
-        HbRuntime.QOut(aTable.cAlias, HbRuntime.Len(aTable.hFields), aTable.hFields["CAPTION"].cName, aTable.hnNames[2]);
-        HbRuntime.QOut(Count156(aTable.hFields), Count156(test156_shByName));
+        QOut(Len(hnNames), hnNames[2], hnNames[3]);
+        QOut(aTable.cAlias, Len(aTable.hFields), aTable.hFields["CAPTION"].cName, aTable.hnNames[2]);
+        QOut(Count156(aTable.hFields), Count156(test156_shByName));
         return;
 
         // a record holding typed hashes, built from one literal
@@ -116,7 +114,7 @@ public static partial class Program
     {
         long iTotal = 0;
         FieldRow156 aRow = default;
-        foreach (FieldRow156 __hb_fe_aRow in HbRuntime.HbEnumValues(hRows))
+        foreach (FieldRow156 __hb_fe_aRow in HbEnumValues(hRows))
         {
             aRow = __hb_fe_aRow;
             iTotal += (long)(aRow.iLen);

@@ -15,18 +15,16 @@ using static Program;
 // its name, its members are typed, and a codeblock whose parameter is
 // named oError is typed too. The name is the way: Harbour's own -w3
 // refuses `AS CLASS Error` (W0025, no such class declared to it).
-
-// #include "hbclass.ch"
 public static partial class Program
 {
     public static string Describe152(HbError oError = default)
     {
-        return oError.subSystem + "/" + HbRuntime.LTrim(HbRuntime.Str(oError.subCode)) + ": " + oError.description;
+        return oError.subSystem + "/" + LTrim(Str(oError.subCode)) + ": " + oError.description;
     }
 
     public static HbError Make152(string cText = default)
     {
-        HbError oError = HbRuntime.ErrorNew();
+        HbError oError = ErrorNew();
         oError.subSystem = "TEST";
         oError.subCode = 152;
         oError.description = cText;
@@ -40,17 +38,17 @@ public static partial class Program
         Func<HbError, string> bShow = ((Func<HbError, string>)((oError) => Describe152(oError)));
         decimal nZero = 0;
 
-        HbRuntime.QOut(Describe152(oError));
-        HbRuntime.QOut(HbRuntime.Eval(bShow, oError), oError.canRetry);
+        QOut(Describe152(oError));
+        QOut(Eval(bShow, oError), oError.canRetry);
 
         try
         {
-            HbRuntime.QOut(1 / nZero);
+            QOut(1 / nZero);
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)
         {
             oError = HbError.From(__hb_ex1);
-            HbRuntime.QOut(Describe152(oError), oError.operation);
+            QOut(Describe152(oError), oError.operation);
         }
 
         try
@@ -60,7 +58,7 @@ public static partial class Program
         catch (HbBreak __hb_brk1)
         {
             oError = __hb_brk1.Value;
-            HbRuntime.QOut(oError.description, HbRuntime.Len(oError.description));
+            QOut(oError.description, Len(oError.description));
         }
 
         return;

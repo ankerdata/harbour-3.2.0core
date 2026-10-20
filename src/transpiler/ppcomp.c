@@ -1247,21 +1247,14 @@ static void hb_pp_directiveCapture( void * cargo, const char * szDirective,
       return;
    }
 
-   /* #include and #define are file-scope in Harbour regardless of where
-      they textually appear. Use hb_astAppendToStartup so they land in the
-      synthetic startup function's body (file scope), not in whichever user
-      function happens to be mid-parse when the preprocessor fires. Without
-      this, a #define between two functions gets attached to the first
-      function's body and the -GS emitter drops it in the
-      wrong place (e.g. a `const` decl after `return`, invisible to sibling
-      functions). Mirrors how CLASS nodes are handled. */
-   if( strcmp( szDirective, "INCLUDE" ) == 0 )
-   {
-      PHB_AST_NODE pNode = hb_astNew( HB_AST_INCLUDE, iLine );
-      pNode->value.asInclude.szFile = hb_compIdentifierNew( pComp, szValue, HB_IDENT_COPY );
-      hb_astAppendToStartup( pComp, pNode );
-   }
-   else if( strcmp( szDirective, "DEFINE" ) == 0 )
+   /* A #define is file-scope in Harbour wherever it textually appears.
+      hb_astAppendToStartup puts it in the synthetic startup function's
+      body (file scope), not in whichever user function happens to be
+      mid-parse when the preprocessor fires: attached to the function
+      before it, the -GS emitter would drop it in the wrong place (e.g. a
+      `const` decl after `return`, invisible to sibling functions).
+      Mirrors how CLASS nodes are handled. */
+   if( strcmp( szDirective, "DEFINE" ) == 0 )
    {
       PHB_AST_NODE pNode = hb_astNew( HB_AST_PPDEFINE, iLine );
       pNode->value.asDefine.szDefine = hb_compIdentifierNew( pComp, szValue, HB_IDENT_COPY );
@@ -1286,10 +1279,9 @@ void hb_compInitPP( HB_COMP_DECL, PHB_PP_OPEN_FUNC pOpenFunc )
       hb_pp_setDumpCsFunc( hb_pp_PragmaCSharp );
 
 #ifdef HB_TRANSPILER
-      /* Transpiler mode: source #include directives are captured as
-         AST nodes (the C# keeps each as a comment) but the included
-         files themselves are NOT expanded into the source — we don't
-         want their content flowing into the parser.
+      /* Transpiler mode: the files a source #includes are NOT expanded
+         into it — we don't want their content flowing into the
+         parser.
 
          To still see the standard syntax sugar (DEFAULT, IIF, etc.)
          we preload std.ch and common.ch via hb_pp_readRules. That

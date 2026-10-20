@@ -24,6 +24,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
+static const char * hb_csRuntime( const char * szName );
 static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
                                      char * szBuf, HB_SIZE nBuf );
 static const char * hb_csMethodKeyInChain( const char * szClass,
@@ -47,7 +48,7 @@ static const char * hb_csDowncastTo( const char * szTarget, PHB_EXPR pVal );
    dimension). pDim is the first dimension; the rest follow on pNext. */
 static void hb_csEmitArrayNew( PHB_EXPR pDim, FILE * yyc )
 {
-   fprintf( yyc, "HbRuntime.Array(" );
+   fprintf( yyc, "%s(", hb_csRuntime( "Array" ) );
    if( ! pDim )
       fprintf( yyc, "0" );
    for( ; pDim; pDim = pDim->pNext )
@@ -1459,6 +1460,31 @@ static HB_BOOL hb_csMemberShadowsFunc( const char * szName )
       szCls = hb_refTabClassParent( s_pRefTab, szCls );
    }
    return HB_FALSE;
+}
+
+/* An HbRuntime method as a call names it: bare, as C# a person writes
+   would, since every emitted file says `using static HbRuntime;`. It
+   keeps `HbRuntime.` where C# would bind the bare name to something
+   nearer: a parameter, local or codeblock parameter of that name, a
+   member of the class being emitted or of an ancestor (Queue's and
+   Stack's `Len`, SQLtTable's `Eval`), or a program function the reftab
+   has (`using static Program` imports it beside HbRuntime's, and C#
+   would choose between the two). */
+static const char * hb_csRuntime( const char * szName )
+{
+   static char s_szBuf[ 4 ][ 160 ];
+   static int  s_iBuf = 0;
+
+   if( szName &&
+       ( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) ||
+         hb_csMemberShadowsFunc( szName ) ||
+         ( s_pRefTab && hb_refTabParamCount( s_pRefTab, szName ) >= 0 ) ) )
+   {
+      char * szBuf = s_szBuf[ s_iBuf++ & 3 ];
+      hb_snprintf( szBuf, sizeof( s_szBuf[ 0 ] ), "HbRuntime.%s", szName );
+      return szBuf;
+   }
+   return szName;
 }
 
 /* The built-in OO helper Super is emitted as an extension method on
@@ -3086,7 +3112,7 @@ static const char * hb_csTranslateInline( const char * szVal,
       for( i = 0; i + 1 < nLen; i++ )
       {
          if( szVal[ i ] == '-' && szVal[ i + 1 ] == '>' )
-            return "HbRuntime.MacroStub";
+            return hb_csRuntime( "MacroStub" );
       }
    }
 
@@ -3389,14 +3415,22 @@ static const char * hb_csTranslateInline( const char * szVal,
             if( szPrefix )
             {
                const char * szCanon = hb_funcTabCanonName( szId );
+               const char * szCall;
                HB_SIZE j;
                if( ! szCanon ) szCanon = szId;
-               for( j = 0; szPrefix[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
-                  s_szBuf[ nOut++ ] = szPrefix[ j ];
-               if( nOut < sizeof( s_szBuf ) - 1 )
-                  s_szBuf[ nOut++ ] = '.';
-               for( j = 0; szCanon[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
-                  s_szBuf[ nOut++ ] = szCanon[ j ];
+               szCall = strcmp( szPrefix, "HbRuntime" ) == 0 ? hb_csRuntime( szCanon ) : NULL;
+               if( szCall )
+                  for( j = 0; szCall[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                     s_szBuf[ nOut++ ] = szCall[ j ];
+               else
+               {
+                  for( j = 0; szPrefix[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                     s_szBuf[ nOut++ ] = szPrefix[ j ];
+                  if( nOut < sizeof( s_szBuf ) - 1 )
+                     s_szBuf[ nOut++ ] = '.';
+                  for( j = 0; szCanon[ j ] && nOut < sizeof( s_szBuf ) - 1; j++ )
+                     s_szBuf[ nOut++ ] = szCanon[ j ];
+               }
             }
             else
             {
@@ -3748,7 +3782,7 @@ static const char * hb_csTranslateInit( const char * szVal )
 
    /* Fall through to the INLINE translator for general expressions:
       handles identifier remapping via hbfuncs.tab so `SPACE(30)` →
-      `HbRuntime.SPACE(30)` and `ctod("")` → `HbRuntime.CTOD("")`.
+      `Space(30)` and `ctod("")` → `CToD("")`, HbRuntime's spelling.
       No parameter list — CLASS VAR INIT values have no params. */
    return hb_csTranslateInline( szVal, NULL );
 }
@@ -3864,7 +3898,10 @@ static const char * hb_csFuncMap( const char * szName )
          the canonical isn't there. */
       const char * szCanon = hb_funcTabCanonName( szName );
       if( ! szCanon ) szCanon = szName;
-      hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szCanon );
+      if( strcmp( szPrefix, "HbRuntime" ) == 0 )
+         hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s", hb_csRuntime( szCanon ) );
+      else
+         hb_snprintf( s_szBuf, sizeof( s_szBuf ), "%s.%s", szPrefix, szCanon );
       return s_szBuf;
    }
    return szName;
@@ -4752,7 +4789,7 @@ static HB_BOOL hb_csEmitStrOrder( PHB_EXPR pExpr, FILE * yyc )
       return HB_FALSE;
    if( ! ( ( fLStr && ( fRStr || ! szR ) ) || ( fRStr && ! szL ) ) )
       return HB_FALSE;
-   fprintf( yyc, "HbRuntime.StrCmp(" );
+   fprintf( yyc, "%s(", hb_csRuntime( "StrCmp" ) );
    hb_csEmitExpr( pL, yyc, HB_FALSE );
    fprintf( yyc, ", " );
    hb_csEmitExpr( pR, yyc, HB_FALSE );
@@ -5008,12 +5045,12 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          if( pExpr->value.asSymbol.name )
          {
             char szMangled[ 256 ];
-            fprintf( yyc, "HbRuntime.FuncPtr(\"%s\")",
+            fprintf( yyc, "%s(\"%s\")", hb_csRuntime( "FuncPtr" ),
                      hb_csMangleStaticFunc( pExpr->value.asSymbol.name,
                                             szMangled, sizeof( szMangled ) ) );
          }
          else
-            fprintf( yyc, "HbRuntime.FuncPtr(\"\")" );
+            fprintf( yyc, "%s(\"\")", hb_csRuntime( "FuncPtr" ) );
          break;
 
       case HB_ET_REFERENCE:
@@ -5113,14 +5150,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                }
                else if( szCanon )
                {
-                  /* Canonicalised names from hbx are always qualified.
-                     That sidesteps two collisions a bare emit would
-                     hit: (1) names matching .NET BCL types (`Array`,
-                     `Type`, `Version`) cause CS1955 "not invocable
-                     member"; (2) hb_-prefixed runtime fns aren't
-                     globals in any namespace, so a bare `hb_bitAnd(...)`
-                     CS0103s. A core Harbour name (include/*.hbx) goes
-                     to HbRuntime; a contrib library's name goes to that
+                  /* A name an .hbx lists, in its canonical spelling. A
+                     core Harbour name (include/*.hbx) is HbRuntime's,
+                     bare unless something nearer would take it
+                     (hb_csRuntime); a contrib library's name goes to that
                      library's class — `HbWin.wapi_Sleep(...)`,
                      `HbSqlit3.sqlite3_bind_int64(...)` — each library
                      its own project under src/transpiler/libraries/<lib>/
@@ -5134,7 +5167,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                               szCanon );
                   }
                   else
-                     fprintf( yyc, "HbRuntime.%s", szCanon );
+                     fprintf( yyc, "%s", hb_csRuntime( szCanon ) );
                }
                else
                {
@@ -5155,8 +5188,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      function is a Program static, so qualify — the same
                      treatment a user ToString gets against
                      object.ToString. */
-                  if( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) ||
-                      hb_csMemberShadowsFunc( szName ) )
+                  if( ! strchr( szMapped, '.' ) && ! hb_csFuncTabPrefix( szName ) &&
+                      ( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) ||
+                        hb_csMemberShadowsFunc( szName ) ) )
                      fprintf( yyc, "Program." );
                   fprintf( yyc, "%s", szMapped );
                   /* Extra-argument calls (W0018) are the scan walk's
@@ -5255,8 +5289,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                         {
                            szKey = hb_csClassMethodKey( szCtor, "Init", szCtorKey,
                                                         sizeof( szCtorKey ) );
-                           fprintf( yyc, "HbRuntime.Initialised(new %s(), self => self.Init(",
-                                    szCtor );
+                           fprintf( yyc, "%s(new %s(), self => self.Init(",
+                                    hb_csRuntime( "Initialised" ), szCtor );
                         }
                         else if( hb_csCtorResultNeedsCast( szCtor,
                                     pExpr->value.asMessage.szMessage ) )
@@ -5306,8 +5340,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      else if( hb_csCtorDeclares( szCtor, "New" ) )
                         fprintf( yyc, "new %s().New()", szCtor );
                      else if( hb_csCtorDeclares( szCtor, "Init" ) )
-                        fprintf( yyc, "HbRuntime.Initialised(new %s(), self => self.Init())",
-                                 szCtor );
+                        fprintf( yyc, "%s(new %s(), self => self.Init())",
+                                 hb_csRuntime( "Initialised" ), szCtor );
                      else
                         fprintf( yyc, "new %s()", szCtor );
                   }
@@ -5328,7 +5362,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             PHB_EXPR pObj   = pExpr->value.asMessage.pObject;
             HB_BOOL  fCall  = pExpr->value.asMessage.pParms != NULL;
 
-            fprintf( yyc, "HbRuntime.%s(", fCall ? "SENDMSG" : "GETMEMBER" );
+            fprintf( yyc, "%s(", hb_csRuntime( fCall ? "SENDMSG" : "GETMEMBER" ) );
             /* Object argument */
             if( pObj )
             {
@@ -5390,7 +5424,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          if( pExpr->value.asMessage.szMessage &&
              hb_stricmp( pExpr->value.asMessage.szMessage, "className" ) == 0 )
          {
-            fprintf( yyc, "HbRuntime.CLASSNAME(" );
+            fprintf( yyc, "%s(", hb_csRuntime( "CLASSNAME" ) );
             if( pExpr->value.asMessage.pObject )
             {
                if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
@@ -5453,7 +5487,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          if( pExpr->value.asMessage.szMessage &&
              hb_stricmp( pExpr->value.asMessage.szMessage, "exec" ) == 0 )
          {
-            fprintf( yyc, "HbRuntime.Eval(" );
+            fprintf( yyc, "%s(", hb_csRuntime( "Eval" ) );
             if( pExpr->value.asMessage.pObject )
             {
                if( pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
@@ -6097,7 +6131,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                             "comma-operator (%s%s)", szParts,
                             pI ? ", ..." : "" );
                hb_csWarnUnsupported( szDesc );
-               fprintf( yyc, "HbRuntime.MacroStub" );
+               fprintf( yyc, "%s", hb_csRuntime( "MacroStub" ) );
                break;
             }
             {
@@ -6145,7 +6179,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          hb_snprintf( szDesc, sizeof( szDesc ), "macro &%s",
                       szMacro ? szMacro : "?" );
          hb_csWarnUnsupported( szDesc );
-         fprintf( yyc, "HbRuntime.MacroStub" );
+         fprintf( yyc, "%s", hb_csRuntime( "MacroStub" ) );
          break;
       }
 
@@ -6249,7 +6283,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             hb_snprintf( szDesc, sizeof( szDesc ), "ALIAS reference %s->%s",
                          szAlias ? szAlias : "?", szVar ? szVar : "?" );
             hb_csWarnUnsupported( szDesc );
-            fprintf( yyc, "HbRuntime.MacroStub" );
+            fprintf( yyc, "%s", hb_csRuntime( "MacroStub" ) );
          }
          break;
 
@@ -6262,7 +6296,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          hb_snprintf( szDesc, sizeof( szDesc ), "ALIAS expression %s->(...)",
                       szAlias ? szAlias : "?" );
          hb_csWarnUnsupported( szDesc );
-         fprintf( yyc, "HbRuntime.MacroStub" );
+         fprintf( yyc, "%s", hb_csRuntime( "MacroStub" ) );
          break;
       }
 
@@ -6544,7 +6578,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   decimal-vs-double). hbtypes.c infers ^ as NUMERIC
                   (decimal), so the emitted call must return decimal
                   too. */
-               fprintf( yyc, "HbRuntime.Pow(" );
+               fprintf( yyc, "%s(", hb_csRuntime( "Pow" ) );
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
                fprintf( yyc, ", " );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
@@ -6556,7 +6590,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   string b → substring, hash b → key containment.
                   b.Contains(a) only works for strings — a Dictionary
                   has ContainsKey, not Contains. */
-               fprintf( yyc, "HbRuntime.HbIn(" );
+               fprintf( yyc, "%s(", hb_csRuntime( "HbIn" ) );
                hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
                fprintf( yyc, ", " );
                hb_csEmitExpr( pExpr->value.asOperator.pRight, yyc, HB_FALSE );
@@ -6617,7 +6651,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                PHB_EXPR pMacro = pSend->value.asMessage.pMessage;
                PHB_EXPR pObj   = pSend->value.asMessage.pObject;
 
-               fprintf( yyc, "HbRuntime.SETMEMBER(" );
+               fprintf( yyc, "%s(", hb_csRuntime( "SETMEMBER" ) );
                if( pObj )
                {
                   if( pObj->ExprType == HB_ET_VARIABLE &&
@@ -7320,7 +7354,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
       case HB_AST_QOUT:
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "HbRuntime.QOut(" );
+         fprintf( yyc, "%s(", hb_csRuntime( "QOut" ) );
          if( pNode->value.asQOut.pExprList )
             hb_csEmitExpr( pNode->value.asQOut.pExprList, yyc, HB_FALSE );
          fprintf( yyc, ");\n" );
@@ -7328,7 +7362,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
       case HB_AST_QQOUT:
          hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "HbRuntime.QQOut(" );
+         fprintf( yyc, "%s(", hb_csRuntime( "QQOut" ) );
          if( pNode->value.asQOut.pExprList )
             hb_csEmitExpr( pNode->value.asQOut.pExprList, yyc, HB_FALSE );
          fprintf( yyc, ");\n" );
@@ -7664,7 +7698,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             else
             {
                /* the end, then the step: Harbour's order of evaluation */
-               fprintf( yyc, "; HbRuntime.ForTest(%s, ", pNode->value.asFor.szVar );
+               fprintf( yyc, "; %s(%s, ", hb_csRuntime( "ForTest" ), pNode->value.asFor.szVar );
                hb_csEmitExpr( pNode->value.asFor.pEnd, yyc, HB_FALSE );
                fprintf( yyc, ", " );
                hb_csEmitExpr( pNode->value.asFor.pStep, yyc, HB_FALSE );
@@ -7718,7 +7752,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                HB_BOOL fLocal = hb_csIsMethodLocal( szFEName );
                s_aEnumPairVar[ s_iEnumPairDepth++ ] = szFEName;
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "foreach (var __hb_kv_%s in HbRuntime.HbEnumPairs(", szFEName );
+               fprintf( yyc, "foreach (var __hb_kv_%s in %s(", szFEName, hb_csRuntime( "HbEnumPairs" ) );
                hb_csEmitExpr( pNode->value.asForEach.pEnum, yyc, HB_FALSE );
                fprintf( yyc, "%s))\n", pNode->value.asForEach.iDir < 0 ? ", true" : "" );
                hb_csEmitIndent( yyc, iIndent );
@@ -8105,12 +8139,6 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             else
                fprintf( yyc, "%s\n", szText );
          }
-         break;
-
-      case HB_AST_INCLUDE:
-         /* #include → // #include for reference */
-         hb_csEmitIndent( yyc, iIndent );
-         fprintf( yyc, "// #include \"%s\"\n", pNode->value.asInclude.szFile );
          break;
 
       case HB_AST_PPDEFINE:
@@ -8500,7 +8528,7 @@ static HB_BOOL hb_csBlockUsesEnumMsg( PHB_AST_NODE pBlock, const char * szVar )
    body grows it. */
 static void hb_csEmitForEachSource( PHB_EXPR pEnum, int iDir, FILE * yyc )
 {
-   fprintf( yyc, "HbRuntime.HbEnumValues(" );
+   fprintf( yyc, "%s(", hb_csRuntime( "HbEnumValues" ) );
    hb_csEmitExpr( pEnum, yyc, HB_FALSE );
    fprintf( yyc, "%s)", iDir < 0 ? ", true" : "" );
 }
@@ -9707,8 +9735,9 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
       a value (ApiWebSocket's Cleanup, a test suite's Teardown) be called
       as an Action. */
    if( pClass->pClassNode && pClass->pClassNode->value.asClass.szDestructor )
-      fprintf( yyc, "\n    ~%s() => HbRuntime.RunDestructor(() => %s());\n",
-               pClass->szName, pClass->pClassNode->value.asClass.szDestructor );
+      fprintf( yyc, "\n    ~%s() => %s(() => %s());\n", pClass->szName,
+               hb_csRuntime( "RunDestructor" ),
+               pClass->pClassNode->value.asClass.szDestructor );
 
    fprintf( yyc, "}\n" );
    s_szCurrentClass[ 0 ] = '\0';
@@ -10732,7 +10761,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    fprintf( yyc, "using static Program;\n" );
    fprintf( yyc, "\n" );
 
-   /* Emit comments and #include/#define from startup function */
+   /* The comments at file scope, from the startup function */
    {
       PHB_AST_NODE pFirst = HB_COMP_PARAM->ast.pFuncList;
       if( pFirst && pFirst->type == HB_AST_FUNCTION &&
@@ -10742,8 +10771,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
          PHB_AST_NODE pStmt = pFirst->value.asFunc.pBody->value.asBlock.pFirst;
          while( pStmt )
          {
-            if( pStmt->type == HB_AST_INCLUDE ||
-                pStmt->type == HB_AST_COMMENT )
+            if( pStmt->type == HB_AST_COMMENT )
                hb_csEmitNode( pStmt, yyc, 0 );
             pStmt = pStmt->pNext;
          }

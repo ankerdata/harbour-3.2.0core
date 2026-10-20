@@ -22,9 +22,9 @@ public static partial class Program
     {
         bool lDec = false;
 
-        HbRuntime.QOut("bare=" + HbRuntime.LTrim(HbRuntime.Str(GetQty())));
-        HbRuntime.QOut("ref_ret=" + HbRuntime.LTrim(HbRuntime.Str(GetQty(ref lDec))));
-        HbRuntime.QOut("ref_out=" + (lDec ? "Y" : "N"));
+        QOut("bare=" + LTrim(Str(GetQty())));
+        QOut("ref_ret=" + LTrim(Str(GetQty(ref lDec))));
+        QOut("ref_out=" + (lDec ? "Y" : "N"));
         return;
 
         /* First (and only) param is by-ref: the `@lDec` call site above

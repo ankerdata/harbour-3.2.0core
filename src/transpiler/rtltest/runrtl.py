@@ -9,7 +9,7 @@ For every generated/<name>.prg (extract.py writes them):
   cs    the transpiler turns both files into C# (-GF, then -GS, into a
         reftab of the test's own); dotnet builds them against HbRuntime
         ALONE — no generated stubs — so a function HbRuntime does not
-        implement fails to compile (CS0117). Compile triage: every error
+        implement fails to compile (CS0103). Compile triage: every error
         on a TEST_CALL line quarantines that assertion (its statement is
         commented out of the C#) and the build is retried until it is
         clean. An error on any other line is reported and the test is not

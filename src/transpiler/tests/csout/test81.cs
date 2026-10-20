@@ -24,19 +24,19 @@ public static partial class Program
         // by-ref
         Fill(ref n);
         // 6 — write-back kept
-        HbRuntime.QOut("afteref=" + HbRuntime.LTrim(HbRuntime.Str(n)));
+        QOut("afteref=" + LTrim(Str(n)));
 
         n = 5;
         // deliberate by-value
         Fill(ref HbDiscard<decimal>.Seed(n));
         // 5 — write-back discarded
-        HbRuntime.QOut("afterbyval=" + HbRuntime.LTrim(HbRuntime.Str(n)));
+        QOut("afterbyval=" + LTrim(Str(n)));
 
         n = 5;
         // 6 — RETURN value
-        HbRuntime.QOut("ret=" + HbRuntime.LTrim(HbRuntime.Str(Fill(ref HbDiscard<decimal>.Seed(n)))));
+        QOut("ret=" + LTrim(Str(Fill(ref HbDiscard<decimal>.Seed(n)))));
         // 5 — n untouched
-        HbRuntime.QOut("kept=" + HbRuntime.LTrim(HbRuntime.Str(n)));
+        QOut("kept=" + LTrim(Str(n)));
         return;
     }
 

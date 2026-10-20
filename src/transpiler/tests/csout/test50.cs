@@ -26,8 +26,6 @@ using static Program;
 // All declarations must pass the W0021 Hungarian audit silently and
 // runtime evaluation must produce identical output in the .prg and
 // the .cs builds.
-
-// #include "hbclass.ch"
 public class Widget : IHbObject
 {
     public string cLabel = "";
@@ -44,7 +42,7 @@ public class Widget : IHbObject
     {
         if (fHook != null)
         {
-            HbRuntime.QOut("fire: " + HbRuntime.Eval(fHook, cLabel));
+            QOut("fire: " + Eval(fHook, cLabel));
         }
 
         return null;
@@ -53,24 +51,24 @@ public class Widget : IHbObject
 
 public static partial class Program
 {
-    public static dynamic test50_sfPrint = HbRuntime.FuncPtr("PrintTag");
+    public static dynamic test50_sfPrint = FuncPtr("PrintTag");
     public static void Main(string[] args)
     {
-        dynamic fAdd = HbRuntime.FuncPtr("AddOne");
+        dynamic fAdd = FuncPtr("AddOne");
         dynamic fGreet = default;
         Widget oWidget = default;
 
-        fGreet = HbRuntime.FuncPtr("SayHello");
+        fGreet = FuncPtr("SayHello");
 
-        HbRuntime.QOut("fAdd(2,3)=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Eval(fAdd, 2, 3))));
-        HbRuntime.QOut("fGreet=>" + HbRuntime.Eval(fGreet, "world"));
-        HbRuntime.QOut("sfPrint=>" + HbRuntime.Eval(test50_sfPrint, "hello"));
-        HbRuntime.QOut("Apply=>" + Apply(HbRuntime.FuncPtr("AddOne"), 10, 20));
+        QOut("fAdd(2,3)=" + LTrim(Str(Eval(fAdd, 2, 3))));
+        QOut("fGreet=>" + Eval(fGreet, "world"));
+        QOut("sfPrint=>" + Eval(test50_sfPrint, "hello"));
+        QOut("Apply=>" + Apply(FuncPtr("AddOne"), 10, 20));
 
-        oWidget = new Widget().New("OK", HbRuntime.FuncPtr("PrintTag"));
+        oWidget = new Widget().New("OK", FuncPtr("PrintTag"));
         oWidget.Fire();
 
-        Invoke(HbRuntime.FuncPtr("SayHello"), "param-passed");
+        Invoke(FuncPtr("SayHello"), "param-passed");
         return;
     }
 
@@ -91,12 +89,12 @@ public static partial class Program
 
     public static string Apply(dynamic fOp = default, decimal nX = default, decimal nY = default)
     {
-        return HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Eval(fOp, nX, nY)));
+        return LTrim(Str(Eval(fOp, nX, nY)));
     }
 
     public static void Invoke(dynamic fHandler = default, string cArg = default)
     {
-        HbRuntime.QOut("Invoke=>" + HbRuntime.Eval(fHandler, cArg));
+        QOut("Invoke=>" + Eval(fHandler, cArg));
         return;
     }
 }

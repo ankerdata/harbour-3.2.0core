@@ -16,15 +16,13 @@ using static Program;
 //   (a) gendefines.py produces defines/Test44Const.cs for test44.ch
 //   (b) the transpiler loads --defines-map and qualifies the reference
 //   (c) the resulting project compiles and runs with the header values
-
-// #include "test44.ch"
 public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("limit=" + HbRuntime.Str(Test44Const.TEST44_LIMIT, 4));
-        HbRuntime.QOut("greeting=" + Test44Const.TEST44_GREETING);
-        HbRuntime.QOut("offset=" + HbRuntime.Str(Test44Const.TEST44_OFFSET, 4));
+        QOut("limit=" + Str(Test44Const.TEST44_LIMIT, 4));
+        QOut("greeting=" + Test44Const.TEST44_GREETING);
+        QOut("offset=" + Str(Test44Const.TEST44_OFFSET, 4));
         return;
     }
 }

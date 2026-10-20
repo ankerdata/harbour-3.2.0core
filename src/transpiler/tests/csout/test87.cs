@@ -19,9 +19,6 @@ using static Program;
 // member — it is lifted onto the declaration (`bool lLoud = true`), the
 // guard is dropped, and the short overload forwards the same constant.
 // Guards on reference-typed slots are untouched.
-// #include "common.ch"
-// #include "hbclass.ch"
-// #include "test87.ch"
 public class Thing : IHbObject
 {
     public decimal nCount = 0;
@@ -45,24 +42,24 @@ public static partial class Program
         Show(3, true, 7);
         Width();
         Width(10);
-        HbRuntime.QOut("neg=" + HbRuntime.LTrim(HbRuntime.Str(Neg())));
-        HbRuntime.QOut("acc1=" + HbRuntime.LTrim(HbRuntime.Str(Accum())));
+        QOut("neg=" + LTrim(Str(Neg())));
+        QOut("acc1=" + LTrim(Str(Accum())));
         Accum(ref nTot);
-        HbRuntime.QOut("acc2=" + HbRuntime.LTrim(HbRuntime.Str(nTot)));
+        QOut("acc2=" + LTrim(Str(nTot)));
         Accum(ref nTot, false);
-        HbRuntime.QOut("acc3=" + HbRuntime.LTrim(HbRuntime.Str(nTot)));
+        QOut("acc3=" + LTrim(Str(nTot)));
         oThing.Bump();
         oThing.Bump(5);
-        HbRuntime.QOut("count=" + HbRuntime.LTrim(HbRuntime.Str(oThing.nCount)));
-        HbRuntime.QOut("name1=" + Name());
-        HbRuntime.QOut("name2=" + Name("x"));
+        QOut("count=" + LTrim(Str(oThing.nCount)));
+        QOut("name1=" + Name());
+        QOut("name2=" + Name("x"));
         return;
 
         /* Both DEFAULTs lift: `bool lLoud = true, decimal nTimes = 2`. */
     }
     public static void Show(decimal nId = default, bool lLoud = true, decimal nTimes = 2)
     {
-        HbRuntime.QOut("show " + HbRuntime.LTrim(HbRuntime.Str(nId)) + " " + (lLoud ? "T" : "F") + " " + HbRuntime.LTrim(HbRuntime.Str(nTimes)));
+        QOut("show " + LTrim(Str(nId)) + " " + (lLoud ? "T" : "F") + " " + LTrim(Str(nTimes)));
         return;
 
         /* hb_default form, defaulting to a header #define — a Const-class
@@ -70,7 +67,7 @@ public static partial class Program
     }
     public static void Width(decimal nW = Test87Const.TEST87_WIDTH)
     {
-        HbRuntime.QOut("width=" + HbRuntime.LTrim(HbRuntime.Str(nW)));
+        QOut("width=" + LTrim(Str(nW)));
         return;
 
         /* A negative literal. */

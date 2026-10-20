@@ -26,7 +26,6 @@ using static Program;
 // emits as a plain member call (`oTorch.Glow()`), which compiles
 // because the partial class supplies it, and a free function call
 // (`FilamentRate`) emits bare, resolved by C# against Program.
-// #include "hbclass.ch"
 public partial class Torch
 {
     public string Glow() => "torch:" + nWatts;
@@ -51,9 +50,9 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Torch oTorch = new Torch();
-        HbRuntime.QOut(oTorch.Glow());
+        QOut(oTorch.Glow());
 
-        HbRuntime.QOut(FilamentRate(oTorch.nWatts));
+        QOut(FilamentRate(oTorch.nWatts));
         return;
     }
 }

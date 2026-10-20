@@ -3,7 +3,6 @@ using static HbRuntime;
 using static Program;
 
 // Test 10: CLASS methods, STATIC local, WITH OBJECT
-// #include "hbclass.ch"
 public class MyObj : IHbObject
 {
     public decimal nValue = 0;
@@ -17,7 +16,7 @@ public class MyObj : IHbObject
     public virtual MyObj SetValue(decimal nVal = default)
     {
         nValue = nVal;
-        HbRuntime.QOut("nValue=" + HbRuntime.Str(nValue));
+        QOut("nValue=" + Str(nValue));
         return this;
     }
 }
@@ -33,7 +32,7 @@ public static partial class Program
         oObj.SetValue(42);
 
         test10_Main_nCounter = test10_Main_nCounter + 1;
-        HbRuntime.QOut("nCounter=" + HbRuntime.Str(test10_Main_nCounter));
+        QOut("nCounter=" + Str(test10_Main_nCounter));
 
         return;
     }

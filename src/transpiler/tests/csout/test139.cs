@@ -13,8 +13,6 @@ using static Program;
 // while it was `dynamic` (easiwig.prg's Transaction History test). `$`
 // and `^` emit as calls and need nothing; source parentheses stay as
 // written; `!` still binds tighter than `.AND.` and `.OR.`.
-
-// #include "hbclass.ch"
 public class Ticket139 : IHbObject
 {
     public string cRef = "";
@@ -33,7 +31,7 @@ public static partial class Program
     public static bool test139_PayAgain139(Ticket139 oTicket = default)
     {
         // Transaction History must not be paid again
-        if (!(HbRuntime.Left(oTicket.cRef, 3) == "TH-"))
+        if (!(Left(oTicket.cRef, 3) == "TH-"))
         {
             return true;
         }
@@ -49,13 +47,13 @@ public static partial class Program
         string cName = "Lisbon";
         bool lOpen = false;
 
-        HbRuntime.QOut(test139_PayAgain139(oFresh), test139_PayAgain139(oHistory));
-        HbRuntime.QOut(!(oFresh.nCount == 0), !(oHistory.nCount == 0));
-        HbRuntime.QOut(!(nCount > 5), !(nCount + 1 == 4));
-        HbRuntime.QOut(!(HbRuntime.StrCmp(cName, "M") < 0), !(HbRuntime.StrCmp(cName, "Paris") >= 0));
-        HbRuntime.QOut(!HbRuntime.HbIn("bon", cName), !(nCount == 3));
-        HbRuntime.QOut(!lOpen && nCount == 3, !lOpen || nCount == 0);
-        HbRuntime.QOut(!(oHistory.nCount != 0));
+        QOut(test139_PayAgain139(oFresh), test139_PayAgain139(oHistory));
+        QOut(!(oFresh.nCount == 0), !(oHistory.nCount == 0));
+        QOut(!(nCount > 5), !(nCount + 1 == 4));
+        QOut(!(HbRuntime.StrCmp(cName, "M") < 0), !(HbRuntime.StrCmp(cName, "Paris") >= 0));
+        QOut(!HbIn("bon", cName), !(nCount == 3));
+        QOut(!lOpen && nCount == 3, !lOpen || nCount == 0);
+        QOut(!(oHistory.nCount != 0));
         return;
     }
 }

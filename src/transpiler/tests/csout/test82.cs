@@ -21,11 +21,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         // 7
-        HbRuntime.QOut("small=" + HbRuntime.LTrim(HbRuntime.Str(Test82PrgConst.SMALLFLAG)));
+        QOut("small=" + LTrim(Str(Test82PrgConst.SMALLFLAG)));
         // 4294967297 (long)
-        HbRuntime.QOut("big=" + HbRuntime.LTrim(HbRuntime.Str(Test82PrgConst.BIGVAL + 1)));
+        QOut("big=" + LTrim(Str(Test82PrgConst.BIGVAL + 1)));
         // 3  (decimal 1.5*2)
-        HbRuntime.QOut("rate=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.Int(Test82PrgConst.RATE * 2))));
+        QOut("rate=" + LTrim(Str(Int(Test82PrgConst.RATE * 2))));
         return;
     }
 }

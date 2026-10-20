@@ -15,7 +15,6 @@ using static Program;
 // Harbour — is emitted as the call it is. (An ACCESS is a property and
 // gets no parentheses; its body is a known gap — see gencsharp.c — so
 // none is exercised here.)
-// #include "hbclass.ch"
 public class Shelf : IHbObject
 {
     protected List<dynamic> aItems = new List<dynamic>();
@@ -25,7 +24,7 @@ public class Shelf : IHbObject
     public dynamic Init() { aItems = new List<dynamic>(); return this ; }
     public virtual dynamic Stow(dynamic xItem = default)
     {
-        HbRuntime.AAdd(aItems, xItem);
+        AAdd(aItems, xItem);
         return xItem;
     }
 
@@ -39,11 +38,11 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Shelf oShelf = HbRuntime.Initialised(new Shelf(), self => self.Init());
+        Shelf oShelf = Initialised(new Shelf(), self => self.Init());
         oShelf.Stow("jar");
         oShelf.Stow("tin");
-        HbRuntime.QOut("len=" + HbRuntime.LTrim(HbRuntime.Str(oShelf.Len)) + " size=" + HbRuntime.LTrim(HbRuntime.Str(oShelf.Size)));
-        HbRuntime.QOut("bare=" + HbRuntime.LTrim(HbRuntime.Str(oShelf.StackLen())));
+        QOut("len=" + LTrim(Str(oShelf.Len)) + " size=" + LTrim(Str(oShelf.Size)));
+        QOut("bare=" + LTrim(Str(oShelf.StackLen())));
         return;
     }
 }

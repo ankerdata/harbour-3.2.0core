@@ -19,14 +19,14 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("gap=" + test62_Tag("hi", nKind: 7));
-        HbRuntime.QOut("full=" + test62_Tag("yo", "MID", 3));
+        QOut("gap=" + test62_Tag("hi", nKind: 7));
+        QOut("full=" + test62_Tag("yo", "MID", 3));
         return;
     }
 
     public static string test62_Tag(string cName = default, string cMiddle = default, decimal nKind = default)
     {
         string cMid = (cMiddle == null ? "-" : cMiddle);
-        return cName + "/" + cMid + "/" + HbRuntime.LTrim(HbRuntime.Str(nKind));
+        return cName + "/" + cMid + "/" + LTrim(Str(nKind));
     }
 }

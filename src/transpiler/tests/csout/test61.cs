@@ -14,8 +14,6 @@ using static Program;
 // Not covered here (no Harbour program shows them):
 // GETMEMBER/SETMEMBER reaching the dynamic bag, and hb_mutexLock's
 // timeout — both fixed in HbRuntime alongside these.
-
-// #include "set.ch"
 public static partial class Program
 {
     public static void Main(string[] args)
@@ -30,27 +28,27 @@ public static partial class Program
         OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
 
         // AScan with a codeblock — 20 is at index 2
-        HbRuntime.QOut("ascan_blk=" + HbRuntime.LTrim(HbRuntime.Str(HbRuntime.AScan(aData, ((Func<dynamic, bool>)((x) => x == 20))))));
+        QOut("ascan_blk=" + LTrim(Str(AScan(aData, ((Func<dynamic, bool>)((x) => x == 20))))));
 
         // AClone must deep-copy the nested array
-        aCopy = HbRuntime.AClone(aNested);
+        aCopy = AClone(aNested);
         // must not touch the original
         aCopy[Ix(2)][Ix(1)] = 99;
         // still 2
-        HbRuntime.QOut("aclone=" + HbRuntime.LTrim(HbRuntime.Str(aNested[Ix(2)][Ix(1)])));
+        QOut("aclone=" + LTrim(Str(aNested[Ix(2)][Ix(1)])));
 
         // Empty() of an empty hash
-        HbRuntime.QOut("empty_hash=" + (HbRuntime.Empty(hEmpty) ? "Y" : "N"));
+        QOut("empty_hash=" + (Empty(hEmpty) ? "Y" : "N"));
 
         // Right() with a negative count
-        HbRuntime.QOut("right_neg=[" + HbRuntime.Right("hello", -2) + "]");
+        QOut("right_neg=[" + Right("hello", -2) + "]");
 
         // StrZero of a negative number
-        HbRuntime.QOut("strzero=" + HbRuntime.StrZero(-5, 4, 0));
+        QOut("strzero=" + StrZero(-5, 4, 0));
 
         // DToC honours SET DATEFORMAT
-        HbRuntime.Set(_SET_DATEFORMAT, "dd.mm.yyyy");
-        HbRuntime.QOut("dtoc=" + HbRuntime.DToC(HbRuntime.SToD("20240115")));
+        Set(_SET_DATEFORMAT, "dd.mm.yyyy");
+        QOut("dtoc=" + DToC(SToD("20240115")));
         return;
     }
 }

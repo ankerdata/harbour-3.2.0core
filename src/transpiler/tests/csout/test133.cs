@@ -19,8 +19,6 @@ using static Program;
 //
 // The Harbour side, as test83's: a stand-in record class, and the factory
 // and ConstructORMTable() as plain functions.
-
-// #include "hbclass.ch"
 public class ShelfRec133 : IHbObject
 {
     public decimal nNo;
@@ -61,7 +59,7 @@ public static partial class Program
     }
     public static string ShelfLabel133(TestShelf133Table oTestShelf133Table = default)
     {
-        return oTestShelf133Table.cName + " " + HbRuntime.hb_ntos(oTestShelf133Table.nNo);
+        return oTestShelf133Table.cName + " " + hb_ntos(oTestShelf133Table.nNo);
     }
 
     public static void Bump133(Counter133 oCounter133 = default)
@@ -80,10 +78,10 @@ public static partial class Program
         hBox["shelf"] = oShelf;
         hBox["counter"] = new Counter133();
 
-        HbRuntime.QOut(ShelfLabel133(hBox["shelf"]));
+        QOut(ShelfLabel133(hBox["shelf"]));
         Bump133(hBox["counter"]);
         Bump133(hBox["counter"]);
-        HbRuntime.QOut(hBox["counter"].nCount133);
+        QOut(hBox["counter"].nCount133);
         return;
     }
 }

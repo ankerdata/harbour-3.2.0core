@@ -39,7 +39,7 @@ public static partial class Program
         // hb_csTypeMap returns "DateOnly". Date() returns DateOnly too,
         // so the assignment compiles cleanly. Separately, tStamp's
         // TIMESTAMP → DateTime mapping is covered by test27.
-        DateOnly dDate = HbRuntime.Date();
+        DateOnly dDate = Date();
         long i = default;
 
         // Exercise function-scope STATIC mangling three times to confirm
@@ -47,21 +47,21 @@ public static partial class Program
         // the same class field.
         for (i = 1; i <= 3; i++)
         {
-            HbRuntime.QOut("bump:  " + HbRuntime.Str(BumpCounter(), 4));
+            QOut("bump:  " + Str(BumpCounter(), 4));
         }
 
-        HbRuntime.QOut("total: " + HbRuntime.Str(BumpCounter(), 4));
+        QOut("total: " + Str(BumpCounter(), 4));
 
         // Use dDate so C# doesn't warn-as-error about an unused local.
         // Empty(date()) is .F. for today; both Harbour and HbRuntime.EMPTY
         // return false for a non-null DateOnly, so output matches.
-        if (HbRuntime.Empty(dDate))
+        if (Empty(dDate))
         {
-            HbRuntime.QOut("dDate: empty");
+            QOut("dDate: empty");
         }
         else
         {
-            HbRuntime.QOut("dDate: nonempty");
+            QOut("dDate: nonempty");
         }
 
         return;

@@ -16,7 +16,7 @@ using static Program;
 // the shape, test90), so oLight below is `Lantern` in C# and the member
 // access in the constructor binds statically instead of through
 // `dynamic`.
-// #include "hbclass.ch"
+
 /* oLight is OBJECT by name (no class named Light); Main's call refines
    it to Lantern, so `oLight:nLumens` is a typed member access. */
 public class Lantern : IHbObject
@@ -33,7 +33,7 @@ public class Sconce : IHbObject
     public virtual Sconce New(Lantern oLight = default, string cRoom = default)
     {
         this.oLight = oLight;
-        cLabel = cRoom + "/" + HbRuntime.LTrim(HbRuntime.Str(oLight.nLumens));
+        cLabel = cRoom + "/" + LTrim(Str(oLight.nLumens));
         return this;
     }
 }
@@ -44,7 +44,7 @@ public static partial class Program
     {
         Lantern oLantern = new Lantern();
         Sconce oSconce = new Sconce().New(oLantern, "hall");
-        HbRuntime.QOut("label=" + oSconce.cLabel);
+        QOut("label=" + oSconce.cLabel);
         return;
     }
 }

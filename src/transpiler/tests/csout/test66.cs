@@ -23,9 +23,9 @@ public static partial class Program
     public static bool FillBuf(ref string cText, decimal nLen = default)
     {
         // writes cText back -> by-ref
-        cText = HbRuntime.Replicate("x", nLen);
+        cText = Replicate("x", nLen);
         // logical result for the if/return
-        return HbRuntime.Len(cText) == nLen;
+        return Len(cText) == nLen;
     }
 
     public static dynamic Bump66(ref dynamic xVal)
@@ -66,16 +66,16 @@ public static partial class Program
             lOK = FillBuf(ref _hbref_buf, 3);
             buf = _hbref_buf;
         }
-        HbRuntime.QOut("buf=" + buf + " ok=" + (lOK ? "Y" : "N"));
+        QOut("buf=" + buf + " ok=" + (lOK ? "Y" : "N"));
         // if-hoist, returns the buffer
-        HbRuntime.QOut("grab=" + Grab(5));
+        QOut("grab=" + Grab(5));
         // statement-context original shim
         {
             dynamic _hbref_nCount = nCount;
             Bump66(ref _hbref_nCount);
             nCount = _hbref_nCount;
         }
-        HbRuntime.QOut("count=" + HbRuntime.Str(nCount, 3));
+        QOut("count=" + Str(nCount, 3));
         // expression-context original shim
         {
             dynamic _hbref_nCount = nCount;
@@ -83,7 +83,7 @@ public static partial class Program
             nCount = _hbref_nCount;
             if (_hbcall_Bump66 > 0)
             {
-                HbRuntime.QOut("bumped=" + HbRuntime.Str(nCount, 3));
+                QOut("bumped=" + Str(nCount, 3));
             }
         }
 

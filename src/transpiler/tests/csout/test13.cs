@@ -36,7 +36,7 @@ public static partial class Program
             nSum += i;
         }
 
-        HbRuntime.QOut("nSum=" + HbRuntime.Str(nSum));
+        QOut("nSum=" + Str(nSum));
 
         return nSum;
     }
@@ -48,12 +48,12 @@ public static partial class Program
         long i = default;
 
         // Nested FOR with EXIT
-        for (i = 1; i <= HbRuntime.Len(aItems); i++)
+        for (i = 1; i <= Len(aItems); i++)
         {
             if (aItems[Ix(i)] == cTarget)
             {
                 nPos = i;
-                HbRuntime.QOut("nPos=" + HbRuntime.Str(nPos));
+                QOut("nPos=" + Str(nPos));
                 break;
             }
         }
@@ -73,7 +73,7 @@ public static partial class Program
                 if (nX > 100)
                 {
                     cResult = "huge";
-                    HbRuntime.QOut("cResult=" + cResult);
+                    QOut("cResult=" + cResult);
                     break;
                 }
                 else if (nX > 10)
@@ -81,17 +81,17 @@ public static partial class Program
                     if (nX > 50)
                     {
                         cResult = "large";
-                        HbRuntime.QOut("cResult=" + cResult);
+                        QOut("cResult=" + cResult);
                     }
                     else if (nX > 25)
                     {
                         cResult = "medium";
-                        HbRuntime.QOut("cResult=" + cResult);
+                        QOut("cResult=" + cResult);
                     }
                     else
                     {
                         cResult = "smallish";
-                        HbRuntime.QOut("cResult=" + cResult);
+                        QOut("cResult=" + cResult);
                     }
 
                     break;
@@ -99,14 +99,14 @@ public static partial class Program
                 else
                 {
                     nX *= 2;
-                    HbRuntime.QOut("nX=" + HbRuntime.Str(nX));
+                    QOut("nX=" + Str(nX));
                 }
             }
         }
         else
         {
             cResult = "non-positive";
-            HbRuntime.QOut("cResult=" + cResult);
+            QOut("cResult=" + cResult);
         }
 
         return cResult;
@@ -114,14 +114,14 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        HbRuntime.QOut("Classify(-5)=" + Classify(-5));
-        HbRuntime.QOut("Classify(0)=" + Classify(0));
-        HbRuntime.QOut("Classify(42)=" + Classify(42));
-        HbRuntime.QOut("SumEvenTo(10)=" + HbRuntime.Str(SumEvenTo(10)));
-        HbRuntime.QOut("FindFirst=" + HbRuntime.Str(FindFirst(new List<dynamic> { "a", "b", "c" }, "b")));
-        HbRuntime.QOut("DeepNest(5)=" + DeepNest(5));
-        HbRuntime.QOut("DeepNest(30)=" + DeepNest(30));
-        HbRuntime.QOut("DeepNest(200)=" + DeepNest(200));
+        QOut("Classify(-5)=" + Classify(-5));
+        QOut("Classify(0)=" + Classify(0));
+        QOut("Classify(42)=" + Classify(42));
+        QOut("SumEvenTo(10)=" + Str(SumEvenTo(10)));
+        QOut("FindFirst=" + Str(FindFirst(new List<dynamic> { "a", "b", "c" }, "b")));
+        QOut("DeepNest(5)=" + DeepNest(5));
+        QOut("DeepNest(30)=" + DeepNest(30));
+        QOut("DeepNest(200)=" + DeepNest(200));
 
         return;
     }

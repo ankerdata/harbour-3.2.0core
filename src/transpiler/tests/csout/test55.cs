@@ -25,10 +25,10 @@ public static partial class Program
             { "Beta", 2 }
         };
 
-        HbRuntime.QOut("sub_hit=" + (HbRuntime.HbIn("World", cStr) ? "Y" : "N"));
-        HbRuntime.QOut("sub_miss=" + (HbRuntime.HbIn("xyz", cStr) ? "Y" : "N"));
-        HbRuntime.QOut("key_hit=" + (HbRuntime.HbIn("Alpha", hData) ? "Y" : "N"));
-        HbRuntime.QOut("key_miss=" + (HbRuntime.HbIn("Gamma", hData) ? "Y" : "N"));
+        QOut("sub_hit=" + (HbIn("World", cStr) ? "Y" : "N"));
+        QOut("sub_miss=" + (HbIn("xyz", cStr) ? "Y" : "N"));
+        QOut("key_hit=" + (HbIn("Alpha", hData) ? "Y" : "N"));
+        QOut("key_miss=" + (HbIn("Gamma", hData) ? "Y" : "N"));
         return;
     }
 }

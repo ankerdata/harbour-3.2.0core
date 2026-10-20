@@ -13,15 +13,13 @@ using static Program;
 //
 // The last form is the important one — Harbour's idiomatic "call the
 // parent class's implementation" that C# spells as `base.Method(...)`.
-
-// #include "hbclass.ch"
 public class Animal : IHbObject
 {
 
     public dynamic Kind() => "animal";
     public virtual Animal Speak()
     {
-        HbRuntime.QOut("Animal::Speak");
+        QOut("Animal::Speak");
         return this;
     }
 }
@@ -33,18 +31,18 @@ public class Dog : Animal
     {
         // form 4: → base.Speak()
         base.Speak();
-        HbRuntime.QOut("Dog::Speak");
+        QOut("Dog::Speak");
         return this;
     }
 
     public virtual Dog Identify()
     {
         // form 1
-        HbRuntime.QOut("className=" + HbRuntime.Upper(HbRuntime.CLASSNAME(this)));
+        QOut("className=" + Upper(CLASSNAME(this)));
         // form 3
-        HbRuntime.QOut("Super-className=" + HbRuntime.Upper(HbRuntime.CLASSNAME(this.Super())));
+        QOut("Super-className=" + Upper(CLASSNAME(this.Super())));
         // form 4 (inline parent method)
-        HbRuntime.QOut("Kind=" + base.Kind());
+        QOut("Kind=" + base.Kind());
         return this;
     }
 }
@@ -57,11 +55,11 @@ public static partial class Program
         Animal oAnimal = new Animal();
 
         // form 1
-        HbRuntime.QOut("oAnimal:className()=" + HbRuntime.Upper(HbRuntime.CLASSNAME(oAnimal)));
+        QOut("oAnimal:className()=" + Upper(CLASSNAME(oAnimal)));
         // form 1
-        HbRuntime.QOut("oDog:className()=" + HbRuntime.Upper(HbRuntime.CLASSNAME(oDog)));
+        QOut("oDog:className()=" + Upper(CLASSNAME(oDog)));
         // form 2
-        HbRuntime.QOut("oDog:Super():className()=" + HbRuntime.Upper(HbRuntime.CLASSNAME(oDog.Super())));
+        QOut("oDog:Super():className()=" + Upper(CLASSNAME(oDog.Super())));
 
         oDog.Speak();
         oDog.Identify();

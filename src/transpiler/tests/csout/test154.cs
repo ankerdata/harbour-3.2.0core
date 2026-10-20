@@ -12,8 +12,6 @@ using static Program;
 // (CS1001): EasiPOS's fmde.prg hit it the first time a long local went
 // into a method's decimal by-reference slot inside an IF. The temporary's
 // name is an identifier now, whatever the key.
-
-// #include "hbclass.ch"
 public class Meter154 : IHbObject
 {
     public long nReadings = 0;
@@ -41,7 +39,7 @@ public static partial class Program
             iCount = (long)(_hbref_iCount);
             if (_hbcall_Meter154__Meter154__Read == 42)
             {
-                HbRuntime.QOut("read", iCount);
+                QOut("read", iCount);
             }
         }
 
@@ -52,11 +50,11 @@ public static partial class Program
             iCount = (long)(_hbref_iCount);
             if (_hbcall_Meter154__Meter154__Read == 10)
             {
-                HbRuntime.QOut("again", iCount);
+                QOut("again", iCount);
             }
         }
 
-        HbRuntime.QOut(iCount, oMeter.nReadings);
+        QOut(iCount, oMeter.nReadings);
         return;
     }
 }

@@ -17,7 +17,6 @@ using static Program;
 // This is one of the most common Harbour idioms — every PROCEDURE
 // with optional parameters tends to use it — so a regression here
 // would block transpiling almost any real-world codebase.
-// #include "common.ch"
 public static partial class Program
 {
     public static void Main(string[] args)
@@ -42,11 +41,11 @@ public static partial class Program
         }
         if (lFormal)
         {
-            HbRuntime.QOut("Good day, " + cName);
+            QOut("Good day, " + cName);
         }
         else
         {
-            HbRuntime.QOut("Hi " + cName);
+            QOut("Hi " + cName);
         }
 
         return;

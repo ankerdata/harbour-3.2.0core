@@ -25,7 +25,6 @@ using static Program;
 //
 // Both are common idioms in real Harbour code. A regression here
 // would block transpiling most mid-sized codebases.
-// #include "common.ch"
 public static partial class Program
 {
     public static void Main(string[] args)
@@ -42,34 +41,34 @@ public static partial class Program
         // comment on IF line
         if (x == 1)
         {
-            HbRuntime.QOut("one");
+            QOut("one");
             // comment on ELSE line — the headliner
         }
         else
         {
-            HbRuntime.QOut("other");
+            QOut("other");
         }
         // comment on ENDIF line
 
         if (x == 1)
         {
-            HbRuntime.QOut("case one");
+            QOut("case one");
         }
         else
         {
             // comment on OTHERWISE
-            HbRuntime.QOut("case other");
+            QOut("case other");
         }
         // comment on ENDCASE
 
         // comment on FOR
-        for (n = 1; n <= HbRuntime.Len(aCodes); n++)
+        for (n = 1; n <= Len(aCodes); n++)
         {
-            HbRuntime.QOut(aCodes[Ix(n)]);
+            QOut(aCodes[Ix(n)]);
             // comment on NEXT
         }
 
-        HbRuntime.QOut("array len:", HbRuntime.Len(aCodes));
+        QOut("array len:", Len(aCodes));
         return;
     }
 }

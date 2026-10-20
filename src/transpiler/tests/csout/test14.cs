@@ -4,8 +4,6 @@ using static HbRuntime;
 using static Program;
 
 // Test 14: Two classes with inheritance, constructor params, method chaining
-
-// #include "hbclass.ch"
 public class Animal : IHbObject
 {
     public string cName = "";
@@ -15,9 +13,9 @@ public class Animal : IHbObject
     public virtual Animal New(string cName = default, string cSound = default)
     {
         this.cName = cName;
-        HbRuntime.QOut("cName=" + this.cName);
+        QOut("cName=" + this.cName);
         this.cSound = cSound;
-        HbRuntime.QOut("cSound=" + this.cSound);
+        QOut("cSound=" + this.cSound);
         return this;
     }
 
@@ -28,7 +26,7 @@ public class Animal : IHbObject
 
     public virtual string Describe()
     {
-        return cName + " has " + HbRuntime.Str(nLegs) + " legs";
+        return cName + " has " + Str(nLegs) + " legs";
     }
 }
 
@@ -39,9 +37,9 @@ public class Dog : Animal
     public virtual Dog Init(string cName = default, string cBreed = default)
     {
         this.cName = cName;
-        HbRuntime.QOut("cName=" + this.cName);
+        QOut("cName=" + this.cName);
         this.cBreed = cBreed;
-        HbRuntime.QOut("cBreed=" + this.cBreed);
+        QOut("cBreed=" + this.cBreed);
         return this;
     }
 
@@ -58,10 +56,10 @@ public static partial class Program
         Animal oAnimal = new Animal().New("Cat", "Meow");
         Dog oDog = new Dog().Init("Rex", "Labrador");
 
-        HbRuntime.QOut("Speak=" + oAnimal.Speak());
-        HbRuntime.QOut("Describe=" + oAnimal.Describe());
-        HbRuntime.QOut("Speak=" + oDog.Speak());
-        HbRuntime.QOut("DescribeFull=" + oDog.DescribeFull());
+        QOut("Speak=" + oAnimal.Speak());
+        QOut("Describe=" + oAnimal.Describe());
+        QOut("Speak=" + oDog.Speak());
+        QOut("DescribeFull=" + oDog.DescribeFull());
 
         return;
     }

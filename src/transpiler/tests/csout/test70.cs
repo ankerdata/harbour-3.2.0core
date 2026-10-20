@@ -25,13 +25,13 @@ using static Program;
 // The output must be the same in Harbour and in C#.
 public static partial class Program
 {
-    public static List<dynamic> test70_saTotals = HbRuntime.Array(3);
+    public static List<dynamic> test70_saTotals = Array(3);
     public static void Main(string[] args)
     {
         // 1-D dim'd LOCAL
-        List<dynamic> aConfirm = HbRuntime.Array(5);
+        List<dynamic> aConfirm = Array(5);
         // 2-D — only outer dim sized eagerly
-        List<dynamic> aGrid = HbRuntime.Array(2, 3);
+        List<dynamic> aGrid = Array(2, 3);
         long nI = default;
 
         for (nI = 1; nI <= 3; nI++)
@@ -45,9 +45,9 @@ public static partial class Program
         aGrid[Ix(1)] = new List<dynamic> { "a", "b", "c" };
         aGrid[Ix(2)] = new List<dynamic> { "d", "e", "f" };
 
-        HbRuntime.QOut("saTotals=" + HbRuntime.Str(test70_saTotals[Ix(1)], 2) + "," + HbRuntime.Str(test70_saTotals[Ix(2)], 2) + "," + HbRuntime.Str(test70_saTotals[Ix(3)], 2));
-        HbRuntime.QOut("aConfirm=" + aConfirm[Ix(1)] + "/" + aConfirm[Ix(5)]);
-        HbRuntime.QOut("aGrid=" + aGrid[Ix(1)][Ix(1)] + aGrid[Ix(1)][Ix(3)] + "|" + aGrid[Ix(2)][Ix(2)]);
+        QOut("saTotals=" + Str(test70_saTotals[Ix(1)], 2) + "," + Str(test70_saTotals[Ix(2)], 2) + "," + Str(test70_saTotals[Ix(3)], 2));
+        QOut("aConfirm=" + aConfirm[Ix(1)] + "/" + aConfirm[Ix(5)]);
+        QOut("aGrid=" + aGrid[Ix(1)][Ix(1)] + aGrid[Ix(1)][Ix(3)] + "|" + aGrid[Ix(2)][Ix(2)]);
         return;
     }
 }

@@ -16,8 +16,6 @@ using static Program;
 // Wrap's local where the caller never saw it: len= printed 0 instead
 // of 3, and only the C# side was wrong — the Harbour output was right
 // throughout, so nothing but a prg/cs comparison catches it.
-
-// #include "hbclass.ch"
 public class Store : IHbObject
 {
 
@@ -25,7 +23,7 @@ public class Store : IHbObject
     {
         aOut = new List<dynamic> { "x", "y", "z" };
 
-        return HbRuntime.Len(aOut);
+        return Len(aOut);
     }
 }
 
@@ -50,11 +48,11 @@ public static partial class Program
         test86_soStore = new Store();
 
         nCount = Wrap(ref aData);
-        HbRuntime.QOut("n=", nCount);
-        HbRuntime.QOut("len=", HbRuntime.Len(aData));
-        if (HbRuntime.Len(aData) >= 3)
+        QOut("n=", nCount);
+        QOut("len=", Len(aData));
+        if (Len(aData) >= 3)
         {
-            HbRuntime.QOut("vals=", aData[Ix(1)] + aData[Ix(2)] + aData[Ix(3)]);
+            QOut("vals=", aData[Ix(1)] + aData[Ix(2)] + aData[Ix(3)]);
         }
 
         return;

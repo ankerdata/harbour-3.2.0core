@@ -23,8 +23,8 @@ public static partial class Program
 {
     public static string Label150(string cPrefix, ref string cLabel, decimal nWidth = 8)
     {
-        cLabel = HbRuntime.PadR(cPrefix, nWidth, ".");
-        return HbRuntime.Upper(cLabel);
+        cLabel = PadR(cPrefix, nWidth, ".");
+        return Upper(cLabel);
     }
 
     public static string Label150(string cPrefix = default)
@@ -79,17 +79,17 @@ public static partial class Program
         bool lDone = false;
 
         // stops before the ref: the short overload
-        HbRuntime.QOut(Label150("sale"));
-        HbRuntime.QOut(Label150("item", ref cLabel), cLabel);
+        QOut(Label150("sale"));
+        QOut(Label150("item", ref cLabel), cLabel);
         // reaches past the ref: padded
-        HbRuntime.QOut(Label150("tax", ref HbDiscard<string>.Value, 4));
+        QOut(Label150("tax", ref HbDiscard<string>.Value, 4));
         // an inner gap before the ref
-        HbRuntime.QOut(Pair150(default(string?), "b"));
-        HbRuntime.QOut(Pair150("a", "a", ref lFlag), lFlag);
-        HbRuntime.QOut(test150_Scale150(3));
-        HbRuntime.QOut(test150_Scale150(2, ref nFactor), nFactor);
-        HbRuntime.QOut(test150_Stamp150("x", ref lDone), lDone);
-        HbRuntime.QOut(test150_Stamp150("y", ref lDone));
+        QOut(Pair150(default(string?), "b"));
+        QOut(Pair150("a", "a", ref lFlag), lFlag);
+        QOut(test150_Scale150(3));
+        QOut(test150_Scale150(2, ref nFactor), nFactor);
+        QOut(test150_Stamp150("x", ref lDone), lDone);
+        QOut(test150_Stamp150("y", ref lDone));
         return;
     }
 }

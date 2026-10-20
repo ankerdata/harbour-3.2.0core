@@ -19,23 +19,23 @@ public static partial class Program
 
         // Fires side effect when cond true, nothing else.
         if (n > 0)
-            HbRuntime.QOut("pos3");
+            QOut("pos3");
 
         // Empty when cond false — false-branch default case.
         if (n > 10)
-            HbRuntime.QOut("big");
+            QOut("big");
 
         // Empty true-branch — exercises both.
         if (n < 0)
             ;
         else
-            HbRuntime.QOut("nonneg");
+            QOut("nonneg");
 
         // Classic both-branches form — should still work.
         if (n > 0)
-            HbRuntime.QOut("yes");
+            QOut("yes");
         else
-            HbRuntime.QOut("no");
+            QOut("no");
 
         return;
     }

@@ -18,15 +18,15 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbRuntime.QOut(Pow("ab", 3));
-        HbRuntime.QOut(StrCmp("left", "right"));
-        HbRuntime.QOut(HbRuntime.Len(Pow("xyz", 2)));
+        QOut(Pow("ab", 3));
+        QOut(StrCmp("left", "right"));
+        QOut(Len(Pow("xyz", 2)));
         return;
     }
 
     public static string Pow(string cUnit = default, decimal nTimes = default)
     {
-        return HbRuntime.Replicate(cUnit, nTimes);
+        return Replicate(cUnit, nTimes);
     }
 
     public static string StrCmp(string cLeft = default, string cRight = default)

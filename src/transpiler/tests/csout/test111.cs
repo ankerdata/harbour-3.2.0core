@@ -20,47 +20,47 @@ public static partial class Program
         decimal nI = default;
         string cTrail = "";
 
-        for (nI = 5; HbRuntime.ForTest(nI, 1, nStep); nI += nStep)
+        for (nI = 5; ForTest(nI, 1, nStep); nI += nStep)
         {
-            cTrail += HbRuntime.Str(nI, 1);
+            cTrail += Str(nI, 1);
         }
 
-        HbRuntime.QOut(cTrail, nI);
+        QOut(cTrail, nI);
 
         cTrail = "";
-        for (nI = 1; HbRuntime.ForTest(nI, 5, nStep); nI += nStep)
+        for (nI = 1; ForTest(nI, 5, nStep); nI += nStep)
         {
-            cTrail += HbRuntime.Str(nI, 1);
+            cTrail += Str(nI, 1);
         }
 
-        HbRuntime.QOut("[" + cTrail + "]", nI);
+        QOut("[" + cTrail + "]", nI);
 
         cTrail = "";
         for (nI = 1; nI <= 2; nI += 0.5m)
         {
-            cTrail += HbRuntime.Str(nI, 3, 1) + " ";
+            cTrail += Str(nI, 3, 1) + " ";
         }
 
-        HbRuntime.QOut(cTrail);
+        QOut(cTrail);
 
         cTrail = "";
         for (nI = 2; nI >= 1; nI += -0.5m)
         {
-            cTrail += HbRuntime.Str(nI, 3, 1) + " ";
+            cTrail += Str(nI, 3, 1) + " ";
         }
 
-        HbRuntime.QOut(cTrail);
+        QOut(cTrail);
 
         // the step is read again on every pass
         cTrail = "";
         nStep = 1;
-        for (nI = 1; HbRuntime.ForTest(nI, 10, nStep); nI += nStep)
+        for (nI = 1; ForTest(nI, 10, nStep); nI += nStep)
         {
-            cTrail += HbRuntime.Str(nI, 2) + " ";
+            cTrail += Str(nI, 2) + " ";
             nStep = nStep * 2;
         }
 
-        HbRuntime.QOut(cTrail);
+        QOut(cTrail);
 
         return;
     }

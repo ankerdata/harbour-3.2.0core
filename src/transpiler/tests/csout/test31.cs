@@ -47,7 +47,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Func<dynamic[], dynamic> bHandler = ((Func<dynamic[], dynamic>)((dynamic[] hbva) => { Echo(hbva); return null; }));
-        HbRuntime.Eval(bHandler, "hello", "world", "from harbour");
+        Eval(bHandler, "hello", "world", "from harbour");
         return;
     }
 
@@ -55,10 +55,10 @@ public static partial class Program
     {
         dynamic xArg = default;
         decimal nIdx = 1;
-        foreach (dynamic __hb_fe_xArg in HbRuntime.HbEnumValues(new List<dynamic>(hbva)))
+        foreach (dynamic __hb_fe_xArg in HbEnumValues(new List<dynamic>(hbva)))
         {
             xArg = __hb_fe_xArg;
-            HbRuntime.QOut("arg " + HbRuntime.LTrim(HbRuntime.Str(nIdx)) + ": " + xArg);
+            QOut("arg " + LTrim(Str(nIdx)) + ": " + xArg);
             nIdx++;
         }
 

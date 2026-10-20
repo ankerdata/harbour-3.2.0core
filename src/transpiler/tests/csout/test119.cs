@@ -17,24 +17,24 @@ public static partial class Program
         decimal nFlags = 1;
 
         nFlags = SetBit119(nFlags, true);
-        HbRuntime.QOut("set:", nFlags, HasBit119(nFlags));
+        QOut("set:", nFlags, HasBit119(nFlags));
         nFlags = SetBit119(nFlags, false);
-        HbRuntime.QOut("cleared:", nFlags, HasBit119(nFlags));
-        HbRuntime.QOut("word:", Word119(true), Word119(false));
-        HbRuntime.QOut("maybe:", Maybe119(true), Maybe119(false) == null);
-        HbRuntime.QOut("sum:", SetBit119(0, true) + Half119(true) + Half119(false));
+        QOut("cleared:", nFlags, HasBit119(nFlags));
+        QOut("word:", Word119(true), Word119(false));
+        QOut("maybe:", Maybe119(true), Maybe119(false) == null);
+        QOut("sum:", SetBit119(0, true) + Half119(true) + Half119(false));
 
         return;
     }
 
     public static long SetBit119(decimal nFlags = default, bool lx = default)
     {
-        return (lx ? HbRuntime.hb_bitOr(nFlags, Test119PrgConst.FLAG119_BIT) : HbRuntime.hb_bitAnd(nFlags, HbRuntime.hb_bitNot(Test119PrgConst.FLAG119_BIT)));
+        return (lx ? hb_bitOr(nFlags, Test119PrgConst.FLAG119_BIT) : hb_bitAnd(nFlags, hb_bitNot(Test119PrgConst.FLAG119_BIT)));
     }
 
     public static bool HasBit119(decimal nFlags = default)
     {
-        return HbRuntime.hb_bitAnd(nFlags, Test119PrgConst.FLAG119_BIT) != 0;
+        return hb_bitAnd(nFlags, Test119PrgConst.FLAG119_BIT) != 0;
     }
 
     public static string Word119(bool lx = default)
@@ -50,6 +50,6 @@ public static partial class Program
     }
     public static decimal Half119(bool lx = default)
     {
-        return (lx ? HbRuntime.hb_bitShift(8, -1) : 0.5m);
+        return (lx ? hb_bitShift(8, -1) : 0.5m);
     }
 }

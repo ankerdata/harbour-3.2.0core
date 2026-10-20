@@ -17,8 +17,6 @@ using static Program;
 // And only a macro send to Self makes a class dynamic. Viewer134 sends one
 // to its member, which says nothing of Viewer134 itself (EasiPOS's
 // BrowseDialog, `::oOrmTable:&( cField )`).
-
-// #include "hbclass.ch"
 public class Bag134 : HbDynamicObject
 {
     public string cLabel134 = "";
@@ -26,13 +24,13 @@ public class Bag134 : HbDynamicObject
 
     public virtual Bag134 Put134(string cName = default, dynamic xValue = default)
     {
-        HbRuntime.SETMEMBER(this, cName, xValue);
+        SETMEMBER(this, cName, xValue);
         return this;
     }
 
     public virtual dynamic Get134(string cName = default)
     {
-        return HbRuntime.GETMEMBER(this, cName);
+        return GETMEMBER(this, cName);
     }
 
     public virtual Bag134 Touch134()
@@ -54,7 +52,7 @@ public class Viewer134 : IHbObject
 
     public virtual dynamic Show134(string cName = default)
     {
-        return HbRuntime.GETMEMBER(oBag134, cName);
+        return GETMEMBER(oBag134, cName);
 
         // declared members and methods on a Bag134 receiver: checked in C#
     }
@@ -64,7 +62,7 @@ public static partial class Program
 {
     public static string Label134(Bag134 oBag134 = default)
     {
-        return oBag134.Touch134().cLabel134 + "/" + HbRuntime.hb_ntos(oBag134.nCount134);
+        return oBag134.Touch134().cLabel134 + "/" + hb_ntos(oBag134.nCount134);
 
         // a member no class declares, which only a dynamic class's bag could hold
     }
@@ -80,9 +78,9 @@ public static partial class Program
 
         oStore134.Put134("cLabel134", "tin");
         oShow134 = new Viewer134().New(oStore134);
-        HbRuntime.QOut(oShow134.Show134("cLabel134"));
-        HbRuntime.QOut(Label134(oStore134));
-        HbRuntime.QOut(oStore134.Get134("nCount134"));
+        QOut(oShow134.Show134("cLabel134"));
+        QOut(Label134(oStore134));
+        QOut(oStore134.Get134("nCount134"));
         return;
     }
 }

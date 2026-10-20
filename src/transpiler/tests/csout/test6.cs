@@ -22,7 +22,6 @@ using static Program;
 //    (→ `HbRuntime.Space`, `HbRuntime.CToD`). Without the canonical-
 //    casing path the emit was `HbRuntime.SPACE` / `HbRuntime.CTOD`
 //    which only compiled thanks to NIE stubs — throwing at runtime.
-// #include "hbclass.ch"
 public class Inherited : IHbObject
 {
     public static decimal nVersion = 1.0m;
@@ -33,8 +32,8 @@ public class Person : Inherited
 {
     public decimal nAge = 0;
     public string cName = "";
-    public DateOnly dBirth = HbRuntime.CToD( "" );
-    public string cInitials = HbRuntime.Space( 3 );
+    public DateOnly dBirth = CToD( "" );
+    public string cInitials = Space( 3 );
     public static decimal nCount = 0;
     public dynamic FullName { get; set; }
         public string cPublicNotes;
@@ -49,7 +48,7 @@ public class Person : Inherited
     public virtual Person SetAge(decimal nAge = default)
     {
         this.nAge = nAge;
-        HbRuntime.QOut("nAge=" + HbRuntime.Str(this.nAge));
+        QOut("nAge=" + Str(this.nAge));
         return this;
     }
 
@@ -64,17 +63,17 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Person oPerson = new Person().New();
-        HbRuntime.QOut("oPerson created");
+        QOut("oPerson created");
 
         oPerson.SetAge(25);
-        HbRuntime.QOut("FullName=" + oPerson.FullName);
+        QOut("FullName=" + oPerson.FullName);
 
         // Touch the EXPORT-shorthand member so it's visibly present at
         // compile AND runtime (the PROTECT counterpart `oContext` is
         // deliberately only accessed from inside the class).
         oPerson.cPublicNotes = "hello";
-        HbRuntime.QOut("cPublicNotes=" + oPerson.cPublicNotes);
-        HbRuntime.QOut("cInitials=[" + oPerson.cInitials + "]");
+        QOut("cPublicNotes=" + oPerson.cPublicNotes);
+        QOut("cInitials=[" + oPerson.cInitials + "]");
 
         return;
     }

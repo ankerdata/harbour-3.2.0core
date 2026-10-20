@@ -12,8 +12,6 @@ using static Program;
 // argument plain: through a typed receiver that is CS1503, through a
 // dynamic one the binder throws at run time. The method row every class
 // declaring the method shares now types the slot, as it names a gap.
-
-// #include "hbclass.ch"
 public class RowCursor : IHbObject
 {
     public decimal nLastRow = 7;
@@ -27,7 +25,7 @@ public class RowCursor : IHbObject
 
         if (!lQuiet)
         {
-            HbRuntime.QOut("row", iRow);
+            QOut("row", iRow);
         }
 
         return iRow;
@@ -41,7 +39,7 @@ public static partial class Program
         RowCursor xRowCursor = new RowCursor();
         decimal nWanted = 3;
         xRowCursor.SeekRow((long)(nWanted));
-        HbRuntime.QOut(xRowCursor.SeekRow((long)(nWanted + 9), true));
+        QOut(xRowCursor.SeekRow((long)(nWanted + 9), true));
         return;
     }
 }
