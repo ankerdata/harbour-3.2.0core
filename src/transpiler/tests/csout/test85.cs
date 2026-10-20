@@ -67,7 +67,6 @@ public static partial class Program
     {
         oTable.nNo = oFrom.nNo;
         oTable.cName = oFrom.cName;
-        return;
     }
 
     public static void Main(string[] args)
@@ -91,6 +90,5 @@ public static partial class Program
         QOut(LTrim(Str(oBranch.nRegion, 4, 0)));
         // family-base long field divides floatly
         QOut(LTrim(Str((decimal)(oDept.nNo) / 2, 8, 2)));
-        return;
     }
 }

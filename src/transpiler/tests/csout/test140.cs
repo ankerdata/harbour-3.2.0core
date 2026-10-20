@@ -55,6 +55,5 @@ public static partial class Program
         QOut(Str(oPanel.HalfLevel140(), 6, 2));
         oPanel.oGauge140.nLevel = (long)(nAmount + 1);
         QOut(Str(oPanel.oGauge140.nLevel, 4));
-        return;
     }
 }

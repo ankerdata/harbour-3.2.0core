@@ -99,7 +99,5 @@ public static partial class Program
         QOut("maybe:", ValType(oLedger.Maybe117(true)), ValType(oLedger.Maybe117(false)));
         QOut("maybe nil:", oLedger.Maybe117(false) == null, oLedger.Maybe117(true).Describe());
         QOut("mixed:", ValType(oLedger.Mixed117(true)), oLedger.Mixed117(false));
-
-        return;
     }
 }

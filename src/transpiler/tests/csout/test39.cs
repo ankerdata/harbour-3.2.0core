@@ -41,7 +41,5 @@ public static partial class Program
         QOut("class:  " + oB.cHello);
         QOut("hsize:  " + Str(Len(hEmpty), 4));
         QOut("hclas:  " + Str(Len(oB.hTable), 4));
-
-        return;
     }
 }

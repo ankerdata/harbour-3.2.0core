@@ -49,14 +49,12 @@ public static partial class Program
         QOut("count=" + LTrim(Str(oThing.nCount)));
         QOut("name1=" + Name());
         QOut("name2=" + Name("x"));
-        return;
 
         /* Both DEFAULTs lift: `bool lLoud = true, decimal nTimes = 2`. */
     }
     public static void Show(decimal nId = default, bool lLoud = true, decimal nTimes = 2)
     {
         QOut("show " + LTrim(Str(nId)) + " " + (lLoud ? "T" : "F") + " " + LTrim(Str(nTimes)));
-        return;
 
         /* hb_default form, defaulting to a header #define — a Const-class
    member, so still a C# constant: `decimal nW = Test87Const.TEST87_WIDTH`. */
@@ -64,7 +62,6 @@ public static partial class Program
     public static void Width(decimal nW = Test87Const.TEST87_WIDTH)
     {
         QOut("width=" + LTrim(Str(nW)));
-        return;
 
         /* A negative literal. */
     }

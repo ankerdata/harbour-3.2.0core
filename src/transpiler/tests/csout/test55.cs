@@ -25,6 +25,5 @@ public static partial class Program
         QOut("sub_miss=" + (HbIn("xyz", cStr) ? "Y" : "N"));
         QOut("key_hit=" + (HbIn("Alpha", hData) ? "Y" : "N"));
         QOut("key_miss=" + (HbIn("Gamma", hData) ? "Y" : "N"));
-        return;
     }
 }

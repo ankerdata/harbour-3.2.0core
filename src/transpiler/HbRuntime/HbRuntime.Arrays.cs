@@ -20,16 +20,14 @@ public static partial class HbRuntime
     // a second variable never saw the change. The functions read any
     // IList, so a typed List<T> can be a Harbour array too.
 
-    // Ix( <nIndex> ): a Harbour array subscript, 1-based, as the List's
+    // I( <nIndex> ): a Harbour array subscript, 1-based, as the List's
     // 0-based int. The emitter writes every array subscript through it,
-    // `aLine[Ix(i)]`, `aCSV[Ix(19)]`, so the Harbour index stays readable
-    // where `[(int)(i) - 1]` and a literal decremented in place did not.
+    // `aLine[I(i)]`, `aCSV[I(19)]`, so the Harbour index stays readable.
     // An index below 1 is Harbour's bound error, reported with the index
-    // given, not the -1 the List would report. A fraction is an error too:
-    // the (int) cast truncated it silently, and so does Harbour, a bug
-    // neither side reported. An int converts to long on its own, so the
-    // two overloads cover every number the C# holds.
-    public static int Ix(long iIndex)
+    // given, not the -1 the List would report. A fraction is an error too,
+    // where Harbour truncates it silently. An int converts to long on its
+    // own, so the two overloads cover every number the C# holds.
+    public static int I(long iIndex)
     {
         if (iIndex < 1)
             throw new ArgumentOutOfRangeException(nameof(iIndex), iIndex,
@@ -37,12 +35,12 @@ public static partial class HbRuntime
         return (int)(iIndex - 1);
     }
 
-    public static int Ix(decimal nIndex)
+    public static int I(decimal nIndex)
     {
         if (nIndex != Math.Truncate(nIndex))
             throw new ArgumentOutOfRangeException(nameof(nIndex), nIndex,
                 "Bound error: array index " + nIndex.ToString(CultureInfo.InvariantCulture) + " has a fraction");
-        return Ix((long)nIndex);
+        return I((long)nIndex);
     }
 
     // Array( <nElements> [, <nElements>...] ): an array of NIL with one

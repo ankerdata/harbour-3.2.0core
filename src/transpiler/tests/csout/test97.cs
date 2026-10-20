@@ -39,6 +39,5 @@ public static partial class Program
         oShelf.Stow("tin");
         QOut("len=" + LTrim(Str(oShelf.Len)) + " size=" + LTrim(Str(oShelf.Size)));
         QOut("bare=" + LTrim(Str(oShelf.StackLen())));
-        return;
     }
 }

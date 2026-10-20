@@ -60,8 +60,6 @@ public static partial class Program
             QOut("dDate: nonempty");
         }
 
-        return;
-
         // Function-scope STATIC — persists across calls. Gets mangled to
         // `test26_nCounter` in the generated C#.
     }

@@ -35,23 +35,23 @@ public class Record : HbDynamicObject
         string cType = default;
         for (i = 1; i <= Len(aFields); i++)
         {
-            xVal = GETMEMBER(this, aFields[Ix(i)]);
+            xVal = GETMEMBER(this, aFields[I(i)]);
             cType = ValType(xVal);
             if (cType == "C")
             {
-                QOut(aFields[Ix(i)] + ": " + xVal);
+                QOut(aFields[I(i)] + ": " + xVal);
             }
             else if (cType == "N")
             {
-                QOut(aFields[Ix(i)] + ": " + Str(xVal, 4));
+                QOut(aFields[I(i)] + ": " + Str(xVal, 4));
             }
             else if (cType == "L")
             {
-                QOut(aFields[Ix(i)] + ": " + (xVal ? "T" : "F"));
+                QOut(aFields[I(i)] + ": " + (xVal ? "T" : "F"));
             }
             else
             {
-                QOut(aFields[Ix(i)] + ": ?");
+                QOut(aFields[I(i)] + ": ?");
             }
         }
 
@@ -82,7 +82,5 @@ public static partial class Program
 
         // Iterate fields by name (DumpFields uses GETMEMBER in a loop)
         oRec.DumpFields(aFields);
-
-        return;
     }
 }

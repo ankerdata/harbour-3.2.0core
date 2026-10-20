@@ -33,7 +33,5 @@ public static partial class Program
         /* inline block comment */
         x = x + 1;
         QOut("x=" + Str(x));
-
-        return;
     }
 }

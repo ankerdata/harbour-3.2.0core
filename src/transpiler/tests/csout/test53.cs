@@ -26,7 +26,6 @@ public static partial class Program
         QOut("result2=" + LTrim(Str(AddPair(10, 20))));
         QOut("result3=" + (IsLargeFlag(150, true) ? "Y" : "N"));
         QOut("result4=" + (IsLargeFlag(50, false) ? "Y" : "N"));
-        return;
 
         /* `nA`/`nB`: numeric per Hungarian. Even if some caller passed a
    NIL, the strict-typing rule treats the source as the bug —

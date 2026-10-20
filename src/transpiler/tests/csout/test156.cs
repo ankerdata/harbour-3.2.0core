@@ -80,7 +80,6 @@ public static partial class Program
         QOut(Len(hnNames), hnNames[2], hnNames[3]);
         QOut(aTable.cAlias, Len(aTable.hFields), aTable.hFields["CAPTION"].cName, aTable.hnNames[2]);
         QOut(Count156(aTable.hFields), Count156(test156_shByName));
-        return;
 
         // a record holding typed hashes, built from one literal
     }

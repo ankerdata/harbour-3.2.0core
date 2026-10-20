@@ -39,7 +39,6 @@ public static partial class Program
         Probe(1, true);
         Probe(2);
         Probe();
-        return;
     }
 
     public static void Probe(decimal nKind = 0, bool lReady = false)
@@ -55,7 +54,5 @@ public static partial class Program
         {
             QOut("kind=" + LTrim(Str(nKind)) + " ready=N");
         }
-
-        return;
     }
 }

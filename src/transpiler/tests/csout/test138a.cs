@@ -24,7 +24,7 @@ public static partial class Program
 {
     public static decimal FirstTotal138(Till138 oTill138 = default)
     {
-        Line138 oLine = oTill138.aLines[Ix(1)];
+        Line138 oLine = oTill138.aLines[I(1)];
         return Amount138((PrintLine138)oLine);
 
         // later callers pass subclasses
@@ -47,9 +47,9 @@ public static partial class Program
         long iPos = default;
         for (iPos = 1; iPos <= Len(oTill138.aLines); iPos++)
         {
-            if (((Line138)oTill138.aLines[Ix(iPos)]).nKind != 0)
+            if (((Line138)oTill138.aLines[I(iPos)]).nKind != 0)
             {
-                nTotal += oTill138.aLines[Ix(iPos)].nValue;
+                nTotal += oTill138.aLines[I(iPos)].nValue;
             }
         }
 

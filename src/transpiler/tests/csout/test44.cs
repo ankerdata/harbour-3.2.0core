@@ -19,6 +19,5 @@ public static partial class Program
         QOut("limit=" + Str(Test44Const.TEST44_LIMIT, 4));
         QOut("greeting=" + Test44Const.TEST44_GREETING);
         QOut("offset=" + Str(Test44Const.TEST44_OFFSET, 4));
-        return;
     }
 }

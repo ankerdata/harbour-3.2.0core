@@ -9,8 +9,6 @@ public static partial class Program
         QOut("before: a=" + Str(nA) + " b=" + Str(nB));
         Swap(ref nA, ref nB);
         QOut("after:  a=" + Str(nA) + " b=" + Str(nB));
-
-        return;
     }
 
     public static void Swap(ref decimal nX, ref decimal nY)
@@ -19,7 +17,5 @@ public static partial class Program
 
         nX = nY;
         nY = nT;
-
-        return;
     }
 }

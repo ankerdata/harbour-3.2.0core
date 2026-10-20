@@ -29,13 +29,11 @@ public static partial class Program
         Bump();
         Bump();
         QOut(Greet("Alex", true, "!"));
-        return;
     }
 
     public static void Bump()
     {
         test33_snState++;
-        return;
 
         // The last function in the file — the one the bug dropped params on.
     }

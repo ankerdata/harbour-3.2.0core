@@ -25,13 +25,11 @@ public class Calculator : IHbObject
     {
         nResult = 0;
         QOut("nResult=" + Str(nResult));
-        return;
     }
 
     public virtual void Display(string cLabel = default)
     {
         QOut(cLabel + ": " + Str(nResult));
-        return;
     }
 }
 
@@ -63,7 +61,5 @@ public static partial class Program
 
         QOut("CalcTotal=" + Str(CalcTotal(1, 2, 3)));
         QOut("FormatPrice=" + FormatPrice(9.99m, "$"));
-
-        return;
     }
 }

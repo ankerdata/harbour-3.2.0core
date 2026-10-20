@@ -12,7 +12,6 @@ public static partial class Program
     public static void Main(string[] args)
     {
         QOut("a=" + test63a_Render63("hello"));
-        return;
     }
 
     public static string test63a_Render63(string cText = default)

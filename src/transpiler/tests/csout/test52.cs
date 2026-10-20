@@ -25,8 +25,6 @@ public static partial class Program
         QOut("string: " + Describe("hello"));
         QOut("number: " + Describe(42));
         QOut("logical:" + Describe(true));
-
-        return;
     }
 
     public static dynamic Describe(dynamic xVal = default)

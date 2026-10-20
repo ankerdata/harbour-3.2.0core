@@ -150,8 +150,6 @@ public static partial class Program
         bOld = ErrorBlock(((Func<dynamic, dynamic>)((oErr) => test114_Brk114Handler(oErr))));
         QOut("error block:", Eval(ErrorBlock(), test114_Brk114Udm()));
         ErrorBlock(bOld);
-
-        return;
     }
 
     public static void test114_Brk114Throw(dynamic xValue = default)

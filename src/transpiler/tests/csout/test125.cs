@@ -44,27 +44,27 @@ public static partial class Program
         dynamic x = default;
 
         // an element grows in place
-        AAdd(aRows125[Ix(1)], "a");
-        AAdd(aRows125[Ix(1)], "b");
-        QOut(Len(aRows125[Ix(1)]), aRows125[Ix(1)][Ix(2)]);
-        hb_AIns(aRows125[Ix(1)], 1, "z", true);
-        QOut(Len(aRows125[Ix(1)]), aRows125[Ix(1)][Ix(1)]);
+        AAdd(aRows125[I(1)], "a");
+        AAdd(aRows125[I(1)], "b");
+        QOut(Len(aRows125[I(1)]), aRows125[I(1)][I(2)]);
+        hb_AIns(aRows125[I(1)], 1, "z", true);
+        QOut(Len(aRows125[I(1)]), aRows125[I(1)][I(1)]);
 
         // a second holder sees the change, whoever makes it
-        aAlias125 = aRows125[Ix(2)];
-        ASize(aRows125[Ix(2)], 3);
+        aAlias125 = aRows125[I(2)];
+        ASize(aRows125[I(2)], 3);
         QOut(Len(aAlias125));
         test125_AddTwice125(aAlias125);
-        QOut(Len(aRows125[Ix(2)]), aRows125[Ix(2)][Ix(5)]);
+        QOut(Len(aRows125[I(2)]), aRows125[I(2)][I(5)]);
         hb_ADel(aAlias125, 1, true);
-        QOut(Len(aRows125[Ix(2)]));
+        QOut(Len(aRows125[I(2)]));
 
         // a member
         AAdd(oStock125.aItems125, "first");
-        QOut(Len(oStock125.aItems125), oStock125.aItems125[Ix(1)]);
+        QOut(Len(oStock125.aItems125), oStock125.aItems125[I(1)]);
 
         // every dimension of Array()
-        QOut(Len(aGrid125), Len(aGrid125[Ix(2)]), ValType(aGrid125[Ix(2)][Ix(3)]));
+        QOut(Len(aGrid125), Len(aGrid125[I(2)]), ValType(aGrid125[I(2)][I(3)]));
 
         // FOR EACH sees an element its body adds
         foreach (dynamic __hb_fe_x in HbEnumValues(aSeen125))
@@ -76,8 +76,6 @@ public static partial class Program
             }
         }
 
-        QOut(Len(aSeen125), aSeen125[Ix(5)]);
-
-        return;
+        QOut(Len(aSeen125), aSeen125[I(5)]);
     }
 }

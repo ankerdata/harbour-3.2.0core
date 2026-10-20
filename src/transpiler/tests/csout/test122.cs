@@ -65,7 +65,6 @@ public static partial class Program
     {
         oVault.nInside122 = 5;
         oVault.cSealed122 = "sealed";
-        return;
     }
 
     public static void Main(string[] args)
@@ -80,8 +79,6 @@ public static partial class Program
 
         test122_Vault122Check();
 
-        return;
-
         // an object that goes with its routine
     }
     public static void test122_Open122(string cLabel = default)
@@ -90,8 +87,6 @@ public static partial class Program
 
         oHandle.Label122(cLabel);
         QOut("label:", oHandle.cLabel122);
-
-        return;
     }
 
     public static void test122_Vault122Check()
@@ -100,7 +95,5 @@ public static partial class Program
 
         test122_Fill122(oVault);
         QOut("vault:", oVault.Peek122());
-
-        return;
     }
 }

@@ -41,7 +41,5 @@ public static partial class Program
         {
             QOut("hidden: no");
         }
-
-        return;
     }
 }

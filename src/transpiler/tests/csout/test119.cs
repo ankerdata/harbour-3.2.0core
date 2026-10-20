@@ -19,8 +19,6 @@ public static partial class Program
         QOut("word:", Word119(true), Word119(false));
         QOut("maybe:", Maybe119(true), Maybe119(false) == null);
         QOut("sum:", SetBit119(0, true) + Half119(true) + Half119(false));
-
-        return;
     }
 
     public static long SetBit119(decimal nFlags = default, bool lx = default)

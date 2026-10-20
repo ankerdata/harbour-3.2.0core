@@ -13,14 +13,12 @@ public static partial class Program
         List<dynamic> aArr = new List<dynamic> {  };
 
         LoadFlags("full.dat", aArr, 4);
-        QOut("full[1]=" + aArr[Ix(1)]);
-        QOut("full[4]=" + aArr[Ix(4)]);
+        QOut("full[1]=" + aArr[I(1)]);
+        QOut("full[4]=" + aArr[I(4)]);
 
         if (false)
         {
             LoadFlags("short.dat", default(List<dynamic>));
         }
-
-        return;
     }
 }

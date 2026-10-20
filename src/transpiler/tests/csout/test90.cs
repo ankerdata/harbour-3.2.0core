@@ -63,6 +63,5 @@ public static partial class Program
         o.Show();
         o = new Base().New("all", 7);
         o.Show();
-        return;
     }
 }

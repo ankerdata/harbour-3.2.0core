@@ -83,6 +83,5 @@ public static partial class Program
         QOut("served=" + LTrim(Str(nServed)));
         QOut("watts=" + LTrim(Str(oKettle.nWatts)) + " boiling=" + (oKettle.lIsBoiling ? "T" : "F"));
         QOut("mug=" + LTrim(Str(Handles(new Mug()))) + " big=" + LTrim(Str(Handles(oBigMug))));
-        return;
     }
 }

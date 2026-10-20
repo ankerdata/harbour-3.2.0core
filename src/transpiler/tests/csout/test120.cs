@@ -30,7 +30,7 @@ public static partial class Program
         QOut("count:", iCount, iLen);
 
         iWhole = (long)(Int(nPrice * 1.2m));
-        QOut("whole:", iWhole, aItems[Ix(iWhole)]);
+        QOut("whole:", iWhole, aItems[I(iWhole)]);
 
         iWhole = (long)(Round(nPrice, 0) + iLen);
         QOut("rounded:", iWhole);
@@ -38,8 +38,6 @@ public static partial class Program
         QOut("twice:", Twice120(iLen), Twice120(7), Twice120((long)(Len("xyz"))));
         QOut("priced:", Price120(iCount, nPrice));
         QOut("calls:", test120_siCalls120);
-
-        return;
     }
 
     public static long Twice120(long iValue = default)

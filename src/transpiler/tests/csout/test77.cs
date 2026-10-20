@@ -31,8 +31,6 @@ public static partial class Program
         QOut("g=", AddShared(10));
         // 120 — same file-level static elsewhere
         QOut("h=", PeekShared());
-
-        return;
     }
 
     public static decimal Bump()

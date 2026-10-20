@@ -34,12 +34,12 @@ public static partial class Program
         string cSub = default;
 
         // Array subscript access
-        nTotal = aNumbers[Ix(1)] + aNumbers[Ix(3)] + aNumbers[Ix(5)];
+        nTotal = aNumbers[I(1)] + aNumbers[I(3)] + aNumbers[I(5)];
         QOut("nTotal=" + Str(nTotal));
 
         // Array subscript assignment
-        aNumbers[Ix(2)] = 99;
-        QOut("aNumbers[2]=" + Str(aNumbers[Ix(2)]));
+        aNumbers[I(2)] = 99;
+        QOut("aNumbers[2]=" + Str(aNumbers[I(2)]));
 
         // Array length
         nLen = Len(aNumbers);
@@ -49,7 +49,7 @@ public static partial class Program
         nTotal = 0;
         for (i = 1; i <= Len(aNumbers); i++)
         {
-            nTotal += aNumbers[Ix(i)];
+            nTotal += aNumbers[I(i)];
         }
 
         QOut("nTotal=" + Str(nTotal));
@@ -65,7 +65,7 @@ public static partial class Program
         QOut("nTotal=" + Str(nTotal));
 
         // Nested array access
-        nTotal = aMatrix[Ix(2)][Ix(1)];
+        nTotal = aMatrix[I(2)][I(1)];
         QOut("nTotal=" + Str(nTotal));
 
         // Hash access
@@ -85,7 +85,5 @@ public static partial class Program
         QOut("cSub=" + cSub);
         nPos = Len(cText);
         QOut("nPos=" + Str(nPos));
-
-        return;
     }
 }

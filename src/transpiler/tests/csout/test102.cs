@@ -45,6 +45,5 @@ public static partial class Program
         QOut(test102_Muster("one", "two", "three"));
         QOut(Convoy("solo"));
         QOut(Convoy("a", "b"));
-        return;
     }
 }

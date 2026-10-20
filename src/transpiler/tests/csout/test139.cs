@@ -50,6 +50,5 @@ public static partial class Program
         QOut(!HbIn("bon", cName), !(nCount == 3));
         QOut(!lOpen && nCount == 3, !lOpen || nCount == 0);
         QOut(!(oHistory.nCount != 0));
-        return;
     }
 }

@@ -45,7 +45,7 @@ public static partial class Program
         QOut(cTrail);
 
         ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return a < b; })));
-        QOut(aNums[Ix(1)], aNums[Ix(2)], aNums[Ix(3)]);
+        QOut(aNums[I(1)], aNums[I(2)], aNums[I(3)]);
         QOut(nCalls > 0);
 
         // a value that is only discarded; a value with no effect at all
@@ -65,14 +65,11 @@ public static partial class Program
         // a `...` block runs every expression too
         Eval(((Func<dynamic[], dynamic>)((dynamic[] hbva) => { nSum += 100; BlockNote("v"); return null; })), 1, 2);
         QOut(nSum);
-
-        return;
     }
 
     public static void BlockNote(string cWhat = default)
     {
         QOut("note " + cWhat);
-        return;
     }
 
     public static bool BlockSay(string cWhat = default)

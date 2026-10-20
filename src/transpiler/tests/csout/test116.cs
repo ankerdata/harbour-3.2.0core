@@ -34,7 +34,5 @@ public static partial class Program
 
         QOut("nB + 1:", cText);
         QOut("xAny:", xAny);
-
-        return;
     }
 }

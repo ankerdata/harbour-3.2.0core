@@ -51,6 +51,5 @@ public static partial class Program
         }
 
         QOut(iCount, oMeter.nReadings);
-        return;
     }
 }

@@ -51,8 +51,6 @@ public static partial class Program
         QOut(Panel129(1.5m), Panel129(0));
         QOut(Flag129("L"));
 
-        return;
-
         // A value that could be anything, taken into a name that commits to a type,
         // keeps the name's type: Poly129()'s RETURNs disagree (USUAL), and Flag129()
         // returns bool as its local is declared - easipos flags.prg's GetFlagL() over

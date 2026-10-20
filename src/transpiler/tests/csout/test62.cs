@@ -17,7 +17,6 @@ public static partial class Program
     {
         QOut("gap=" + test62_Tag("hi", nKind: 7));
         QOut("full=" + test62_Tag("yo", "MID", 3));
-        return;
     }
 
     public static string test62_Tag(string cName = default, string cMiddle = default, decimal nKind = default)

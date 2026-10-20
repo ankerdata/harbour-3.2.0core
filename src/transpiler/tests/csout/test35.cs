@@ -20,12 +20,10 @@ public static partial class Program
         Bump();
         Bump();
         QOut("count=" + Str(gCount));
-        return;
     }
 
     public static void Bump()
     {
         gCount++;
-        return;
     }
 }

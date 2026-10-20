@@ -17,7 +17,6 @@ public static partial class Program
         QOut(Pow("ab", 3));
         QOut(StrCmp("left", "right"));
         QOut(Len(Pow("xyz", 2)));
-        return;
     }
 
     public static string Pow(string cUnit = default, decimal nTimes = default)

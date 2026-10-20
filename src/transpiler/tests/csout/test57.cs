@@ -71,7 +71,6 @@ public static partial class Program
             nGot = _hbref_nGot;
         }
         QOut("into=" + LTrim(Str(nGot)) + " ok=" + (lOk ? "Y" : "N"));
-        return;
 
         /* `xVal` is x-prefixed -> USUAL -> emits `ref dynamic`. It receives
    both a number and a string across call sites, so it is genuinely

@@ -69,7 +69,5 @@ public static partial class Program
         oPerson.cPublicNotes = "hello";
         QOut("cPublicNotes=" + oPerson.cPublicNotes);
         QOut("cInitials=[" + oPerson.cInitials + "]");
-
-        return;
     }
 }

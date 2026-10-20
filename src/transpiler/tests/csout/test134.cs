@@ -76,6 +76,5 @@ public static partial class Program
         QOut(oShow134.Show134("cLabel134"));
         QOut(Label134(oStore134));
         QOut(oStore134.Get134("nCount134"));
-        return;
     }
 }

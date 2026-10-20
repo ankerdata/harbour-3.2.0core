@@ -22,7 +22,6 @@ public static partial class Program
         QOut("first=" + LTrim(Str(FirstOver(new List<dynamic> { 1, 5, 9 }, 4))));
         QOut("none=" + LTrim(Str(FirstOver(new List<dynamic> { 1, 2 }, 4))));
         QOut("name=" + Ordinal(1) + Ordinal(2) + Ordinal(3));
-        return;
 
         /* Every arm returns: the final RETURN is not emitted. */
     }
@@ -86,9 +85,9 @@ public static partial class Program
                 break;
             }
 
-            if (aList[Ix(i)] > nOver)
+            if (aList[I(i)] > nOver)
             {
-                return aList[Ix(i)];
+                return aList[I(i)];
             }
         }
 

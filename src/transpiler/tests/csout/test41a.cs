@@ -20,7 +20,6 @@ public static partial class Program
     {
         QOut("41a: " + test41a_Helper() + ", " + Str(test41a_HelperNum(), 4));
         QOut(HelperCallerB());
-        return;
     }
 
     public static string test41a_Helper()

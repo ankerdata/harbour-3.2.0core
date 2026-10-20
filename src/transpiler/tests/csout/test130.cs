@@ -38,7 +38,6 @@ public static partial class Program
     public static void Wake130()
     {
         test130_snCalls130++;
-        return;
     }
 
     public static void Main(string[] args)
@@ -46,6 +45,5 @@ public static partial class Program
         new Panel130().Wake130();
         new Door130().Open130();
         QOut(test130_snCalls130);
-        return;
     }
 }

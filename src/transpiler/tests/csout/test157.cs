@@ -28,16 +28,12 @@ public static partial class Program
         aSlots157 = Array(3);
 
         oGauge157.nLevel = 42;
-        aSlots157[Ix(1)] = "x";
+        aSlots157[I(1)] = "x";
         Show157();
-
-        return;
     }
 
     public static void Show157()
     {
         QOut(oGauge157.nLevel, oGauge157.cUnit, xBag157, Len(aSlots157));
-
-        return;
     }
 }

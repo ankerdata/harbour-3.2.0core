@@ -86,6 +86,5 @@ public static partial class Program
         QOut(test150_Scale150(2, ref nFactor), nFactor);
         QOut(test150_Stamp150("x", ref lDone), lDone);
         QOut(test150_Stamp150("y", ref lDone));
-        return;
     }
 }

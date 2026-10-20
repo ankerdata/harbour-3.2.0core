@@ -53,7 +53,7 @@ public static partial class Program
         // division results as 1.50 where C# Str gives 1.5; the semantics
         // under test are the VALUES, so pin the format on both sides.
         // 30 — index use makes i an int
-        QOut(LTrim(Str(aList[Ix(i)], 4, 0)));
+        QOut(LTrim(Str(aList[I(i)], 4, 0)));
         // 1.50  int local / int literal
         QOut(LTrim(Str((decimal)(i) / 2, 8, 2)));
         // 3.50  int define / int literal
@@ -68,6 +68,5 @@ public static partial class Program
         QOut(LTrim(Str(i % 2, 4, 0)));
         // 1.50  decimal side, no cast needed
         QOut(LTrim(Str(i / 2.0m, 8, 2)));
-        return;
     }
 }

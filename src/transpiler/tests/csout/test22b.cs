@@ -40,7 +40,5 @@ public static partial class Program
         oNames.Add("beta");
         oNames.Add("gamma");
         oNames.Show();
-
-        return;
     }
 }

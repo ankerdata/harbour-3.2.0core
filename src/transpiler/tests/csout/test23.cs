@@ -20,7 +20,6 @@ public static partial class Program
         Greet();
         Greet("Alice");
         Greet("Bob", false);
-        return;
     }
 
     public static void Greet(params dynamic[] hbva)
@@ -43,7 +42,5 @@ public static partial class Program
         {
             QOut("Hi " + cName);
         }
-
-        return;
     }
 }

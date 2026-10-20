@@ -92,6 +92,5 @@ public static partial class Program
         QOut(Polarity(5));
         QOut(Grade(1));
         QOut(Grade(0));
-        return;
     }
 }

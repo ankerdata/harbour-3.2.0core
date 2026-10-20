@@ -22,7 +22,7 @@ public static partial class Program
 
         /* The headline case: `!` over a comparison whose left side is
       itself a binary op. Three-level nesting. */
-        if (!(cPath + aFile[Ix(1)] == cZipFile))
+        if (!(cPath + aFile[I(1)] == cZipFile))
         {
             QOut("different");
         }
@@ -53,7 +53,5 @@ public static partial class Program
         {
             QOut("some zero");
         }
-
-        return;
     }
 }

@@ -105,6 +105,5 @@ public static partial class Program
             oClicker.nCount = (long)(_hbref_nCount_0);
         }
         QOut("serial=" + oClicker.cLabel + " count=" + LTrim(Str(oClicker.nCount)));
-        return;
     }
 }

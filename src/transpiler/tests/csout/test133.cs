@@ -60,7 +60,6 @@ public static partial class Program
     public static void Bump133(Counter133 oCounter133 = default)
     {
         oCounter133.nCount133 += 1;
-        return;
     }
 
     public static void Main(string[] args)
@@ -77,6 +76,5 @@ public static partial class Program
         Bump133(hBox["counter"]);
         Bump133(hBox["counter"]);
         QOut(hBox["counter"].nCount133);
-        return;
     }
 }

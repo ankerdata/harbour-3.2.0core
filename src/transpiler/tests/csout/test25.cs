@@ -57,8 +57,6 @@ public static partial class Program
         // Bug C — round-trip the backslash #define through string concat.
         QOut("sep:    " + "a" + Test25PrgConst.SEPARATOR + "b");
 
-        return;
-
         // Bug D — exercised at compile time only. This function is defined but
         // never called, so the runtime behavior of the case-typo'd reference
         // cannot diverge between pipelines. What matters is that the parser
@@ -69,6 +67,6 @@ public static partial class Program
     public static dynamic test25_BugDCheck()
     {
         List<dynamic> aLocal = new List<dynamic> { 1, 2, 3 };
-        return aLocal[Ix(1)];
+        return aLocal[I(1)];
     }
 }

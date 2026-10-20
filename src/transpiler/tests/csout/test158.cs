@@ -16,16 +16,12 @@ public static partial class Program
         pThread = hb_threadStart(FuncPtr("Thr158Run"));
         hb_threadWait(pThread, 5);
         QOut("main goes on");
-
-        return;
     }
 
     public static void Thr158Run()
     {
         ErrorBlock(((Func<dynamic, dynamic>)((oErr) => Thr158Report(oErr))));
         Thr158Fail();
-
-        return;
     }
 
     public static void Thr158Fail()
@@ -34,8 +30,6 @@ public static partial class Program
         decimal nResult = 10 / nZero;
 
         QOut(nResult);
-
-        return;
     }
 
     public static dynamic Thr158Report(dynamic oErr = default)

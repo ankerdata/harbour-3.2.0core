@@ -47,7 +47,7 @@ public static partial class Program
         foreach (List<dynamic> __hb_fe_aRow135 in HbEnumValues(aRows135))
         {
             aRow135 = __hb_fe_aRow135;
-            cOut += aRow135[Ix(1)] + hb_ntos(aRow135[Ix(2)]) + ";";
+            cOut += aRow135[I(1)] + hb_ntos(aRow135[I(2)]) + ";";
         }
 
         foreach (OrderedDictionary<string, dynamic> __hb_fe_hField135 in HbEnumValues(aHashes135))
@@ -77,6 +77,5 @@ public static partial class Program
         QOut(cOut);
         QOut(nSum);
         QOut(iTotal);
-        return;
     }
 }

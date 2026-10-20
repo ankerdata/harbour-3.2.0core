@@ -31,6 +31,5 @@ public static partial class Program
     public static void Main(string[] args)
     {
         QOut(Read132(new Meter132()));
-        return;
     }
 }

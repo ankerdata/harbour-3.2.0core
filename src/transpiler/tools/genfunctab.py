@@ -242,8 +242,16 @@ def harvest_hbruntime_methods() -> dict[str, tuple[str, str]]:
             for m in RE_HBRUNTIME_METHOD.finditer(body):
                 rettype = m.group(1).strip()
                 name = m.group(2)
+                if name in NOT_FUNCTIONS:
+                    continue
                 methods.setdefault(name.upper(), (name, rettype))
     return methods
+
+# HbRuntime methods that are not Harbour functions and must not get a row:
+# I(), the emitter's array subscript (`a[I(i)]`). The INLINE translator
+# remaps any identifier with a row, so a row would turn a variable `i` into
+# a call of it.
+NOT_FUNCTIONS = {"I"}
 
 def hbruntime_class_bodies(text: str) -> list[str]:
     """The bodies of every `partial class HbRuntime` in text. The file

@@ -33,7 +33,6 @@ public static partial class Program
         QOut("ret=" + LTrim(Str(Fill(ref HbDiscard<decimal>.Seed(n)))));
         // 5 — n untouched
         QOut("kept=" + LTrim(Str(n)));
-        return;
     }
 
     public static decimal Fill(ref decimal nOut)

@@ -11,6 +11,5 @@ public static partial class Program
     public static void Main(string[] args)
     {
         QOut("QuadrupleIt(5)=" + Str(QuadrupleIt(5)));
-        return;
     }
 }

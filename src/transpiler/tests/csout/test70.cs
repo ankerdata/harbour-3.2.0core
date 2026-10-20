@@ -32,18 +32,17 @@ public static partial class Program
 
         for (nI = 1; nI <= 3; nI++)
         {
-            test70_saTotals[Ix(nI)] = nI * 10;
+            test70_saTotals[I(nI)] = nI * 10;
         }
 
-        aConfirm[Ix(1)] = "first";
-        aConfirm[Ix(5)] = "fifth";
+        aConfirm[I(1)] = "first";
+        aConfirm[I(5)] = "fifth";
 
-        aGrid[Ix(1)] = new List<dynamic> { "a", "b", "c" };
-        aGrid[Ix(2)] = new List<dynamic> { "d", "e", "f" };
+        aGrid[I(1)] = new List<dynamic> { "a", "b", "c" };
+        aGrid[I(2)] = new List<dynamic> { "d", "e", "f" };
 
-        QOut("saTotals=" + Str(test70_saTotals[Ix(1)], 2) + "," + Str(test70_saTotals[Ix(2)], 2) + "," + Str(test70_saTotals[Ix(3)], 2));
-        QOut("aConfirm=" + aConfirm[Ix(1)] + "/" + aConfirm[Ix(5)]);
-        QOut("aGrid=" + aGrid[Ix(1)][Ix(1)] + aGrid[Ix(1)][Ix(3)] + "|" + aGrid[Ix(2)][Ix(2)]);
-        return;
+        QOut("saTotals=" + Str(test70_saTotals[I(1)], 2) + "," + Str(test70_saTotals[I(2)], 2) + "," + Str(test70_saTotals[I(3)], 2));
+        QOut("aConfirm=" + aConfirm[I(1)] + "/" + aConfirm[I(5)]);
+        QOut("aGrid=" + aGrid[I(1)][I(1)] + aGrid[I(1)][I(3)] + "|" + aGrid[I(2)][I(2)]);
     }
 }

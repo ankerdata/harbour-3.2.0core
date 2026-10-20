@@ -23,19 +23,17 @@ public static partial class Program
     {
         aFlag = Array(3);
 
-        aFlag[Ix(1)] = 10;
-        aFlag[Ix(2)] = 20;
-        aFlag[Ix(3)] = 30;
-        QOut("before:" + Str(aFlag[Ix(1)], 4) + Str(aFlag[Ix(2)], 4) + Str(aFlag[Ix(3)], 4));
+        aFlag[I(1)] = 10;
+        aFlag[I(2)] = 20;
+        aFlag[I(3)] = 30;
+        QOut("before:" + Str(aFlag[I(1)], 4) + Str(aFlag[I(2)], 4) + Str(aFlag[I(3)], 4));
 
         /* AddDelta only mutates elements of its array parameter, so the array
       is passed plain (no `@`): element writes propagate through the shared
       reference, C# arrays being reference types. aFlag still emits as
       `dynamic[]` — the PUBLIC sized-array fix this test guards. */
         AddDelta(aFlag, 5);
-        QOut("after: " + Str(aFlag[Ix(1)], 4) + Str(aFlag[Ix(2)], 4) + Str(aFlag[Ix(3)], 4));
-
-        return;
+        QOut("after: " + Str(aFlag[I(1)], 4) + Str(aFlag[I(2)], 4) + Str(aFlag[I(3)], 4));
     }
 
     public static void AddDelta(List<dynamic> aArr = default, decimal nDelta = default)
@@ -43,9 +41,7 @@ public static partial class Program
         long nI = default;
         for (nI = 1; nI <= Len(aArr); nI++)
         {
-            aArr[Ix(nI)] = aArr[Ix(nI)] + nDelta;
+            aArr[I(nI)] = aArr[I(nI)] + nDelta;
         }
-
-        return;
     }
 }

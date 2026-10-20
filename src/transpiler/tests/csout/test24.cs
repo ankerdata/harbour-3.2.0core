@@ -60,11 +60,10 @@ public static partial class Program
         // comment on FOR
         for (n = 1; n <= Len(aCodes); n++)
         {
-            QOut(aCodes[Ix(n)]);
+            QOut(aCodes[I(n)]);
             // comment on NEXT
         }
 
         QOut("array len:", Len(aCodes));
-        return;
     }
 }

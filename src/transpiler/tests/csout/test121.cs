@@ -90,20 +90,16 @@ public static partial class Program
         QOut("names:", oTally.Label121(), oTally.iTotal);
         oTally.Relabel121("u");
         QOut("inline:", oTally.Label121());
-
-        return;
     }
 
     public static void Bump121(ref decimal nValue)
     {
         nValue += 1;
-        return;
     }
 
     public static void Halve121(ref long iValue)
     {
         iValue = (long)(Int((decimal)(iValue) / 2));
-        return;
     }
 
     public static long Thrice121(long iValue = default)

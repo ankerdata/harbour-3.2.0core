@@ -56,7 +56,5 @@ public static partial class Program
         QOut("nPrice=" + Str(nPrice, 10, 2));
         QOut("cName=" + cName);
         QOut("lFound=" + (lFound ? ".T." : ".F."));
-
-        return;
     }
 }

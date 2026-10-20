@@ -18,7 +18,6 @@ public static partial class Program
         QOut(Random());
         QOut(FileSize(21));
         QOut(LTrim(Str(Random() + FileSize(1))));
-        return;
     }
 
     public static decimal Random()

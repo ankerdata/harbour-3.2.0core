@@ -43,7 +43,5 @@ public static partial class Program
 
         nPub = nPub - 10;
         QOut("nPub=" + Str(nPub));
-
-        return;
     }
 }

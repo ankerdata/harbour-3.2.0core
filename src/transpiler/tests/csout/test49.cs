@@ -58,7 +58,5 @@ public static partial class Program
 
         oDog.Speak();
         oDog.Identify();
-
-        return;
     }
 }

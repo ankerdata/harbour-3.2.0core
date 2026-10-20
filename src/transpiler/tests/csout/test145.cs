@@ -12,13 +12,11 @@ public static partial class Program
     public static void Note145(string cText = default)
     {
         test145_s_cLog145 += "[" + cText + "]";
-        return;
     }
 
     public static void test145_Quiet145(string cText = default)
     {
         test145_s_cLog145 += "(" + cText + ")";
-        return;
     }
 
     public static void Main(string[] args)
@@ -48,7 +46,5 @@ public static partial class Program
         test145_s_cLog145 = "";
         xResult = Eval(((Func<dynamic, dynamic>)((x) => { Note145("a"); Note145(x); return null; })), "b");
         QOut("a list:", test145_s_cLog145, "value", (xResult == null ? "NIL" : "not NIL"));
-
-        return;
     }
 }

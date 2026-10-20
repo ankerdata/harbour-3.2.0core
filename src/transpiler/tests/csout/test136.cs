@@ -90,25 +90,24 @@ public static partial class Program
             AAdd(aNames, oItem.Label());
         }
 
-        QOut(aNames[Ix(2)], Len(aNames[Ix(2)]));
+        QOut(aNames[I(2)], Len(aNames[I(2)]));
 
         for (iPos = 1; iPos <= Len(oCrate.aGizmos); iPos++)
         {
-            QOut(((Gizmo136)oCrate.aGizmos[Ix(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[Ix(iPos)]).nSize);
+            QOut(((Gizmo136)oCrate.aGizmos[I(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[I(iPos)]).nSize);
         }
 
-        QOut(oCrate.aGizmos[Ix(4)].cColour, ((Gizmo136)oCrate.aGizmos[Ix(4)]).nSize);
+        QOut(oCrate.aGizmos[I(4)].cColour, ((Gizmo136)oCrate.aGizmos[I(4)]).nSize);
 
         oAny = oCrate.Largest();
         QOut(oAny.Label());
         QOut(oCrate.oFirst.Label());
 
         test136_saShelf136 = oCrate.aGizmos;
-        test136_soSpare136 = test136_saShelf136[Ix(3)];
+        test136_soSpare136 = test136_saShelf136[I(3)];
         QOut(test136_soSpare136.Label());
-        QOut(Len(test136_Names136(test136_saShelf136)), test136_Names136(test136_saShelf136)[Ix(1)]);
+        QOut(Len(test136_Names136(test136_saShelf136)), test136_Names136(test136_saShelf136)[I(1)]);
         QOut(test136_Total136());
-        return;
     }
 
     public static Gizmo136 Biggest136(List<dynamic> aList = default)
@@ -133,7 +132,7 @@ public static partial class Program
         long iPos = default;
         for (iPos = 1; iPos <= Len(aList); iPos++)
         {
-            AAdd(aOut, ((Gizmo136)aList[Ix(iPos)]).cName);
+            AAdd(aOut, ((Gizmo136)aList[I(iPos)]).cName);
         }
 
         return aOut;

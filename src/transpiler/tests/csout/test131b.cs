@@ -17,6 +17,5 @@ public static partial class Program
     public static void Main(string[] args)
     {
         QOut(new Child131().Run131());
-        return;
     }
 }

@@ -36,6 +36,5 @@ public static partial class Program
         decimal nWanted = 3;
         xRowCursor.SeekRow((long)(nWanted));
         QOut(xRowCursor.SeekRow((long)(nWanted + 9), true));
-        return;
     }
 }

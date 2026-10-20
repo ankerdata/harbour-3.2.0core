@@ -55,6 +55,5 @@ public static partial class Program
         QOut("total=" + LTrim(Str(oT.nTotal)));
         QOut("plain=" + LTrim(Str(Tariff(3, 4))));
         QOut("levy=" + LTrim(Str(test104_nLevy(1, 2, 3))));
-        return;
     }
 }

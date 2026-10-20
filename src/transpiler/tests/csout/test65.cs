@@ -37,6 +37,5 @@ public static partial class Program
         // pass @lLog -> canonical (writes lLog back)
         QOut(ErrText65(3, ref lLog));
         QOut("lLog=" + (lLog ? "Y" : "N"));
-        return;
     }
 }

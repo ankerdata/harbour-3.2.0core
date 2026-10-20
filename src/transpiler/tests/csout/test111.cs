@@ -57,7 +57,5 @@ public static partial class Program
         }
 
         QOut(cTrail);
-
-        return;
     }
 }

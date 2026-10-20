@@ -21,13 +21,11 @@ public static partial class Program
     public static void Probe72(bool lFlag = default, decimal nCount = default, string cName = default)
     {
         QOut("Probe72 ran");
-        return;
     }
 
     public static void Main(string[] args)
     {
         Probe72(true, 7, "alpha");
         QOut("after Probe72");
-        return;
     }
 }

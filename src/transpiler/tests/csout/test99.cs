@@ -34,7 +34,7 @@ public class Bin : IHbObject
 
     public virtual dynamic Last()
     {
-        return aItems[Ix(HbRuntime.Len(aItems))];
+        return aItems[I(HbRuntime.Len(aItems))];
     }
 
     public virtual decimal Heft()
@@ -55,6 +55,5 @@ public static partial class Program
         QOut("top=" + xBin.Peak);
         xBin.Peak = "box";
         QOut("top=" + xBin.Peak + " heft=" + LTrim(Str(xBin.Heft())));
-        return;
     }
 }

@@ -23,6 +23,5 @@ public static partial class Program
         QOut("base=" + AllTrim(Str(Test47Const.TEST47_BASE)));
         QOut("cond=" + AllTrim(Str(7)));
         QOut("label=" + Test47Const.TEST47_LABEL);
-        return;
     }
 }

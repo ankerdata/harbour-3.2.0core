@@ -32,7 +32,5 @@ public static partial class Program
         hnCount118[7] = 70;
         test118_shnSeen118[7] = true;
         QOut("again:", hnCount118[7], hb_HHasKey(test118_shnSeen118, 7), Len(hnCount118), Len(test118_shnSeen118));
-
-        return;
     }
 }

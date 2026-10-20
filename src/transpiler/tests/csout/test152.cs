@@ -56,7 +56,5 @@ public static partial class Program
             oError = __hb_brk1.Value;
             QOut(oError.description, Len(oError.description));
         }
-
-        return;
     }
 }

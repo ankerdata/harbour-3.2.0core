@@ -31,6 +31,5 @@ public static partial class Program
         Test73Holder oH = new Test73Holder();
         QOut("nPanel=" + AllTrim(Str(oH.nPanel)));
         QOut("cName=" + oH.cName);
-        return;
     }
 }

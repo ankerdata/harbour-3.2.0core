@@ -21,7 +21,6 @@ public static partial class Program
         QOut("bare=" + LTrim(Str(GetQty())));
         QOut("ref_ret=" + LTrim(Str(GetQty(ref lDec))));
         QOut("ref_out=" + (lDec ? "Y" : "N"));
-        return;
 
         /* First (and only) param is by-ref: the `@lDec` call site above
    marks slot 0 as ref in the reftab. */

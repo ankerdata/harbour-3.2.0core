@@ -34,7 +34,5 @@ public static partial class Program
         QOut("string, with @:", test146_Tag146(ref cMine146, "x"), cMine146);
         QOut("string, left out:", test146_Tag146(ref HbDiscard<string>.Value, "x"));
         QOut("string, left out again:", test146_Tag146(ref HbDiscard<string>.Value, "x"));
-
-        return;
     }
 }

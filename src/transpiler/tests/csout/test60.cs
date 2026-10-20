@@ -32,7 +32,7 @@ public static partial class Program
         cOut = "";
         for (i = 1; i <= Len(aNums); i++)
         {
-            cOut += LTrim(Str(aNums[Ix(i)]));
+            cOut += LTrim(Str(aNums[I(i)]));
         }
 
         QOut("sorted=" + cOut);
@@ -41,6 +41,5 @@ public static partial class Program
         // compared, not Str()'d — Str() of a fraction ignores SET DECIMALS
         QOut("val_dec=" + (Val("3.5x") == 3.5m ? "Y" : "N"));
         QOut("val_neg=" + LTrim(Str(Val("-7kg"))));
-        return;
     }
 }

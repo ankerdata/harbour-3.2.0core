@@ -50,6 +50,5 @@ public static partial class Program
         }
 
         QOut("nN=" + Str(nN, 2));
-        return;
     }
 }

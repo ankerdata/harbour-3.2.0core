@@ -40,7 +40,5 @@ public static partial class Program
         QOut("after:  n=" + Str(n));
         oCalc.Adjust(ref n);
         QOut("after:  n=" + Str(n));
-
-        return;
     }
 }

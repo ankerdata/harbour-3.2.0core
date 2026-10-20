@@ -68,7 +68,6 @@ public static partial class Program
         List<dynamic> aLoose = new List<dynamic> { new Bag142() };
 
         QOut(oHolder.Count142(), oKeeper.Count142(), oHolder.oHeld.cLabel142);
-        QOut(aLoose[Ix(1)].Repeat142("ab", 2, "extra"), aLoose[Ix(1)].Repeat142("c"));
-        return;
+        QOut(aLoose[I(1)].Repeat142("ab", 2, "extra"), aLoose[I(1)].Repeat142("c"));
     }
 }

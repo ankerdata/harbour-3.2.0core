@@ -57,7 +57,6 @@ public static partial class Program
     {
         nLength = Len(cText);
         QOut("note", cText);
-        return;
     }
 
     public static void Note149(string cText = default)
@@ -100,6 +99,5 @@ public static partial class Program
         QOut(nLength);
         // the short call of a procedure: void
         Note149("short");
-        return;
     }
 }

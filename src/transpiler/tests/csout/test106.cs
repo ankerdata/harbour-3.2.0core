@@ -17,6 +17,5 @@ public static partial class Program
     {
         QOut("sleep=" + LTrim(Str(HbWin.wapi_Sleep(1))));
         QOut("upper=" + Upper("hbwin"));
-        return;
     }
 }

@@ -26,7 +26,6 @@ public static partial class Program
         Dispatch(Test29PrgConst.HALT);
         Dispatch(Test29PrgConst.RUN);
         Dispatch("UNKNOWN");
-        return;
     }
 
     public static void Dispatch(string cCmd = default)
@@ -46,7 +45,5 @@ public static partial class Program
                 QOut("unknown: " + cCmd);
                 break;
         }
-
-        return;
     }
 }

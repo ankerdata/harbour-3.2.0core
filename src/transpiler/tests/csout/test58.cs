@@ -55,6 +55,5 @@ public static partial class Program
         QOut("b_local=" + LTrim(Str(oB.nLocal)));
         // INLINE body, arrow in comment
         QOut("doubled=" + LTrim(Str(oA.Doubled())));
-        return;
     }
 }

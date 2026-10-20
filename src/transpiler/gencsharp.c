@@ -1462,10 +1462,34 @@ static HB_BOOL hb_csMemberShadowsFunc( const char * szName )
    return HB_FALSE;
 }
 
+/* True when a parameter, local or codeblock parameter in scope is spelt
+   exactly szName, as the emitter writes each in its declared spelling:
+   C# compares names with their case, so a loop's `i` does not hide
+   HbRuntime's `I`. */
+static HB_BOOL hb_csLocalSpelt( const char * szName )
+{
+   const char * szParam = hb_csResolveLocal( szName );
+   int i;
+
+   if( szParam && strcmp( szParam, szName ) == 0 )
+      return HB_TRUE;
+   for( i = 0; i < s_iLocalCount; i++ )
+      if( s_pLocalNames[ i ] && strcmp( s_pLocalNames[ i ], szName ) == 0 )
+         return HB_TRUE;
+   for( i = ( s_iCbScope < HB_CS_MAXCBSCOPE ? s_iCbScope : HB_CS_MAXCBSCOPE ) - 1; i >= 0; i-- )
+   {
+      PHB_CBVAR pVar;
+      for( pVar = s_apCbScope[ i ]; pVar; pVar = pVar->pNext )
+         if( pVar->szName && strcmp( pVar->szName, szName ) == 0 )
+            return HB_TRUE;
+   }
+   return HB_FALSE;
+}
+
 /* An HbRuntime method as a call names it: bare, as C# a person writes
    would, since the program's project imports HbRuntime statically. It
    keeps `HbRuntime.` where C# would bind the bare name to something
-   nearer: a parameter, local or codeblock parameter of that name, a
+   nearer: a parameter, local or codeblock parameter spelt the same, a
    member of the class being emitted or of an ancestor (Queue's and
    Stack's `Len`, SQLtTable's `Eval`), or a program function the reftab
    has (Program is imported statically beside HbRuntime, and C# would
@@ -1476,7 +1500,7 @@ static const char * hb_csRuntime( const char * szName )
    static int  s_iBuf = 0;
 
    if( szName &&
-       ( hb_csResolveLocal( szName ) || hb_csLocalTypeGet( szName ) ||
+       ( hb_csLocalSpelt( szName ) ||
          hb_csMemberShadowsFunc( szName ) ||
          ( s_pRefTab && hb_refTabParamCount( s_pRefTab, szName ) >= 0 ) ) )
    {
@@ -2873,7 +2897,7 @@ static const char * hb_csScopeStr( int iScope )
      ::name       → this.name          (Self:member shorthand)
      :=           → =                  (Harbour assignment)
      .T./.t./.F./.f. → true/false      (logical literals, word-bounded)
-     a[ n ]       → a[Ix(n)]           (an array subscript, rebased)
+     a[ n ]       → a[I(n)]            (an array subscript, rebased)
    Anything else passes through. The result is C# source; the caller
    decides between expression-body (`=> expr`) and block-body (for
    sequence expressions with top-level commas — this helper does not
@@ -3467,7 +3491,7 @@ static const char * hb_csTranslateInline( const char * szVal,
          continue;
       }
       /* `recv[ idx ]`: rebased as the AST emitter rebases a subscript
-         (HB_ET_ARRAYAT). An array's 1-based index goes through Ix(),
+         (HB_ET_ARRAYAT). An array's 1-based index goes through I(),
          an integer literal with its source value; a hash's key passes
          as it is, a numeric-keyed hash's cast to long. The `]` that
          closes it is rewritten through aSub. */
@@ -3494,7 +3518,7 @@ static const char * hb_csTranslateInline( const char * szVal,
                   memcpy( szNum, p + i, nD - i );
                   szNum[ nD - i ] = '\0';
                   nOut += hb_snprintf( s_szBuf + nOut, sizeof( s_szBuf ) - nOut,
-                                       "[Ix(%" HB_PF64 "d)]",
+                                       "[%s(%" HB_PF64 "d)]", hb_csRuntime( "I" ),
                                        ( HB_I64 ) atoll( szNum ) );
                   nIn = nClose;
                   continue;
@@ -3504,7 +3528,13 @@ static const char * hb_csTranslateInline( const char * szVal,
          if( ( iKind == 3 || iKind == 2 ) &&
              iSubTop < ( int ) HB_SIZEOFARRAY( aSub ) - 1 )
          {
-            const char * szOpen = iKind == 3 ? "[Ix(" : "[(long)(";
+            char szOpenI[ 32 ];
+            const char * szOpen = "[(long)(";
+            if( iKind == 3 )
+            {
+               hb_snprintf( szOpenI, sizeof( szOpenI ), "[%s(", hb_csRuntime( "I" ) );
+               szOpen = szOpenI;
+            }
             HB_SIZE nL = strlen( szOpen );
             memcpy( s_szBuf + nOut, szOpen, nL );
             nOut += nL;
@@ -3517,7 +3547,7 @@ static const char * hb_csTranslateInline( const char * szVal,
       }
       if( p[ nIn ] == ']' && iSubTop >= 0 && iDepth == aSub[ iSubTop ].depth )
       {
-         const char * szClose = ")]";   /* Ix( … ) and (long)( … ) alike */
+         const char * szClose = ")]";   /* I( … ) and (long)( … ) alike */
          HB_SIZE nL = strlen( szClose );
          memcpy( s_szBuf + nOut, szClose, nL );
          nOut += nL;
@@ -5829,23 +5859,19 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, "]" );
             }
             /* An array's 1-based subscript goes through HbRuntime's
-               Ix(), which answers the List's 0-based int and throws on
+               I(), which answers the List's 0-based int and throws on
                an index below 1 or with a fraction. A literal keeps its
-               source value (`aCSV[Ix(19)]` for the .prg's `aCSV[19]`);
-               until 2026-10-15 it was decremented where it stood and
-               anything else was `[(int)(…) - 1]`, which truncated a
-               fraction silently, reported Harbour's index 0 as C#'s -1
-               and cut the link between the C# and the source line
-               (easipos-transpiled's plan, D30). */
+               source value (`aCSV[I(19)]` for the .prg's `aCSV[19]`). */
             else if( pIdx &&
                      pIdx->ExprType == HB_ET_NUMERIC &&
                      pIdx->value.asNum.NumType == HB_ET_LONG )
             {
-               fprintf( yyc, "[Ix(%" HB_PF64 "d)]", pIdx->value.asNum.val.l );
+               fprintf( yyc, "[%s(%" HB_PF64 "d)]", hb_csRuntime( "I" ),
+                        pIdx->value.asNum.val.l );
             }
             else
             {
-               fprintf( yyc, "[Ix(" );
+               fprintf( yyc, "[%s(", hb_csRuntime( "I" ) );
                hb_csEmitExpr( pIdx, yyc, HB_FALSE );
                fprintf( yyc, ")]" );
             }
@@ -6762,7 +6788,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
    and it looks past comment nodes: a comment preserved after `exit` /
    `return` used to hide the jump and earn the case a second `break;`. */
 
-static PHB_AST_NODE s_pUnreachableReturn = NULL;  /* set while emitting a body */
+static PHB_AST_NODE s_pDroppedReturn = NULL;  /* set while emitting a body */
 
 static PHB_AST_NODE hb_csBlockFirstStmt( PHB_AST_NODE pBlock )
 {
@@ -6964,6 +6990,22 @@ static PHB_AST_NODE hb_csUnreachableFinalReturn( PHB_AST_NODE pBody )
           hb_csStmtNeverFallsThrough( pPrev, HB_FALSE ) ? pLast : NULL;
 }
 
+/* The routine-final RETURN the emitter leaves out: the one no path
+   reaches, and in a routine that returns nothing the one that ends it,
+   since a C# void method ends at its closing brace. */
+static PHB_AST_NODE hb_csDroppedFinalReturn( PHB_AST_NODE pBody )
+{
+   PHB_AST_NODE p, pLast = NULL;
+   PHB_AST_NODE pUnreachable = hb_csUnreachableFinalReturn( pBody );
+
+   if( pUnreachable || ! s_fVoidFunc )
+      return pUnreachable;
+   for( p = hb_csBlockFirstStmt( pBody ); p; p = p->pNext )
+      if( p->type != HB_AST_COMMENT )
+         pLast = p;
+   return pLast && pLast->type == HB_AST_RETURN ? pLast : NULL;
+}
+
 /* A SWITCH case body that already ends in a jump needs no `break;`. */
 static HB_BOOL hb_csBlockEndsWithBreak( PHB_AST_NODE pBlock )
 {
@@ -7045,9 +7087,10 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       }
    }
 
-   /* The function-final RETURN no path reaches (hb_csUnreachableFinalReturn):
-      Harbour insists on it, C# would report CS0162 on it. */
-   if( pNode == s_pUnreachableReturn )
+   /* The routine-final RETURN left out (hb_csDroppedFinalReturn): one no
+      path reaches, which Harbour insists on and C# would report as
+      CS0162, and a void routine's last, which C# does not need. */
+   if( pNode == s_pDroppedReturn )
    {
       if( s_iLastLine > 0 && pNode->iLine > 0 )
          s_iLastLine = pNode->iLine;
@@ -9234,19 +9277,19 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
             method ending in a `return`/`throw` BEGINCSHARP block kept
             an unreachable `return this;`, CS0162 — test107's Tenfold). */
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
-         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
+         s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
          while( pStmt )
          {
             hb_csEmitNode( pStmt, yyc, iIndent + 1 );
             pStmt = pStmt->pNext;
          }
-         s_pUnreachableReturn = NULL;
+         s_pDroppedReturn = NULL;
       }
       else
          {
-         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
+         s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
-         s_pUnreachableReturn = NULL;
+         s_pDroppedReturn = NULL;
       }
    }
    hb_csEmitIndent( yyc, iIndent );
@@ -10376,9 +10419,9 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
    }
    if( pFunc->value.asFunc.pBody )
       {
-         s_pUnreachableReturn = hb_csUnreachableFinalReturn( pFunc->value.asFunc.pBody );
+         s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
-         s_pUnreachableReturn = NULL;
+         s_pDroppedReturn = NULL;
       }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );

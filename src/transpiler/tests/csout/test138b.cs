@@ -49,6 +49,5 @@ public static partial class Program
         AAdd(oTill138.aLines, new GenLine138().New(7));
         QOut(FirstTotal138(oTill138), SumValues138(oTill138));
         QOut(LaterTotal138(new FcnLine138().New(2), new GenLine138().New(3)));
-        return;
     }
 }

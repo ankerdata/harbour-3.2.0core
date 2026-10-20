@@ -51,8 +51,6 @@ public static partial class Program
         {
             CleanUp();
         }
-
-        return;
     }
 
     public static dynamic DoSomething()

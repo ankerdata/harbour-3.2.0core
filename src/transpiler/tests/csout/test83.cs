@@ -74,6 +74,5 @@ public static partial class Program
         QOut("dis=" + (oDept.lDisable ? "T" : "F"));
         QOut("rate=" + LTrim(Str(oDept.nRate, 6, 2)));
         QOut("since=" + DToS(oDept.dSince));
-        return;
     }
 }

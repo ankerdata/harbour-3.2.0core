@@ -40,6 +40,5 @@ public static partial class Program
         }
 
         QOut("done");
-        return;
     }
 }

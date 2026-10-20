@@ -23,23 +23,21 @@ public static partial class Program
 
         for (i = 1; i <= Len(aItems); i++)
         {
-            QOut("i=", aItems[Ix(i)]);
+            QOut("i=", aItems[I(i)]);
         }
 
         // integral arithmetic keeps int
         nIdx = nIdx + 2;
-        QOut("a=", aItems[Ix(nIdx)]);
-        QOut("b=", aItems[Ix(nLast)]);
+        QOut("a=", aItems[I(nIdx)]);
+        QOut("b=", aItems[I(nLast)]);
         // decimal index — cast path
-        QOut("c=", aItems[Ix(nHalf)]);
-        QOut("d=", aItems[Ix(FirstReal(aItems))]);
+        QOut("c=", aItems[I(nHalf)]);
+        QOut("d=", aItems[I(FirstReal(aItems))]);
         // int widens into decimal math
         QOut("e=", Str(nIdx * 1.5m, 6, 1));
         // (explicit width: Harbour's
         // derived display widths for
         // var*literal aren't modelled)
-
-        return;
 
         // Returns an always-int local: the function's return type resolves to
         // INTEGER and callers may chain it straight into subscripts.
@@ -48,7 +46,7 @@ public static partial class Program
     {
         long nPos = 1;
 
-        while (nPos < Len(aList) && Empty(aList[Ix(nPos)]))
+        while (nPos < Len(aList) && Empty(aList[I(nPos)]))
         {
             nPos = nPos + 1;
         }

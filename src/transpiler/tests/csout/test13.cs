@@ -46,7 +46,7 @@ public static partial class Program
         // Nested FOR with EXIT
         for (i = 1; i <= Len(aItems); i++)
         {
-            if (aItems[Ix(i)] == cTarget)
+            if (aItems[I(i)] == cTarget)
             {
                 nPos = i;
                 QOut("nPos=" + Str(nPos));
@@ -118,7 +118,5 @@ public static partial class Program
         QOut("DeepNest(5)=" + DeepNest(5));
         QOut("DeepNest(30)=" + DeepNest(30));
         QOut("DeepNest(200)=" + DeepNest(200));
-
-        return;
     }
 }

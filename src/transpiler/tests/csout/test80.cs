@@ -55,14 +55,11 @@ public static partial class Program
         QOut("nInOut=", nInOut);
         QOut("cRef=", cRef);
         QOut("cBare=", cBare);
-
-        return;
     }
 
     public static void AddTo(ref decimal nTarget, decimal nAmount = default)
     {
         nTarget = nTarget + nAmount;
-        return;
 
         // Reads nVal (proving the seeded input survives), writes it, and also
         // returns 3x so the caller can observe the computed value regardless.
@@ -77,6 +74,5 @@ public static partial class Program
     public static void SetTag(ref string cInto, string cValue = default)
     {
         cInto = cValue;
-        return;
     }
 }

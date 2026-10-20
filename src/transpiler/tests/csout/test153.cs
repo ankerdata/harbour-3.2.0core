@@ -48,6 +48,5 @@ public static partial class Program
         oLeaf.nKind = nValue;
         QOut(oLeaf.nKind);
         QOut(oLeaf.Deeper(2), oLeaf.Deeper(1));
-        return;
     }
 }

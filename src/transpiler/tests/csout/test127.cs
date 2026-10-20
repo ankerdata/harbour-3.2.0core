@@ -44,8 +44,6 @@ public static partial class Program
 
         QOut(hnById[7], hnById[9], hByName["seven"], test127_Count127(hnById));
         QOut(oLedger127.hnRows127[12], hb_HHasKey(test127_shnSeen127, 3), Len(test127_shnSeen127));
-
-        return;
     }
 
     public static decimal test127_Seven127()

@@ -53,7 +53,5 @@ public static partial class Program
         QOut(oGadget == null, oGadget.lOpen124);
         QOut((Initialised(new Gadget124(), self => self.Init("COM1"))).cPort124);
         QOut(new Gadget124().Init("") == null, new Gadget124().Init("COM2") == null);
-
-        return;
     }
 }

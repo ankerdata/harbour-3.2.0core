@@ -44,6 +44,5 @@ public static partial class Program
         }
 
         QOut("twice=" + LTrim(Str(nTotal)));
-        return;
     }
 }

@@ -56,6 +56,5 @@ public static partial class Program
         QOut("stamp=" + LTrim(Str(o.Stamp())));
         // INLINE read
         QOut("tag=" + o.Tag());
-        return;
     }
 }

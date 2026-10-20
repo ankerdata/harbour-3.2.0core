@@ -29,7 +29,5 @@ public static partial class Program
 
         test10_Main_nCounter = test10_Main_nCounter + 1;
         QOut("nCounter=" + Str(test10_Main_nCounter));
-
-        return;
     }
 }

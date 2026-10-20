@@ -20,7 +20,7 @@ public static partial class Program
         // Use cMemberName inside a FOR-loop body first (nested scope).
         for (i = 1; i <= Len(aFields); i++)
         {
-            cMemberName = aFields[Ix(i)];
+            cMemberName = aFields[I(i)];
             cAccum += "[" + cMemberName + "]";
         }
 
@@ -35,7 +35,5 @@ public static partial class Program
         }
 
         QOut("via-each: " + cAccum);
-
-        return;
     }
 }

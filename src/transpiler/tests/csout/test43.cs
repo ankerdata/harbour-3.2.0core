@@ -20,7 +20,5 @@ public static partial class Program
 
         QOut("Foo:nA = " + Str(oF.nA, 4));
         QOut("Bar:nB = " + Str(oB.nB, 4));
-
-        return;
     }
 }

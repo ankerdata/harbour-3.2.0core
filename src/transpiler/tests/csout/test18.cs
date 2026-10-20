@@ -16,8 +16,6 @@ public static partial class Program
         Fred(100, 200, 300);
         // middle gap → named args in C#
         Fred(1000, xC: 3000);
-
-        return;
     }
 
     public static void Fred(decimal nA = default, dynamic? xB = null, dynamic? xC = null)
@@ -32,7 +30,5 @@ public static partial class Program
         {
             QOut("c=" + Str(xC));
         }
-
-        return;
     }
 }

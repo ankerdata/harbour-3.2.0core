@@ -12,7 +12,5 @@ public static partial class Program
         QOut("x=" + Str(x));
         QOut("y=" + Str(y));
         QOut("z=" + Str(z));
-
-        return;
     }
 }

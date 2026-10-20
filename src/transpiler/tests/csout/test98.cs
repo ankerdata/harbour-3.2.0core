@@ -45,7 +45,6 @@ public static partial class Program
     public static void SetLamp(decimal nLamp = default)
     {
         test98_snLamp = (long)(nLamp);
-        return;
     }
 
     public static void Main(string[] args)
@@ -67,10 +66,9 @@ public static partial class Program
         QOut("result=" + LTrim(Str(nResult)) + " " + cOut);
         for (i = 1; i <= (nLen = Len(aList)); i++)
         {
-            cAll += aList[Ix(i)];
+            cAll += aList[I(i)];
         }
 
         QOut("all=" + cAll + " len=" + LTrim(Str(nLen)));
-        return;
     }
 }

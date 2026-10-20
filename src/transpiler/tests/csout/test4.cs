@@ -21,7 +21,5 @@ public static partial class Program
                 QOut("cResult=" + cResult);
                 break;
         }
-
-        return;
     }
 }

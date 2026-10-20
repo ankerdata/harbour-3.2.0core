@@ -29,9 +29,9 @@ public static partial class Program
         // AClone must deep-copy the nested array
         aCopy = AClone(aNested);
         // must not touch the original
-        aCopy[Ix(2)][Ix(1)] = 99;
+        aCopy[I(2)][I(1)] = 99;
         // still 2
-        QOut("aclone=" + LTrim(Str(aNested[Ix(2)][Ix(1)])));
+        QOut("aclone=" + LTrim(Str(aNested[I(2)][I(1)])));
 
         // Empty() of an empty hash
         QOut("empty_hash=" + (Empty(hEmpty) ? "Y" : "N"));
@@ -45,6 +45,5 @@ public static partial class Program
         // DToC honours SET DATEFORMAT
         Set(_SET_DATEFORMAT, "dd.mm.yyyy");
         QOut("dtoc=" + DToC(SToD("20240115")));
-        return;
     }
 }

@@ -69,6 +69,5 @@ public static partial class Program
         QOut("le=" + (HbRuntime.StrCmp(oVoyage.cPort, "Lisbon") <= 0 ? "y" : "n"));
         QOut("time=" + (HbRuntime.StrCmp(Time(), "00:00") >= 0 ? "y" : "n"));
         QOut("eq=" + (oVoyage.cPort == "Lisbon" ? "y" : "n"));
-        return;
     }
 }

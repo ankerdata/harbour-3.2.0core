@@ -63,7 +63,6 @@ public static partial class Program
         QOut("tally2=" + LTrim(Str(nCnt)));
         QOut("box1=" + LTrim(Str(oBox.Widen())));
         QOut("box2=" + LTrim(Str(oBox.Widen(5))));
-        return;
     }
 
     public static decimal CurWidth()
@@ -125,7 +124,6 @@ public static partial class Program
     {
         decimal nStart_ = nStart ?? 1;
         nCount = nStart_ * 10;
-        return;
 
         /* The method path: the default reads a member. */
     }

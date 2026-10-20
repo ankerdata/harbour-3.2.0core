@@ -48,8 +48,6 @@ public static partial class Program
         QOut("c=", Describe(oPet));
         oPet = Pick(false);
         QOut("d=", Describe(oPet));
-
-        return;
     }
 
     public static string Describe(dynamic oAnimal = default)

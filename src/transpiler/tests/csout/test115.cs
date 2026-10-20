@@ -36,16 +36,12 @@ public static partial class Program
         hb_mutexSubscribe(pMtx, 0.2m, ref xGot);
         QOut("after quit:", xGot);
         QOut("main goes on");
-
-        return;
     }
 
     public static void test115_Thr115Bump(dynamic pMtx = default)
     {
         test115_snSeen++;
         hb_mutexNotify(pMtx, test115_snSeen);
-
-        return;
     }
 
     public static void test115_Thr115Quit(dynamic pMtx = default)
@@ -60,7 +56,5 @@ public static partial class Program
         }
 
         hb_mutexNotify(pMtx, "went on");
-
-        return;
     }
 }

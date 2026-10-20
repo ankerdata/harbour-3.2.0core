@@ -19,7 +19,5 @@ public static partial class Program
         QOut("cut to 9:", Len(Left(cEuro147, 9)), Asc(Right(Left(cEuro147, 9), 1)));
         QOut("umlaut:", Len(cUmlaut147), Asc(SubStr(cUmlaut147, 2)));
         QOut("escape:", Len(cEsc147), Asc(cEsc147));
-
-        return;
     }
 }

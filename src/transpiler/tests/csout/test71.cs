@@ -53,10 +53,10 @@ public static partial class Program
 
         /* aArr[1] — value-in only: aArr[1] must still read "beta,two" after */
         {
-            string _hbref_aArr_0 = aArr[Ix(1)];
+            string _hbref_aArr_0 = aArr[I(1)];
             cTaken = Consume(ref _hbref_aArr_0, ",");
         }
-        QOut(" elem  in=beta,two   out=" + aArr[Ix(1)] + "  took=" + cTaken);
+        QOut(" elem  in=beta,two   out=" + aArr[I(1)] + "  took=" + cTaken);
 
         /* oObj["cField"] — value-in only: the hash entry stays "gamma,three" */
         {
@@ -71,6 +71,5 @@ public static partial class Program
             cTaken = Consume(ref _hbref_arg_0, ",");
         }
         QOut(" lit                  out=(literal)        took=" + cTaken);
-        return;
     }
 }

@@ -44,7 +44,6 @@ public static partial class Program
     {
         Func<dynamic[], dynamic> bHandler = ((Func<dynamic[], dynamic>)((dynamic[] hbva) => { Echo(hbva); return null; }));
         Eval(bHandler, "hello", "world", "from harbour");
-        return;
     }
 
     public static void Echo(params dynamic[] hbva)
@@ -57,7 +56,5 @@ public static partial class Program
             QOut("arg " + LTrim(Str(nIdx)) + ": " + xArg);
             nIdx++;
         }
-
-        return;
     }
 }

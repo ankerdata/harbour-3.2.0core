@@ -56,6 +56,5 @@ public static partial class Program
         xItem = new Gadget();
         oTandem = new Tandem().New(xItem, 2);
         QOut("count=" + LTrim(Str(oTandem.nCount)) + " item=" + oTandem.oItem.cName);
-        return;
     }
 }

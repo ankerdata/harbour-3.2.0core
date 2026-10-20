@@ -65,7 +65,6 @@ public static partial class Program
         oWidget.Fire();
 
         Invoke(FuncPtr("SayHello"), "param-passed");
-        return;
     }
 
     public static decimal AddOne(decimal nX = default, decimal nY = default)
@@ -91,6 +90,5 @@ public static partial class Program
     public static void Invoke(dynamic fHandler = default, string cArg = default)
     {
         QOut("Invoke=>" + Eval(fHandler, cArg));
-        return;
     }
 }

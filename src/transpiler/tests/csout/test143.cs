@@ -27,7 +27,5 @@ public static partial class Program
         QOut("after #undef: undefined");
 
         QOut("a name nothing defines: undefined");
-
-        return;
     }
 }

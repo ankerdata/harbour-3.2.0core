@@ -47,7 +47,5 @@ public static partial class Program
         QOut("f=", oDlg.IsEmptyish(0));
         QOut("g=", oDlg.IsEmptyish(-1));
         QOut("h=", oDlg.IsEmptyish(7));
-
-        return;
     }
 }

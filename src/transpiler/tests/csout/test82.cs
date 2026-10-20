@@ -22,6 +22,5 @@ public static partial class Program
         QOut("big=" + LTrim(Str(Test82PrgConst.BIGVAL + 1)));
         // 3  (decimal 1.5*2)
         QOut("rate=" + LTrim(Str(Int(Test82PrgConst.RATE * 2))));
-        return;
     }
 }

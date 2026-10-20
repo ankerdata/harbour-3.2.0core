@@ -43,7 +43,5 @@ public static partial class Program
 
         nX = nY;
         nY = nT;
-
-        return;
     }
 }

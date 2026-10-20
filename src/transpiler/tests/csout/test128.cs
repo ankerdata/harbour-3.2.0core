@@ -29,7 +29,5 @@ public static partial class Program
         QOut(hBox128["counter"].Tally128("b", nStep: 5));
         QOut(hBox128["counter"].Tally128("c", lShout: true));
         QOut(hBox128["counter"].Tally128("d", 2, lShout: true));
-
-        return;
     }
 }

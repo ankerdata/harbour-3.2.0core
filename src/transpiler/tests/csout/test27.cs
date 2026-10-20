@@ -32,7 +32,5 @@ public static partial class Program
         {
             QOut("time flows backwards");
         }
-
-        return;
     }
 }

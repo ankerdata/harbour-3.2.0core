@@ -5,7 +5,5 @@ public static partial class Program
     {
         string cVersion = Test7PrgConst.APP_VERSION;
         QOut("cVersion=" + cVersion);
-
-        return;
     }
 }

@@ -8,9 +8,7 @@ public static partial class Program
 
         SaveFlags("out.dat", aArr, 3);
 
-        QOut("saved[1]=" + aArr[Ix(1)]);
-        QOut("saved[3]=" + aArr[Ix(3)]);
-
-        return;
+        QOut("saved[1]=" + aArr[I(1)]);
+        QOut("saved[3]=" + aArr[I(3)]);
     }
 }

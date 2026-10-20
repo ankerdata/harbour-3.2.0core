@@ -10,7 +10,5 @@ public static partial class Program
         QOut("before: a=" + Str(nA) + " b=" + Str(nB));
         Swap(ref nA, ref nB);
         QOut("after:  a=" + Str(nA) + " b=" + Str(nB));
-
-        return;
     }
 }

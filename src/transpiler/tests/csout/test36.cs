@@ -87,8 +87,6 @@ public static partial class Program
         {
             QOut("nB=" + Str(nB, 3) + " out-of-range");
         }
-
-        return;
     }
 
     public static decimal Fetch()

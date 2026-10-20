@@ -7,7 +7,6 @@ public static partial class Program
     public static void Main(string[] args)
     {
         QOut("b=" + Render63(42));
-        return;
     }
 
     public static string Render63(decimal nValue = default)

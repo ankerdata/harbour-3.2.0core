@@ -84,7 +84,5 @@ public static partial class Program
             cResult = "in range";
             QOut("cResult=" + cResult);
         }
-
-        return;
     }
 }

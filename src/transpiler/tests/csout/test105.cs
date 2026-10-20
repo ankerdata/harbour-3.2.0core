@@ -49,6 +49,5 @@ public static partial class Program
         QOut(oTorch.Glow());
 
         QOut(FilamentRate(oTorch.nWatts));
-        return;
     }
 }

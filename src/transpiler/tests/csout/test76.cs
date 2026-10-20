@@ -46,8 +46,6 @@ public static partial class Program
         QOut("g=", test76_shNames["alpha"] + test76_shNames["beta"]);
         QOut("h=", Len(test76_shnPanels));
 
-        return;
-
         // Factory in the CreateLangHash shape: its own keys flow through a
         // variable, so the literal gives no key evidence — the return-key
         // override from the `shnPanels := BuildPanels()` site types it.

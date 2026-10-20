@@ -16,18 +16,18 @@ public static partial class Program
     public static dynamic MinMax(List<dynamic> aData, ref dynamic xLo, ref dynamic xHi)
     {
         long i = default;
-        xLo = aData[Ix(1)];
-        xHi = aData[Ix(1)];
+        xLo = aData[I(1)];
+        xHi = aData[I(1)];
         for (i = 2; i <= Len(aData); i++)
         {
-            if (aData[Ix(i)] < xLo)
+            if (aData[I(i)] < xLo)
             {
-                xLo = aData[Ix(i)];
+                xLo = aData[I(i)];
             }
 
-            if (aData[Ix(i)] > xHi)
+            if (aData[I(i)] > xHi)
             {
-                xHi = aData[Ix(i)];
+                xHi = aData[I(i)];
             }
         }
 
@@ -56,6 +56,5 @@ public static partial class Program
             nHi = _hbref_nHi;
         }
         QOut("b lo=" + Str(nLo, 2) + " hi=" + Str(nHi, 2));
-        return;
     }
 }

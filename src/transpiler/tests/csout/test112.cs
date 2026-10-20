@@ -24,34 +24,31 @@ public static partial class Program
         SaleBuffer oBuf = new SaleBuffer();
 
         hb_ADel(aNums, 2, true);
-        QOut(Len(aNums), aNums[Ix(2)]);
+        QOut(Len(aNums), aNums[I(2)]);
         hb_AIns(aNums, 1, 9, true);
-        QOut(Len(aNums), aNums[Ix(1)], aNums[Ix(4)]);
+        QOut(Len(aNums), aNums[I(1)], aNums[I(4)]);
         hb_ADel(aNums, 1);
-        QOut(Len(aNums), ValType(aNums[Ix(4)]));
+        QOut(Len(aNums), ValType(aNums[I(4)]));
 
         oBuf.aLines = new List<dynamic> { "a", "b", "c" };
         hb_AIns(oBuf.aLines, 2, "x", true);
-        QOut(Len(oBuf.aLines), oBuf.aLines[Ix(2)], oBuf.aLines[Ix(4)]);
+        QOut(Len(oBuf.aLines), oBuf.aLines[I(2)], oBuf.aLines[I(4)]);
         hb_ADel(oBuf.aLines, 1, true);
-        QOut(Len(oBuf.aLines), oBuf.aLines[Ix(1)]);
+        QOut(Len(oBuf.aLines), oBuf.aLines[I(1)]);
 
         oBuf.xQueue = new List<dynamic> { 10, 20 };
         hb_ADel(oBuf.xQueue, 1, true);
-        QOut(Len(oBuf.xQueue), oBuf.xQueue[Ix(1)]);
+        QOut(Len(oBuf.xQueue), oBuf.xQueue[I(1)]);
         hb_AIns(oBuf.xQueue, 2, 30, true);
-        QOut(Len(oBuf.xQueue), oBuf.xQueue[Ix(2)]);
+        QOut(Len(oBuf.xQueue), oBuf.xQueue[I(2)]);
 
         aNums = new List<dynamic> { 5, 6, 7 };
         BufferTrim(aNums);
-        QOut(Len(aNums), aNums[Ix(1)]);
-
-        return;
+        QOut(Len(aNums), aNums[I(1)]);
     }
 
     public static void BufferTrim(List<dynamic> aList)
     {
         hb_ADel(aList, 1, true);
-        return;
     }
 }

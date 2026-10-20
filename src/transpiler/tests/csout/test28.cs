@@ -23,6 +23,5 @@ public static partial class Program
     {
         QOut("crlf:  " + LTrim(Str(Len(test28_Main_scCRLF))));
         QOut("base:  " + LTrim(Str(test28_Main_snBase)));
-        return;
     }
 }

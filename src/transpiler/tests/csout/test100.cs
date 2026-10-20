@@ -27,6 +27,5 @@ public static partial class Program
         dDay = dDay.AddDays(-1);
         dDay = dDay.AddDays(-1);
         QOut("prev=" + DToS(dDay));
-        return;
     }
 }

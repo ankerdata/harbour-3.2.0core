@@ -40,6 +40,5 @@ public static partial class Program
         Lantern oLantern = new Lantern();
         Sconce oSconce = new Sconce().New(oLantern, "hall");
         QOut("label=" + oSconce.cLabel);
-        return;
     }
 }

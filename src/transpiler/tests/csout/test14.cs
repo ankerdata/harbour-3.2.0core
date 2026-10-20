@@ -55,7 +55,5 @@ public static partial class Program
         QOut("Describe=" + oAnimal.Describe());
         QOut("Speak=" + oDog.Speak());
         QOut("DescribeFull=" + oDog.DescribeFull());
-
-        return;
     }
 }

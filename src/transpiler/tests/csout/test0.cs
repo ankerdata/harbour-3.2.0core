@@ -24,7 +24,5 @@ public static partial class Program
         SetColor("\"W/B\"");
 
         QOut("Amazing success!");
-
-        return;
     }
 }

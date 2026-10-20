@@ -1,14 +1,11 @@
-// Test 151: every array subscript goes through Ix().
+// Test 151: every array subscript goes through I().
 //
-// Harbour's subscript is 1-based, a List's 0-based. The emitter rebased
-// it by hand: a literal decremented where it stood (`aCSV[19]` became
-// `aCSV[18]`), anything else `[(int)(…) - 1]`. That truncated a
-// fractional index silently, reported Harbour's index 0 as C#'s -1, cut
-// the link between a literal and its source line, and read as noise
-// (`[(int)(i + 1) - 1]`). Now every array subscript is `[Ix(…)]`, the
-// literal with its source value: HbRuntime's Ix() answers the 0-based
-// int and throws on an index below 1 and on a fraction. A hash's key, a
-// FOR's bounds and HbRuntime's own 1-based positions are untouched.
+// Harbour's subscript is 1-based, a List's 0-based. Every array subscript
+// is `[I(…)]`, a literal with its source value: HbRuntime's I() answers
+// the 0-based int and throws on an index below 1 and on a fraction, so
+// Harbour's index 0 is a bound error, not C#'s -1. A loop's `i` does not
+// hide I(), C# comparing names with their case: `a[I(i)]`. A hash's key,
+// a FOR's bounds and HbRuntime's own 1-based positions are untouched.
 // A fraction is the one deliberate divergence: Harbour truncates it, the
 // C# reports it, so that case runs as C# beside the Harbour line.
 
@@ -64,7 +61,7 @@ PROCEDURE Main()
 #pragma BEGINCSHARP
    try
    {
-       Ix(2.5m);
+       I(2.5m);
        HbRuntime.QOut("fraction:", "no error");
    }
    catch (System.ArgumentOutOfRangeException)

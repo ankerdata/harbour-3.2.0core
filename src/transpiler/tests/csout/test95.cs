@@ -76,7 +76,7 @@ public static partial class Program
 
         // @aLog: the slot is by-ref
         oBrewer.Measure("coffee", ref nOut, ref aLog);
-        QOut("coffee=" + LTrim(Str(nOut)) + " log=" + aLog[Ix(1)]);
+        QOut("coffee=" + LTrim(Str(nOut)) + " log=" + aLog[I(1)]);
         // aLog omitted
         test95_GetBrewer().Measure("tea", ref nOut, ref HbDiscard<List<dynamic>>.Value);
         QOut("tea=" + LTrim(Str(nOut)));
@@ -106,6 +106,5 @@ public static partial class Program
         }
 
         QOut("i=" + LTrim(Str(i)));
-        return;
     }
 }

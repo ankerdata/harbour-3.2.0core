@@ -21,7 +21,7 @@ public static partial class Program
         long i = default;
         for (i = 1; i <= Len(aArr); i++)
         {
-            aArr[Ix(i)] = aArr[Ix(i)] * nFactor;
+            aArr[I(i)] = aArr[I(i)] * nFactor;
         }
 
         return Len(aArr);
@@ -39,10 +39,9 @@ public static partial class Program
         List<dynamic> aData = new List<dynamic> { 1, 2, 3 };
         // elided: aData[i] mutated in place
         Scale(aData, 10);
-        QOut("scaled=" + Str(aData[Ix(1)], 4) + Str(aData[Ix(2)], 4) + Str(aData[Ix(3)], 4));
+        QOut("scaled=" + Str(aData[I(1)], 4) + Str(aData[I(2)], 4) + Str(aData[I(3)], 4));
         // ref kept: aData is repointed
         Replace(ref aData);
-        QOut("replaced=" + Str(aData[Ix(1)], 4) + Str(aData[Ix(2)], 4) + Str(aData[Ix(3)], 4));
-        return;
+        QOut("replaced=" + Str(aData[I(1)], 4) + Str(aData[I(2)], 4) + Str(aData[I(3)], 4));
     }
 }

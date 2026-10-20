@@ -60,7 +60,5 @@ public static partial class Program
 
         oRemote144 = new Remote144().Start144();
         QOut("Start144() ran:", oRemote144.nStarts144);
-
-        return;
     }
 }

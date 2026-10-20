@@ -25,7 +25,6 @@ public static partial class Program
         QOut("bare=" + LTrim(Str(Inc(ref HbDiscard<decimal>.Seed(n)))));
         // ...but n stays 5 (discarded)
         QOut("kept=" + LTrim(Str(n)));
-        return;
     }
 
     public static decimal Inc(ref decimal nVal)

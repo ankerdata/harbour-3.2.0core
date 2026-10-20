@@ -60,14 +60,12 @@ public static partial class Program
         QOut(hb_HGetDef(hnById, 4, "none"), hb_HKeyAt(hnById, 1) + 1);
 
         hCopy = hb_HClone(hSrc);
-        hCopy["a"][Ix(1)] = 9;
+        hCopy["a"][I(1)] = 9;
         hCopy["b"]["x"] = 5;
-        QOut(hSrc["a"][Ix(1)], hSrc["b"]["x"], hCopy["a"][Ix(1)], hCopy["b"]["x"]);
+        QOut(hSrc["a"][I(1)], hSrc["b"]["x"], hCopy["a"][I(1)], hCopy["b"]["x"]);
 
         aCopy = AClone(aSrc);
-        aCopy[Ix(1)]["k"] = 2;
-        QOut(aSrc[Ix(1)]["k"], aCopy[Ix(1)]["k"]);
-
-        return;
+        aCopy[I(1)]["k"] = 2;
+        QOut(aSrc[I(1)]["k"], aCopy[I(1)]["k"]);
     }
 }

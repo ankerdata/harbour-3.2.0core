@@ -48,9 +48,7 @@ public static partial class Program
         QOut("len=", Len(aData));
         if (Len(aData) >= 3)
         {
-            QOut("vals=", aData[Ix(1)] + aData[Ix(2)] + aData[Ix(3)]);
+            QOut("vals=", aData[I(1)] + aData[I(2)] + aData[I(3)]);
         }
-
-        return;
     }
 }

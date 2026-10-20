@@ -57,7 +57,6 @@ public static partial class Program
         QOut("local:  " + oTest74Holder.Identify());
         QOut("static: " + test74_soTest74Holder.Identify());
         QOut("fallthrough: " + oNotAClass.Identify());
-        return;
 
         // Polymorphic on purpose: the mixed RETURN types (object vs string)
         // make the inferred return type USUAL, so no constructor evidence

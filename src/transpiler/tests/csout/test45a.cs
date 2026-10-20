@@ -22,9 +22,7 @@ public static partial class Program
         ASize(aFlag, nCount);
         for (i = 1; i <= nCount; i++)
         {
-            aFlag[Ix(i)] = cFile + ":" + Str(i, 1);
+            aFlag[I(i)] = cFile + ":" + Str(i, 1);
         }
-
-        return;
     }
 }
