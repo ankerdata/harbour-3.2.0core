@@ -69,10 +69,9 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var oStore134 = new Bag134();
-        Viewer134 oShow134;
 
         oStore134.Put134("cLabel134", "tin");
-        oShow134 = new Viewer134().New(oStore134);
+        Viewer134 oShow134 = new Viewer134().New(oStore134);
         QOut(oShow134.Show134("cLabel134"));
         QOut(Label134(oStore134));
         QOut(oStore134.Get134("nCount134"));

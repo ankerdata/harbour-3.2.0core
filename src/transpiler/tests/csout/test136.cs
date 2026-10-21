@@ -74,32 +74,28 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var oCrate = new Crate136();
-        Gizmo136 oAny;
         var aNames = new List<dynamic>();
-        Gizmo136 oItem;
-        long iPos;
 
         oCrate.Add(new Gizmo136().New("bolt", 3));
         oCrate.Add(new Gizmo136().New("beam", 9));
         oCrate.Add(new Gizmo136().New("nut", 1));
         oCrate.Add((Bigizmo136)new Bigizmo136().New("plate", 5));
 
-        foreach (Gizmo136 __hb_fe_oItem in HbEnumValues(oCrate.aGizmos))
+        foreach (Gizmo136 oItem in HbEnumValues(oCrate.aGizmos))
         {
-            oItem = __hb_fe_oItem;
             AAdd(aNames, oItem.Label());
         }
 
         QOut(aNames[I(2)], Len(aNames[I(2)]));
 
-        for (iPos = 1; iPos <= Len(oCrate.aGizmos); iPos++)
+        for (long iPos = 1; iPos <= Len(oCrate.aGizmos); iPos++)
         {
             QOut(((Gizmo136)oCrate.aGizmos[I(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[I(iPos)]).nSize);
         }
 
         QOut(oCrate.aGizmos[I(4)].cColour, ((Gizmo136)oCrate.aGizmos[I(4)]).nSize);
 
-        oAny = oCrate.Largest();
+        Gizmo136 oAny = oCrate.Largest();
         QOut(oAny.Label());
         QOut(oCrate.oFirst.Label());
 
@@ -113,10 +109,8 @@ public static partial class Program
     public static Gizmo136 Biggest136(List<dynamic> aList = default)
     {
         Gizmo136 oBest = null;
-        Gizmo136 oOne;
-        foreach (Gizmo136 __hb_fe_oOne in HbEnumValues(aList))
+        foreach (Gizmo136 oOne in HbEnumValues(aList))
         {
-            oOne = __hb_fe_oOne;
             if (oBest == null || oOne.nSize > oBest.nSize)
             {
                 oBest = oOne;
@@ -129,8 +123,7 @@ public static partial class Program
     public static List<dynamic> test136_Names136(List<dynamic> aList = default)
     {
         var aOut = new List<dynamic>();
-        long iPos;
-        for (iPos = 1; iPos <= Len(aList); iPos++)
+        for (long iPos = 1; iPos <= Len(aList); iPos++)
         {
             AAdd(aOut, ((Gizmo136)aList[I(iPos)]).cName);
         }
@@ -141,10 +134,8 @@ public static partial class Program
     public static decimal test136_Total136()
     {
         decimal nTotal = 0;
-        Gizmo136 oG;
-        foreach (Gizmo136 __hb_fe_oG in HbEnumValues(test136_saShelf136))
+        foreach (Gizmo136 oG in HbEnumValues(test136_saShelf136))
         {
-            oG = __hb_fe_oG;
             nTotal += oG.nSize;
         }
 

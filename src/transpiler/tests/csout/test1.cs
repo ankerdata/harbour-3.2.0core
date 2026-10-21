@@ -5,9 +5,8 @@ public static partial class Program
     {
         decimal x = 5;
         decimal y = 10;
-        decimal z;
 
-        z = x + y;
+        decimal z = x + y;
 
         QOut("x=" + Str(x));
         QOut("y=" + Str(y));

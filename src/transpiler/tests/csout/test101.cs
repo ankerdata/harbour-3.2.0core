@@ -49,14 +49,13 @@ public static partial class Program
         decimal nSpan = (decimal)(dEnd.DayNumber - dStart.DayNumber);
         Voyage oVoyage = new Voyage().New(dStart, "Lisbon");
         string cPort = "Lis";
-        DateOnly dNext;
         Set(_SET_EXACT, "ON");
         QOut("span=" + LTrim(Str(nSpan)));
         QOut("half=" + (((decimal)(dEnd.DayNumber - dStart.DayNumber)) / 2 > 4 ? "y" : "n"));
         QOut("plus=" + DToS(dStart.AddDays((int)(7))));
         QOut("swap=" + DToS(dStart.AddDays((int)(7))));
         QOut("less=" + DToS(dEnd.AddDays(-(int)(3))));
-        dNext = dStart;
+        DateOnly dNext = dStart;
         dNext = dNext.AddDays((int)(10));
         QOut("peq=" + DToS(dNext));
         dNext = dNext.AddDays(-(int)(1));

@@ -55,8 +55,6 @@ public static partial class Program
             { 1, "one" },
             { 2, "two" }
         };
-        FieldRow156 aRow;
-        string cKey;
 
         // a record into the hash: its constructor
         hb_HSet(test156_shByName, "PRICE1", new FieldRow156("PRICE1", "N", 12, 3));
@@ -64,15 +62,13 @@ public static partial class Program
         test156_shByName["PRICE1"].iLen = 15;
         QOut(Len(test156_shByName), test156_shByName["CAPTION"].iLen, test156_shByName["PRICE1"].iLen);
         // the values, typed
-        foreach (FieldRow156 __hb_fe_aRow in HbEnumValues(test156_shByName))
+        foreach (FieldRow156 aRow in HbEnumValues(test156_shByName))
         {
-            aRow = __hb_fe_aRow;
             QOut("  row", aRow.cName, aRow.iLen);
         }
 
-        foreach (string __hb_fe_cKey in HbEnumValues(hb_HKeys(test156_shByName)))
+        foreach (string cKey in HbEnumValues(hb_HKeys(test156_shByName)))
         {
-            cKey = __hb_fe_cKey;
             QOut("  key", cKey, Width156(test156_shByName[cKey]));
         }
 
@@ -107,10 +103,8 @@ public static partial class Program
     public static long Count156(OrderedDictionary<string, FieldRow156> hRows = default)
     {
         long iTotal = 0;
-        FieldRow156 aRow;
-        foreach (FieldRow156 __hb_fe_aRow in HbEnumValues(hRows))
+        foreach (FieldRow156 aRow in HbEnumValues(hRows))
         {
-            aRow = __hb_fe_aRow;
             iTotal += (long)(aRow.iLen);
         }
 

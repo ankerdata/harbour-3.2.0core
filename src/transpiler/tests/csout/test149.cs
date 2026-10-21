@@ -13,10 +13,9 @@ public static partial class Program
     public static long test149_siCalls149 = 0;
     public static long Calls149(ref bool lFirst)
     {
-        long iCalls;
         test149_siCalls149++;
         lFirst = (test149_siCalls149 == 1);
-        iCalls = test149_siCalls149;
+        long iCalls = test149_siCalls149;
         return iCalls;
     }
 
@@ -28,9 +27,8 @@ public static partial class Program
 
     public static string Label149(string cPrefix, ref string cLabel, decimal nWidth = 8)
     {
-        string cOut;
         cLabel = PadR(cPrefix + "-" + Str(Calls149(), 1), nWidth, ".");
-        cOut = Upper(cLabel);
+        string cOut = Upper(cLabel);
         return cOut;
     }
 
@@ -71,13 +69,12 @@ public static partial class Program
         string cLabel = "";
         decimal nLength = 0;
         bool lOdd = false;
-        decimal nHalf;
 
         // the full call, by reference
         QOut(Calls149(ref lFirst), lFirst);
         // the short call: a long
         QOut(Calls149());
-        nHalf = ((decimal)(Calls149()) / 2);
+        decimal nHalf = ((decimal)(Calls149()) / 2);
         // the whole-number return divides as Harbour's
         QOut(Str(nHalf, 5, 2), Str((decimal)(Calls149()) / 2, 5, 2));
 

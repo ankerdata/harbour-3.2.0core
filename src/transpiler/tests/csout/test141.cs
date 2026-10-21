@@ -32,18 +32,16 @@ public static partial class Program
         var aParcels = new List<dynamic>();
         var aLoose = new List<dynamic> { new Parcel141().New("Crate", 3) };
         var aCounts = new List<dynamic>();
-        long iCount;
         decimal nTotal = 0;
         long iSum = 0;
         Func<string, string> bShout = ((Func<string, string>)((cWord) => Upper(cWord) + "!"));
-        decimal nPos;
 
         AAdd(aParcels, new Parcel141().New("Books", 4));
         AAdd(aParcels, new Parcel141().New("Lamp", 2));
         AAdd(aParcels, new Parcel141().New("Rug", 7));
 
         // an element of the declared array: x is a Parcel141, the result bool
-        nPos = AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
+        decimal nPos = AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
         QOut(nPos, ((Parcel141)aParcels[I(nPos)]).cLabel);
 
         // ASort's two parameters, both elements
@@ -54,7 +52,7 @@ public static partial class Program
         QOut(AScan(aLoose, ((Func<Parcel141, bool>)((oParcel141) => oParcel141.nWeight == 3))));
 
         // numbers held as long reach an n parameter
-        for (iCount = 1; iCount <= 3; iCount++)
+        for (long iCount = 1; iCount <= 3; iCount++)
         {
             AAdd(aCounts, iCount * 10);
         }

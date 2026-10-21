@@ -19,17 +19,15 @@ public static partial class Program
         long iCount = 0;
         long iLen = (long)(Len(aItems));
         decimal nPrice = 2.5m;
-        long iPos;
-        long iWhole;
 
-        for (iPos = 1; iPos <= iLen; iPos++)
+        for (long iPos = 1; iPos <= iLen; iPos++)
         {
             iCount += iPos;
         }
 
         QOut("count:", iCount, iLen);
 
-        iWhole = (long)(Int(nPrice * 1.2m));
+        long iWhole = (long)(Int(nPrice * 1.2m));
         QOut("whole:", iWhole, aItems[I(iWhole)]);
 
         iWhole = (long)(Round(nPrice, 0) + iLen);

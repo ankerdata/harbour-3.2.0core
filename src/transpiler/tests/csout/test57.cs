@@ -37,7 +37,6 @@ public static partial class Program
     {
         decimal nGot = 0;
         string cGot = "";
-        bool lOk;
         Holder oH = new Holder().New();
 
         // bare call statement — typed numeric variable by-ref
@@ -65,6 +64,7 @@ public static partial class Program
         QOut("field=" + LTrim(Str(oH.nField)));
 
         // `var := Foo(@x)` form — the assignment-case shim
+        bool lOk;
         {
             dynamic _hbref_nGot = nGot;
             lOk = FetchValue(1, ref _hbref_nGot);

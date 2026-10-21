@@ -32,13 +32,13 @@ public static partial class Program
     {
         HbError oError = Make152("made by hand");
         Func<HbError, string> bShow = ((Func<HbError, string>)((oError) => Describe152(oError)));
-        decimal nZero = 0;
 
         QOut(Describe152(oError));
         QOut(Eval(bShow, oError), oError.canRetry);
 
         try
         {
+            decimal nZero = 0;
             QOut(1 / nZero);
         }
         catch (Exception __hb_ex1) when (__hb_ex1 is not HbQuit)

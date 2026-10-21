@@ -84,7 +84,6 @@ public static partial class Program
         {
             new FieldRow("TAX", "N", 1, 0)
         };
-        long iPos;
 
         // fields of the def, the fixed array's length
         QOut(aDef.cAlias, aDef.cDatabase, Len(aDef.aFields));
@@ -93,7 +92,7 @@ public static partial class Program
         // nested: a field's field, a fixed array of strings in a record
         QOut(aDef.aFields[I(3)].iLen, aDef.aIndexes.aNames[I(2)]);
         // a computed subscript, then a constant
-        for (iPos = 1; iPos <= Len(aFields); iPos++)
+        for (long iPos = 1; iPos <= Len(aFields); iPos++)
         {
             QOut(iPos, aFields[I(iPos)].cName, aFields[I(iPos)].iLen + aFields[I(iPos)].iDec);
         }
@@ -161,13 +160,10 @@ public static partial class Program
     }
     public static void Dump155(dynamic xAny = default)
     {
-        dynamic xItem;
-        FieldRow aRow;
         QOut(ValType(xAny), Len(xAny));
-        foreach (dynamic __hb_fe_xItem in HbEnumValues(xAny))
+        foreach (dynamic xItem in HbEnumValues(xAny))
         {
-            xItem = __hb_fe_xItem;
-            aRow = xItem;
+            FieldRow aRow = xItem;
             QOut("  row", aRow.cName, aRow.iLen);
         }
     }

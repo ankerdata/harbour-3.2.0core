@@ -32,7 +32,6 @@ public static partial class Program
         // C2
         // comment with no ; here
         var aCodes = new List<dynamic> { "alpha", "bravo", "charlie" };
-        long n;
 
         // comment on IF line
         if (x == 1)
@@ -58,7 +57,7 @@ public static partial class Program
         // comment on ENDCASE
 
         // comment on FOR
-        for (n = 1; n <= Len(aCodes); n++)
+        for (long n = 1; n <= Len(aCodes); n++)
         {
             QOut(aCodes[I(n)]);
             // comment on NEXT

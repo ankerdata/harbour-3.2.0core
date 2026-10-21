@@ -234,13 +234,10 @@ static FILE *  s_pScratch = NULL;
 static char    s_szScratch[ HB_PATH_MAX ] = "";
 static HB_BOOL s_fCapturing = HB_FALSE;
 
-/* pExpr's C# as hb_csEmitExpr writes it, in memory the caller frees;
-   NULL inside another capture or where the scratch file cannot open */
-static char * hb_csCaptureExpr( PHB_EXPR pExpr )
+/* The scratch stream, emptied, to emit into; NULL inside another capture
+   or where the scratch file cannot open */
+static FILE * hb_csCaptureBegin( void )
 {
-   char * szText;
-   long   lLen;
-
    if( s_fCapturing || ! s_szScratch[ 0 ] )
       return NULL;
    if( ! s_pScratch )
@@ -251,7 +248,15 @@ static char * hb_csCaptureExpr( PHB_EXPR pExpr )
    }
    rewind( s_pScratch );
    s_fCapturing = HB_TRUE;
-   hb_csEmitExpr( pExpr, s_pScratch, HB_FALSE );
+   return s_pScratch;
+}
+
+/* What was emitted since hb_csCaptureBegin(), in memory the caller frees */
+static char * hb_csCaptureEnd( void )
+{
+   char * szText;
+   long   lLen;
+
    s_fCapturing = HB_FALSE;
    lLen = ftell( s_pScratch );
    if( lLen < 0 )
@@ -261,6 +266,28 @@ static char * hb_csCaptureExpr( PHB_EXPR pExpr )
    lLen = ( long ) fread( szText, 1, ( size_t ) lLen, s_pScratch );
    szText[ lLen ] = '\0';
    return szText;
+}
+
+/* pExpr's C# as hb_csEmitExpr writes it, or NULL (hb_csCaptureBegin) */
+static char * hb_csCaptureExpr( PHB_EXPR pExpr )
+{
+   FILE * pOut = hb_csCaptureBegin();
+
+   if( ! pOut )
+      return NULL;
+   hb_csEmitExpr( pExpr, pOut, HB_FALSE );
+   return hb_csCaptureEnd();
+}
+
+/* pNode's C# as hb_csEmitNode writes it at iIndent, or NULL */
+static char * hb_csCaptureNode( PHB_AST_NODE pNode, int iIndent )
+{
+   FILE * pOut = hb_csCaptureBegin();
+
+   if( ! pOut )
+      return NULL;
+   hb_csEmitNode( pNode, pOut, iIndent );
+   return hb_csCaptureEnd();
 }
 
 static void hb_csScratchClose( void )
@@ -7167,8 +7194,18 @@ static PHB_AST_NODE hb_csDroppedFinalReturn( PHB_AST_NODE pBody )
    - nothing after RETURN, BREAK, EXIT or LOOP is read on that path;
    - a codeblock reads where it is created, its parameters hiding the
      routine's names.
-   A routine with anything it does not model (a macro, an alias, a C#
-   block) keeps every `= default`, and so does a local never read. */
+   A routine with anything it does not model (a macro, an alias given by
+   an expression, a C# block) keeps every `= default`, and so does a local
+   never read; `MEMVAR->x` and `FIELD->x` name no local. */
+
+/* `MEMVAR->x`, `FIELD->x`, `alias->x`: a name no LOCAL can be, which the
+   walks below pass (an alias given by an expression they do not model) */
+static HB_BOOL hb_csIsNamedAliasVar( PHB_EXPR p )
+{
+   return p->ExprType == HB_ET_ALIASVAR && p->value.asAlias.pAlias &&
+          p->value.asAlias.pAlias->ExprType == HB_ET_ALIAS &&
+          p->value.asAlias.pVar && p->value.asAlias.pVar->ExprType == HB_ET_VARIABLE;
+}
 
 #define HB_CS_DA_MAX 256
 
@@ -7309,8 +7346,8 @@ static void hb_csDaReads( PHB_EXPR p, HB_CS_DASTATE * pS )
             hb_csDaReads( p->value.asOperator.pLeft, pS );
             hb_csDaReads( p->value.asOperator.pRight, pS );
          }
-         else
-            s_da.fAbort = HB_TRUE;            /* a macro, an alias, PUBLIC / PRIVATE */
+         else if( ! hb_csIsNamedAliasVar( p ) )
+            s_da.fAbort = HB_TRUE;            /* a macro, an alias by expression, PUBLIC / PRIVATE */
          break;
    }
 }
@@ -7603,12 +7640,834 @@ static const char * hb_csFuncTabPrefix( const char * szName )
    return hb_funcTabPrefix( szName );
 }
 
+/* ---- Where a LOCAL is declared ----
+
+   Harbour declares every LOCAL at the top of its routine. A C# author
+   declares a variable in the innermost block that holds all its uses,
+   just before the first, and the emitter does where the C# runs the
+   same (hb_csScopeAnalyse):
+   - a LOCAL whose uses are all in one inner block is declared there,
+     before the first statement that uses it. A loop's body is a new C#
+     scope on every pass, where Harbour's variable keeps its value, so a
+     LOCAL goes into a loop only when nothing carries from one pass to the
+     next (C# sees it assigned before every read there, s_da, or its
+     declaration is its first assignment) and no codeblock uses it (each
+     pass would capture its own). Its initialiser is absent or a constant
+     (a literal, an array or hash of them), whose value does not depend
+     on when it is made;
+   - when that first statement assigns it and the value does not read it,
+     the two are one statement (`string cName = GetName();`,
+     hb_csEmitJoined), at the routine's own level too;
+   - a FOR's counter that nothing outside the loop uses is declared in its
+     header (`for (long i = 1; …)`);
+   - a FOR EACH variable that nothing outside the loop uses is the
+     foreach's own (`foreach (string cLine in …)`), or, where the body
+     assigns it, declared from the element at the top of the body.
+   A routine with anything the walk does not model (a macro, an alias
+   given by an expression, a C# block) keeps every declaration at the
+   top. */
+
+#define HB_CS_SC_MAX      256
+#define HB_CS_SC_DEPTH    48
+
+#define HB_CS_SC_TOP      0   /* at the routine's top */
+#define HB_CS_SC_BLOCK    1   /* in pBlock, before pFirst */
+#define HB_CS_SC_FOR      2   /* in the header of the FOR pFirst */
+#define HB_CS_SC_FOREACH  3   /* by the FOR EACH pFirst */
+
+#define HB_CS_SC_NAMES    0   /* hb_csScFind: any mention */
+#define HB_CS_SC_WRITES   1   /* hb_csScFind: what may change it */
+
+typedef struct
+{
+   const char *  szName;
+   PHB_AST_NODE  pLocal;                     /* its LOCAL statement */
+   int           iUses;
+   int           iDepth;                     /* levels whose block every use shares */
+   int           iStmtDepth;                 /* levels whose statement every use shares */
+   PHB_AST_NODE  apBlock[ HB_CS_SC_DEPTH ];  /* the first use's blocks, the body first */
+   PHB_AST_NODE  apStmt[ HB_CS_SC_DEPTH ];   /* the statement of each that holds it */
+   unsigned char afLoop[ HB_CS_SC_DEPTH ];   /* that block is a loop's body */
+   HB_BOOL       fBlockUse;                  /* a codeblock uses it */
+   int           iKind;                      /* HB_CS_SC_* */
+   HB_BOOL       fJoin;                      /* pFirst assigns it */
+   PHB_AST_NODE  pBlock;
+   PHB_AST_NODE  pFirst;
+} HB_CS_SCVAR;
+
+static struct
+{
+   HB_BOOL       fActive;                    /* the routine being emitted was walked */
+   HB_BOOL       fAbort;                     /* something not modelled: all at the top */
+   int           iCount;
+   int           iTop;                       /* the walk's levels */
+   PHB_AST_NODE  apBlock[ HB_CS_SC_DEPTH ];
+   PHB_AST_NODE  apStmt[ HB_CS_SC_DEPTH ];
+   unsigned char afLoop[ HB_CS_SC_DEPTH ];
+   PHB_CBVAR     apShadow[ 32 ];             /* the codeblocks a use stands in */
+   int           iShadow;
+   HB_CS_SCVAR   aVar[ HB_CS_SC_MAX ];
+} s_sc;
+
+/* Whether C# may see szName read before it is assigned (s_da) */
+static HB_BOOL hb_csDaReadsFirst( const char * szName )
+{
+   int i;
+   if( ! s_da.fActive || s_da.fAbort )
+      return HB_TRUE;
+   i = hb_csDaIndex( szName );
+   return i < 0 || s_da.aNeed[ i ];
+}
+
+static int hb_csScIndex( const char * szName )
+{
+   int i;
+   if( ! szName )
+      return -1;
+   for( i = 0; i < s_sc.iShadow; i++ )
+   {
+      PHB_CBVAR pVar;
+      for( pVar = s_sc.apShadow[ i ]; pVar; pVar = pVar->pNext )
+         if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+            return -1;
+   }
+   for( i = 0; i < s_sc.iCount; i++ )
+      if( hb_stricmp( s_sc.aVar[ i ].szName, szName ) == 0 )
+         return i;
+   return -1;
+}
+
+/* A use of szName where the walk stands */
+static void hb_csScUse( const char * szName )
+{
+   int i = hb_csScIndex( szName );
+   HB_CS_SCVAR * pV;
+   int d;
+
+   if( i < 0 )
+      return;
+   pV = &s_sc.aVar[ i ];
+   if( s_sc.iShadow > 0 )
+      pV->fBlockUse = HB_TRUE;
+   if( pV->iUses++ == 0 )
+   {
+      for( d = 0; d < s_sc.iTop; d++ )
+      {
+         pV->apBlock[ d ] = s_sc.apBlock[ d ];
+         pV->apStmt[ d ] = s_sc.apStmt[ d ];
+         pV->afLoop[ d ] = s_sc.afLoop[ d ];
+      }
+      pV->iDepth = pV->iStmtDepth = s_sc.iTop;
+      return;
+   }
+   for( d = 0; d < pV->iDepth && d < s_sc.iTop &&
+               pV->apBlock[ d ] == s_sc.apBlock[ d ]; d++ )
+      ;
+   pV->iDepth = d;
+   for( d = 0; d < pV->iStmtDepth && d < pV->iDepth &&
+               pV->apStmt[ d ] == s_sc.apStmt[ d ]; d++ )
+      ;
+   pV->iStmtDepth = d;
+}
+
+static void hb_csScExpr( PHB_EXPR p );
+
+static void hb_csScExprList( PHB_EXPR p )
+{
+   for( ; p; p = p->pNext )
+      hb_csScExpr( p );
+}
+
+/* Every variable an expression names, a use where the walk stands */
+static void hb_csScExpr( PHB_EXPR p )
+{
+   if( ! p || s_sc.fAbort )
+      return;
+   switch( p->ExprType )
+   {
+      case HB_ET_NONE: case HB_ET_NIL: case HB_ET_NUMERIC: case HB_ET_DATE:
+      case HB_ET_TIMESTAMP: case HB_ET_STRING: case HB_ET_LOGICAL:
+      case HB_ET_SELF: case HB_ET_FUNREF: case HB_ET_FUNNAME:
+         break;
+      case HB_ET_VARIABLE:
+      case HB_ET_VARREF:
+         hb_csScUse( p->value.asSymbol.name );
+         break;
+      case HB_ET_REFERENCE:
+         hb_csScExpr( p->value.asReference );
+         break;
+      case HB_ET_CODEBLOCK:
+         if( s_sc.iShadow < ( int ) HB_SIZEOFARRAY( s_sc.apShadow ) )
+         {
+            s_sc.apShadow[ s_sc.iShadow++ ] = p->value.asCodeblock.pLocals;
+            hb_csScExprList( p->value.asCodeblock.pExprList );
+            s_sc.iShadow--;
+         }
+         else
+            s_sc.fAbort = HB_TRUE;
+         break;
+      case HB_ET_ARRAY: case HB_ET_HASH: case HB_ET_IIF:
+      case HB_ET_LIST: case HB_ET_ARGLIST:
+         hb_csScExprList( p->value.asList.pExprList );
+         break;
+      case HB_ET_ARRAYAT:
+         hb_csScExpr( p->value.asList.pExprList );
+         hb_csScExpr( p->value.asList.pIndex );
+         break;
+      case HB_ET_FUNCALL:
+         if( p->value.asFunCall.pFunName &&
+             p->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME )
+            hb_csScExpr( p->value.asFunCall.pFunName );
+         hb_csScExprList( p->value.asFunCall.pParms );
+         break;
+      case HB_ET_SEND:
+         if( p->value.asMessage.pMessage )
+            s_sc.fAbort = HB_TRUE;            /* o:&( cName ) */
+         hb_csScExpr( p->value.asMessage.pObject );
+         hb_csScExprList( p->value.asMessage.pParms );
+         break;
+      case HB_ET_SETGET:
+         hb_csScExpr( p->value.asSetGet.pVar );
+         hb_csScExpr( p->value.asSetGet.pExpr );
+         break;
+      default:
+         if( p->ExprType >= HB_EO_POSTINC && p->ExprType <= HB_EO_PREDEC )
+         {
+            hb_csScExpr( p->value.asOperator.pLeft );
+            hb_csScExpr( p->value.asOperator.pRight );
+         }
+         else if( ! hb_csIsNamedAliasVar( p ) )
+            s_sc.fAbort = HB_TRUE;            /* a macro, an alias by expression, PUBLIC / PRIVATE */
+         break;
+   }
+}
+
+/* A FOR EACH's one variable, NULL for several or none */
+static const char * hb_csScEachVar( PHB_AST_NODE p )
+{
+   PHB_EXPR pVar = p->value.asForEach.pVar;
+   if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+   {
+      if( pVar->value.asList.pExprList && pVar->value.asList.pExprList->pNext )
+         return NULL;
+      pVar = pVar->value.asList.pExprList;
+   }
+   if( pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) )
+      return pVar->value.asSymbol.name;
+   return NULL;
+}
+
+static void hb_csScStmt( PHB_AST_NODE p );
+
+/* A body one level down, a BLOCK or a lone statement; fLoop for a loop's.
+   A FOR EACH's variable (szEachVar) is used at the top of its body. */
+static void hb_csScBlock( PHB_AST_NODE pBlock, HB_BOOL fLoop,
+                          PHB_AST_NODE pForEach, const char * szEachVar )
+{
+   PHB_AST_NODE p;
+   int iLevel;
+
+   if( ! pBlock || s_sc.fAbort )
+      return;
+   if( s_sc.iTop >= HB_CS_SC_DEPTH )
+   {
+      s_sc.fAbort = HB_TRUE;
+      return;
+   }
+   iLevel = s_sc.iTop++;
+   s_sc.apBlock[ iLevel ] = pBlock;
+   s_sc.afLoop[ iLevel ] = ( unsigned char ) fLoop;
+   if( szEachVar )
+   {
+      s_sc.apStmt[ iLevel ] = pForEach;
+      hb_csScUse( szEachVar );
+   }
+   if( pBlock->type != HB_AST_BLOCK )
+   {
+      s_sc.apStmt[ iLevel ] = pBlock;
+      hb_csScStmt( pBlock );
+   }
+   else
+      for( p = pBlock->value.asBlock.pFirst; p && ! s_sc.fAbort; p = p->pNext )
+      {
+         s_sc.apStmt[ iLevel ] = p;
+         hb_csScStmt( p );
+      }
+   s_sc.iTop--;
+}
+
+static void hb_csScStmt( PHB_AST_NODE p )
+{
+   PHB_AST_NODE pC;
+
+   switch( p->type )
+   {
+      case HB_AST_LOCAL:
+      case HB_AST_PRIVATE:
+      case HB_AST_PUBLIC:
+         hb_csScExpr( p->value.asVar.pInit );
+         break;
+      case HB_AST_STATIC: case HB_AST_MEMVAR: case HB_AST_FIELD:
+      case HB_AST_PARAMETERS: case HB_AST_COMMENT: case HB_AST_PPDEFINE:
+      case HB_AST_CLASSMETHOD: case HB_AST_EXIT: case HB_AST_LOOP:
+         break;
+      case HB_AST_BLOCK:
+         hb_csScBlock( p, HB_FALSE, NULL, NULL );
+         break;
+      case HB_AST_EXPRSTMT:
+         hb_csScExpr( p->value.asExprStmt.pExpr );
+         break;
+      case HB_AST_QOUT:
+      case HB_AST_QQOUT:
+         hb_csScExprList( p->value.asQOut.pExprList );
+         break;
+      case HB_AST_RETURN:
+         hb_csScExpr( p->value.asReturn.pExpr );
+         break;
+      case HB_AST_BREAK:
+         hb_csScExpr( p->value.asBreak.pExpr );
+         break;
+      case HB_AST_IF:
+         hb_csScExpr( p->value.asIf.pCondition );
+         hb_csScBlock( p->value.asIf.pThen, HB_FALSE, NULL, NULL );
+         for( pC = p->value.asIf.pElseIfs; pC; pC = pC->pNext )
+         {
+            hb_csScExpr( pC->value.asElseIf.pCondition );
+            hb_csScBlock( pC->value.asElseIf.pBody, HB_FALSE, NULL, NULL );
+         }
+         hb_csScBlock( p->value.asIf.pElse, HB_FALSE, NULL, NULL );
+         break;
+      case HB_AST_DOCASE:
+         for( pC = p->value.asDoCase.pCases; pC; pC = pC->pNext )
+         {
+            hb_csScExpr( pC->value.asCase.pCondition );
+            hb_csScBlock( pC->value.asCase.pBody, HB_FALSE, NULL, NULL );
+         }
+         hb_csScBlock( p->value.asDoCase.pOtherwise, HB_FALSE, NULL, NULL );
+         break;
+      case HB_AST_DOWHILE:
+         hb_csScExpr( p->value.asWhile.pCondition );
+         hb_csScBlock( p->value.asWhile.pBody, HB_TRUE, NULL, NULL );
+         break;
+      case HB_AST_FOR:
+         hb_csScExpr( p->value.asFor.pStart );
+         hb_csScUse( p->value.asFor.szVar );
+         hb_csScExpr( p->value.asFor.pEnd );
+         hb_csScExpr( p->value.asFor.pStep );
+         hb_csScBlock( p->value.asFor.pBody, HB_TRUE, NULL, NULL );
+         break;
+      case HB_AST_FOREACH:
+      {
+         const char * szVar = hb_csScEachVar( p );
+         hb_csScExpr( p->value.asForEach.pEnum );
+         if( szVar && p->value.asForEach.pBody )
+            hb_csScBlock( p->value.asForEach.pBody, HB_TRUE, p, szVar );
+         else
+         {
+            hb_csScExpr( p->value.asForEach.pVar );
+            hb_csScBlock( p->value.asForEach.pBody, HB_TRUE, NULL, NULL );
+         }
+         break;
+      }
+      case HB_AST_SWITCH:
+         hb_csScExpr( p->value.asSwitch.pSwitch );
+         for( pC = p->value.asSwitch.pCases; pC; pC = pC->pNext )
+         {
+            hb_csScExpr( pC->value.asCase.pCondition );
+            hb_csScBlock( pC->value.asCase.pBody, HB_FALSE, NULL, NULL );
+         }
+         hb_csScBlock( p->value.asSwitch.pDefault, HB_FALSE, NULL, NULL );
+         break;
+      case HB_AST_BEGINSEQ:
+         hb_csScBlock( p->value.asSeq.pBody, HB_FALSE, NULL, NULL );
+         if( p->value.asSeq.szRecoverVar )
+            hb_csScUse( p->value.asSeq.szRecoverVar );   /* the catch assigns it */
+         hb_csScBlock( p->value.asSeq.pRecover, HB_FALSE, NULL, NULL );
+         hb_csScBlock( p->value.asSeq.pAlways, HB_FALSE, NULL, NULL );
+         break;
+      case HB_AST_WITHOBJECT:
+         hb_csScExpr( p->value.asWithObj.pObject );
+         hb_csScBlock( p->value.asWithObj.pBody, HB_FALSE, NULL, NULL );
+         break;
+      default:
+         s_sc.fAbort = HB_TRUE;               /* a C# block, or anything else */
+         break;
+   }
+}
+
+static HB_BOOL hb_csScIsName( PHB_EXPR p, const char * szName )
+{
+   return p && ( p->ExprType == HB_ET_VARIABLE || p->ExprType == HB_ET_VARREF ) &&
+          p->value.asSymbol.name && hb_stricmp( p->value.asSymbol.name, szName ) == 0;
+}
+
+static HB_BOOL hb_csScFind( PHB_EXPR p, const char * szName, int iMode );
+
+static HB_BOOL hb_csScFindList( PHB_EXPR p, const char * szName, int iMode )
+{
+   for( ; p; p = p->pNext )
+      if( hb_csScFind( p, szName, iMode ) )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+/* Whether pExpr mentions szName (HB_CS_SC_NAMES) or may change it
+   (HB_CS_SC_WRITES: an assignment, ++ / --, `@name` passed on); what is
+   not modelled answers yes */
+static HB_BOOL hb_csScFind( PHB_EXPR p, const char * szName, int iMode )
+{
+   if( ! p )
+      return HB_FALSE;
+   switch( p->ExprType )
+   {
+      case HB_ET_NONE: case HB_ET_NIL: case HB_ET_NUMERIC: case HB_ET_DATE:
+      case HB_ET_TIMESTAMP: case HB_ET_STRING: case HB_ET_LOGICAL:
+      case HB_ET_SELF: case HB_ET_FUNREF: case HB_ET_FUNNAME:
+         return HB_FALSE;
+      case HB_ET_VARIABLE:
+         return iMode == HB_CS_SC_NAMES && hb_csScIsName( p, szName );
+      case HB_ET_VARREF:
+         return hb_csScIsName( p, szName );
+      case HB_ET_REFERENCE:
+         return ( iMode == HB_CS_SC_WRITES && hb_csScIsName( p->value.asReference, szName ) ) ||
+                hb_csScFind( p->value.asReference, szName, iMode );
+      case HB_ET_CODEBLOCK:
+         return hb_csScFindList( p->value.asCodeblock.pExprList, szName, iMode );
+      case HB_ET_ARRAY: case HB_ET_HASH: case HB_ET_IIF:
+      case HB_ET_LIST: case HB_ET_ARGLIST:
+         return hb_csScFindList( p->value.asList.pExprList, szName, iMode );
+      case HB_ET_ARRAYAT:
+         return hb_csScFind( p->value.asList.pExprList, szName, iMode ) ||
+                hb_csScFind( p->value.asList.pIndex, szName, iMode );
+      case HB_ET_FUNCALL:
+         return ( p->value.asFunCall.pFunName &&
+                  p->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ) ||
+                hb_csScFindList( p->value.asFunCall.pParms, szName, iMode );
+      case HB_ET_SEND:
+         return p->value.asMessage.pMessage != NULL ||
+                hb_csScFind( p->value.asMessage.pObject, szName, iMode ) ||
+                hb_csScFindList( p->value.asMessage.pParms, szName, iMode );
+      case HB_ET_SETGET:
+         return hb_csScFind( p->value.asSetGet.pVar, szName, iMode ) ||
+                hb_csScFind( p->value.asSetGet.pExpr, szName, iMode );
+      default:
+         if( p->ExprType >= HB_EO_POSTINC && p->ExprType <= HB_EO_PREDEC )
+         {
+            if( iMode == HB_CS_SC_WRITES &&
+                ( p->ExprType <= HB_EO_EXPEQ || p->ExprType >= HB_EO_PREINC ) &&
+                hb_csScIsName( p->value.asOperator.pLeft, szName ) )
+               return HB_TRUE;
+            return hb_csScFind( p->value.asOperator.pLeft, szName, iMode ) ||
+                   hb_csScFind( p->value.asOperator.pRight, szName, iMode );
+         }
+         return ! hb_csIsNamedAliasVar( p );
+   }
+}
+
+static HB_BOOL hb_csScFindStmt( PHB_AST_NODE p, const char * szName, int iMode );
+
+static HB_BOOL hb_csScFindBlock( PHB_AST_NODE pBlock, const char * szName, int iMode )
+{
+   PHB_AST_NODE p;
+   if( ! pBlock )
+      return HB_FALSE;
+   if( pBlock->type != HB_AST_BLOCK )
+      return hb_csScFindStmt( pBlock, szName, iMode );
+   for( p = pBlock->value.asBlock.pFirst; p; p = p->pNext )
+      if( hb_csScFindStmt( p, szName, iMode ) )
+         return HB_TRUE;
+   return HB_FALSE;
+}
+
+/* hb_csScFind over a statement and what it holds */
+static HB_BOOL hb_csScFindStmt( PHB_AST_NODE p, const char * szName, int iMode )
+{
+   PHB_AST_NODE pC;
+
+   switch( p->type )
+   {
+      case HB_AST_LOCAL: case HB_AST_PRIVATE: case HB_AST_PUBLIC:
+         return hb_csScFind( p->value.asVar.pInit, szName, iMode );
+      case HB_AST_STATIC: case HB_AST_MEMVAR: case HB_AST_FIELD:
+      case HB_AST_PARAMETERS: case HB_AST_COMMENT: case HB_AST_PPDEFINE:
+      case HB_AST_CLASSMETHOD: case HB_AST_EXIT: case HB_AST_LOOP:
+         return HB_FALSE;
+      case HB_AST_BLOCK:
+         return hb_csScFindBlock( p, szName, iMode );
+      case HB_AST_EXPRSTMT:
+         return hb_csScFind( p->value.asExprStmt.pExpr, szName, iMode );
+      case HB_AST_QOUT: case HB_AST_QQOUT:
+         return hb_csScFindList( p->value.asQOut.pExprList, szName, iMode );
+      case HB_AST_RETURN:
+         return hb_csScFind( p->value.asReturn.pExpr, szName, iMode );
+      case HB_AST_BREAK:
+         return hb_csScFind( p->value.asBreak.pExpr, szName, iMode );
+      case HB_AST_IF:
+         if( hb_csScFind( p->value.asIf.pCondition, szName, iMode ) ||
+             hb_csScFindBlock( p->value.asIf.pThen, szName, iMode ) ||
+             hb_csScFindBlock( p->value.asIf.pElse, szName, iMode ) )
+            return HB_TRUE;
+         for( pC = p->value.asIf.pElseIfs; pC; pC = pC->pNext )
+            if( hb_csScFind( pC->value.asElseIf.pCondition, szName, iMode ) ||
+                hb_csScFindBlock( pC->value.asElseIf.pBody, szName, iMode ) )
+               return HB_TRUE;
+         return HB_FALSE;
+      case HB_AST_DOCASE:
+         for( pC = p->value.asDoCase.pCases; pC; pC = pC->pNext )
+            if( hb_csScFind( pC->value.asCase.pCondition, szName, iMode ) ||
+                hb_csScFindBlock( pC->value.asCase.pBody, szName, iMode ) )
+               return HB_TRUE;
+         return hb_csScFindBlock( p->value.asDoCase.pOtherwise, szName, iMode );
+      case HB_AST_DOWHILE:
+         return hb_csScFind( p->value.asWhile.pCondition, szName, iMode ) ||
+                hb_csScFindBlock( p->value.asWhile.pBody, szName, iMode );
+      case HB_AST_FOR:
+         return ( p->value.asFor.szVar && hb_stricmp( p->value.asFor.szVar, szName ) == 0 ) ||
+                hb_csScFind( p->value.asFor.pStart, szName, iMode ) ||
+                hb_csScFind( p->value.asFor.pEnd, szName, iMode ) ||
+                hb_csScFind( p->value.asFor.pStep, szName, iMode ) ||
+                hb_csScFindBlock( p->value.asFor.pBody, szName, iMode );
+      case HB_AST_FOREACH:
+         return hb_csScFind( p->value.asForEach.pVar, szName, HB_CS_SC_NAMES ) ||
+                hb_csScFind( p->value.asForEach.pEnum, szName, iMode ) ||
+                hb_csScFindBlock( p->value.asForEach.pBody, szName, iMode );
+      case HB_AST_SWITCH:
+         if( hb_csScFind( p->value.asSwitch.pSwitch, szName, iMode ) )
+            return HB_TRUE;
+         for( pC = p->value.asSwitch.pCases; pC; pC = pC->pNext )
+            if( hb_csScFind( pC->value.asCase.pCondition, szName, iMode ) ||
+                hb_csScFindBlock( pC->value.asCase.pBody, szName, iMode ) )
+               return HB_TRUE;
+         return hb_csScFindBlock( p->value.asSwitch.pDefault, szName, iMode );
+      case HB_AST_BEGINSEQ:
+         return ( p->value.asSeq.szRecoverVar &&
+                  hb_stricmp( p->value.asSeq.szRecoverVar, szName ) == 0 ) ||
+                hb_csScFindBlock( p->value.asSeq.pBody, szName, iMode ) ||
+                hb_csScFindBlock( p->value.asSeq.pRecover, szName, iMode ) ||
+                hb_csScFindBlock( p->value.asSeq.pAlways, szName, iMode );
+      case HB_AST_WITHOBJECT:
+         return hb_csScFind( p->value.asWithObj.pObject, szName, iMode ) ||
+                hb_csScFindBlock( p->value.asWithObj.pBody, szName, iMode );
+      default:
+         return HB_TRUE;
+   }
+}
+
+/* An initialiser whose value does not depend on when it is made: a
+   literal, an array or hash of them */
+static HB_BOOL hb_csScConstant( PHB_EXPR p )
+{
+   PHB_EXPR pItem;
+
+   if( ! p )
+      return HB_TRUE;
+   switch( p->ExprType )
+   {
+      case HB_ET_NIL: case HB_ET_NUMERIC: case HB_ET_DATE: case HB_ET_TIMESTAMP:
+      case HB_ET_STRING: case HB_ET_LOGICAL:
+         return HB_TRUE;
+      case HB_ET_ARRAY: case HB_ET_HASH:
+         for( pItem = p->value.asList.pExprList; pItem; pItem = pItem->pNext )
+            if( ! hb_csScConstant( pItem ) )
+               return HB_FALSE;
+         return HB_TRUE;
+      case HB_EO_NEGATE:
+         return hb_csScConstant( p->value.asOperator.pLeft );
+      default:
+         return HB_FALSE;
+   }
+}
+
+/* Whether pStmt is `szName := value`, the value not reading it */
+static HB_BOOL hb_csScAssigns( PHB_AST_NODE pStmt, const char * szName )
+{
+   PHB_EXPR p;
+
+   if( pStmt->type != HB_AST_EXPRSTMT )
+      return HB_FALSE;
+   p = pStmt->value.asExprStmt.pExpr;
+   return p && p->ExprType == HB_EO_ASSIGN &&
+          hb_csScIsName( p->value.asOperator.pLeft, szName ) &&
+          p->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
+          ! hb_csScFind( p->value.asOperator.pRight, szName, HB_CS_SC_NAMES );
+}
+
+/* Where pV is declared, from its uses (the rules above) */
+static void hb_csScDecide( HB_CS_SCVAR * pV )
+{
+   PHB_EXPR     pInit = pV->pLocal->value.asVar.pInit;
+   PHB_AST_NODE pT, pF;
+   HB_BOOL      fCross = HB_FALSE;
+   int          d, i;
+
+   pV->iKind = HB_CS_SC_TOP;
+   if( ! pV->iUses || pV->pLocal->value.asVar.fArrayDim || ! hb_csScConstant( pInit ) )
+      return;
+   d = pV->iDepth - 1;
+   pT = pV->apBlock[ d ];
+   pF = pV->apStmt[ d ];
+   for( i = 1; i <= d; i++ )
+      if( pV->afLoop[ i ] )
+         fCross = HB_TRUE;
+
+   /* a FOR's counter that nothing outside the loop uses */
+   if( pF->type == HB_AST_FOR && pF->value.asFor.szVar &&
+       hb_stricmp( pF->value.asFor.szVar, pV->szName ) == 0 &&
+       pV->iStmtDepth >= pV->iDepth &&
+       ! hb_csScFind( pF->value.asFor.pStart, pV->szName, HB_CS_SC_NAMES ) &&
+       ! ( fCross && pV->fBlockUse ) )
+   {
+      pV->iKind = HB_CS_SC_FOR;
+      pV->pFirst = pF;
+      return;
+   }
+   if( d == 0 )
+   {
+      /* at the routine's own level: declared by its first assignment */
+      if( hb_csScAssigns( pF, pV->szName ) )
+      {
+         pV->iKind = HB_CS_SC_BLOCK;
+         pV->fJoin = HB_TRUE;
+         pV->pBlock = pT;
+         pV->pFirst = pF;
+      }
+      return;
+   }
+
+   /* a FOR EACH's variable that nothing outside the loop uses (the loop
+      is then its first use, standing at the top of the body) */
+   if( pF->type == HB_AST_FOREACH && pT == pF->value.asForEach.pBody )
+   {
+      const char * szEach = hb_csScEachVar( pF );
+      if( szEach && hb_stricmp( szEach, pV->szName ) == 0 && ! pV->fBlockUse )
+      {
+         pV->iKind = HB_CS_SC_FOREACH;
+         pV->pFirst = pF;
+      }
+      return;
+   }
+
+   pV->fJoin = hb_csScAssigns( pF, pV->szName );
+   if( fCross && ( pV->fBlockUse ||
+                   ( ! pV->fJoin && ( pInit || hb_csDaReadsFirst( pV->szName ) ) ) ) )
+   {
+      pV->fJoin = HB_FALSE;
+      return;
+   }
+   pV->iKind = HB_CS_SC_BLOCK;
+   pV->pBlock = pT;
+   pV->pFirst = pF;
+}
+
+/* Walk a routine's body before it is emitted, after hb_csDaAnalyse(): its
+   LOCALs ask where they are declared while it is (s_sc). */
+static void hb_csScopeAnalyse( PHB_AST_NODE pBody )
+{
+   PHB_AST_NODE p;
+   int i;
+
+   s_sc.fAbort = s_da.fAbort;
+   s_sc.iCount = s_sc.iTop = s_sc.iShadow = 0;
+   for( p = hb_csBlockFirstStmt( pBody ); p && ! s_sc.fAbort; p = p->pNext )
+      if( p->type == HB_AST_LOCAL && p->value.asVar.szName )
+      {
+         HB_CS_SCVAR * pV;
+         if( s_sc.iCount >= HB_CS_SC_MAX )
+         {
+            s_sc.fAbort = HB_TRUE;
+            break;
+         }
+         pV = &s_sc.aVar[ s_sc.iCount++ ];
+         memset( pV, 0, sizeof( *pV ) );
+         pV->szName = p->value.asVar.szName;
+         pV->pLocal = p;
+      }
+   if( ! s_sc.fAbort && s_sc.iCount )
+      hb_csScBlock( pBody, HB_FALSE, NULL, NULL );
+   s_sc.iShadow = 0;
+   for( i = 0; i < s_sc.iCount; i++ )
+   {
+      if( s_sc.fAbort )
+         s_sc.aVar[ i ].iKind = HB_CS_SC_TOP;
+      else
+         hb_csScDecide( &s_sc.aVar[ i ] );
+   }
+   s_sc.fActive = HB_TRUE;
+}
+
+/* The LOCAL pLocal's placement, NULL when it is at the top */
+static HB_CS_SCVAR * hb_csScMoved( PHB_AST_NODE pLocal )
+{
+   int i;
+   if( ! s_sc.fActive )
+      return NULL;
+   for( i = 0; i < s_sc.iCount; i++ )
+      if( s_sc.aVar[ i ].pLocal == pLocal )
+         return s_sc.aVar[ i ].iKind == HB_CS_SC_TOP ? NULL : &s_sc.aVar[ i ];
+   return NULL;
+}
+
+/* The LOCAL szName when pNode, a FOR or FOR EACH, declares it (iKind) */
+static HB_CS_SCVAR * hb_csScDeclaredBy( PHB_AST_NODE pNode, const char * szName, int iKind )
+{
+   int i;
+   if( ! s_sc.fActive || ! szName )
+      return NULL;
+   for( i = 0; i < s_sc.iCount; i++ )
+      if( s_sc.aVar[ i ].iKind == iKind && s_sc.aVar[ i ].pFirst == pNode &&
+          hb_stricmp( s_sc.aVar[ i ].szName, szName ) == 0 )
+         return &s_sc.aVar[ i ];
+   return NULL;
+}
+
+/* A LOCAL's Harbour type: the propagated one, else what its name and
+   initialiser say */
+static const char * hb_csLocalDeclType( PHB_AST_NODE pNode )
+{
+   if( pNode->value.asVar.szAlias )
+      return pNode->value.asVar.szAlias;
+   return hb_astInferType( pNode->value.asVar.szName, pNode->value.asVar.pInit );
+}
+
+/* A LOCAL's declaration, at its LOCAL statement or where it is first used
+   (hb_csScopeAnalyse) */
+static void hb_csEmitLocalDecl( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
+{
+   const char * szType = hb_csLocalDeclType( pNode );
+
+   /* Record the local's real type for the ref-shim decision. */
+   hb_csLocalTypeSet( pNode->value.asVar.szName, szType );
+
+   /* `LOCAL name[dim1][dim2]...` — emitted by the grammar
+      as an HB_AST_LOCAL with fArrayDim + pInit = ARGLIST of
+      dims. HbRuntime.Array() allocates every dimension, as
+      Harbour does. Same shape as the file-scope STATIC
+      fArrayDim branch above. */
+   if( pNode->value.asVar.fArrayDim &&
+       pNode->value.asVar.pInit &&
+       ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
+         pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
+   {
+      PHB_EXPR pDim =
+         pNode->value.asVar.pInit->value.asList.pExprList;
+      hb_csEmitIndent( yyc, iIndent );
+      fprintf( yyc, "List<dynamic> %s = ", pNode->value.asVar.szName );
+      hb_csEmitArrayNew( pDim, yyc );
+      fprintf( yyc, ";\n" );
+      return;
+   }
+
+   if( pNode->value.asVar.pInit )
+   {
+      /* Check if init is ClassName():New() constructor pattern */
+      const char * szCtor = hb_csIsConstructor( pNode->value.asVar.pInit );
+      if( szCtor )
+         szType = szCtor;
+
+      /* Type name = value; */
+      hb_csEmitIndent( yyc, iIndent );
+      /* Codeblock initializers need explicit Func<> type */
+      if( pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK )
+      {
+         HB_BOOL fVParamsBlock =
+            ( pNode->value.asVar.pInit->value.asCodeblock.flags
+              & HB_BLOCK_VPARAMS ) != 0;
+         if( fVParamsBlock )
+         {
+            /* `{|...| body}` — uniform dynamic[] shape,
+               matches the cast emitted in HB_ET_CODEBLOCK. */
+            fprintf( yyc, "Func<dynamic[], dynamic> %s = ",
+                     pNode->value.asVar.szName );
+         }
+         else
+         {
+            /* the lambda's own signature (HB_ET_CODEBLOCK) */
+            const char * aszHb[ HB_CS_MAXCBPARAMS ];
+            char szFunc[ 512 ];
+            hb_csBlockSig( pNode->value.asVar.pInit, NULL, 0, aszHb,
+                           szFunc, sizeof( szFunc ) );
+            fprintf( yyc, "%s %s = ", szFunc, pNode->value.asVar.szName );
+         }
+      }
+      {
+         /* Point empty-hash literals in the init at the
+            declared key type (HASHN → decimal); coerce
+            initializers of int-typed locals. */
+         const char * szSavedKey = s_szHashKeyCs;
+         HB_BOOL fBlock =
+            pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK;
+         HB_BOOL fIntCast = szType &&
+            hb_stricmp( szType, "INTEGER" ) == 0 &&
+            hb_csNeedsIntCast( pNode->value.asVar.pInit );
+         const char * szDown =
+            hb_csDowncastTo( szType, pNode->value.asVar.pInit );
+         char   szCsType[ 512 ];
+         char * szInit = NULL;
+         hb_strncpy( szCsType, hb_csTypeMap( szType ), sizeof( szCsType ) - 1 );
+         s_szHashKeyCs = hb_csHashKeyCsFor( szType );
+         hb_csExpectLiteral( szType, pNode->value.asVar.pInit );
+         /* `var` where the initialiser is one `new` of the
+            declared type, which C# then infers */
+         if( ! fBlock && ! fIntCast && ! szDown )
+            szInit = hb_csCaptureExpr( pNode->value.asVar.pInit );
+         if( szInit )
+         {
+            fprintf( yyc, "%s %s = %s",
+                     hb_csInitIsNewOf( szInit, szCsType ) ? "var" : szCsType,
+                     pNode->value.asVar.szName, szInit );
+            hb_xfree( szInit );
+         }
+         else
+         {
+            if( ! fBlock )
+               fprintf( yyc, "%s %s = ", szCsType,
+                        pNode->value.asVar.szName );
+            if( fIntCast )
+               fprintf( yyc, "(long)(" );
+            else if( szDown )
+               fprintf( yyc, "(%s)", szDown );
+            hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+            if( fIntCast )
+               fprintf( yyc, ")" );
+         }
+         s_szHashKeyCs = szSavedKey;
+      }
+      fprintf( yyc, ";\n" );
+   }
+   else
+   {
+      /* No initializer: NIL, the type's default written out
+         (hb_csDefaultValue), unless C# sees it assigned before
+         every read (hb_csDaNeedsDefault). Later FOREACH / catch
+         statements whose loop variable shadows this local are
+         handled in their own emit paths (HB_AST_FOREACH renames
+         via __hb_fe_<name> and assigns to the outer). */
+      const char * szCsType = hb_csTypeMap( szType );
+      hb_csEmitIndent( yyc, iIndent );
+      if( hb_csDaNeedsDefault( pNode->value.asVar.szName ) )
+         fprintf( yyc, "%s %s = %s;\n", szCsType,
+                  pNode->value.asVar.szName, hb_csDefaultValue( szCsType ) );
+      else
+         fprintf( yyc, "%s %s;\n", szCsType, pNode->value.asVar.szName );
+   }
+}
+
 /* ---- Statement emitter ---- */
 
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 {
    if( ! pNode )
       return;
+
+   /* A LOCAL declared where it is first used (hb_csScopeAnalyse): its type
+      is known from here on, its declaration is written there */
+   if( pNode->type == HB_AST_LOCAL && hb_csScMoved( pNode ) )
+   {
+      hb_csLocalTypeSet( pNode->value.asVar.szName, hb_csLocalDeclType( pNode ) );
+      if( s_iLastLine > 0 && pNode->iLine > 0 )
+         s_iLastLine = pNode->iLine;   /* its line, as a lifted default's */
+      return;
+   }
 
    /* A declared default (hb_csStmtDefaultKind). Lifted constant: nothing
       to emit — advance the line bookkeeping so the gap to the next
@@ -7969,132 +8828,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          break;
 
       case HB_AST_LOCAL:
-         {
-            const char * szType = NULL;
-
-            /* Use propagated type if available, otherwise infer */
-            if( pNode->value.asVar.szAlias )
-               szType = pNode->value.asVar.szAlias;
-            else
-               szType = hb_astInferType( pNode->value.asVar.szName,
-                                          pNode->value.asVar.pInit );
-
-            /* Record the local's real type for the ref-shim decision. */
-            hb_csLocalTypeSet( pNode->value.asVar.szName, szType );
-
-            /* `LOCAL name[dim1][dim2]...` — emitted by the grammar
-               as an HB_AST_LOCAL with fArrayDim + pInit = ARGLIST of
-               dims. HbRuntime.Array() allocates every dimension, as
-               Harbour does. Same shape as the file-scope STATIC
-               fArrayDim branch above. */
-            if( pNode->value.asVar.fArrayDim &&
-                pNode->value.asVar.pInit &&
-                ( pNode->value.asVar.pInit->ExprType == HB_ET_ARGLIST ||
-                  pNode->value.asVar.pInit->ExprType == HB_ET_LIST ) )
-            {
-               PHB_EXPR pDim =
-                  pNode->value.asVar.pInit->value.asList.pExprList;
-               hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "List<dynamic> %s = ", pNode->value.asVar.szName );
-               hb_csEmitArrayNew( pDim, yyc );
-               fprintf( yyc, ";\n" );
-               break;
-            }
-
-            if( pNode->value.asVar.pInit )
-            {
-               /* Check if init is ClassName():New() constructor pattern */
-               const char * szCtor = hb_csIsConstructor( pNode->value.asVar.pInit );
-               if( szCtor )
-                  szType = szCtor;
-
-               /* Type name = value; */
-               hb_csEmitIndent( yyc, iIndent );
-               /* Codeblock initializers need explicit Func<> type */
-               if( pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK )
-               {
-                  HB_BOOL fVParamsBlock =
-                     ( pNode->value.asVar.pInit->value.asCodeblock.flags
-                       & HB_BLOCK_VPARAMS ) != 0;
-                  if( fVParamsBlock )
-                  {
-                     /* `{|...| body}` — uniform dynamic[] shape,
-                        matches the cast emitted in HB_ET_CODEBLOCK. */
-                     fprintf( yyc, "Func<dynamic[], dynamic> %s = ",
-                              pNode->value.asVar.szName );
-                  }
-                  else
-                  {
-                     /* the lambda's own signature (HB_ET_CODEBLOCK) */
-                     const char * aszHb[ HB_CS_MAXCBPARAMS ];
-                     char szFunc[ 512 ];
-                     hb_csBlockSig( pNode->value.asVar.pInit, NULL, 0, aszHb,
-                                    szFunc, sizeof( szFunc ) );
-                     fprintf( yyc, "%s %s = ", szFunc, pNode->value.asVar.szName );
-                  }
-               }
-               {
-                  /* Point empty-hash literals in the init at the
-                     declared key type (HASHN → decimal); coerce
-                     initializers of int-typed locals. */
-                  const char * szSavedKey = s_szHashKeyCs;
-                  HB_BOOL fBlock =
-                     pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK;
-                  HB_BOOL fIntCast = szType &&
-                     hb_stricmp( szType, "INTEGER" ) == 0 &&
-                     hb_csNeedsIntCast( pNode->value.asVar.pInit );
-                  const char * szDown =
-                     hb_csDowncastTo( szType, pNode->value.asVar.pInit );
-                  char   szCsType[ 512 ];
-                  char * szInit = NULL;
-                  hb_strncpy( szCsType, hb_csTypeMap( szType ), sizeof( szCsType ) - 1 );
-                  s_szHashKeyCs = hb_csHashKeyCsFor( szType );
-                  hb_csExpectLiteral( szType, pNode->value.asVar.pInit );
-                  /* `var` where the initialiser is one `new` of the
-                     declared type, which C# then infers */
-                  if( ! fBlock && ! fIntCast && ! szDown )
-                     szInit = hb_csCaptureExpr( pNode->value.asVar.pInit );
-                  if( szInit )
-                  {
-                     fprintf( yyc, "%s %s = %s",
-                              hb_csInitIsNewOf( szInit, szCsType ) ? "var" : szCsType,
-                              pNode->value.asVar.szName, szInit );
-                     hb_xfree( szInit );
-                  }
-                  else
-                  {
-                     if( ! fBlock )
-                        fprintf( yyc, "%s %s = ", szCsType,
-                                 pNode->value.asVar.szName );
-                     if( fIntCast )
-                        fprintf( yyc, "(long)(" );
-                     else if( szDown )
-                        fprintf( yyc, "(%s)", szDown );
-                     hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
-                     if( fIntCast )
-                        fprintf( yyc, ")" );
-                  }
-                  s_szHashKeyCs = szSavedKey;
-               }
-               fprintf( yyc, ";\n" );
-            }
-            else
-            {
-               /* No initializer: NIL, the type's default written out
-                  (hb_csDefaultValue), unless C# sees it assigned before
-                  every read (hb_csDaNeedsDefault). Later FOREACH / catch
-                  statements whose loop variable shadows this local are
-                  handled in their own emit paths (HB_AST_FOREACH renames
-                  via __hb_fe_<name> and assigns to the outer). */
-               const char * szCsType = hb_csTypeMap( szType );
-               hb_csEmitIndent( yyc, iIndent );
-               if( hb_csDaNeedsDefault( pNode->value.asVar.szName ) )
-                  fprintf( yyc, "%s %s = %s;\n", szCsType,
-                           pNode->value.asVar.szName, hb_csDefaultValue( szCsType ) );
-               else
-                  fprintf( yyc, "%s %s;\n", szCsType, pNode->value.asVar.szName );
-            }
-         }
+         hb_csEmitLocalDecl( pNode, yyc, iIndent );
          break;
 
       case HB_AST_STATIC:
@@ -8300,9 +9034,16 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                with a negative nDir once looped forever on `<=`. */
             int iSign = pNode->value.asFor.pStep ?
                         hb_compExprAsNumSign( pNode->value.asFor.pStep ) : 1;
+            HB_CS_SCVAR * pDecl = hb_csScDeclaredBy( pNode, pNode->value.asFor.szVar,
+                                                     HB_CS_SC_FOR );
             hb_csEmitIndent( yyc, iIndent );
 
-            fprintf( yyc, "for (%s = ", pNode->value.asFor.szVar );
+            if( pDecl )
+               fprintf( yyc, "for (%s %s = ",
+                        hb_csTypeMap( hb_csLocalDeclType( pDecl->pLocal ) ),
+                        pNode->value.asFor.szVar );
+            else
+               fprintf( yyc, "for (%s = ", pNode->value.asFor.szVar );
             if( hb_csVarIsInteger( pNode->value.asFor.szVar ) &&
                 hb_csNeedsIntCast( pNode->value.asFor.pStart ) )
             {
@@ -8375,6 +9116,13 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   (1-based index, element) for an array — the variable
                   is the pair's Value and the messages read the pair. */
                HB_BOOL fLocal = hb_csIsMethodLocal( szFEName );
+               HB_CS_SCVAR * pDecl = hb_csScDeclaredBy( pNode, szFEName,
+                                                        HB_CS_SC_FOREACH );
+               char szDeclCs[ 512 ];
+               szDeclCs[ 0 ] = '\0';
+               if( pDecl )
+                  hb_snprintf( szDeclCs, sizeof( szDeclCs ), "%s ",
+                               hb_csTypeMap( hb_csLocalDeclType( pDecl->pLocal ) ) );
                s_aEnumPairVar[ s_iEnumPairDepth++ ] = szFEName;
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "foreach (var __hb_kv_%s in %s(", szFEName, hb_csRuntime( "HbEnumPairs" ) );
@@ -8384,7 +9132,7 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                fprintf( yyc, "{\n" );
                hb_csEmitIndent( yyc, iIndent + 1 );
                fprintf( yyc, "%s%s = __hb_kv_%s.Value;\n",
-                        fLocal ? "" : "dynamic ", szFEName, szFEName );
+                        fLocal ? szDeclCs : "dynamic ", szFEName, szFEName );
                if( pNode->value.asForEach.pBody )
                   hb_csEmitBlock( pNode->value.asForEach.pBody, yyc, iIndent + 1 );
                hb_csEmitIndent( yyc, iIndent );
@@ -8402,18 +9150,40 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                   cast `(long)`, as a decimal written into an `i` name is
                   anywhere else. The `dynamic` temporary's implicit
                   assignment threw on any decimal, a whole one too. */
-               const char * szFECs = hb_csTypeMap( hb_csArgVarType( szFEName ) );
-               if( ! szFECs )
-                  szFECs = "dynamic";
+               /* Declared by the loop (hb_csScopeAnalyse): the foreach's
+                  own variable when the body never assigns it and it is
+                  of the local's type, else the local declared from the
+                  element at the top of the body. */
+               const char * szFETmp = hb_csTypeMap( hb_csArgVarType( szFEName ) );
+               HB_CS_SCVAR * pDecl = hb_csScDeclaredBy( pNode, szFEName,
+                                                        HB_CS_SC_FOREACH );
+               char szFECs[ 512 ];
+               char szDeclCs[ 512 ];
+               HB_BOOL fOwn;
+               hb_strncpy( szFECs, szFETmp ? szFETmp : "dynamic", sizeof( szFECs ) - 1 );
+               szDeclCs[ 0 ] = '\0';
+               if( pDecl )
+                  hb_strncpy( szDeclCs, hb_csTypeMap( hb_csLocalDeclType( pDecl->pLocal ) ),
+                              sizeof( szDeclCs ) - 1 );
+               fOwn = pDecl && strcmp( szDeclCs, szFECs ) == 0 &&
+                      ! hb_csScFindBlock( pNode->value.asForEach.pBody, szFEName,
+                                          HB_CS_SC_WRITES );
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "foreach (%s __hb_fe_%s in ", szFECs, szFEName );
+               if( fOwn )
+                  fprintf( yyc, "foreach (%s %s in ", szFECs, szFEName );
+               else
+                  fprintf( yyc, "foreach (%s __hb_fe_%s in ", szFECs, szFEName );
                hb_csEmitForEachSource( pNode->value.asForEach.pEnum,
                                        pNode->value.asForEach.iDir, yyc );
                fprintf( yyc, ")\n" );
                hb_csEmitIndent( yyc, iIndent );
                fprintf( yyc, "{\n" );
-               hb_csEmitIndent( yyc, iIndent + 1 );
-               fprintf( yyc, "%s = __hb_fe_%s;\n", szFEName, szFEName );
+               if( ! fOwn )
+               {
+                  hb_csEmitIndent( yyc, iIndent + 1 );
+                  fprintf( yyc, "%s%s%s = __hb_fe_%s;\n", szDeclCs, pDecl ? " " : "",
+                           szFEName, szFEName );
+               }
                if( pNode->value.asForEach.pBody )
                   hb_csEmitBlock( pNode->value.asForEach.pBody, yyc, iIndent + 1 );
                hb_csEmitIndent( yyc, iIndent );
@@ -8900,6 +9670,112 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
    }
 }
 
+/* Whether sz, what follows `name = ` in a statement's C#, is one value
+   and its `;` */
+static HB_BOOL hb_csOneValue( const char * sz )
+{
+   int iDepth = 0;
+   const char * p;
+
+   for( p = sz; *p; p++ )
+   {
+      if( *p == '"' || *p == '\'' )
+      {
+         char cQuote = *p;
+         for( p++; *p && *p != cQuote; p++ )
+            if( *p == '\\' && p[ 1 ] )
+               p++;
+         if( ! *p )
+            return HB_FALSE;
+      }
+      else if( *p == '(' || *p == '{' || *p == '[' )
+         iDepth++;
+      else if( *p == ')' || *p == '}' || *p == ']' )
+      {
+         if( --iDepth < 0 )
+            return HB_FALSE;
+      }
+      else if( *p == ';' && iDepth == 0 )
+         return strcmp( p, ";\n" ) == 0;
+   }
+   return HB_FALSE;
+}
+
+/* pStmt assigns pV's LOCAL (pV->fJoin): one declaration `T name = value;`
+   (`var` for a `new` of T) when its C# is the one assignment `name =
+   value;`, else the declaration and then the statement. FALSE where the
+   statement could not be captured. */
+static HB_BOOL hb_csEmitJoined( HB_CS_SCVAR * pV, PHB_AST_NODE pStmt, FILE * yyc,
+                                int iIndent )
+{
+   char *       szText = hb_csCaptureNode( pStmt, iIndent );
+   const char * szName = pV->szName;
+   HB_SIZE      nName = strlen( szName );
+   const char * p;
+   int          i;
+
+   if( ! szText )
+      return HB_FALSE;
+   for( p = szText, i = 0; i < iIndent * 4 && *p == ' '; i++ )
+      p++;
+   if( i == iIndent * 4 && strncmp( p, szName, nName ) == 0 &&
+       strncmp( p + nName, " = ", 3 ) == 0 && hb_csOneValue( p + nName + 3 ) )
+   {
+      HB_SIZE nValue = strlen( p + nName + 3 ) - 2;      /* less `;\n` */
+      char *  szValue = ( char * ) hb_xgrab( nValue + 1 );
+      char    szCsType[ 512 ];
+
+      memcpy( szValue, p + nName + 3, nValue );
+      szValue[ nValue ] = '\0';
+      hb_strncpy( szCsType, hb_csTypeMap( hb_csLocalDeclType( pV->pLocal ) ),
+                  sizeof( szCsType ) - 1 );
+      hb_csEmitIndent( yyc, iIndent );
+      fprintf( yyc, "%s %s = %s;\n",
+               hb_csInitIsNewOf( szValue, szCsType ) ? "var" : szCsType,
+               szName, szValue );
+      hb_xfree( szValue );
+   }
+   else
+   {
+      hb_csEmitLocalDecl( pV->pLocal, yyc, iIndent );
+      fputs( szText, yyc );
+   }
+   hb_xfree( szText );
+   return HB_TRUE;
+}
+
+/* pStmt, a statement of pBlock, after the LOCALs declared just before it
+   (hb_csScopeAnalyse), the gap before it above them; the LOCAL it
+   assigns joined to it */
+static void hb_csEmitStmtIn( PHB_AST_NODE pBlock, PHB_AST_NODE pStmt, FILE * yyc,
+                             int iIndent )
+{
+   HB_CS_SCVAR * pJoin = NULL;
+   HB_BOOL       fFirst = HB_TRUE;
+   int           i;
+
+   for( i = 0; s_sc.fActive && i < s_sc.iCount; i++ )
+   {
+      HB_CS_SCVAR * pV = &s_sc.aVar[ i ];
+      if( pV->iKind != HB_CS_SC_BLOCK || pV->pBlock != pBlock || pV->pFirst != pStmt )
+         continue;
+      if( fFirst )
+      {
+         hb_csEmitBlankLines( yyc, pStmt->iLine );
+         fFirst = HB_FALSE;
+      }
+      if( pV->fJoin )
+         pJoin = pV;
+      else
+         hb_csEmitLocalDecl( pV->pLocal, yyc, iIndent );
+   }
+   if( pJoin && hb_csEmitJoined( pJoin, pStmt, yyc, iIndent ) )
+      return;
+   if( pJoin )
+      hb_csEmitLocalDecl( pJoin->pLocal, yyc, iIndent );
+   hb_csEmitNode( pStmt, yyc, iIndent );
+}
+
 /* Emit all statements in a block */
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent )
 {
@@ -8913,12 +9789,12 @@ static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent )
       pStmt = pBlock->value.asBlock.pFirst;
       while( pStmt )
       {
-         hb_csEmitNode( pStmt, yyc, iIndent );
+         hb_csEmitStmtIn( pBlock, pStmt, yyc, iIndent );
          pStmt = pStmt->pNext;
       }
    }
    else
-      hb_csEmitNode( pBlock, yyc, iIndent );
+      hb_csEmitStmtIn( pBlock, pBlock, yyc, iIndent );
 }
 
 /* ---- Class and method collection structures ---- */
@@ -9862,21 +10738,25 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          PHB_AST_NODE pStmt = pFirstStmt->pNext;
          s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
          hb_csDaAnalyse( pFunc->value.asFunc.pBody );
+         hb_csScopeAnalyse( pFunc->value.asFunc.pBody );
          while( pStmt )
          {
-            hb_csEmitNode( pStmt, yyc, iIndent + 1 );
+            hb_csEmitStmtIn( pFunc->value.asFunc.pBody, pStmt, yyc, iIndent + 1 );
             pStmt = pStmt->pNext;
          }
          s_pDroppedReturn = NULL;
          s_da.fActive = HB_FALSE;
+         s_sc.fActive = HB_FALSE;
       }
       else
          {
          s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
          hb_csDaAnalyse( pFunc->value.asFunc.pBody );
+         hb_csScopeAnalyse( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
          s_pDroppedReturn = NULL;
          s_da.fActive = HB_FALSE;
+         s_sc.fActive = HB_FALSE;
       }
    }
    hb_csEmitIndent( yyc, iIndent );
@@ -11008,9 +11888,11 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       {
          s_pDroppedReturn = hb_csDroppedFinalReturn( pFunc->value.asFunc.pBody );
          hb_csDaAnalyse( pFunc->value.asFunc.pBody );
+         hb_csScopeAnalyse( pFunc->value.asFunc.pBody );
          hb_csEmitBlock( pFunc->value.asFunc.pBody, yyc, iIndent + 1 );
          s_pDroppedReturn = NULL;
          s_da.fActive = HB_FALSE;
+         s_sc.fActive = HB_FALSE;
       }
    hb_csEmitIndent( yyc, iIndent );
    fprintf( yyc, "}\n" );

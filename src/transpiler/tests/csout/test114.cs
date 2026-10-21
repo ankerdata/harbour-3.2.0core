@@ -18,7 +18,6 @@ public static partial class Program
         dynamic xGot = "unset";
         decimal nZero = 0;
         string cTrail = "";
-        dynamic bOld;
 
         // BREAK with a value, from a called function
         try
@@ -147,7 +146,7 @@ public static partial class Program
         }
 
         // ErrorBlock(): the one it replaced comes back
-        bOld = ErrorBlock(((Func<dynamic, dynamic>)((oErr) => test114_Brk114Handler(oErr))));
+        dynamic bOld = ErrorBlock(((Func<dynamic, dynamic>)((oErr) => test114_Brk114Handler(oErr))));
         QOut("error block:", Eval(ErrorBlock(), test114_Brk114Udm()));
         ErrorBlock(bOld);
     }

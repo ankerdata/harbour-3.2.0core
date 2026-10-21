@@ -15,13 +15,12 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
-        long i;
         long nIdx = 1;
         long nLast = (long)(Len(aItems));
         // division → stays decimal, W0026
         decimal nHalf = (decimal)(4) / 2;
 
-        for (i = 1; i <= Len(aItems); i++)
+        for (long i = 1; i <= Len(aItems); i++)
         {
             QOut("i=", aItems[I(i)]);
         }

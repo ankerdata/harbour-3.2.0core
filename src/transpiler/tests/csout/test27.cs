@@ -19,9 +19,8 @@ public static partial class Program
         var dBirth = new DateOnly(1970, 1, 1);
         // DATE() → DateOnly
         DateOnly dToday = Date();
-        string cFormatted;
 
-        cFormatted = DToS(dBirth);
+        string cFormatted = DToS(dBirth);
         QOut("birth:", cFormatted);
 
         if (dToday >= dBirth)

@@ -20,14 +20,13 @@ public static partial class Program
             1,
             new List<dynamic> { 2, 3 }
         };
-        List<dynamic> aCopy;
         var hEmpty = new OrderedDictionary<string, dynamic>();
 
         // AScan with a codeblock — 20 is at index 2
         QOut("ascan_blk=" + LTrim(Str(AScan(aData, ((Func<dynamic, bool>)((x) => x == 20))))));
 
         // AClone must deep-copy the nested array
-        aCopy = AClone(aNested);
+        List<dynamic> aCopy = AClone(aNested);
         // must not touch the original
         aCopy[I(2)][I(1)] = 99;
         // still 2

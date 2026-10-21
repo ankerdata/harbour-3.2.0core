@@ -14,11 +14,10 @@ public static partial class Program
     {
         var aFields = new List<dynamic> { "one", "two", "three" };
         string cMemberName;
-        long i;
         string cAccum = "";
 
         // Use cMemberName inside a FOR-loop body first (nested scope).
-        for (i = 1; i <= Len(aFields); i++)
+        for (long i = 1; i <= Len(aFields); i++)
         {
             cMemberName = aFields[I(i)];
             cAccum += "[" + cMemberName + "]";

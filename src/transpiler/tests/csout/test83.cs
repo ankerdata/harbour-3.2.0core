@@ -55,7 +55,6 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var oDept = new TestDeptDef(TestDeptDef());
-        decimal nNext;
 
         oDept.nNo = 5;
         // 10 digits — needs long in C#
@@ -65,7 +64,7 @@ public static partial class Program
         oDept.nRate = 12.34m;
         oDept.dSince = new DateOnly(2026, 3, 15);
 
-        nNext = oDept.nNo + 1;
+        decimal nNext = oDept.nNo + 1;
 
         QOut("no=" + LTrim(Str(oDept.nNo)));
         QOut("next=" + LTrim(Str(nNext)));

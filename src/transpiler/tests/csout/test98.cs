@@ -55,7 +55,6 @@ public static partial class Program
         var aList = new List<dynamic> { "a", "b", "c" };
         string cAll = "";
         decimal nLen;
-        long i;
 
         SetLamp(Test98PrgConst.LAMP_LOW);
         test98_snHalf = ((decimal)(Test98PrgConst.LAMP_LOW) / 2);
@@ -64,7 +63,7 @@ public static partial class Program
         QOut("covers=" + LTrim(Str(oLedger.Add(1))));
         nResult = (long)(oLedger.Gauge("tea", ref cOut));
         QOut("result=" + LTrim(Str(nResult)) + " " + cOut);
-        for (i = 1; i <= (nLen = Len(aList)); i++)
+        for (long i = 1; i <= (nLen = Len(aList)); i++)
         {
             cAll += aList[I(i)];
         }

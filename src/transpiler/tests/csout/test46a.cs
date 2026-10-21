@@ -11,10 +11,8 @@ public static partial class Program
 {
     public static void SaveFlags(string cFile, List<dynamic> aFlag, decimal nCount = default)
     {
-        long i;
-
         ASize(aFlag, nCount);
-        for (i = 1; i <= nCount; i++)
+        for (long i = 1; i <= nCount; i++)
         {
             aFlag[I(i)] = cFile + "#" + Str(i, 1);
         }

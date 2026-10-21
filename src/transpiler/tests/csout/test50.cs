@@ -51,17 +51,15 @@ public static partial class Program
     public static void Main(string[] args)
     {
         dynamic fAdd = FuncPtr("AddOne");
-        dynamic fGreet;
-        Widget oWidget;
 
-        fGreet = FuncPtr("SayHello");
+        dynamic fGreet = FuncPtr("SayHello");
 
         QOut("fAdd(2,3)=" + LTrim(Str(Eval(fAdd, 2, 3))));
         QOut("fGreet=>" + Eval(fGreet, "world"));
         QOut("sfPrint=>" + Eval(test50_sfPrint, "hello"));
         QOut("Apply=>" + Apply(FuncPtr("AddOne"), 10, 20));
 
-        oWidget = new Widget().New("OK", FuncPtr("PrintTag"));
+        Widget oWidget = new Widget().New("OK", FuncPtr("PrintTag"));
         oWidget.Fire();
 
         Invoke(FuncPtr("SayHello"), "param-passed");

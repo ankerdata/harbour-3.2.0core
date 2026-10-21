@@ -8,7 +8,6 @@ public static partial class Program
         string cResult;
         bool lFlag = true;
         bool lOther = false;
-        decimal nVal;
         Func<dynamic, dynamic, dynamic> bAdd = ((Func<dynamic, dynamic, dynamic>)((a, b) => a + b));
 
         // Compound assignment operators
@@ -45,7 +44,7 @@ public static partial class Program
         QOut("bAdd(3, 4)=" + Str(Eval(bAdd, 3, 4), 10, 2));
 
         // Nested IIF
-        nVal = (nX > 100 ? 3 : (nX > 10 ? 2 : 1));
+        decimal nVal = (nX > 100 ? 3 : (nX > 10 ? 2 : 1));
         QOut("nVal=" + Str(nVal, 10, 2));
 
         // Pre/post increment

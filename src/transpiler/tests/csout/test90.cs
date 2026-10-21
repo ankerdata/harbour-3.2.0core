@@ -53,9 +53,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Base o;
-
-        o = new Base().New("base", lFlag: true);
+        Base o = new Base().New("base", lFlag: true);
         o.Show();
         o = new Derived().New("derived");
         o.Show();

@@ -13,13 +13,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         dynamic pMtx = hb_mutexCreate();
-        dynamic xGot;
-        dynamic pThread;
 
         // each thread its own THREAD STATIC, starting from its declared value
-        xGot = "none";
+        dynamic xGot = "none";
         test115_snSeen = 7;
-        pThread = hb_threadStart(FuncPtr("test115_Thr115Bump"), pMtx);
+        dynamic pThread = hb_threadStart(FuncPtr("test115_Thr115Bump"), pMtx);
         hb_threadWait(pThread, 5);
         hb_mutexSubscribe(pMtx, 5, ref xGot);
         QOut("thread static:", xGot, test115_snSeen);

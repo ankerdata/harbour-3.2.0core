@@ -29,36 +29,28 @@ public static partial class Program
         var aAmounts135 = new List<dynamic> { 1.5m, 2.25m };
         var aCounts135 = new List<dynamic> { 3, 4 };
         var aWhole135 = new List<dynamic> { (decimal)(10) / 2 };
-        string cName135;
-        List<dynamic> aRow135;
-        OrderedDictionary<string, dynamic> hField135;
-        decimal nAmount135;
         long iCount135;
         string cOut = "";
         decimal nSum = 0;
         long iTotal = 0;
 
-        foreach (string __hb_fe_cName135 in HbEnumValues(aNames135))
+        foreach (string cName135 in HbEnumValues(aNames135))
         {
-            cName135 = __hb_fe_cName135;
             cOut += cName135 + ";";
         }
 
-        foreach (List<dynamic> __hb_fe_aRow135 in HbEnumValues(aRows135))
+        foreach (List<dynamic> aRow135 in HbEnumValues(aRows135))
         {
-            aRow135 = __hb_fe_aRow135;
             cOut += aRow135[I(1)] + hb_ntos(aRow135[I(2)]) + ";";
         }
 
-        foreach (OrderedDictionary<string, dynamic> __hb_fe_hField135 in HbEnumValues(aHashes135))
+        foreach (OrderedDictionary<string, dynamic> hField135 in HbEnumValues(aHashes135))
         {
-            hField135 = __hb_fe_hField135;
             cOut += hField135["k"] + ";";
         }
 
-        foreach (decimal __hb_fe_nAmount135 in HbEnumValues(aAmounts135))
+        foreach (decimal nAmount135 in HbEnumValues(aAmounts135))
         {
-            nAmount135 = __hb_fe_nAmount135;
             nSum += nAmount135;
         }
 

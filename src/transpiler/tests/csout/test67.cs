@@ -18,8 +18,7 @@ public static partial class Program
     public static decimal Scale(List<dynamic> aArr, decimal nFactor = default)
     {
         // element mutation only
-        long i;
-        for (i = 1; i <= Len(aArr); i++)
+        for (long i = 1; i <= Len(aArr); i++)
         {
             aArr[I(i)] = aArr[I(i)] * nFactor;
         }

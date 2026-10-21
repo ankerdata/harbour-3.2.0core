@@ -19,9 +19,8 @@ public static partial class Program
     public static decimal SumEvenTo(decimal nMax = default)
     {
         decimal nSum = 0;
-        long i;
 
-        for (i = 1; i <= nMax; i++)
+        for (long i = 1; i <= nMax; i++)
         {
             // LOOP = continue
             if (i % 2 != 0)
@@ -41,10 +40,9 @@ public static partial class Program
     {
         string cItem = null;
         decimal nPos = 0;
-        long i;
 
         // Nested FOR with EXIT
-        for (i = 1; i <= Len(aItems); i++)
+        for (long i = 1; i <= Len(aItems); i++)
         {
             if (aItems[I(i)] == cTarget)
             {

@@ -37,11 +37,9 @@ public static partial class Program
             new List<dynamic>(),
             new List<dynamic>()
         };
-        List<dynamic> aAlias125;
         List<dynamic> aGrid125 = Array(2, 3);
         var aSeen125 = new List<dynamic> { 1, 2 };
         Stock125 oStock125 = new Stock125().Fill125();
-        dynamic x;
 
         // an element grows in place
         AAdd(aRows125[I(1)], "a");
@@ -51,7 +49,7 @@ public static partial class Program
         QOut(Len(aRows125[I(1)]), aRows125[I(1)][I(1)]);
 
         // a second holder sees the change, whoever makes it
-        aAlias125 = aRows125[I(2)];
+        List<dynamic> aAlias125 = aRows125[I(2)];
         ASize(aRows125[I(2)], 3);
         QOut(Len(aAlias125));
         test125_AddTwice125(aAlias125);
@@ -67,9 +65,8 @@ public static partial class Program
         QOut(Len(aGrid125), Len(aGrid125[I(2)]), ValType(aGrid125[I(2)][I(3)]));
 
         // FOR EACH sees an element its body adds
-        foreach (dynamic __hb_fe_x in HbEnumValues(aSeen125))
+        foreach (dynamic x in HbEnumValues(aSeen125))
         {
-            x = __hb_fe_x;
             if (x < 4)
             {
                 AAdd(aSeen125, x + 2);

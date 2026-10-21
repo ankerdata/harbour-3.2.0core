@@ -39,11 +39,10 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var aData = new List<dynamic>();
-        decimal nCount;
 
         test86_soStore = new Store();
 
-        nCount = Wrap(ref aData);
+        decimal nCount = Wrap(ref aData);
         QOut("n=", nCount);
         QOut("len=", Len(aData));
         if (Len(aData) >= 3)

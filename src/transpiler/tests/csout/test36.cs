@@ -23,9 +23,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nVal;
-        decimal nA = 0;
         decimal nB = 0;
-        decimal nC;
         decimal nD;
         decimal nE;
 
@@ -36,7 +34,7 @@ public static partial class Program
         // Guards against a paren-wrapping regression going too far and
         // inserting unwanted parens around statement-position assigns.
 
-        nA = 10;
+        decimal nA = 10;
         QOut("plain: nA=" + Str(nA, 3));
 
         nA = Fetch();
@@ -46,7 +44,7 @@ public static partial class Program
         // three, right-to-left. Emitted C# needs the nested assign to
         // survive as an expression, which is a separate code path from
         // the top-level statement.
-        nC = (nD = (nE = 7));
+        decimal nC = (nD = (nE = 7));
         QOut("chain: " + Str(nC, 3) + Str(nD, 3) + Str(nE, 3));
 
         // Compound assignment as a statement (no surrounding comparison).

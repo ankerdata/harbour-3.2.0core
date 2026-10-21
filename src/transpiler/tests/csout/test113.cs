@@ -29,21 +29,17 @@ public static partial class Program
             { "a", new List<dynamic> { 1, 2 } },
             { "b", new OrderedDictionary<string, dynamic> { { "x", 1 } } }
         };
-        OrderedDictionary<string, dynamic> hCopy;
         var aSrc = new List<dynamic>
         {
             new OrderedDictionary<string, dynamic> { { "k", 1 } }
         };
-        List<dynamic> aCopy;
         long nId = 7;
-        string cKey;
         string cKeys = "";
 
         hb_HDel(hStock, "milk");
         hStock["salt"] = 4;
-        foreach (string __hb_fe_cKey in HbEnumValues(hb_HKeys(hStock)))
+        foreach (string cKey in HbEnumValues(hb_HKeys(hStock)))
         {
-            cKey = __hb_fe_cKey;
             cKeys += cKey + " ";
         }
 
@@ -59,12 +55,12 @@ public static partial class Program
         QOut(hnById[nId], hnById[3], hb_HHasKey(hnById, 7), hb_HHasKey(hnById, 7.0m));
         QOut(hb_HGetDef(hnById, 4, "none"), hb_HKeyAt(hnById, 1) + 1);
 
-        hCopy = hb_HClone(hSrc);
+        OrderedDictionary<string, dynamic> hCopy = hb_HClone(hSrc);
         hCopy["a"][I(1)] = 9;
         hCopy["b"]["x"] = 5;
         QOut(hSrc["a"][I(1)], hSrc["b"]["x"], hCopy["a"][I(1)], hCopy["b"]["x"]);
 
-        aCopy = AClone(aSrc);
+        List<dynamic> aCopy = AClone(aSrc);
         aCopy[I(1)]["k"] = 2;
         QOut(aSrc[I(1)]["k"], aCopy[I(1)]["k"]);
     }

@@ -43,10 +43,7 @@ public static partial class Program
     public static bool test144_s_lWorks144 = false;
     public static void Main(string[] args)
     {
-        Device144 oDevice144;
-        Remote144 oRemote144;
-
-        oDevice144 = new Device144().Init();
+        Device144 oDevice144 = new Device144().Init();
         QOut("Init() of a device that cannot start:", (oDevice144 == null ? "NIL" : "an object"));
 
         oDevice144 = Initialised(new Device144(), self => self.Init());
@@ -58,7 +55,7 @@ public static partial class Program
 
         QOut("Init() as a receiver:", new Device144().Init().lUp144);
 
-        oRemote144 = new Remote144().Start144();
+        Remote144 oRemote144 = new Remote144().Start144();
         QOut("Start144() ran:", oRemote144.nStarts144);
     }
 }

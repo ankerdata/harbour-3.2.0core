@@ -6,7 +6,6 @@ public static partial class Program
         long i;
         decimal nSum = 0;
         var aItems = new List<dynamic> { "apple", "banana", "cherry" };
-        string cItem;
 
         // FOR with STEP
         for (i = 0; i <= 20; i += 5)
@@ -25,9 +24,8 @@ public static partial class Program
         QOut("nSum after DOWN=" + Str(nSum));
 
         // FOR EACH with DESCEND
-        foreach (string __hb_fe_cItem in HbEnumValues(aItems, true))
+        foreach (string cItem in HbEnumValues(aItems, true))
         {
-            cItem = __hb_fe_cItem;
             nSum = nSum + Len(cItem);
         }
 

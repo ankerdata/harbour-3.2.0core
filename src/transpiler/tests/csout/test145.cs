@@ -23,7 +23,6 @@ public static partial class Program
     {
         var aWords145 = new List<dynamic> { "one", "two ", "three" };
         Func<dynamic, dynamic> bNote145 = ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; }));
-        dynamic xResult;
 
         // x says nothing of its type: the call binds at run time
         AEval(aWords145, ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; })));
@@ -35,7 +34,7 @@ public static partial class Program
         QOut("AEval, bound when compiled:", test145_s_cLog145);
 
         test145_s_cLog145 = "";
-        xResult = Eval(bNote145, "four ");
+        dynamic xResult = Eval(bNote145, "four ");
         QOut("Eval:", test145_s_cLog145, "value", (xResult == null ? "NIL" : "not NIL"));
 
         test145_s_cLog145 = "";

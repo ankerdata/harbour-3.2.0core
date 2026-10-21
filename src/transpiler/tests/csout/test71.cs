@@ -44,11 +44,10 @@ public static partial class Program
         string cVar = "alpha,one";
         var aArr = new List<dynamic> { "beta,two" };
         var oObj = new OrderedDictionary<string, dynamic>();
-        string cTaken;
         oObj["cField"] = "gamma,three";
 
         /* @cVar — writeback expected: cVar advances past the comma */
-        cTaken = Consume(ref cVar, ",");
+        string cTaken = Consume(ref cVar, ",");
         QOut("@var   in=alpha,one  out=" + cVar + "  took=" + cTaken);
 
         /* aArr[1] — value-in only: aArr[1] must still read "beta,two" after */

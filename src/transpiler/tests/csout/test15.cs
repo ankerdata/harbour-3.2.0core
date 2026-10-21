@@ -22,19 +22,10 @@ public static partial class Program
             new List<dynamic> { 5, 6 }
         };
         var aEmpty = new List<dynamic>();
-        decimal nTotal = 0;
-        decimal nLen;
-        decimal nPos;
-        long i;
-        string cName;
-        decimal nItem;
         string cText = "  Hello World  ";
-        string cUpper;
-        string cTrimmed;
-        string cSub;
 
         // Array subscript access
-        nTotal = aNumbers[I(1)] + aNumbers[I(3)] + aNumbers[I(5)];
+        decimal nTotal = aNumbers[I(1)] + aNumbers[I(3)] + aNumbers[I(5)];
         QOut("nTotal=" + Str(nTotal));
 
         // Array subscript assignment
@@ -42,12 +33,12 @@ public static partial class Program
         QOut("aNumbers[2]=" + Str(aNumbers[I(2)]));
 
         // Array length
-        nLen = Len(aNumbers);
+        decimal nLen = Len(aNumbers);
         QOut("nLen=" + Str(nLen));
 
         // FOR loop with array subscript
         nTotal = 0;
-        for (i = 1; i <= Len(aNumbers); i++)
+        for (long i = 1; i <= Len(aNumbers); i++)
         {
             nTotal += aNumbers[I(i)];
         }
@@ -56,9 +47,8 @@ public static partial class Program
 
         // FOR EACH over array
         nTotal = 0;
-        foreach (decimal __hb_fe_nItem in HbEnumValues(aNumbers))
+        foreach (decimal nItem in HbEnumValues(aNumbers))
         {
-            nItem = __hb_fe_nItem;
             nTotal += nItem;
         }
 
@@ -69,7 +59,7 @@ public static partial class Program
         QOut("nTotal=" + Str(nTotal));
 
         // Hash access
-        cName = hPerson["name"];
+        string cName = hPerson["name"];
         QOut("cName=" + cName);
 
         // Hash assignment
@@ -77,13 +67,13 @@ public static partial class Program
         QOut("age=" + Str(hPerson["age"]));
 
         // String operations via mapped functions
-        cUpper = Upper(cText);
+        string cUpper = Upper(cText);
         QOut("cUpper=" + cUpper);
-        cTrimmed = AllTrim(cText);
+        string cTrimmed = AllTrim(cText);
         QOut("cTrimmed=" + cTrimmed);
-        cSub = SubStr(cText, 3, 5);
+        string cSub = SubStr(cText, 3, 5);
         QOut("cSub=" + cSub);
-        nPos = Len(cText);
+        decimal nPos = Len(cText);
         QOut("nPos=" + Str(nPos));
     }
 }

@@ -4,10 +4,9 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nSum = 0;
-        long i;
         string cResult;
 
-        for (i = 1; i <= 10; i++)
+        for (long i = 1; i <= 10; i++)
         {
             nSum = nSum + i;
         }

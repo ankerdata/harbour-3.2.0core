@@ -24,11 +24,8 @@ public static partial class Program
 
     public static string Assigned159(bool lFlag = default)
     {
-        string cName;
-        decimal nCount;
-
-        cName = "first";
-        nCount = Len(cName);
+        string cName = "first";
+        decimal nCount = Len(cName);
         if (lFlag)
         {
             cName += "!";
@@ -75,12 +72,10 @@ public static partial class Program
 
     public static string Loops159(decimal nTimes = default)
     {
-        long i;
-        decimal nSum;
         dynamic xLast = null;
 
-        nSum = 0;
-        for (i = 1; i <= nTimes; i++)
+        decimal nSum = 0;
+        for (long i = 1; i <= nTimes; i++)
         {
             xLast = i;
             nSum += xLast;
@@ -91,11 +86,8 @@ public static partial class Program
 
     public static string Blocks159()
     {
-        decimal nBase;
-        dynamic bAdd;
-
-        nBase = 10;
-        bAdd = ((Func<dynamic, dynamic>)((n) => n + nBase));
+        decimal nBase = 10;
+        dynamic bAdd = ((Func<dynamic, dynamic>)((n) => n + nBase));
 
         return Str(Eval(bAdd, 5), 3);
     }
@@ -103,7 +95,6 @@ public static partial class Program
     public static string Sequence159()
     {
         string cDone = null;
-        string cAfter;
 
         try
         {
@@ -112,7 +103,7 @@ public static partial class Program
         catch (HbBreak)
         {
         }
-        cAfter = "after";
+        string cAfter = "after";
 
         return (cDone == null ? "nil" : cDone) + " " + cAfter;
     }

@@ -53,9 +53,8 @@ public static partial class Program
     public static OrderedDictionary<long, dynamic> BuildPanels()
     {
         var hnOut = new OrderedDictionary<long, dynamic>();
-        long nKey;
 
-        for (nKey = 1; nKey <= 5; nKey++)
+        for (long nKey = 1; nKey <= 5; nKey++)
         {
             hnOut[nKey] = "panel" + AllTrim(Str(nKey));
         }

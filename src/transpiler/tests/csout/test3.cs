@@ -5,7 +5,6 @@ public static partial class Program
     {
         decimal nChoice = 2;
         var aItems = new List<dynamic> { "apple", "banana", "cherry" };
-        string cItem;
         string cResult = "";
         dynamic oErr = null;
 
@@ -27,9 +26,8 @@ public static partial class Program
         }
 
         // FOR EACH
-        foreach (string __hb_fe_cItem in HbEnumValues(aItems))
+        foreach (string cItem in HbEnumValues(aItems))
         {
-            cItem = __hb_fe_cItem;
             cResult = cResult + cItem;
         }
 

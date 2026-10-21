@@ -76,10 +76,7 @@ public static partial class Program
     {
         var oTill137 = new Till137();
         Line137 oLine;
-        ItemLine137 oItemLine137;
-        FcnLine137 oFcn;
         decimal nTotal = 0;
-        long iPos;
 
         oTill137.Add(new ItemLine137().New("tea", 3, 2));
         oTill137.Add(new FcnLine137().New("discount", 7));
@@ -91,20 +88,20 @@ public static partial class Program
             if (oLine.nKind == Test137PrgConst.KIND_ITEM)
             {
                 // a view by its name
-                oItemLine137 = (ItemLine137)oLine;
+                ItemLine137 oItemLine137 = (ItemLine137)oLine;
                 nTotal += oItemLine137.Value();
             }
             else
             {
                 // a view by its declaration
-                oFcn = (FcnLine137)oLine;
+                FcnLine137 oFcn = (FcnLine137)oLine;
                 QOut(oFcn.cText, oFcn.nFixedNo);
             }
         }
 
         QOut(nTotal);
 
-        for (iPos = 1; iPos <= Len(oTill137.aLines); iPos++)
+        for (long iPos = 1; iPos <= Len(oTill137.aLines); iPos++)
         {
             oLine = oTill137.aLines[I(iPos)];
             if (oLine.nKind == Test137PrgConst.KIND_ITEM)

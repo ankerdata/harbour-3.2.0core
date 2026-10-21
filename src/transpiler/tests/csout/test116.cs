@@ -21,14 +21,12 @@ public static partial class Program
         decimal nB = hb_HGetDef(h, "b", 0);
         dynamic xAny = hb_HGetDef(h, "c", "none");
         string cText = hb_ntos(nB + 1);
-        string cKey;
 
         hCopy["c"] = 3;
         QOut("clone:", hb_ntos(Len(h)), hb_ntos(Len(hCopy)));
         QOut("keys:");
-        foreach (string __hb_fe_cKey in HbEnumValues(aKeys))
+        foreach (string cKey in HbEnumValues(aKeys))
         {
-            cKey = __hb_fe_cKey;
             QQOut(" " + cKey);
         }
 

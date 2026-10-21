@@ -19,8 +19,6 @@ public static partial class Program
         };
         // note the duplicate 1
         var aNums = new List<dynamic> { 3, 1, 2, 1 };
-        long i;
-        string cOut;
 
         QOut("round_2.5=" + LTrim(Str(Round(2.5m, 0))));
         QOut("round_0.5=" + LTrim(Str(Round(0.5m, 0))));
@@ -29,8 +27,8 @@ public static partial class Program
         QOut("len_hash=" + LTrim(Str(Len(hData))));
 
         ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((x, y) => x < y)));
-        cOut = "";
-        for (i = 1; i <= Len(aNums); i++)
+        string cOut = "";
+        for (long i = 1; i <= Len(aNums); i++)
         {
             cOut += LTrim(Str(aNums[I(i)]));
         }

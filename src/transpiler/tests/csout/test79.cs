@@ -33,7 +33,6 @@ public static partial class Program
     {
         var oAnimal = new Animal();
         var oDog = new Dog();
-        Animal oPet;
 
         oDog.cName = "rex";
         oDog.cSound = "woof";
@@ -43,7 +42,7 @@ public static partial class Program
         QOut("b=", Describe(oDog));
 
         // Mixed-class returns: Pick's inferred return type is Animal.
-        oPet = Pick(true);
+        Animal oPet = Pick(true);
         oPet.cSound = "WOOF";
         QOut("c=", Describe(oPet));
         oPet = Pick(false);

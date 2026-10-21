@@ -15,9 +15,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var hnCount118 = new OrderedDictionary<long, dynamic>();
-        long nKey;
 
-        for (nKey = 1; nKey <= 3; nKey++)
+        for (long nKey = 1; nKey <= 3; nKey++)
         {
             hnCount118[nKey] = nKey * 10;
             test118_shnSeen118[nKey] = true;
