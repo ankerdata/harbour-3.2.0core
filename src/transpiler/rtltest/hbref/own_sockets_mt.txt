@@ -21,5 +21,8 @@ own_sockets_mt:74 PASS
 own_sockets_mt:75 PASS
 own_sockets_mt:80 PASS
 own_sockets_mt:81 PASS
-own_sockets_mt:83 PASS
-passed         23 failed          0 errors          0
+own_sockets_mt:85 PASS
+own_sockets_mt:86 PASS
+own_sockets_mt:87 PASS
+own_sockets_mt:89 PASS
+passed         26 failed          0 errors          0

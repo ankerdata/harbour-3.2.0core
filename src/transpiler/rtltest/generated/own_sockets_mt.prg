@@ -56,7 +56,13 @@ PROCEDURE Main_SOCKETS()
    TEST_CALL( "own_sockets_mt:80", "SelectRead()", {|| SelectRead() }, "1 5 0 OK 1 0", .F., NIL )
    TEST_CALL( "own_sockets_mt:81", "SelectClosed()", {|| SelectClosed() }, "argument error in HB_SOCKETSELECTREAD", .F., NIL )
 
-   TEST_CALL( "own_sockets_mt:83", "ValType( hb_inetCleanup() )", {|| ValType( hb_inetCleanup() ) }, "U", .F., NIL )
+
+
+   TEST_CALL( "own_sockets_mt:85", "IFacesWellFormed()", {|| IFacesWellFormed() }, .T., .F., NIL )
+   TEST_CALL( "own_sockets_mt:86", "IFaceLoopback()", {|| IFaceLoopback() }, "2 127.0.0.1 .T. .F. 255.0.0.0 .T. .T. .T. OK", .F., NIL )
+   TEST_CALL( "own_sockets_mt:87", "IFacesInet6()", {|| IFacesInet6() }, "0 .T. EAFNOSUPPORT", .F., NIL )
+
+   TEST_CALL( "own_sockets_mt:89", "ValType( hb_inetCleanup() )", {|| ValType( hb_inetCleanup() ) }, "U", .F., NIL )
 
    RETURN
 
@@ -318,6 +324,73 @@ STATIC FUNCTION SelectClosed()
    end
 
    RETURN ErrorText( oError )
+
+
+
+
+
+STATIC FUNCTION IFacesWellFormed()
+
+   LOCAL aIFaces := hb_socketGetIFaces()
+   LOCAL aIFace
+   LOCAL nFlags
+
+   IF Empty( aIFaces )
+      RETURN .F.
+   ENDIF
+   FOR EACH aIFace IN aIFaces
+      nFlags := aIFace[ 3 ]
+
+
+
+
+
+
+      IF Len( aIFace ) <> 8 .OR.  aIFace[ 1 ] <> 2 .OR.  !( aIFace[ 2 ] == aIFace[ 4 ] ) .OR.  hb_bitAnd( nFlags, 0x0001 ) == 0 .OR.  ( hb_bitAnd( nFlags, 0x0002 ) <> 0 ) <> ( ValType( aIFace[ 6 ] ) == "C" ) .OR.  ( hb_bitAnd( nFlags, 0x0008 ) <> 0 ) <> ( ValType( aIFace[ 7 ] ) == "C" ) .OR.  !( aIFace[ 8 ] == NIL .OR. IsHWAddr( aIFace[ 8 ] ) )
+         RETURN .F.
+      ENDIF
+   NEXT
+
+   RETURN .T.
+
+STATIC FUNCTION IsHWAddr( cAddr )
+
+   LOCAL nAt
+
+   FOR nAt := 1 TO Len( cAddr )
+      IF !( SubStr( cAddr, nAt, 1 ) $ iif( nAt % 3 == 0, ":", "0123456789ABCDEF" ) )
+         RETURN .F.
+      ENDIF
+   NEXT
+
+   RETURN Len( cAddr ) == 0 .OR. Len( cAddr ) % 3 == 2
+
+
+STATIC FUNCTION IFaceLoopback()
+
+   LOCAL aIFace
+   LOCAL nFlags
+
+   FOR EACH aIFace IN hb_socketGetIFaces()
+      IF aIFace[ 4 ] == "127.0.0.1"
+         nFlags := aIFace[ 3 ]
+
+
+
+
+
+         RETURN hb_ntos( aIFace[ 1 ] ) + " " + aIFace[ 2 ] + " " +  LStr( hb_bitAnd( nFlags, 0x0004 ) <> 0 ) + " " +  LStr( hb_bitAnd( nFlags, 0x0002 ) <> 0 ) + " " +  aIFace[ 5 ] + " " +  LStr( aIFace[ 6 ] == NIL ) + " " +  LStr( aIFace[ 8 ] == NIL ) + " " + ErrorIs( 0 )
+      ENDIF
+   NEXT
+
+   RETURN "no loopback"
+
+
+STATIC FUNCTION IFacesInet6()
+
+   LOCAL aIFaces := hb_socketGetIFaces( 10 )
+
+   RETURN hb_ntos( Len( aIFaces ) ) + " " + ErrorIs( 4 )
 
 
 PROCEDURE Main()

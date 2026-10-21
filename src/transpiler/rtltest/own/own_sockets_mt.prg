@@ -80,6 +80,12 @@ PROCEDURE Main_SOCKETS()
    HBTEST SelectRead()                                IS "1 5 0 OK 1 0"
    HBTEST SelectClosed()                              IS "argument error in HB_SOCKETSELECTREAD"
 
+   /* The interfaces that are up, as sqliteserver.prg asks whether an
+      address is this PC's: loopback is always one; Windows lists no IPv6 */
+   HBTEST IFacesWellFormed()                          IS .T.
+   HBTEST IFaceLoopback()                             IS "2 127.0.0.1 .T. .F. 255.0.0.0 .T. .T. .T. OK"
+   HBTEST IFacesInet6()                               IS "0 .T. EAFNOSUPPORT"
+
    HBTEST ValType( hb_inetCleanup() )                 IS "U"
 
    RETURN
@@ -342,3 +348,70 @@ STATIC FUNCTION SelectClosed()
    END SEQUENCE
 
    RETURN ErrorText( oError )
+
+/* Every interface: HB_SOCKET_IFINFO_LEN long, IPv4, named by its address
+   and up, with a broadcast address when it broadcasts, a peer's when it
+   is point-to-point, and a hardware address, when there is one, in hex
+   pairs joined by colons */
+STATIC FUNCTION IFacesWellFormed()
+
+   LOCAL aIFaces := hb_socketGetIFaces()
+   LOCAL aIFace
+   LOCAL nFlags
+
+   IF Empty( aIFaces )
+      RETURN .F.
+   ENDIF
+   FOR EACH aIFace IN aIFaces
+      nFlags := aIFace[ HB_SOCKET_IFINFO_FLAGS ]
+      IF Len( aIFace ) != HB_SOCKET_IFINFO_LEN .OR. ;
+         aIFace[ HB_SOCKET_IFINFO_FAMILY ] != HB_SOCKET_AF_INET .OR. ;
+         !( aIFace[ HB_SOCKET_IFINFO_NAME ] == aIFace[ HB_SOCKET_IFINFO_ADDR ] ) .OR. ;
+         hb_bitAnd( nFlags, HB_SOCKET_IFF_UP ) == 0 .OR. ;
+         ( hb_bitAnd( nFlags, HB_SOCKET_IFF_BROADCAST ) != 0 ) != ( ValType( aIFace[ HB_SOCKET_IFINFO_BROADCAST ] ) == "C" ) .OR. ;
+         ( hb_bitAnd( nFlags, HB_SOCKET_IFF_POINTOPOINT ) != 0 ) != ( ValType( aIFace[ HB_SOCKET_IFINFO_P2PADDR ] ) == "C" ) .OR. ;
+         !( aIFace[ HB_SOCKET_IFINFO_HWADDR ] == NIL .OR. IsHWAddr( aIFace[ HB_SOCKET_IFINFO_HWADDR ] ) )
+         RETURN .F.
+      ENDIF
+   NEXT
+
+   RETURN .T.
+
+STATIC FUNCTION IsHWAddr( cAddr )
+
+   LOCAL nAt
+
+   FOR nAt := 1 TO Len( cAddr )
+      IF !( SubStr( cAddr, nAt, 1 ) $ iif( nAt % 3 == 0, ":", "0123456789ABCDEF" ) )
+         RETURN .F.
+      ENDIF
+   NEXT
+
+   RETURN Len( cAddr ) == 0 .OR. Len( cAddr ) % 3 == 2
+
+/* Loopback: no broadcast and no hardware address */
+STATIC FUNCTION IFaceLoopback()
+
+   LOCAL aIFace
+   LOCAL nFlags
+
+   FOR EACH aIFace IN hb_socketGetIFaces()
+      IF aIFace[ HB_SOCKET_IFINFO_ADDR ] == "127.0.0.1"
+         nFlags := aIFace[ HB_SOCKET_IFINFO_FLAGS ]
+         RETURN hb_ntos( aIFace[ HB_SOCKET_IFINFO_FAMILY ] ) + " " + aIFace[ HB_SOCKET_IFINFO_NAME ] + " " + ;
+            LStr( hb_bitAnd( nFlags, HB_SOCKET_IFF_LOOPBACK ) != 0 ) + " " + ;
+            LStr( hb_bitAnd( nFlags, HB_SOCKET_IFF_BROADCAST ) != 0 ) + " " + ;
+            aIFace[ HB_SOCKET_IFINFO_NETMASK ] + " " + ;
+            LStr( aIFace[ HB_SOCKET_IFINFO_BROADCAST ] == NIL ) + " " + ;
+            LStr( aIFace[ HB_SOCKET_IFINFO_HWADDR ] == NIL ) + " " + ErrorIs( HB_SOCKET_ERR_NONE )
+      ENDIF
+   NEXT
+
+   RETURN "no loopback"
+
+/* IPv6: none, the family not supported */
+STATIC FUNCTION IFacesInet6()
+
+   LOCAL aIFaces := hb_socketGetIFaces( HB_SOCKET_AF_INET6 )
+
+   RETURN hb_ntos( Len( aIFaces ) ) + " " + ErrorIs( HB_SOCKET_ERR_AFNOSUPPORT )

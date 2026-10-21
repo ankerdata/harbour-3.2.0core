@@ -527,6 +527,7 @@ hb_socketClose	LOGICAL	HbRuntime
 hb_socketConnect	LOGICAL	HbRuntime
 hb_socketErrorString	STRING	HbRuntime
 hb_socketGetError	NUMERIC	HbRuntime
+hb_socketGetIFaces	ARRAY	HbRuntime
 hb_socketListen	LOGICAL	HbRuntime
 hb_socketOpen	-	HbRuntime
 hb_socketRecv	NUMERIC	HbRuntime
@@ -566,6 +567,7 @@ INDEXEXT	STRING	-
 INDEXKEY	STRING	-
 INDEXORD	NUMERIC	-
 INFINITY	NUMERIC	-
+Initialised	-	HbRuntime
 Inkey	NUMERIC	HbRuntime
 Int	NUMERIC	HbRuntime
 ISAFFIRM	LOGICAL	-
@@ -701,6 +703,7 @@ SETFONT	NUMERIC	-
 SETMEMBER	-	HbRuntime
 SetMode	LOGICAL	HbRuntime
 SETPREC	STRING	-
+SetProgramType	-	HbRuntime
 SETTIME	LOGICAL	-
 SETTYPEAHEAD	NUMERIC	-
 SIGN	NUMERIC	-

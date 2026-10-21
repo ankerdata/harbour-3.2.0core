@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 
@@ -81,6 +82,15 @@ public static partial class HbRuntime
     const int HB_SOCKET_SHUT_RD = 0, HB_SOCKET_SHUT_WR = 1, HB_SOCKET_SHUT_RDWR = 2;
     const int HB_SOCKET_MSG_OOB = 0x01, HB_SOCKET_MSG_PEEK = 0x02,
               HB_SOCKET_MSG_DONTROUTE = 0x04, HB_SOCKET_MSG_WAITALL = 0x08;
+    const int HB_SOCKET_IFF_UP = 0x01, HB_SOCKET_IFF_BROADCAST = 0x02, HB_SOCKET_IFF_LOOPBACK = 0x04,
+              HB_SOCKET_IFF_POINTOPOINT = 0x08, HB_SOCKET_IFF_MULTICAST = 0x10;
+
+    // Winsock's interface list (ws2ipdef.h): SIO_GET_INTERFACE_LIST fills
+    // an INTERFACE_INFO per address, iiFlags then three sockaddr_gen
+    // (iiAddress, iiBroadcastAddress, iiNetmask) of 24 bytes each
+    const int SIO_GET_INTERFACE_LIST = 0x4004747F;
+    const int IfInfoSize = 76, IfInfoAddress = 4, IfInfoBroadcast = 28, IfInfoNetmask = 52;
+    const int IfInfoRoom = 1024;            // the interfaces asked for at most
 
     // Winsock's errors (winerror.h), the ones hbsocket.c's table knows
     const int WSA_NOT_ENOUGH_MEMORY = 8, WSAEINTR = 10004, WSAEBADF = 10009,
@@ -619,5 +629,89 @@ public static partial class HbRuntime
             cBuffer = new string(aBuffer);
         }
         return nGot;
+    }
+
+    // hb_socketGetIFaces( [<nFamily>], [<lNoAliases>] ): an array of
+    // HB_SOCKET_IFINFO_LEN per interface address that is up, as hbsocket.c
+    // asks Winsock for them: { family, name, HB_SOCKET_IFF_* flags, address,
+    // netmask, broadcast, point-to-point address, hardware address }.
+    // Windows lists IPv4 alone, and gives the broadcast address as
+    // 255.255.255.255; the name is the address, as Windows has no interface
+    // names; the hardware address is "00:1C:42:21:62:97", NIL for loopback.
+    // <lNoAliases> is ignored, as there. An empty array when there are none
+    // or the asking fails, the error set.
+    public static List<dynamic> hb_socketGetIFaces(decimal? nFamily = null, bool lNoAliases = false)
+    {
+        var aIFaces = new List<dynamic>();
+        byte[] aInfo = new byte[IfInfoRoom * IfInfoSize];
+        int nGot;
+        try
+        {
+            using var sd = new Socket((AddressFamily) (nFamily is decimal n && n != 0 ? (int) n : HB_SOCKET_AF_INET),
+                                      SocketType.Dgram, ProtocolType.Unspecified);
+            nGot = sd.IOControl(SIO_GET_INTERFACE_LIST, null, aInfo);
+        }
+        catch (SocketException e)
+        {
+            SetSockOsError(e);
+            return aIFaces;
+        }
+
+        Dictionary<string, string>? hHWAddr = null;
+        for (int nAt = 0; nAt + IfInfoSize <= nGot; nAt += IfInfoSize)
+        {
+            // Winsock's IFF_* are Harbour's HB_SOCKET_IFF_*
+            int nFlags = BitConverter.ToInt32(aInfo, nAt) &
+                         (HB_SOCKET_IFF_UP | HB_SOCKET_IFF_BROADCAST | HB_SOCKET_IFF_LOOPBACK |
+                          HB_SOCKET_IFF_POINTOPOINT | HB_SOCKET_IFF_MULTICAST);
+            if ((nFlags & HB_SOCKET_IFF_UP) == 0)
+                continue;
+            hHWAddr ??= IfHardwareAddrs();
+            string? cAddr = IfInfoAddr(aInfo, nAt + IfInfoAddress);
+            aIFaces.Add(new List<dynamic>
+            {
+                (decimal) BitConverter.ToUInt16(aInfo, nAt + IfInfoAddress),
+                cAddr,
+                (decimal) nFlags,
+                cAddr,
+                IfInfoAddr(aInfo, nAt + IfInfoNetmask),
+                (nFlags & HB_SOCKET_IFF_BROADCAST) != 0 ? IfInfoAddr(aInfo, nAt + IfInfoBroadcast) : null,
+                (nFlags & HB_SOCKET_IFF_POINTOPOINT) != 0 ? IfInfoAddr(aInfo, nAt + IfInfoBroadcast) : null,
+                cAddr is not null && hHWAddr.TryGetValue(cAddr, out string? cHWAddr) ? cHWAddr : null,
+            });
+        }
+        SetSockOsError(0);
+        return aIFaces;
+    }
+
+    // An address of an INTERFACE_INFO, a sockaddr_gen: dotted decimal when
+    // it is AF_INET, else NIL, as hb_socketAddrGetName() gives none
+    static string? IfInfoAddr(byte[] aInfo, int nAt) =>
+        BitConverter.ToUInt16(aInfo, nAt) == HB_SOCKET_AF_INET
+            ? new IPAddress(new ReadOnlySpan<byte>(aInfo, nAt + 4, 4)).ToString()
+            : null;
+
+    // hbsocket.c's hardware addresses, which it takes from GetAdaptersInfo():
+    // by IPv4 address, the first adapter's that holds it, its bytes in hex
+    // joined by colons; one with no hardware address gives "" and gives way
+    // to a later one. Loopback is not an adapter there.
+    static Dictionary<string, string> IfHardwareAddrs()
+    {
+        var hHWAddr = new Dictionary<string, string>();
+        foreach (NetworkInterface oAdapter in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (oAdapter.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                continue;
+            string cHWAddr = BitConverter.ToString(oAdapter.GetPhysicalAddress().GetAddressBytes()).Replace('-', ':');
+            foreach (UnicastIPAddressInformation oAddr in oAdapter.GetIPProperties().UnicastAddresses)
+            {
+                if (oAddr.Address.AddressFamily != AddressFamily.InterNetwork)
+                    continue;
+                string cAddr = oAddr.Address.ToString();
+                if (! hHWAddr.TryGetValue(cAddr, out string? cHad) || cHad.Length == 0)
+                    hHWAddr[cAddr] = cHWAddr;
+            }
+        }
+        return hHWAddr;
     }
 }
