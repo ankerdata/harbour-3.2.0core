@@ -49,10 +49,10 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Ledger oLedger = new Ledger();
+        var oLedger = new Ledger();
         long nResult = Test98PrgConst.LAMP_OFF;
         string cOut = "";
-        List<dynamic> aList = new List<dynamic> { "a", "b", "c" };
+        var aList = new List<dynamic> { "a", "b", "c" };
         string cAll = "";
         decimal nLen;
         long i;

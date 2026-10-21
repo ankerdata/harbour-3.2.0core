@@ -31,8 +31,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Animal oAnimal = new Animal();
-        Dog oDog = new Dog();
+        var oAnimal = new Animal();
+        var oDog = new Dog();
         Animal oPet;
 
         oDog.cName = "rex";

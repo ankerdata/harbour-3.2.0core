@@ -35,9 +35,9 @@ public static partial class Program
         {
             new List<dynamic> { "Dept", "DEPT" },
             (cPath != null ? cPath : ""),
-            new List<dynamic> {  },
-            new List<dynamic> {  },
-            new OrderedDictionary<string, dynamic> {  },
+            new List<dynamic>(),
+            new List<dynamic>(),
+            new OrderedDictionary<string, dynamic>(),
             1
         };
     }
@@ -48,9 +48,9 @@ public static partial class Program
         {
             new List<dynamic> { "Branch", "BRNCH" },
             (cPath != null ? cPath : ""),
-            new List<dynamic> {  },
-            new List<dynamic> {  },
-            new OrderedDictionary<string, dynamic> {  },
+            new List<dynamic>(),
+            new List<dynamic>(),
+            new OrderedDictionary<string, dynamic>(),
             1
         };
     }
@@ -71,8 +71,8 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        TestDeptDef oDept = new TestDeptDef(TestDeptDef());
-        TestBranchDef oBranch = new TestBranchDef(TestBranchDef());
+        var oDept = new TestDeptDef(TestDeptDef());
+        var oBranch = new TestBranchDef(TestBranchDef());
 
         oDept.nNo = 5;
         oDept.cName = "Alpha";

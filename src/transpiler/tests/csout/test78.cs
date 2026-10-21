@@ -14,7 +14,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
+        var aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
         long i;
         long nIdx = 1;
         long nLast = (long)(Len(aItems));

@@ -24,7 +24,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Meter154 oMeter = new Meter154();
+        var oMeter = new Meter154();
         // a long, into the method's decimal slot: a shim
         long iCount = 0;
 

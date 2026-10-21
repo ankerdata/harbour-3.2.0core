@@ -5,7 +5,7 @@ public static partial class Program
     {
         long i;
         decimal nSum = 0;
-        List<dynamic> aItems = new List<dynamic> { "apple", "banana", "cherry" };
+        var aItems = new List<dynamic> { "apple", "banana", "cherry" };
         string cItem;
 
         // FOR with STEP

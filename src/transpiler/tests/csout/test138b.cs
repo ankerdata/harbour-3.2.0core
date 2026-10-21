@@ -44,7 +44,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Till138 oTill138 = new Till138();
+        var oTill138 = new Till138();
         AAdd(oTill138.aLines, new FcnLine138().New(5));
         AAdd(oTill138.aLines, new GenLine138().New(7));
         QOut(FirstTotal138(oTill138), SumValues138(oTill138));

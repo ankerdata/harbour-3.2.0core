@@ -31,7 +31,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nTot = 10;
-        Thing oThing = new Thing();
+        var oThing = new Thing();
 
         Show(1);
         Show(2, false);

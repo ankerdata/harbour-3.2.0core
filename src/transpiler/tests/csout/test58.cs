@@ -40,8 +40,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Counter oA = new Counter();
-        Counter oB = new Counter();
+        var oA = new Counter();
+        var oB = new Counter();
 
         oA.Bump();
         oA.Bump();

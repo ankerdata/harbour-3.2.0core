@@ -32,8 +32,8 @@ public static partial class Program
     {
         string cLocal = "ab" + "cd";
         string cPayload = Chr(16) + Chr(4);
-        OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
-        Bag oB = new Bag();
+        var hEmpty = new OrderedDictionary<string, dynamic>();
+        var oB = new Bag();
 
         QOut("local:  " + cLocal);
         QOut("llen:   " + Str(Len(cPayload), 4));

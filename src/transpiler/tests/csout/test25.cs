@@ -66,7 +66,7 @@ public static partial class Program
     }
     public static dynamic test25_BugDCheck()
     {
-        List<dynamic> aLocal = new List<dynamic> { 1, 2, 3 };
+        var aLocal = new List<dynamic> { 1, 2, 3 };
         return aLocal[I(1)];
     }
 }

@@ -38,7 +38,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        List<dynamic> aData = new List<dynamic> {  };
+        var aData = new List<dynamic>();
         decimal nCount;
 
         test86_soStore = new Store();

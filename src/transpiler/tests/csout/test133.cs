@@ -39,9 +39,9 @@ public static partial class Program
         {
             new List<dynamic> { "Shelf", "SHELF" },
             (cPath != null ? cPath : ""),
-            new List<dynamic> {  },
-            new List<dynamic> {  },
-            new OrderedDictionary<string, dynamic> {  },
+            new List<dynamic>(),
+            new List<dynamic>(),
+            new OrderedDictionary<string, dynamic>(),
             1
         };
     }
@@ -64,8 +64,8 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        TestShelf133Table oShelf = new TestShelf133Table(TestShelf133Def());
-        OrderedDictionary<string, dynamic> hBox = new OrderedDictionary<string, dynamic> {  };
+        var oShelf = new TestShelf133Table(TestShelf133Def());
+        var hBox = new OrderedDictionary<string, dynamic>();
 
         oShelf.nNo = 7;
         oShelf.cName = "top";

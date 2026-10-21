@@ -42,8 +42,8 @@ public static partial class Program
     public static void Main(string[] args)
     {
         string cVar = "alpha,one";
-        List<dynamic> aArr = new List<dynamic> { "beta,two" };
-        OrderedDictionary<string, dynamic> oObj = new OrderedDictionary<string, dynamic> {  };
+        var aArr = new List<dynamic> { "beta,two" };
+        var oObj = new OrderedDictionary<string, dynamic>();
         string cTaken;
         oObj["cField"] = "gamma,three";
 

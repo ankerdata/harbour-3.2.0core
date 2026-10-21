@@ -23,7 +23,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Test75Dialog oDlg = new Test75Dialog();
+        var oDlg = new Test75Dialog();
 
         // hResultData is NIL here: iif's condition must short-circuit at
         // `!= NIL` and take the false branch without touching the hash

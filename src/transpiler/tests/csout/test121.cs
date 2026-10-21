@@ -55,7 +55,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Tally121 oTally = new Tally121();
+        var oTally = new Tally121();
         long iWhole = 7;
         decimal nPlain = 9;
         decimal nMask = hb_bitAnd(7, 3);

@@ -80,7 +80,7 @@ public static partial class Program
         FieldRow aRow;
         FieldRow[] aFields = aDef.aFields;
         // a list of records, grown
-        List<dynamic> aMore = new List<dynamic>
+        var aMore = new List<dynamic>
         {
             new FieldRow("TAX", "N", 1, 0)
         };
@@ -129,7 +129,7 @@ public static partial class Program
     }
     public static TableDef PluDef155()
     {
-        TableDef aDef = new TableDef(
+        var aDef = new TableDef(
             "PLU",
             test155_saFields,
             new IndexRows(

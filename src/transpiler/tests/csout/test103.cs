@@ -30,13 +30,13 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Beacon oBeacon = new Beacon();
+        var oBeacon = new Beacon();
         dynamic oCom;
         QOut(oBeacon.ToString());
         if (oBeacon.nCode > 100)
         {
             oCom = Xhb.TOleAuto().New("Scripting.Dictionary");
-            QOut(oCom.Count);
+            QOut(oCom.Count());
         }
 
         QOut("done");

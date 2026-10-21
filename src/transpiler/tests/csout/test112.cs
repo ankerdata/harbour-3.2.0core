@@ -20,8 +20,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aNums = new List<dynamic> { 1, 2, 3, 4 };
-        SaleBuffer oBuf = new SaleBuffer();
+        var aNums = new List<dynamic> { 1, 2, 3, 4 };
+        var oBuf = new SaleBuffer();
 
         hb_ADel(aNums, 2, true);
         QOut(Len(aNums), aNums[I(2)]);

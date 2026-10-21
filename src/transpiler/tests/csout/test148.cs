@@ -32,7 +32,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        RowCursor xRowCursor = new RowCursor();
+        var xRowCursor = new RowCursor();
         decimal nWanted = 3;
         xRowCursor.SeekRow((long)(nWanted));
         QOut(xRowCursor.SeekRow((long)(nWanted + 9), true));

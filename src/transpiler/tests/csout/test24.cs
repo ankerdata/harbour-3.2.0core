@@ -31,7 +31,7 @@ public static partial class Program
         // C1
         // C2
         // comment with no ; here
-        List<dynamic> aCodes = new List<dynamic> { "alpha", "bravo", "charlie" };
+        var aCodes = new List<dynamic> { "alpha", "bravo", "charlie" };
         long n;
 
         // comment on IF line

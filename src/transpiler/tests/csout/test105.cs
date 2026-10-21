@@ -45,7 +45,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Torch oTorch = new Torch();
+        var oTorch = new Torch();
         QOut(oTorch.Glow());
 
         QOut(FilamentRate(oTorch.nWatts));

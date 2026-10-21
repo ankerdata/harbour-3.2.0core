@@ -36,7 +36,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        List<dynamic> aData = new List<dynamic> { 1, 2, 3 };
+        var aData = new List<dynamic> { 1, 2, 3 };
         // elided: aData[i] mutated in place
         Scale(aData, 10);
         QOut("scaled=" + Str(aData[I(1)], 4) + Str(aData[I(2)], 4) + Str(aData[I(3)], 4));

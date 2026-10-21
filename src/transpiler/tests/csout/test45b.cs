@@ -10,7 +10,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aArr = new List<dynamic> {  };
+        var aArr = new List<dynamic>();
 
         LoadFlags("full.dat", aArr, 4);
         QOut("full[1]=" + aArr[I(1)]);

@@ -11,14 +11,14 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        OrderedDictionary<string, dynamic> hData = new OrderedDictionary<string, dynamic>
+        var hData = new OrderedDictionary<string, dynamic>
         {
             { "a", 1 },
             { "b", 2 },
             { "c", 3 }
         };
         // note the duplicate 1
-        List<dynamic> aNums = new List<dynamic> { 3, 1, 2, 1 };
+        var aNums = new List<dynamic> { 3, 1, 2, 1 };
         long i;
         string cOut;
 

@@ -74,7 +74,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Till137 oTill137 = new Till137();
+        var oTill137 = new Till137();
         Line137 oLine;
         ItemLine137 oItemLine137;
         FcnLine137 oFcn;

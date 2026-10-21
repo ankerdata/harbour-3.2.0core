@@ -12,7 +12,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aFields = new List<dynamic> { "one", "two", "three" };
+        var aFields = new List<dynamic> { "one", "two", "three" };
         string cMemberName;
         long i;
         string cAccum = "";

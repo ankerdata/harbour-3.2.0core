@@ -21,7 +21,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        List<dynamic> aWords145 = new List<dynamic> { "one", "two ", "three" };
+        var aWords145 = new List<dynamic> { "one", "two ", "three" };
         Func<dynamic, dynamic> bNote145 = ((Func<dynamic, dynamic>)((x) => { Note145(RTrim(x)); return null; }));
         dynamic xResult;
 

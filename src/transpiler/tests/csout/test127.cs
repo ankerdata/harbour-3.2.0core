@@ -14,7 +14,7 @@ public class Ledger127 : IHbObject
 
     public virtual Ledger127 Fill127()
     {
-        hnRows127 = new OrderedDictionary<long, dynamic> {  };
+        hnRows127 = new OrderedDictionary<long, dynamic>();
         hnRows127[12] = "twelve";
         return this;
     }
@@ -22,7 +22,7 @@ public class Ledger127 : IHbObject
 
 public static partial class Program
 {
-    public static OrderedDictionary<long, dynamic> test127_shnSeen127 = new OrderedDictionary<long, dynamic> {  };
+    public static OrderedDictionary<long, dynamic> test127_shnSeen127 = new OrderedDictionary<long, dynamic>();
     public static decimal test127_Count127(OrderedDictionary<long, dynamic> hnFrom = default)
     {
         return Len(hnFrom);
@@ -30,8 +30,8 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        OrderedDictionary<long, dynamic> hnById = new OrderedDictionary<long, dynamic> {  };
-        OrderedDictionary<string, dynamic> hByName = new OrderedDictionary<string, dynamic> {  };
+        var hnById = new OrderedDictionary<long, dynamic>();
+        var hByName = new OrderedDictionary<string, dynamic>();
         Ledger127 oLedger127 = new Ledger127().Fill127();
         long nId = 7;
         // a key of no known type: Eval() answers whatever its block does

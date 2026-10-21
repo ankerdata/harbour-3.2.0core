@@ -37,7 +37,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Lantern oLantern = new Lantern();
+        var oLantern = new Lantern();
         Sconce oSconce = new Sconce().New(oLantern, "hall");
         QOut("label=" + oSconce.cLabel);
     }

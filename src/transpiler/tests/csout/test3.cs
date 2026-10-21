@@ -4,7 +4,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nChoice = 2;
-        List<dynamic> aItems = new List<dynamic> { "apple", "banana", "cherry" };
+        var aItems = new List<dynamic> { "apple", "banana", "cherry" };
         string cItem;
         string cResult = "";
         dynamic oErr = default;

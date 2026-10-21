@@ -15,7 +15,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         string cStr = "Hello World";
-        OrderedDictionary<string, dynamic> hData = new OrderedDictionary<string, dynamic>
+        var hData = new OrderedDictionary<string, dynamic>
         {
             { "Alpha", 1 },
             { "Beta", 2 }

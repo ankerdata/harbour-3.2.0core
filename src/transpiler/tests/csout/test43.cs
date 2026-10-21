@@ -15,8 +15,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Foo oF = new Foo();
-        Bar oB = new Bar();
+        var oF = new Foo();
+        var oB = new Bar();
 
         QOut("Foo:nA = " + Str(oF.nA, 4));
         QOut("Bar:nB = " + Str(oB.nB, 4));

@@ -49,7 +49,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Treasurer oT = new Treasurer();
+        var oT = new Treasurer();
         QOut("tariff=" + LTrim(Str(Tariff(10, 2))));
         oT.Post(5);
         QOut("total=" + LTrim(Str(oT.nTotal)));

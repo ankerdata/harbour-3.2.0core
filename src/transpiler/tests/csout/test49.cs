@@ -46,8 +46,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Dog oDog = new Dog();
-        Animal oAnimal = new Animal();
+        var oDog = new Dog();
+        var oAnimal = new Animal();
 
         // form 1
         QOut("oAnimal:className()=" + Upper(CLASSNAME(oAnimal)));

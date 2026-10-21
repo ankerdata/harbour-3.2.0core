@@ -4,7 +4,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aArr = new List<dynamic> {  };
+        var aArr = new List<dynamic>();
 
         SaveFlags("out.dat", aArr, 3);
 

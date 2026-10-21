@@ -11,10 +11,10 @@
 // keyed by numbers here are hn<...> / shn<...>.
 public static partial class Program
 {
-    public static OrderedDictionary<long, dynamic> test118_shnSeen118 = new OrderedDictionary<long, dynamic> {  };
+    public static OrderedDictionary<long, dynamic> test118_shnSeen118 = new OrderedDictionary<long, dynamic>();
     public static void Main(string[] args)
     {
-        OrderedDictionary<long, dynamic> hnCount118 = new OrderedDictionary<long, dynamic> {  };
+        var hnCount118 = new OrderedDictionary<long, dynamic>();
         long nKey;
 
         for (nKey = 1; nKey <= 3; nKey++)
@@ -25,8 +25,8 @@ public static partial class Program
 
         QOut("filled:", Len(hnCount118), Len(test118_shnSeen118), hnCount118[2]);
 
-        hnCount118 = new OrderedDictionary<long, dynamic> {  };
-        test118_shnSeen118 = new OrderedDictionary<long, dynamic> {  };
+        hnCount118 = new OrderedDictionary<long, dynamic>();
+        test118_shnSeen118 = new OrderedDictionary<long, dynamic>();
         QOut("emptied:", Len(hnCount118), Len(test118_shnSeen118));
 
         hnCount118[7] = 70;

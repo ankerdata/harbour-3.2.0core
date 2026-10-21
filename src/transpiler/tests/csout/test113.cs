@@ -17,20 +17,20 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        OrderedDictionary<string, dynamic> hStock = new OrderedDictionary<string, dynamic>
+        var hStock = new OrderedDictionary<string, dynamic>
         {
             { "tea", 1 },
             { "milk", 2 },
             { "rusk", 3 }
         };
-        OrderedDictionary<long, dynamic> hnById = new OrderedDictionary<long, dynamic> {  };
-        OrderedDictionary<string, dynamic> hSrc = new OrderedDictionary<string, dynamic>
+        var hnById = new OrderedDictionary<long, dynamic>();
+        var hSrc = new OrderedDictionary<string, dynamic>
         {
             { "a", new List<dynamic> { 1, 2 } },
             { "b", new OrderedDictionary<string, dynamic> { { "x", 1 } } }
         };
         OrderedDictionary<string, dynamic> hCopy;
-        List<dynamic> aSrc = new List<dynamic>
+        var aSrc = new List<dynamic>
         {
             new OrderedDictionary<string, dynamic> { { "k", 1 } }
         };

@@ -71,7 +71,7 @@ public static partial class Program
         decimal i;
         bool lReset = true;
         string cWord = "tea";
-        List<dynamic> aLog = new List<dynamic> {  };
+        var aLog = new List<dynamic>();
         Brewer oBrewer = test95_GetBrewer();
 
         // @aLog: the slot is by-ref

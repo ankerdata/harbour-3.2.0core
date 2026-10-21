@@ -83,7 +83,7 @@ public static partial class Program
     }
     public static void test122_Open122(string cLabel = default)
     {
-        Handle122 oHandle = new Handle122();
+        var oHandle = new Handle122();
 
         oHandle.Label122(cLabel);
         QOut("label:", oHandle.cLabel122);
@@ -91,7 +91,7 @@ public static partial class Program
 
     public static void test122_Vault122Check()
     {
-        Vault122 oVault = new Vault122();
+        var oVault = new Vault122();
 
         test122_Fill122(oVault);
         QOut("vault:", oVault.Peek122());

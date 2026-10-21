@@ -14,14 +14,14 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aData = new List<dynamic> { 10, 20, 30 };
-        List<dynamic> aNested = new List<dynamic>
+        var aData = new List<dynamic> { 10, 20, 30 };
+        var aNested = new List<dynamic>
         {
             1,
             new List<dynamic> { 2, 3 }
         };
         List<dynamic> aCopy;
-        OrderedDictionary<string, dynamic> hEmpty = new OrderedDictionary<string, dynamic> {  };
+        var hEmpty = new OrderedDictionary<string, dynamic>();
 
         // AScan with a codeblock — 20 is at index 2
         QOut("ascan_blk=" + LTrim(Str(AScan(aData, ((Func<dynamic, bool>)((x) => x == 20))))));

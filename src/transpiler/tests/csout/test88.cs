@@ -44,7 +44,7 @@ public static partial class Program
     {
         decimal nTot = 100;
         decimal nCnt = 0;
-        Box oBox = new Box();
+        var oBox = new Box();
 
         QOut("pad1=" + Dots("ab"));
         QOut("pad2=" + Dots("ab", 4));

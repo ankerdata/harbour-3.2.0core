@@ -40,9 +40,9 @@ public static partial class Program
         {
             new List<dynamic> { "Dept", "DEPT" },
             (cPath != null ? cPath : ""),
-            new List<dynamic> {  },
-            new List<dynamic> {  },
-            new OrderedDictionary<string, dynamic> {  },
+            new List<dynamic>(),
+            new List<dynamic>(),
+            new OrderedDictionary<string, dynamic>(),
             1
         };
     }
@@ -54,7 +54,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        TestDeptDef oDept = new TestDeptDef(TestDeptDef());
+        var oDept = new TestDeptDef(TestDeptDef());
         decimal nNext;
 
         oDept.nNo = 5;

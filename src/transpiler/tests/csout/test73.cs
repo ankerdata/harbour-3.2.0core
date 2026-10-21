@@ -28,7 +28,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Test73Holder oH = new Test73Holder();
+        var oH = new Test73Holder();
         QOut("nPanel=" + AllTrim(Str(oH.nPanel)));
         QOut("cName=" + oH.cName);
     }

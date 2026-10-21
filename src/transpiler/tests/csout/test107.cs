@@ -82,7 +82,7 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Meter oCounter = new Meter();
+        var oCounter = new Meter();
         oCounter.Raise(2);
         oCounter.Raise(3);
         QOut(oCounter.nCount);

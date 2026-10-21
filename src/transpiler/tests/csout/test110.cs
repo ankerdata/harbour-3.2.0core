@@ -27,14 +27,14 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aSeen = new List<dynamic> {  };
+        var aSeen = new List<dynamic>();
         decimal nSum = 0;
         string cTrail = "";
-        List<dynamic> aNums = new List<dynamic> { 3, 1, 2 };
+        var aNums = new List<dynamic> { 3, 1, 2 };
         decimal nCalls = 0;
         Func<dynamic, dynamic> bPair = ((Func<dynamic, dynamic>)((x) => { AAdd(aSeen, x); return x * 10; }));
         Func<decimal> bThree = ((Func<decimal>)(() => { nSum += 1; nSum += 10; return nSum; }));
-        BlockTally oTally = new BlockTally();
+        var oTally = new BlockTally();
 
         QOut(Eval(bPair, 4));
         QOut(Len(aSeen));

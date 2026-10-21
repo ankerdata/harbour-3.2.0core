@@ -68,8 +68,8 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        Clicker oClicker = new Clicker();
-        Doubler oDoubler = new Doubler();
+        var oClicker = new Clicker();
+        var oDoubler = new Doubler();
         decimal nLocal = 10;
         bool xFlag = false;
 

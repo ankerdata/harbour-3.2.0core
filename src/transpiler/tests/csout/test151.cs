@@ -20,22 +20,22 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aList = new List<dynamic> { 10, 20, 30, 40 };
-        List<dynamic> aGrid = new List<dynamic>
+        var aList = new List<dynamic> { 10, 20, 30, 40 };
+        var aGrid = new List<dynamic>
         {
             new List<dynamic> { 1, 2 },
             new List<dynamic> { 3, 4 }
         };
-        OrderedDictionary<long, dynamic> hnByNo = new OrderedDictionary<long, dynamic>
+        var hnByNo = new OrderedDictionary<long, dynamic>
         {
             { 1, "one" },
             { 2, "two" }
         };
-        OrderedDictionary<string, dynamic> hByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
+        var hByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
         long iSlot = default;
         decimal nPos = Val("2");
         HbError oError = default;
-        Shelf151 oShelf = new Shelf151();
+        var oShelf = new Shelf151();
 
         oShelf.aSlots = new List<dynamic> { "a", "b", "c" };
         // literals keep their value

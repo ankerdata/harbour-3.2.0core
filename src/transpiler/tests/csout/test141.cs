@@ -29,9 +29,9 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        List<dynamic> aParcels = new List<dynamic> {  };
-        List<dynamic> aLoose = new List<dynamic> { new Parcel141().New("Crate", 3) };
-        List<dynamic> aCounts = new List<dynamic> {  };
+        var aParcels = new List<dynamic>();
+        var aLoose = new List<dynamic> { new Parcel141().New("Crate", 3) };
+        var aCounts = new List<dynamic>();
         long iCount;
         decimal nTotal = 0;
         long iSum = 0;

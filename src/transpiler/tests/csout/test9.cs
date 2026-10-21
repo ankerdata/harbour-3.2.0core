@@ -34,8 +34,8 @@ public static partial class Program
         decimal nPrice = 9.99m;
         string cName = "hello";
         bool lFound = true;
-        List<dynamic> aList = new List<dynamic> { 1, 2, 3 };
-        OrderedDictionary<string, dynamic> hMap = new OrderedDictionary<string, dynamic> { { "key", "value" } };
+        var aList = new List<dynamic> { 1, 2, 3 };
+        var hMap = new OrderedDictionary<string, dynamic> { { "key", "value" } };
 
         // Type from Hungarian prefix (no initializer)
         decimal nTotal = default;

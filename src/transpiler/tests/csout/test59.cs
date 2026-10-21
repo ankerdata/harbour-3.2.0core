@@ -50,7 +50,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Child o = new Child();
+        var o = new Child();
 
         // AST SEND: read + write
         QOut("stamp=" + LTrim(Str(o.Stamp())));

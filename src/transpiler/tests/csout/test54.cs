@@ -15,7 +15,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         string cPath = "/tmp/";
-        List<dynamic> aFile = new List<dynamic> { "report.zip" };
+        var aFile = new List<dynamic> { "report.zip" };
         string cZipFile = "/tmp/report.zip";
         decimal nA = 5;
         decimal nB = 3;

@@ -50,7 +50,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         Table156 aTable = MakeTable156();
-        OrderedDictionary<long, string> hnNames = new OrderedDictionary<long, string>
+        var hnNames = new OrderedDictionary<long, string>
         {
             { 1, "one" },
             { 2, "two" }

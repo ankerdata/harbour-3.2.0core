@@ -65,7 +65,7 @@ public static partial class Program
     {
         Holder142 oHolder = new Holder142().New(new Bag142().Put142("cLabel142", "box"));
         Keeper142 oKeeper = (Keeper142)new Keeper142().New(new Bag142());
-        List<dynamic> aLoose = new List<dynamic> { new Bag142() };
+        var aLoose = new List<dynamic> { new Bag142() };
 
         QOut(oHolder.Count142(), oKeeper.Count142(), oHolder.oHeld.cLabel142);
         QOut(aLoose[I(1)].Repeat142("ab", 2, "extra"), aLoose[I(1)].Repeat142("c"));

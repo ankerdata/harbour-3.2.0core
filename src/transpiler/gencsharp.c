@@ -226,6 +226,106 @@ static int hb_csLiteralColumn( void )
    return s_iLineIndent > 0 ? ( s_iLineIndent + 1 ) * 4 : 12;
 }
 
+/* A LOCAL's initialiser is written here first, so that its declaration
+   can be `var` when the text is one `new` of the declared type
+   (hb_csInitIsNewOf): a file beside the output, opened on first use and
+   deleted when the output is closed. */
+static FILE *  s_pScratch = NULL;
+static char    s_szScratch[ HB_PATH_MAX ] = "";
+static HB_BOOL s_fCapturing = HB_FALSE;
+
+/* pExpr's C# as hb_csEmitExpr writes it, in memory the caller frees;
+   NULL inside another capture or where the scratch file cannot open */
+static char * hb_csCaptureExpr( PHB_EXPR pExpr )
+{
+   char * szText;
+   long   lLen;
+
+   if( s_fCapturing || ! s_szScratch[ 0 ] )
+      return NULL;
+   if( ! s_pScratch )
+   {
+      s_pScratch = hb_fopen( s_szScratch, "w+b" );
+      if( ! s_pScratch )
+         return NULL;
+   }
+   rewind( s_pScratch );
+   s_fCapturing = HB_TRUE;
+   hb_csEmitExpr( pExpr, s_pScratch, HB_FALSE );
+   s_fCapturing = HB_FALSE;
+   lLen = ftell( s_pScratch );
+   if( lLen < 0 )
+      lLen = 0;
+   szText = ( char * ) hb_xgrab( ( HB_SIZE ) lLen + 1 );
+   rewind( s_pScratch );
+   lLen = ( long ) fread( szText, 1, ( size_t ) lLen, s_pScratch );
+   szText[ lLen ] = '\0';
+   return szText;
+}
+
+static void hb_csScratchClose( void )
+{
+   if( s_pScratch )
+   {
+      fclose( s_pScratch );
+      s_pScratch = NULL;
+      remove( s_szScratch );
+   }
+   s_szScratch[ 0 ] = '\0';
+}
+
+/* Past the bracketed group that opens at p, its strings and characters
+   skipped; NULL where it does not close */
+static const char * hb_csSkipGroup( const char * p )
+{
+   int iDepth = 0;
+
+   for( ; *p; p++ )
+   {
+      if( *p == '"' || *p == '\'' )
+      {
+         char cQuote = *p;
+         for( p++; *p && *p != cQuote; p++ )
+            if( *p == '\\' && p[ 1 ] )
+               p++;
+         if( ! *p )
+            return NULL;
+      }
+      else if( *p == '(' || *p == '{' || *p == '[' )
+         iDepth++;
+      else if( ( *p == ')' || *p == '}' || *p == ']' ) && --iDepth == 0 )
+         return p + 1;
+   }
+   return NULL;
+}
+
+/* Whether szInit is one `new` of szCsType and nothing more: `new T(…)`,
+   `new T { … }` on one line or several, `new T(…) { … }`. `var` then
+   declares the same type. A cast, a call on the new object (`new
+   X().New()`) or a `new` of another type keeps the type written out. */
+static HB_BOOL hb_csInitIsNewOf( const char * szInit, const char * szCsType )
+{
+   HB_SIZE nType = strlen( szCsType );
+   const char * p;
+   int iGroups = 0;
+
+   if( strncmp( szInit, "new ", 4 ) != 0 ||
+       strncmp( szInit + 4, szCsType, nType ) != 0 )
+      return HB_FALSE;
+   for( p = szInit + 4 + nType; ; iGroups++ )
+   {
+      while( *p == ' ' || *p == '\n' || *p == '\r' )
+         p++;
+      if( ! *p )
+         return iGroups > 0;
+      if( ! ( *p == '{' || ( *p == '(' && iGroups == 0 ) ) || iGroups == 2 )
+         return HB_FALSE;
+      p = hb_csSkipGroup( p );
+      if( ! p )
+         return HB_FALSE;
+   }
+}
+
 /* C# key type an empty/key-less hash literal should emit with —
    pointed at the declared variable's key type around decl-init
    emission (see HB_ET_HASH). Default string. */
@@ -5940,6 +6040,15 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             /* a declared array's literal is a C# array when FIXED, each
                element under the element type (a record's literal is its
                constructor); any other a List */
+            if( ! pItem )
+            {
+               /* an empty literal: the type's empty instance */
+               if( szElem && hb_astIsFixedType( szExpect ) )
+                  fprintf( yyc, "System.Array.Empty<%s>()", hb_csTypeMap( szElem ) );
+               else
+                  fprintf( yyc, "new List<dynamic>()" );
+               break;
+            }
             if( szElem && hb_astIsFixedType( szExpect ) )
                fprintf( yyc, "new %s", hb_csTypeMap( szExpect ) );
             else
@@ -6052,6 +6161,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                s_iExprIndent = iEntryInd;
                fprintf( yyc, "%*s}", iInd - 4, "" );
             }
+            else if( iPairs == 0 )
+               fprintf( yyc, "new OrderedDictionary<%s, %s>()", szKeyCs, szValCs );
             else
             {
                fprintf( yyc, "new OrderedDictionary<%s, %s> { ", szKeyCs, szValCs );
@@ -7906,28 +8017,47 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                      fprintf( yyc, "%s %s = ", szFunc, pNode->value.asVar.szName );
                   }
                }
-               else
-                  fprintf( yyc, "%s %s = ", hb_csTypeMap( szType ),
-                           pNode->value.asVar.szName );
                {
                   /* Point empty-hash literals in the init at the
                      declared key type (HASHN → decimal); coerce
                      initializers of int-typed locals. */
                   const char * szSavedKey = s_szHashKeyCs;
+                  HB_BOOL fBlock =
+                     pNode->value.asVar.pInit->ExprType == HB_ET_CODEBLOCK;
                   HB_BOOL fIntCast = szType &&
                      hb_stricmp( szType, "INTEGER" ) == 0 &&
                      hb_csNeedsIntCast( pNode->value.asVar.pInit );
                   const char * szDown =
                      hb_csDowncastTo( szType, pNode->value.asVar.pInit );
+                  char   szCsType[ 512 ];
+                  char * szInit = NULL;
+                  hb_strncpy( szCsType, hb_csTypeMap( szType ), sizeof( szCsType ) - 1 );
                   s_szHashKeyCs = hb_csHashKeyCsFor( szType );
                   hb_csExpectLiteral( szType, pNode->value.asVar.pInit );
-                  if( fIntCast )
-                     fprintf( yyc, "(long)(" );
-                  else if( szDown )
-                     fprintf( yyc, "(%s)", szDown );
-                  hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
-                  if( fIntCast )
-                     fprintf( yyc, ")" );
+                  /* `var` where the initialiser is one `new` of the
+                     declared type, which C# then infers */
+                  if( ! fBlock && ! fIntCast && ! szDown )
+                     szInit = hb_csCaptureExpr( pNode->value.asVar.pInit );
+                  if( szInit )
+                  {
+                     fprintf( yyc, "%s %s = %s",
+                              hb_csInitIsNewOf( szInit, szCsType ) ? "var" : szCsType,
+                              pNode->value.asVar.szName, szInit );
+                     hb_xfree( szInit );
+                  }
+                  else
+                  {
+                     if( ! fBlock )
+                        fprintf( yyc, "%s %s = ", szCsType,
+                                 pNode->value.asVar.szName );
+                     if( fIntCast )
+                        fprintf( yyc, "(long)(" );
+                     else if( szDown )
+                        fprintf( yyc, "(%s)", szDown );
+                     hb_csEmitExpr( pNode->value.asVar.pInit, yyc, HB_FALSE );
+                     if( fIntCast )
+                        fprintf( yyc, ")" );
+                  }
                   s_szHashKeyCs = szSavedKey;
                }
                fprintf( yyc, ";\n" );
@@ -11100,6 +11230,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
                        HB_COMP_ERR_CREATE_OUTPUT, szFileName, NULL );
       return;
    }
+   hb_snprintf( s_szScratch, sizeof( s_szScratch ), "%s.tmp", szFileName );
 
    s_iLastLine = 0;
 
@@ -11667,6 +11798,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    s_pRefTab = NULL;
    hb_csResetFileStatics();
    fclose( yyc );
+   hb_csScratchClose();
 
    if( ! HB_COMP_PARAM->fQuiet )
    {

@@ -48,7 +48,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         // x: the receiver is dynamic
-        Bin xBin = new Bin();
+        var xBin = new Bin();
         xBin.Push("jar");
         xBin.Push("tin");
         QOut("heft=" + LTrim(Str(xBin.Heft())) + " len=" + LTrim(Str(xBin.Len)));

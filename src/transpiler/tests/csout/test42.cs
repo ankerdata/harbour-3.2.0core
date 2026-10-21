@@ -63,8 +63,8 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Record oRec = new Record();
-        List<dynamic> aFields = new List<dynamic> { "cName", "nValue", "lActive" };
+        var oRec = new Record();
+        var aFields = new List<dynamic> { "cName", "nValue", "lActive" };
 
         // Direct property access — baseline
         oRec.cName = "hello";

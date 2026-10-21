@@ -29,9 +29,9 @@ public static partial class Program
         {
             new List<dynamic> { "Dept", "DEPT" },
             (cPath != null ? cPath : ""),
-            new List<dynamic> {  },
-            new List<dynamic> {  },
-            new OrderedDictionary<string, dynamic> {  },
+            new List<dynamic>(),
+            new List<dynamic>(),
+            new OrderedDictionary<string, dynamic>(),
             1
         };
     }
@@ -43,9 +43,9 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        List<dynamic> aList = new List<dynamic> { 10, 20, 30 };
+        var aList = new List<dynamic> { 10, 20, 30 };
         long i = 3;
-        TestDeptDef oDept = new TestDeptDef(TestDeptDef());
+        var oDept = new TestDeptDef(TestDeptDef());
 
         oDept.nNo = 5;
 

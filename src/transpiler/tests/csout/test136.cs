@@ -73,9 +73,9 @@ public static partial class Program
     public static decimal test136_Total136_snCalls;
     public static void Main(string[] args)
     {
-        Crate136 oCrate = new Crate136();
+        var oCrate = new Crate136();
         Gizmo136 oAny;
-        List<dynamic> aNames = new List<dynamic> {  };
+        var aNames = new List<dynamic>();
         Gizmo136 oItem;
         long iPos;
 
@@ -128,7 +128,7 @@ public static partial class Program
 
     public static List<dynamic> test136_Names136(List<dynamic> aList = default)
     {
-        List<dynamic> aOut = new List<dynamic> {  };
+        var aOut = new List<dynamic>();
         long iPos;
         for (iPos = 1; iPos <= Len(aList); iPos++)
         {

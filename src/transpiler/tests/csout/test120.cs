@@ -15,7 +15,7 @@ public static partial class Program
     public static long test120_siCalls120 = 0;
     public static void Main(string[] args)
     {
-        List<dynamic> aItems = new List<dynamic> { "a", "b", "c", "d" };
+        var aItems = new List<dynamic> { "a", "b", "c", "d" };
         long iCount = 0;
         long iLen = (long)(Len(aItems));
         decimal nPrice = 2.5m;

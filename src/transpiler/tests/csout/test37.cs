@@ -20,7 +20,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        Widget oW = new Widget();
+        var oW = new Widget();
 
         QOut("count: " + Str(oW.nCount, 4));
         QOut("name:  " + "[" + oW.cName + "]");

@@ -14,7 +14,7 @@ public class Stock125 : IHbObject
 
     public virtual Stock125 Fill125()
     {
-        aItems125 = new List<dynamic> {  };
+        aItems125 = new List<dynamic>();
         return this;
 
         // an array parameter the routine only grows: a plain List<dynamic>
@@ -32,14 +32,14 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        List<dynamic> aRows125 = new List<dynamic>
+        var aRows125 = new List<dynamic>
         {
-            new List<dynamic> {  },
-            new List<dynamic> {  }
+            new List<dynamic>(),
+            new List<dynamic>()
         };
         List<dynamic> aAlias125;
         List<dynamic> aGrid125 = Array(2, 3);
-        List<dynamic> aSeen125 = new List<dynamic> { 1, 2 };
+        var aSeen125 = new List<dynamic> { 1, 2 };
         Stock125 oStock125 = new Stock125().Fill125();
         dynamic x;
 

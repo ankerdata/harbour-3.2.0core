@@ -25,8 +25,8 @@ public static partial class Program
     };
     public static void Main(string[] args)
     {
-        OrderedDictionary<long, dynamic> hnById = new OrderedDictionary<long, dynamic> {  };
-        OrderedDictionary<long, dynamic> hnLit = new OrderedDictionary<long, dynamic>
+        var hnById = new OrderedDictionary<long, dynamic>();
+        var hnLit = new OrderedDictionary<long, dynamic>
         {
             { 10, "ten" },
             { 20, "twenty" }
@@ -52,7 +52,7 @@ public static partial class Program
     }
     public static OrderedDictionary<long, dynamic> BuildPanels()
     {
-        OrderedDictionary<long, dynamic> hnOut = new OrderedDictionary<long, dynamic> {  };
+        var hnOut = new OrderedDictionary<long, dynamic>();
         long nKey;
 
         for (nKey = 1; nKey <= 5; nKey++)

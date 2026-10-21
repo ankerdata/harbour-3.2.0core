@@ -11,7 +11,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        OrderedDictionary<string, dynamic> h = new OrderedDictionary<string, dynamic>
+        var h = new OrderedDictionary<string, dynamic>
         {
             { "a", 1 },
             { "b", 2 }

@@ -16,7 +16,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         // DATE literal → DateOnly(1970, 1, 1)
-        DateOnly dBirth = new DateOnly(1970, 1, 1);
+        var dBirth = new DateOnly(1970, 1, 1);
         // DATE() → DateOnly
         DateOnly dToday = Date();
         string cFormatted;
