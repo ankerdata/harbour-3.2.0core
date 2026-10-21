@@ -38,19 +38,19 @@ public static partial class Program
         var hMap = new OrderedDictionary<string, dynamic> { { "key", "value" } };
 
         // Type from Hungarian prefix (no initializer)
-        decimal nTotal = default;
-        string cResult = default;
-        bool lDone = default;
-        List<dynamic> aBuffer = default;
-        dynamic oConnection = default;
+        decimal nTotal = 0;
+        string cResult = null;
+        bool lDone = false;
+        List<dynamic> aBuffer = null;
+        dynamic oConnection = null;
         DateOnly dToday = default;
-        OrderedDictionary<string, dynamic> hSettings = default;
-        dynamic bAction = default;
+        OrderedDictionary<string, dynamic> hSettings = null;
+        dynamic bAction = null;
 
         // No prefix, no initializer — fallback
-        dynamic x = default;
-        dynamic counter = default;
-        dynamic Temp = default;
+        dynamic x = null;
+        dynamic counter = null;
+        dynamic Temp = null;
 
         QOut("nCount=" + Str(nCount));
         QOut("nPrice=" + Str(nPrice, 10, 2));

@@ -36,8 +36,8 @@ public static partial class Program
 
     public static void Main(string[] args)
     {
-        decimal nLo = default;
-        decimal nHi = default;
+        decimal nLo = 0;
+        decimal nHi = 0;
         // two refs in one call
         {
             dynamic _hbref_nLo = nLo;

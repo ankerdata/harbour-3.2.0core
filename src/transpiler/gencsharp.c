@@ -326,6 +326,22 @@ static HB_BOOL hb_csInitIsNewOf( const char * szInit, const char * szCsType )
    }
 }
 
+/* The value a local of szCsType starts with when C# may read it before
+   an assignment (Harbour's NIL), written out: 0 for a number, false for
+   a logical, null for everything else the emitter declares (a string,
+   `dynamic`, a collection, an array, an object). A date has no literal
+   and is `default`, which is HbRuntime's empty date. */
+static const char * hb_csDefaultValue( const char * szCsType )
+{
+   if( strcmp( szCsType, "decimal" ) == 0 || strcmp( szCsType, "long" ) == 0 )
+      return "0";
+   if( strcmp( szCsType, "bool" ) == 0 )
+      return "false";
+   if( strcmp( szCsType, "DateOnly" ) == 0 || strcmp( szCsType, "DateTime" ) == 0 )
+      return "default";
+   return "null";
+}
+
 /* C# key type an empty/key-less hash literal should emit with —
    pointed at the declared variable's key type around decl-init
    emission (see HB_ET_HASH). Default string. */
@@ -8064,16 +8080,19 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
             }
             else
             {
-               /* No initializer: NIL, `= default`, unless C# sees it
-                  assigned before every read (hb_csDaNeedsDefault). Later
-                  FOREACH / catch statements whose loop variable shadows
-                  this local are handled in their own emit paths
-                  (HB_AST_FOREACH renames via __hb_fe_<name> and assigns
-                  to the outer). */
+               /* No initializer: NIL, the type's default written out
+                  (hb_csDefaultValue), unless C# sees it assigned before
+                  every read (hb_csDaNeedsDefault). Later FOREACH / catch
+                  statements whose loop variable shadows this local are
+                  handled in their own emit paths (HB_AST_FOREACH renames
+                  via __hb_fe_<name> and assigns to the outer). */
+               const char * szCsType = hb_csTypeMap( szType );
                hb_csEmitIndent( yyc, iIndent );
-               fprintf( yyc, "%s %s%s;\n", hb_csTypeMap( szType ),
-                        pNode->value.asVar.szName,
-                        hb_csDaNeedsDefault( pNode->value.asVar.szName ) ? " = default" : "" );
+               if( hb_csDaNeedsDefault( pNode->value.asVar.szName ) )
+                  fprintf( yyc, "%s %s = %s;\n", szCsType,
+                           pNode->value.asVar.szName, hb_csDefaultValue( szCsType ) );
+               else
+                  fprintf( yyc, "%s %s;\n", szCsType, pNode->value.asVar.szName );
             }
          }
          break;
@@ -11122,12 +11141,13 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                      hb_refTabIsNilable( s_pRefTab, szFnName, k ) ||
                      ( ! pDef && pQ && hb_csBoundaryParamDefault(
                           pFunc, szFnName, k, pQ->szName ) != NULL );
-                  fprintf( yyc, "%s%s _arg%d = ", hb_csTypeMap( szSlotType ),
+                  const char * szCsSlot = hb_csTypeMap( szSlotType );
+                  fprintf( yyc, "%s%s _arg%d = ", szCsSlot,
                            fNullable ? "?" : "", k );
                   if( pDef )
                      hb_csEmitExpr( pDef, yyc, HB_FALSE );
                   else
-                     fprintf( yyc, fNullable ? "null" : "default" );
+                     fprintf( yyc, "%s", fNullable ? "null" : hb_csDefaultValue( szCsSlot ) );
                }
                fprintf( yyc, ";\n" );
                if( pQ )

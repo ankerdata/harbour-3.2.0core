@@ -22,8 +22,8 @@ public static partial class Program
 
     public static string ErrText65(decimal nCode = default)
     {
-        bool _arg1 = default;
-        bool _arg2 = default;
+        bool _arg1 = false;
+        bool _arg2 = false;
         return ErrText65(nCode, ref _arg1, _arg2);
     }
 

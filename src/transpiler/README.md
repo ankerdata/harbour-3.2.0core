@@ -1215,7 +1215,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 |----------------------------------|------------------------------------------------------------|
 | `LOCAL x AS NUMERIC`             | `decimal x`                                               |
 | `LOCAL x := 5`                   | `decimal x = 5;`                                         |
-| `LOCAL x`, no initialiser        | `decimal x;` where C# sees an assignment before every read, `decimal x = default;` (NIL) where a read may come first: the emitter walks the routine as C#'s definite-assignment rules do, branches met, loops, SWITCH and SEQUENCE leaving the state they found, `@x` a read, a codeblock reading where it is created; anything it does not model keeps the default (hb_csDaNeedsDefault, test159) |
+| `LOCAL x`, no initialiser        | `decimal x;` where C# sees an assignment before every read, `decimal x = 0;` (NIL) where a read may come first, the type's default written out (`0`, `false`, `null`; a date's `default`, HbRuntime's empty date; hb_csDefaultValue): the emitter walks the routine as C#'s definite-assignment rules do, branches met, loops, SWITCH and SEQUENCE leaving the state they found, `@x` a read, a codeblock reading where it is created; anything it does not model keeps the default (hb_csDaNeedsDefault, test159) |
 | `LOCAL a := { "x" }`, `LOCAL o := X():New()` | `var a = new List<dynamic> { "x" };`, `var o = new X();` — a local whose initialiser is one `new` of its declared type, nothing before or after it, is `var`, since C# infers that type. A cast, a call on the new object (`decimal n = new X().Count();`), a function's result and a `new` of another type keep the type written out. The emitter writes the initialiser to a scratch file beside the output and reads it back to tell (hb_csCaptureExpr, hb_csInitIsNewOf; test160) |
 | `:=` / `==` / `=`                | `=` / `==` / `==` (assignment vs equality)               |
 | `.T.` / `.F.` / `NIL`            | `true` / `false` / `null`                                |
@@ -1427,7 +1427,7 @@ public static decimal GetQty(ref bool lDecimalQty)      // canonical
 
 public static decimal GetQty()                          // short overload
 {
-    bool _arg0 = default;
+    bool _arg0 = false;
     return GetQty(ref _arg0);
 }
 ```
@@ -1446,8 +1446,8 @@ public static void ADTData_ADTPlu(dynamic oLine, bool lTemporary, ref string cAu
 
 public static void ADTData_ADTPlu(dynamic oLine = default, bool lTemporary = default)
 {
-    string _arg2 = default;
-    decimal _arg3 = default;
+    string _arg2 = null;
+    decimal _arg3 = 0;
     ADTData_ADTPlu(oLine, lTemporary, ref _arg2, _arg3);
 }
 ```
@@ -1786,7 +1786,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 114       | `BREAK` throws `HbBreak` carrying its value, a plain `BEGIN SEQUENCE` catches only that, `WITH { \|e\| break(e) }` catches every exception and RECOVER USING gets `HbError.From`'s Error object (zero divisor: 5 BASE 1340); ALWAYS without RECOVER lets the BREAK go on; a BREAK in RECOVER goes to the next sequence out; `Break()` in a block reaches its sequence through `Eval()`; `ErrorBlock()`. BREAK had been `throw new Exception(x)`, RECOVER USING got the .NET exception, and WITH was dropped |
 | 115       | Threads: `THREAD STATIC` is `[ThreadStatic]`, each thread its own from the declared value; `@Func()` of a STATIC function names its mangled C# name; a codeblock around a call Harbour returns NIL from (`{\|\| hb_idleSleep( n ) }`) compiles, HbRuntime's procedures returning null; `QUIT` in a thread ends only that thread and a `BEGIN SEQUENCE WITH` does not take it. The suite builds a test that calls `hb_threadStart` with Harbour's MT VM (`-mt`) |
 | 158       | An error in a thread keeps its traceback: FuncPtr() (the thread's function) and InvokeBlock() (a block) call through compiled delegates, not reflection, so the error block, run before the stack unwinds, sees the routine that failed and its caller, as Harbour's does |
-| 159       | A LOCAL with no initialiser is `T name;` where C# sees it assigned before every read (assigned first, both IF branches, every CASE with OTHERWISE, a FOR counter, a codeblock created after), `= default` where a read may come first (an IF without ELSE, a loop body's assignment, a SEQUENCE body's, `@x`, the right operand of .AND.) |
+| 159       | A LOCAL with no initialiser is `T name;` where C# sees it assigned before every read (assigned first, both IF branches, every CASE with OTHERWISE, a FOR counter, a codeblock created after), its type's default where a read may come first (an IF without ELSE, a loop body's assignment, a SEQUENCE body's, `@x`, the right operand of .AND.): `0`, `false`, `null`, a date's `default` |
 | 160       | A LOCAL initialised with one `new` of its declared type is `var` (an array literal, a hash literal, an empty one of each, a class's New()); a scalar, a function's result, a call on the new object and an empty FIXED array keep the type written out; an empty literal is the type's empty instance |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |

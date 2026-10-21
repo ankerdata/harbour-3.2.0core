@@ -4,7 +4,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         decimal nVal = 2;
-        string cResult = default;
+        string cResult = null;
 
         switch (nVal)
         {

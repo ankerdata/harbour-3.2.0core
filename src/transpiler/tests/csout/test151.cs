@@ -32,9 +32,9 @@ public static partial class Program
             { 2, "two" }
         };
         var hByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
-        long iSlot = default;
+        long iSlot = 0;
         decimal nPos = Val("2");
-        HbError oError = default;
+        HbError oError = null;
         var oShelf = new Shelf151();
 
         oShelf.aSlots = new List<dynamic> { "a", "b", "c" };

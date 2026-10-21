@@ -55,7 +55,7 @@ public static partial class Program
 {
     public static decimal Twice(decimal nValue = default)
     {
-        decimal nResult = default;
+        decimal nResult = 0;
 
         nResult = nValue * 2;
 

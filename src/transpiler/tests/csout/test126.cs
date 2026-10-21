@@ -16,7 +16,7 @@ public static partial class Program
 {
     public static dynamic test126_Kind126(string cType = default)
     {
-        dynamic xValue = default;
+        dynamic xValue = null;
 
         switch (cType)
         {

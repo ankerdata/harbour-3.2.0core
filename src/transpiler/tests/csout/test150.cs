@@ -25,7 +25,7 @@ public static partial class Program
 
     public static string Label150(string cPrefix = default)
     {
-        string _arg1 = default;
+        string _arg1 = null;
         decimal _arg2 = 8;
         return Label150(cPrefix, ref _arg1, _arg2);
     }
@@ -43,7 +43,7 @@ public static partial class Program
 
     public static string Pair150(string? cA = null, string cB = default)
     {
-        bool _arg2 = default;
+        bool _arg2 = false;
         return Pair150(cA, cB, ref _arg2);
     }
 
@@ -56,7 +56,7 @@ public static partial class Program
 
     public static decimal test150_Scale150(decimal nValue = default)
     {
-        decimal _arg1 = default;
+        decimal _arg1 = 0;
         return test150_Scale150(nValue, ref _arg1);
     }
 

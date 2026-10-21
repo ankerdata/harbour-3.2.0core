@@ -6,7 +6,8 @@
 // FOR's counter, a codeblock created after the assignment: no default.
 // An IF without ELSE, a loop body's assignment read after the loop, a
 // SEQUENCE body's read after END, `@x` (C# `ref` needs it assigned) and
-// an assignment in the right operand of .AND.: `= default`.
+// an assignment in the right operand of .AND.: a default. The default is
+// the type's value written out: 0, false, null, and a date's `default`.
 
 PROCEDURE Main()
 
@@ -17,6 +18,7 @@ PROCEDURE Main()
    ? Sequence159()
    ? ByRef159()
    ? AndRight159( .T. ), AndRight159( .F. )
+   ? Defaults159( .T. ), Defaults159( .F. )
 
    RETURN
 
@@ -117,3 +119,28 @@ FUNCTION AndRight159( lGo )
    ENDIF
 
    RETURN "no"
+
+FUNCTION Defaults159( lSet )
+
+   LOCAL nCount
+   LOCAL iTimes
+   LOCAL lSeen
+   LOCAL dWhen
+   LOCAL cName
+   LOCAL aRows
+   LOCAL hMap
+
+   IF lSet
+      nCount := 1
+      iTimes := 2
+      lSeen := .T.
+      dWhen := Date()
+      cName := "set"
+      aRows := { 1 }
+      hMap := { "k" => 1 }
+   ENDIF
+
+   RETURN iif( Empty( nCount ), "e", "s" ) + iif( Empty( iTimes ), "e", "s" ) + ;
+      iif( Empty( lSeen ), "e", "s" ) + iif( Empty( dWhen ), "e", "s" ) + ;
+      iif( Empty( cName ), "e", "s" ) + iif( Empty( aRows ), "e", "s" ) + ;
+      iif( Empty( hMap ), "e", "s" )

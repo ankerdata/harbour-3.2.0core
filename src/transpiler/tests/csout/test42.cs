@@ -30,9 +30,9 @@ public class Record : HbDynamicObject
 
     public virtual dynamic DumpFields(List<dynamic> aFields = default)
     {
-        long i = default;
-        dynamic xVal = default;
-        string cType = default;
+        long i = 0;
+        dynamic xVal = null;
+        string cType = null;
         for (i = 1; i <= Len(aFields); i++)
         {
             xVal = GETMEMBER(this, aFields[I(i)]);

@@ -7,7 +7,7 @@ public static partial class Program
         var aItems = new List<dynamic> { "apple", "banana", "cherry" };
         string cItem;
         string cResult = "";
-        dynamic oErr = default;
+        dynamic oErr = null;
 
         // DO CASE
         if (nChoice == 1)

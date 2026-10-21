@@ -33,7 +33,7 @@ public static partial class Program
 
     public static decimal GetQty()
     {
-        bool _arg0 = default;
+        bool _arg0 = false;
         return GetQty(ref _arg0);
     }
 }

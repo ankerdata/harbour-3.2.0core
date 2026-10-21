@@ -39,7 +39,7 @@ public static partial class Program
 
     public static decimal FindFirst(List<dynamic> aItems = default, string cTarget = default)
     {
-        string cItem = default;
+        string cItem = null;
         decimal nPos = 0;
         long i;
 

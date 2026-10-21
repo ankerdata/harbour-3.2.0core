@@ -34,7 +34,7 @@ public static partial class Program
     public static dynamic Grab(decimal nLen = default)
     {
         // untyped -> dynamic local
-        dynamic buf = default;
+        dynamic buf = null;
         // call hoisted out of the if
         {
             string _hbref_buf = buf;
@@ -52,7 +52,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         // untyped -> dynamic
-        dynamic buf = default;
+        dynamic buf = null;
         // decimal
         decimal nCount = 10;
         bool lOK;

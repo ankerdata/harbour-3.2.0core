@@ -6,7 +6,8 @@
 // FOR's counter, a codeblock created after the assignment: no default.
 // An IF without ELSE, a loop body's assignment read after the loop, a
 // SEQUENCE body's read after END, `@x` (C# `ref` needs it assigned) and
-// an assignment in the right operand of .AND.: `= default`.
+// an assignment in the right operand of .AND.: a default. The default is
+// the type's value written out: 0, false, null, and a date's `default`.
 public static partial class Program
 {
     public static void Main(string[] args)
@@ -18,6 +19,7 @@ public static partial class Program
         QOut(Sequence159());
         QOut(ByRef159());
         QOut(AndRight159(true), AndRight159(false));
+        QOut(Defaults159(true), Defaults159(false));
     }
 
     public static string Assigned159(bool lFlag = default)
@@ -39,7 +41,7 @@ public static partial class Program
     {
         string cBoth;
         string cCase;
-        string cMaybe = default;
+        string cMaybe = null;
 
         if (nKind == 1)
         {
@@ -75,7 +77,7 @@ public static partial class Program
     {
         long i;
         decimal nSum;
-        dynamic xLast = default;
+        dynamic xLast = null;
 
         nSum = 0;
         for (i = 1; i <= nTimes; i++)
@@ -100,7 +102,7 @@ public static partial class Program
 
     public static string Sequence159()
     {
-        string cDone = default;
+        string cDone = null;
         string cAfter;
 
         try
@@ -117,7 +119,7 @@ public static partial class Program
 
     public static string ByRef159()
     {
-        dynamic xValue = default;
+        dynamic xValue = null;
 
         Bump159(ref xValue);
 
@@ -131,7 +133,7 @@ public static partial class Program
 
     public static string AndRight159(bool lGo = default)
     {
-        string cSet = default;
+        string cSet = null;
 
         if (lGo && (cSet = "set") == "set")
         {
@@ -139,5 +141,29 @@ public static partial class Program
         }
 
         return "no";
+    }
+
+    public static string Defaults159(bool lSet = default)
+    {
+        decimal nCount = 0;
+        long iTimes = 0;
+        bool lSeen = false;
+        DateOnly dWhen = default;
+        string cName = null;
+        List<dynamic> aRows = null;
+        OrderedDictionary<string, dynamic> hMap = null;
+
+        if (lSet)
+        {
+            nCount = 1;
+            iTimes = 2;
+            lSeen = true;
+            dWhen = Date();
+            cName = "set";
+            aRows = new List<dynamic> { 1 };
+            hMap = new OrderedDictionary<string, dynamic> { { "k", 1 } };
+        }
+
+        return (Empty(nCount) ? "e" : "s") + (Empty(iTimes) ? "e" : "s") + (Empty(lSeen) ? "e" : "s") + (Empty(dWhen) ? "e" : "s") + (Empty(cName) ? "e" : "s") + (Empty(aRows) ? "e" : "s") + (Empty(hMap) ? "e" : "s");
     }
 }

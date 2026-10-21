@@ -22,7 +22,7 @@ public static partial class Program
 
     public static long Calls149()
     {
-        bool _arg0 = default;
+        bool _arg0 = false;
         return Calls149(ref _arg0);
     }
 
@@ -36,7 +36,7 @@ public static partial class Program
 
     public static string Label149(string cPrefix = default)
     {
-        string _arg1 = default;
+        string _arg1 = null;
         decimal _arg2 = 8;
         return Label149(cPrefix, ref _arg1, _arg2);
     }
@@ -49,7 +49,7 @@ public static partial class Program
 
     public static bool Even149(decimal nValue = default)
     {
-        bool _arg1 = default;
+        bool _arg1 = false;
         return Even149(nValue, ref _arg1);
     }
 
@@ -61,7 +61,7 @@ public static partial class Program
 
     public static void Note149(string cText = default)
     {
-        decimal _arg1 = default;
+        decimal _arg1 = 0;
         Note149(cText, ref _arg1);
     }
 

@@ -36,7 +36,7 @@ public static partial class Program
         // so the assignment compiles cleanly. Separately, tStamp's
         // TIMESTAMP → DateTime mapping is covered by test27.
         DateOnly dDate = Date();
-        long i = default;
+        long i = 0;
 
         // Exercise function-scope STATIC mangling three times to confirm
         // the var persists across calls and the references all point at

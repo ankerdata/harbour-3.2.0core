@@ -112,7 +112,7 @@ public static partial class Program
 
     public static Gizmo136 Biggest136(List<dynamic> aList = default)
     {
-        Gizmo136 oBest = default;
+        Gizmo136 oBest = null;
         Gizmo136 oOne;
         foreach (Gizmo136 __hb_fe_oOne in HbEnumValues(aList))
         {
