@@ -15,7 +15,7 @@
 // the reassignment is passed back.
 public static partial class Program
 {
-    public static decimal Scale(List<dynamic> aArr, decimal nFactor = default)
+    public static long Scale(List<dynamic> aArr, decimal nFactor = default)
     {
         // element mutation only
         for (long i = 1; i <= Len(aArr); i++)
@@ -26,7 +26,7 @@ public static partial class Program
         return Len(aArr);
     }
 
-    public static decimal Replace(ref List<dynamic> aArr)
+    public static long Replace(ref List<dynamic> aArr)
     {
         // reassigns the whole variable
         aArr = new List<dynamic> { 7, 8, 9 };

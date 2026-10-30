@@ -84,7 +84,7 @@ public static partial class HbRuntime
                 yield return a[i];
     }
 
-    public static decimal Len(dynamic x)
+    public static long Len(dynamic x)
     {
         if (x is string s) return s.Length;
         // Harbour Len() of a hash is its key count.
@@ -145,7 +145,7 @@ public static partial class HbRuntime
     public static string Chr(decimal n) =>
         ((char)((long)Math.Truncate(n % 65536) & 0xFF)).ToString();
 
-    public static decimal Asc(string s) => s.Length > 0 ? (decimal)s[0] : 0;
+    public static long Asc(string s) => s.Length > 0 ? s[0] : 0;
 
     // SubStr( <c>, <nStart>[, <nCount>] ) (rtl/substr.c): a start of 0 is
     // 1; a negative start counts from the end (SubStr( "abcdef", -2 ) is
@@ -187,16 +187,16 @@ public static partial class HbRuntime
     // At()/RAt(): 1-based position of the first/last occurrence, 0 when
     // there is none — and 0 for an empty search string, which C#'s
     // IndexOf() finds at 0
-    public static decimal At(string cSearch, string cString) =>
+    public static long At(string cSearch, string cString) =>
         cSearch.Length == 0 ? 0 : cString.IndexOf(cSearch, StringComparison.Ordinal) + 1;
 
-    public static decimal RAt(string cSearch, string cString) =>
+    public static long RAt(string cSearch, string cString) =>
         cSearch.Length == 0 ? 0 : cString.LastIndexOf(cSearch, StringComparison.Ordinal) + 1;
 
     // hb_At( <cSearch>, <cString>[, <nStart>[, <nEnd>]] ) (rtl/at.c): At()
     // within cString's nStart..nEnd, the position still counted from its
     // beginning
-    public static decimal hb_At(string cSearch, string cString, decimal nStart = 0, decimal? nEnd = null)
+    public static long hb_At(string cSearch, string cString, decimal nStart = 0, decimal? nEnd = null)
     {
         long nFrom = (long)Math.Truncate(nStart);
         nFrom = nFrom <= 1 ? 0 : nFrom - 1;

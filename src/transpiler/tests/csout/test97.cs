@@ -24,7 +24,7 @@ public class Shelf : IHbObject
         return xItem;
     }
 
-    public virtual decimal StackLen()
+    public virtual long StackLen()
     {
         return HbRuntime.Len(aItems);
     }

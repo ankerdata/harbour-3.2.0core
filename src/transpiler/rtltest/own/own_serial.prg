@@ -75,21 +75,21 @@ PROCEDURE Main_SERIAL()
    result and the value are read together. */
 STATIC FUNCTION MCRRead( nPort )
 
-   LOCAL nValue := 123
+   LOCAL iValue := 123
 
-   RETURN hb_ValToExp( hb_comMCR( nPort, @nValue, 0, 0 ) ) + " " + hb_ntos( nValue )
+   RETURN hb_ValToExp( hb_comMCR( nPort, @iValue, 0, 0 ) ) + " " + hb_ntos( iValue )
 
 STATIC FUNCTION MSRRead( nPort )
 
-   LOCAL nValue := 123
+   LOCAL iValue := 123
 
-   RETURN hb_ValToExp( hb_comMSR( nPort, @nValue ) ) + " " + hb_ntos( nValue )
+   RETURN hb_ValToExp( hb_comMSR( nPort, @iValue ) ) + " " + hb_ntos( iValue )
 
 STATIC FUNCTION FlowRead( nPort )
 
-   LOCAL nValue := 123
+   LOCAL iValue := 123
 
-   RETURN hb_ValToExp( hb_comFlowControl( nPort, @nValue ) ) + " " + hb_ntos( nValue )
+   RETURN hb_ValToExp( hb_comFlowControl( nPort, @iValue ) ) + " " + hb_ntos( iValue )
 
 /* Send four bytes and read them back off a port looped onto itself. */
 STATIC FUNCTION Loopback()
@@ -122,7 +122,7 @@ STATIC FUNCTION Loopback()
 STATIC FUNCTION LoopbackLines()
 
    LOCAL cPort := hb_GetEnv( "HB_RTL_COM_PORT" )
-   LOCAL nValue := 0
+   LOCAL iValue := 0
    LOCAL nPort
 
    IF Empty( cPort )
@@ -134,8 +134,8 @@ STATIC FUNCTION LoopbackLines()
       RETURN "open failed"
    ENDIF
    hb_comInit( nPort, 9600, "N", 8, 1 )
-   hb_comMCR( nPort, @nValue, 0, HB_COM_MCR_RTS )
-   hb_comMSR( nPort, @nValue )
+   hb_comMCR( nPort, @iValue, 0, HB_COM_MCR_RTS )
+   hb_comMSR( nPort, @iValue )
    hb_comClose( nPort )
 
-   RETURN iif( hb_bitAnd( nValue, HB_COM_MSR_CTS ) != 0, "cts", "no cts" )
+   RETURN iif( hb_bitAnd( iValue, HB_COM_MSR_CTS ) != 0, "cts", "no cts" )

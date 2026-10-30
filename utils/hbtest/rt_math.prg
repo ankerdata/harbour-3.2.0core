@@ -404,17 +404,17 @@ PROCEDURE Main_MATH()
 
    /* <OP>assign and (pre/post)(inc/dec)rementation */
    o := ErrorNew()
-   o:oscode := 1
-   HBTEST o:oscode                        IS 1
-   o:oscode++
-   HBTEST o:oscode                        IS 2
-   HBTEST o:oscode++                      IS 2
-   ++o:oscode
-   HBTEST o:oscode                        IS 4
-   HBTEST ++o:oscode                      IS 5
-   o:oscode += 10
-   HBTEST o:oscode                        IS 15
-   HBTEST o:oscode += 200                 IS 215
+   o:osCode := 1
+   HBTEST o:osCode                        IS 1
+   o:osCode++
+   HBTEST o:osCode                        IS 2
+   HBTEST o:osCode++                      IS 2
+   ++o:osCode
+   HBTEST o:osCode                        IS 4
+   HBTEST ++o:osCode                      IS 5
+   o:osCode += 10
+   HBTEST o:osCode                        IS 15
+   HBTEST o:osCode += 200                 IS 215
 
    l := 1
    HBTEST l                               IS 1
@@ -505,25 +505,25 @@ PROCEDURE Main_MATH()
    ENDWITH
 
    WITH OBJECT ErrorNew()
-      :oscode := 1
-      HBTEST :oscode                         IS 1
-      :oscode++
-      HBTEST :oscode                         IS 2
-      HBTEST :oscode++                       IS 2
-      HBTEST :oscode++                       IS 3
-      ++:oscode
-      HBTEST :oscode                         IS 5
-      HBTEST ++:oscode                       IS 6
-      HBTEST ++:oscode                       IS 7
-      :oscode += 10
-      HBTEST :oscode                         IS 17
-      HBTEST :oscode += 200                  IS 217
-      HBTEST :oscode += 100                  IS 317
-      :oscode *= 3
-      HBTEST :oscode                         IS 951
-      HBTEST :oscode += 49                   IS 1000
-      HBTEST --:oscode                       IS 999
-      HBTEST ++:oscode                       IS 1000
+      :osCode := 1
+      HBTEST :osCode                         IS 1
+      :osCode++
+      HBTEST :osCode                         IS 2
+      HBTEST :osCode++                       IS 2
+      HBTEST :osCode++                       IS 3
+      ++:osCode
+      HBTEST :osCode                         IS 5
+      HBTEST ++:osCode                       IS 6
+      HBTEST ++:osCode                       IS 7
+      :osCode += 10
+      HBTEST :osCode                         IS 17
+      HBTEST :osCode += 200                  IS 217
+      HBTEST :osCode += 100                  IS 317
+      :osCode *= 3
+      HBTEST :osCode                         IS 951
+      HBTEST :osCode += 49                   IS 1000
+      HBTEST --:osCode                       IS 999
+      HBTEST ++:osCode                       IS 1000
    ENDWITH
 
    s0 := "V2"
@@ -605,25 +605,25 @@ PROCEDURE Main_MATH()
    ENDWITH
 
    WITH OBJECT ErrorNew()
-      :oscode := 1
-      HBTEST :oscode                         IS 1
-      :oscode++
-      HBTEST :oscode                         IS 2
-      HBTEST :oscode++                       IS 2
-      HBTEST :oscode++                       IS 3
-      ++:oscode
-      HBTEST :oscode                         IS 5
-      HBTEST ++:oscode                       IS 6
-      HBTEST ++:oscode                       IS 7
-      :oscode += 10
-      HBTEST :oscode                         IS 17
-      HBTEST :oscode += 200                  IS 217
-      HBTEST :oscode += 100                  IS 317
-      :oscode *= 3
-      HBTEST :oscode                         IS 951
-      HBTEST :oscode += 49                   IS 1000
-      HBTEST --:oscode                       IS 999
-      HBTEST ++:oscode                       IS 1000
+      :osCode := 1
+      HBTEST :osCode                         IS 1
+      :osCode++
+      HBTEST :osCode                         IS 2
+      HBTEST :osCode++                       IS 2
+      HBTEST :osCode++                       IS 3
+      ++:osCode
+      HBTEST :osCode                         IS 5
+      HBTEST ++:osCode                       IS 6
+      HBTEST ++:osCode                       IS 7
+      :osCode += 10
+      HBTEST :osCode                         IS 17
+      HBTEST :osCode += 200                  IS 217
+      HBTEST :osCode += 100                  IS 317
+      :osCode *= 3
+      HBTEST :osCode                         IS 951
+      HBTEST :osCode += 49                   IS 1000
+      HBTEST --:osCode                       IS 999
+      HBTEST ++:osCode                       IS 1000
    ENDWITH
 
    s0 := "V2"

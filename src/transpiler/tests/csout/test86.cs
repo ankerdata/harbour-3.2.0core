@@ -15,7 +15,7 @@
 public class Store : IHbObject
 {
 
-    public virtual decimal Fill(ref List<dynamic> aOut)
+    public virtual long Fill(ref List<dynamic> aOut)
     {
         aOut = new List<dynamic> { "x", "y", "z" };
 

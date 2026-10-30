@@ -16,7 +16,7 @@ public static partial class Program
     {
         var aItems = new List<dynamic> { "alpha", "beta", "gamma", "delta" };
         long nIdx = 1;
-        long nLast = (long)(Len(aItems));
+        long nLast = Len(aItems);
         // division → stays decimal, W0026
         decimal nHalf = (decimal)(4) / 2;
 

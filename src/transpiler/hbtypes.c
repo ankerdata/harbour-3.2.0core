@@ -4931,10 +4931,11 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
             typing contract, though — so before discarding, check
             whether the call CONTRADICTS the claimed class: more args
             than the class method declares, or a scalar arg against a
-            different-scalar slot. That shape means the member is
-            almost certainly NOT an instance of the class its name
-            claims (a COM proxy named after its wrapper) and the
-            member should be renamed — W0025. */
+            different-scalar slot (INTEGER and NUMERIC are one number,
+            as in the reftab, DATE and TIMESTAMP one date). That shape
+            means the member is almost certainly NOT an instance of the
+            class its name claims (a COM proxy named after its wrapper)
+            and the member should be renamed — W0025. */
          if( szRecvType && szRecvName &&
              hb_astIsNameSeededClass( szRecvName, szRecvType ) )
          {
@@ -4975,7 +4976,11 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                                ! ( hb_stricmp( pP->szType, "TIMESTAMP" ) == 0 &&
                                    hb_stricmp( szArgT, "DATE" ) == 0 ) &&
                                ! ( hb_stricmp( pP->szType, "DATE" ) == 0 &&
-                                   hb_stricmp( szArgT, "TIMESTAMP" ) == 0 ) )
+                                   hb_stricmp( szArgT, "TIMESTAMP" ) == 0 ) &&
+                               ! ( hb_stricmp( pP->szType, "NUMERIC" ) == 0 &&
+                                   hb_stricmp( szArgT, "INTEGER" ) == 0 ) &&
+                               ! ( hb_stricmp( pP->szType, "INTEGER" ) == 0 &&
+                                   hb_stricmp( szArgT, "NUMERIC" ) == 0 ) )
                               fContradicts = HB_TRUE;
                         }
                         iArgs++;

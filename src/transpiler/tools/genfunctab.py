@@ -156,11 +156,13 @@ def infer_return_type(token: str) -> str | None:
     return None
 
 # C# return type (from an HbRuntime signature) → Harbour RETTYPE. Used
-# only to fill a RETTYPE the docs don't supply for a function implemented
-# in HbRuntime — the C# signature is authoritative for what such a call
-# actually returns. `dynamic`, `void`, delegates and class types map to
-# None (left "-"): `dynamic`/`void` are deliberately untyped, and the rest
-# carry no Harbour-type equivalent worth propagating. An integral return
+# to fill a RETTYPE the docs don't supply for a function implemented in
+# HbRuntime, and to make a doc's NUMERIC INTEGER when the C# returns a
+# whole number (Asc(), Len(), At()) — the C# signature is authoritative
+# for what such a call actually returns. `dynamic`, `void`, delegates and
+# class types map to None (left "-"): `dynamic`/`void` are deliberately
+# untyped, and the rest carry no Harbour-type equivalent worth
+# propagating. An integral return
 # is INTEGER, the emitter's long, so what it feeds stays long: a bit setter
 # `RETURN IIF( lx, hb_bitOr(...), hb_bitAnd(...) )` into an AS INTEGER member
 # needs no cast, and a division of it gets the emitter's (decimal). ulong
@@ -361,11 +363,13 @@ def write_table(path: Path,
     for key in sorted(all_names):
         entry   = hbruntime.get(key)        # (canon, cs_rettype) or None
         canon   = entry[0] if entry else key
-        # Docs win; otherwise an HbRuntime method's RETTYPE comes from its
-        # C# return type (authoritative for what the call yields).
+        # Docs win, except that an HbRuntime method's C# return type
+        # (authoritative for what the call yields) fills a RETTYPE they
+        # leave out and narrows their NUMERIC to INTEGER.
         rettype = types.get(key)
-        if not rettype and entry:
-            rettype = cs_return_to_harbour(entry[1])
+        cs_type = cs_return_to_harbour(entry[1]) if entry else None
+        if not rettype or (rettype == "NUMERIC" and cs_type == "INTEGER"):
+            rettype = cs_type or rettype
         rettype = rettype or "-"
         prefix  = "HbRuntime" if key in hbruntime else "-"
         rows.append(f"{canon}\t{rettype}\t{prefix}")

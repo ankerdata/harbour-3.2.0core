@@ -17,7 +17,7 @@ public static partial class Program
     {
         var aItems = new List<dynamic> { "a", "b", "c", "d" };
         long iCount = 0;
-        long iLen = (long)(Len(aItems));
+        long iLen = Len(aItems);
         decimal nPrice = 2.5m;
 
         for (long iPos = 1; iPos <= iLen; iPos++)
@@ -33,7 +33,7 @@ public static partial class Program
         iWhole = (long)(Round(nPrice, 0) + iLen);
         QOut("rounded:", iWhole);
 
-        QOut("twice:", Twice120(iLen), Twice120(7), Twice120((long)(Len("xyz"))));
+        QOut("twice:", Twice120(iLen), Twice120(7), Twice120(Len("xyz")));
         QOut("priced:", Price120(iCount, nPrice));
         QOut("calls:", test120_siCalls120);
     }

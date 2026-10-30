@@ -121,7 +121,7 @@ public static partial class Program
 
     public static string Kept161(decimal n = default)
     {
-        decimal nStart = Len("abc");
+        long nStart = Len("abc");
         decimal nShared;
         var aBlocks = new List<dynamic>();
         string cOut = "";

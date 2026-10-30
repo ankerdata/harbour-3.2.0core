@@ -408,17 +408,17 @@ PROCEDURE Main_MATH()
 
 
    o := ErrorNew()
-   o:oscode := 1
-   TEST_CALL( "rt_math:408", "o:oscode", {|| o:oscode }, 1, .F., NIL )
-   o:oscode++
-   TEST_CALL( "rt_math:410", "o:oscode", {|| o:oscode }, 2, .F., NIL )
-   TEST_CALL( "rt_math:411", "o:oscode++", {|| o:oscode++ }, 2, .F., NIL )
-   ++o:oscode
-   TEST_CALL( "rt_math:413", "o:oscode", {|| o:oscode }, 4, .F., NIL )
-   TEST_CALL( "rt_math:414", "++o:oscode", {|| ++o:oscode }, 5, .F., NIL )
-   o:oscode += 10
-   TEST_CALL( "rt_math:416", "o:oscode", {|| o:oscode }, 15, .F., NIL )
-   TEST_CALL( "rt_math:417", "o:oscode += 200", {|| o:oscode += 200 }, 215, .F., NIL )
+   o:osCode := 1
+   TEST_CALL( "rt_math:408", "o:osCode", {|| o:osCode }, 1, .F., NIL )
+   o:osCode++
+   TEST_CALL( "rt_math:410", "o:osCode", {|| o:osCode }, 2, .F., NIL )
+   TEST_CALL( "rt_math:411", "o:osCode++", {|| o:osCode++ }, 2, .F., NIL )
+   ++o:osCode
+   TEST_CALL( "rt_math:413", "o:osCode", {|| o:osCode }, 4, .F., NIL )
+   TEST_CALL( "rt_math:414", "++o:osCode", {|| ++o:osCode }, 5, .F., NIL )
+   o:osCode += 10
+   TEST_CALL( "rt_math:416", "o:osCode", {|| o:osCode }, 15, .F., NIL )
+   TEST_CALL( "rt_math:417", "o:osCode += 200", {|| o:osCode += 200 }, 215, .F., NIL )
 
    l := 1
    TEST_CALL( "rt_math:420", "l", {|| l }, 1, .F., NIL )
@@ -509,25 +509,25 @@ PROCEDURE Main_MATH()
    ENDWITH
 
    WITH OBJECT ErrorNew()
-      :oscode := 1
-      TEST_CALL( "rt_math:509", ":oscode", {|| :oscode }, 1, .F., NIL )
-      :oscode++
-      TEST_CALL( "rt_math:511", ":oscode", {|| :oscode }, 2, .F., NIL )
-      TEST_CALL( "rt_math:512", ":oscode++", {|| :oscode++ }, 2, .F., NIL )
-      TEST_CALL( "rt_math:513", ":oscode++", {|| :oscode++ }, 3, .F., NIL )
-      ++:oscode
-      TEST_CALL( "rt_math:515", ":oscode", {|| :oscode }, 5, .F., NIL )
-      TEST_CALL( "rt_math:516", "++:oscode", {|| ++:oscode }, 6, .F., NIL )
-      TEST_CALL( "rt_math:517", "++:oscode", {|| ++:oscode }, 7, .F., NIL )
-      :oscode += 10
-      TEST_CALL( "rt_math:519", ":oscode", {|| :oscode }, 17, .F., NIL )
-      TEST_CALL( "rt_math:520", ":oscode += 200", {|| :oscode += 200 }, 217, .F., NIL )
-      TEST_CALL( "rt_math:521", ":oscode += 100", {|| :oscode += 100 }, 317, .F., NIL )
-      :oscode *= 3
-      TEST_CALL( "rt_math:523", ":oscode", {|| :oscode }, 951, .F., NIL )
-      TEST_CALL( "rt_math:524", ":oscode += 49", {|| :oscode += 49 }, 1000, .F., NIL )
-      TEST_CALL( "rt_math:525", "--:oscode", {|| --:oscode }, 999, .F., NIL )
-      TEST_CALL( "rt_math:526", "++:oscode", {|| ++:oscode }, 1000, .F., NIL )
+      :osCode := 1
+      TEST_CALL( "rt_math:509", ":osCode", {|| :osCode }, 1, .F., NIL )
+      :osCode++
+      TEST_CALL( "rt_math:511", ":osCode", {|| :osCode }, 2, .F., NIL )
+      TEST_CALL( "rt_math:512", ":osCode++", {|| :osCode++ }, 2, .F., NIL )
+      TEST_CALL( "rt_math:513", ":osCode++", {|| :osCode++ }, 3, .F., NIL )
+      ++:osCode
+      TEST_CALL( "rt_math:515", ":osCode", {|| :osCode }, 5, .F., NIL )
+      TEST_CALL( "rt_math:516", "++:osCode", {|| ++:osCode }, 6, .F., NIL )
+      TEST_CALL( "rt_math:517", "++:osCode", {|| ++:osCode }, 7, .F., NIL )
+      :osCode += 10
+      TEST_CALL( "rt_math:519", ":osCode", {|| :osCode }, 17, .F., NIL )
+      TEST_CALL( "rt_math:520", ":osCode += 200", {|| :osCode += 200 }, 217, .F., NIL )
+      TEST_CALL( "rt_math:521", ":osCode += 100", {|| :osCode += 100 }, 317, .F., NIL )
+      :osCode *= 3
+      TEST_CALL( "rt_math:523", ":osCode", {|| :osCode }, 951, .F., NIL )
+      TEST_CALL( "rt_math:524", ":osCode += 49", {|| :osCode += 49 }, 1000, .F., NIL )
+      TEST_CALL( "rt_math:525", "--:osCode", {|| --:osCode }, 999, .F., NIL )
+      TEST_CALL( "rt_math:526", "++:osCode", {|| ++:osCode }, 1000, .F., NIL )
    ENDWITH
 
    s0 := "V2"
@@ -609,25 +609,25 @@ PROCEDURE Main_MATH()
    ENDWITH
 
    WITH OBJECT ErrorNew()
-      :oscode := 1
-      TEST_CALL( "rt_math:609", ":oscode", {|| :oscode }, 1, .F., NIL )
-      :oscode++
-      TEST_CALL( "rt_math:611", ":oscode", {|| :oscode }, 2, .F., NIL )
-      TEST_CALL( "rt_math:612", ":oscode++", {|| :oscode++ }, 2, .F., NIL )
-      TEST_CALL( "rt_math:613", ":oscode++", {|| :oscode++ }, 3, .F., NIL )
-      ++:oscode
-      TEST_CALL( "rt_math:615", ":oscode", {|| :oscode }, 5, .F., NIL )
-      TEST_CALL( "rt_math:616", "++:oscode", {|| ++:oscode }, 6, .F., NIL )
-      TEST_CALL( "rt_math:617", "++:oscode", {|| ++:oscode }, 7, .F., NIL )
-      :oscode += 10
-      TEST_CALL( "rt_math:619", ":oscode", {|| :oscode }, 17, .F., NIL )
-      TEST_CALL( "rt_math:620", ":oscode += 200", {|| :oscode += 200 }, 217, .F., NIL )
-      TEST_CALL( "rt_math:621", ":oscode += 100", {|| :oscode += 100 }, 317, .F., NIL )
-      :oscode *= 3
-      TEST_CALL( "rt_math:623", ":oscode", {|| :oscode }, 951, .F., NIL )
-      TEST_CALL( "rt_math:624", ":oscode += 49", {|| :oscode += 49 }, 1000, .F., NIL )
-      TEST_CALL( "rt_math:625", "--:oscode", {|| --:oscode }, 999, .F., NIL )
-      TEST_CALL( "rt_math:626", "++:oscode", {|| ++:oscode }, 1000, .F., NIL )
+      :osCode := 1
+      TEST_CALL( "rt_math:609", ":osCode", {|| :osCode }, 1, .F., NIL )
+      :osCode++
+      TEST_CALL( "rt_math:611", ":osCode", {|| :osCode }, 2, .F., NIL )
+      TEST_CALL( "rt_math:612", ":osCode++", {|| :osCode++ }, 2, .F., NIL )
+      TEST_CALL( "rt_math:613", ":osCode++", {|| :osCode++ }, 3, .F., NIL )
+      ++:osCode
+      TEST_CALL( "rt_math:615", ":osCode", {|| :osCode }, 5, .F., NIL )
+      TEST_CALL( "rt_math:616", "++:osCode", {|| ++:osCode }, 6, .F., NIL )
+      TEST_CALL( "rt_math:617", "++:osCode", {|| ++:osCode }, 7, .F., NIL )
+      :osCode += 10
+      TEST_CALL( "rt_math:619", ":osCode", {|| :osCode }, 17, .F., NIL )
+      TEST_CALL( "rt_math:620", ":osCode += 200", {|| :osCode += 200 }, 217, .F., NIL )
+      TEST_CALL( "rt_math:621", ":osCode += 100", {|| :osCode += 100 }, 317, .F., NIL )
+      :osCode *= 3
+      TEST_CALL( "rt_math:623", ":osCode", {|| :osCode }, 951, .F., NIL )
+      TEST_CALL( "rt_math:624", ":osCode += 49", {|| :osCode += 49 }, 1000, .F., NIL )
+      TEST_CALL( "rt_math:625", "--:osCode", {|| --:osCode }, 999, .F., NIL )
+      TEST_CALL( "rt_math:626", "++:osCode", {|| ++:osCode }, 1000, .F., NIL )
    ENDWITH
 
    s0 := "V2"

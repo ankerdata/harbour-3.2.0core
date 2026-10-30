@@ -37,7 +37,7 @@ public class Bin : IHbObject
         return aItems[I(HbRuntime.Len(aItems))];
     }
 
-    public virtual decimal Heft()
+    public virtual long Heft()
     {
         return HbRuntime.Len(aItems);
     }

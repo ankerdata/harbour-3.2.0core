@@ -23,7 +23,7 @@ public class Ledger127 : IHbObject
 public static partial class Program
 {
     public static OrderedDictionary<long, dynamic> test127_shnSeen127 = new OrderedDictionary<long, dynamic>();
-    public static decimal test127_Count127(OrderedDictionary<long, dynamic> hnFrom = default)
+    public static long test127_Count127(OrderedDictionary<long, dynamic> hnFrom = default)
     {
         return Len(hnFrom);
     }

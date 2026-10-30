@@ -26,7 +26,7 @@ public class Tally121 : IHbObject
     {
         iCount += iStep;
         iTotal = iCount * 2;
-        iTotal = (long)(Len("abc") + iTotal);
+        iTotal = Len("abc") + iTotal;
         nFlags = SetFlag121(nFlags, iCount > 3);
         return this;
     }

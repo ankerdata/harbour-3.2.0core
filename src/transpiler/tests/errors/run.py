@@ -138,6 +138,7 @@ CASES_B = [
     ('typed_hash.prg', 'W0041', "putting STRING into 'hRows', declared Row41h"),
     ('typed_hash.prg', 'W0035', "'hRows' takes a number as a key, but its name declares a hash keyed by strings"),
     ('typed_hash.prg', 'W0035', "'hnById' takes a string as a key, but its name declares a hash keyed by numbers"),
+    ('member_named_class.prg', 'W0025', "member 'oW25Tally' is name-typed as class W25Tally but its call to 'Add' doesn't match"),
 ]
 
 
@@ -159,6 +160,8 @@ def main():
     count_of("fixed_record.prg", "warning W004[16]", 13)
     # W0042 once, for the one question; the unread header is no warning by itself
     count_of("cond_unread.prg", "warning W", 1, "warning")
+    # W0025 for the string, not for the whole number
+    count_of("member_named_class.prg", "warning W", 1, "warning")
 
     # A batch, as the pipeline runs it: one process, several files. The same
     # warning at the same line of two files is reported for each.

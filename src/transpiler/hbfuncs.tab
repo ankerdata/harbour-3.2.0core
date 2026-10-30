@@ -69,14 +69,14 @@ ALIAS	STRING	-
 AllTrim	STRING	HbRuntime
 AMONTHS	ARRAY	-
 Array	ARRAY	HbRuntime
-Asc	NUMERIC	HbRuntime
+Asc	INTEGER	HbRuntime
 AScan	NUMERIC	HbRuntime
 ASCIISUM	NUMERIC	-
 ASCPOS	NUMERIC	-
 ASIN	NUMERIC	-
 ASize	ARRAY	HbRuntime
 ASort	ARRAY	HbRuntime
-At	NUMERIC	HbRuntime
+At	INTEGER	HbRuntime
 ATADJUST	STRING	-
 ATail	-	HbRuntime
 ATAN	NUMERIC	-
@@ -379,7 +379,7 @@ hb_AIns	ARRAY	HbRuntime
 hb_argc	NUMERIC	HbRuntime
 hb_argv	STRING	HbRuntime
 hb_AScan	NUMERIC	HbRuntime
-hb_At	NUMERIC	HbRuntime
+hb_At	INTEGER	HbRuntime
 HB_ATI	NUMERIC	-
 hb_ATokens	ARRAY	HbRuntime
 hb_bitAnd	INTEGER	HbRuntime
@@ -599,7 +599,7 @@ LASTDAYOM	NUMERIC	-
 LASTKEY	NUMERIC	-
 LASTREC	NUMERIC	-
 Left	STRING	HbRuntime
-Len	NUMERIC	HbRuntime
+Len	INTEGER	HbRuntime
 Log	NUMERIC	HbRuntime
 LOG10	NUMERIC	-
 Lower	STRING	HbRuntime
@@ -667,7 +667,7 @@ QQOut	-	HbRuntime
 QUARTER	NUMERIC	-
 RANGEREM	STRING	-
 RANGEREPL	STRING	-
-RAt	NUMERIC	HbRuntime
+RAt	INTEGER	HbRuntime
 RATE	NUMERIC	-
 READKEY	NUMERIC	-
 READVAR	STRING	-

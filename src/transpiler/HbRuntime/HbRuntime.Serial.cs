@@ -361,15 +361,15 @@ public static partial class HbRuntime
     // hb_comMCR( <nPort>, @<nValue>, <nClear>, <nSet> ): set or clear DTR
     // and RTS. Windows cannot read them back, so the value is 0 and a call
     // that asks for neither fails — Harbour answers exactly this.
-    public static bool hb_comMCR(object? xPort, ref decimal nValue, decimal? nClear = null,
-                                 decimal? nSet = null)
+    public static bool hb_comMCR(object? xPort, ref long iValue, long? iClear = null,
+                                 long? iSet = null)
     {
-        nValue = 0;
+        iValue = 0;
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
             return false;
-        int nClr = nClear is decimal c ? (int) c : 0;
-        int nOn = nSet is decimal s ? (int) s : 0;
+        int nClr = (int) (iClear ?? 0);
+        int nOn = (int) (iSet ?? 0);
         bool fResult = false;
         if ((nOn & ComMcrDtr) != 0)
             fResult = EscapeCommFunction(pCom.hComm, SetDtr);
@@ -385,9 +385,9 @@ public static partial class HbRuntime
 
     // hb_comMSR( <nPort>, @<nValue> ): the modem status lines. The DELTA
     // bits are not supported on Windows, in Harbour or here.
-    public static bool hb_comMSR(object? xPort, ref decimal nValue)
+    public static bool hb_comMSR(object? xPort, ref long iValue)
     {
-        nValue = 0;
+        iValue = 0;
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
             return false;
@@ -399,7 +399,7 @@ public static partial class HbRuntime
             if ((nStat & MsDsrOn) != 0) nOut |= ComMsrDsr;
             if ((nStat & MsRingOn) != 0) nOut |= ComMsrRi;
             if ((nStat & MsRlsdOn) != 0) nOut |= ComMsrDcd;
-            nValue = nOut;
+            iValue = nOut;
         }
         ComSetOsError(pCom, !fResult);
         return fResult;
@@ -407,9 +407,9 @@ public static partial class HbRuntime
 
     // hb_comFlowControl( <nPort>, @<nOld>, [<nNew>] ): read the flow
     // control, and set it when a value is given (-1 means only read)
-    public static bool hb_comFlowControl(object? xPort, ref decimal nOld, decimal? nNew = null)
+    public static bool hb_comFlowControl(object? xPort, ref long iOld, long? iNew = null)
     {
-        nOld = 0;
+        iOld = 0;
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
             return false;
@@ -430,9 +430,9 @@ public static partial class HbRuntime
                 nValue |= ComFlowXoff;
             if ((dcb.Flags & DcbOutX) != 0)
                 nValue |= ComFlowXon;
-            nOld = nValue;
+            iOld = nValue;
 
-            int nSet = nNew is decimal n ? (int) n : -1;
+            int nSet = (int) (iNew ?? -1);
             if (nSet >= 0)
             {
                 uint nFlags = dcb.Flags;
@@ -457,12 +457,12 @@ public static partial class HbRuntime
     // hb_comFlowSet( <nPort>, <nFlow> ): start or stop the flow by hand.
     // Windows has EscapeCommFunction for the XON/XOFF pair; the RTS/CTS and
     // DTR/DSR forms are the lines themselves.
-    public static bool hb_comFlowSet(object? xPort, decimal nFlow)
+    public static bool hb_comFlowSet(object? xPort, long iFlow)
     {
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
             return false;
-        int nSet = (int) nFlow;
+        int nSet = (int) iFlow;
         bool fResult;
         if ((nSet & ComFlSoft) != 0)
             fResult = EscapeCommFunction(pCom.hComm,
