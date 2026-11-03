@@ -1214,6 +1214,19 @@ fraction" so anything fractional flowing into one needs `Int()` or
   constant, number, fraction, unknown); audit.py moves those rows out of
   the leaderboard into notes/decimal-fields.tsv, a verdict per field: a
   field the POS writes only whole numbers into is a candidate for N n,0.
+  The pass also notes what every `n` variable is given (hb_astWidenWrite()):
+  WHOLE-N rows are `n` locals every write to which is a whole number,
+  never passed by `@`, a FOR EACH or RECOVER USING variable, `i` names to
+  be; WHOLE-N-BLOCKED rows are locals given a whole number but one value
+  the scan cannot prove, that value the source fix. A literal counts as
+  whole; a write the scan cannot prove, or one that may hold a fraction,
+  keeps the local `n`. Parameters need every call: the census rows N-PARAM
+  (what the body writes into it), N-ARG (what each call passes) and
+  N-DYNSEND (a send through an untyped receiver, which may reach any
+  method of that name) are joined by audit.py into notes/whole-params.tsv
+  and a WHOLE-N-PARAM row per parameter every call passes a whole number;
+  notes/n-locals.tsv lists every `n` local with its first unproven value.
+  A file's STATICs are left out, other routines writing them.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.
