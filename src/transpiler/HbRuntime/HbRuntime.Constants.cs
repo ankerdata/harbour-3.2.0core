@@ -35,7 +35,7 @@ public static partial class HbRuntime
     public const decimal F_TIME = 4;
     public const decimal F_ATTR = 5;
     public const decimal F_LEN = 5;
-    public const decimal F_ERROR = -1;
+    public const long F_ERROR = -1;
     // set.ch — only the ones actually used so far
     public const decimal _SET_EXACT = 1;
     public const decimal _SET_FIXED = 2;

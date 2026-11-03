@@ -159,14 +159,14 @@ public static partial class HbRuntime
 
     // hb_threadID( [<pThread>] ): a thread's number, the calling thread's
     // by default; 0 for anything that is not a thread
-    public static decimal hb_threadID() => Self.nId;
-    public static decimal hb_threadID(object? pThread) =>
+    public static long hb_threadID() => Self.nId;
+    public static long hb_threadID(object? pThread) =>
         pThread is HbThread h ? h.nId : pThread is null ? Self.nId : 0;
 
     // hb_threadWait( <pThread> | <aThreads>, [<nTimeout>], [<lAll>] ): wait
     // for one (or, with lAll, every) thread to finish. The 1-based index of
     // the first finished, or with lAll how many finished; 0 on a timeout.
-    public static decimal hb_threadWait(object? xThreads, object? nTimeout = null, bool lAll = false)
+    public static long hb_threadWait(object? xThreads, object? nTimeout = null, bool lAll = false)
     {
         HbThread[] aThreads = xThreads switch
         {
@@ -291,7 +291,16 @@ public static partial class HbRuntime
                 if (!WaitUntil(m.sync, () => m.events.Count > 0, TimeoutMs(nTimeout)))
                     return false;
                 object? xEvent = m.events.Dequeue();
-                xValue = xEvent is null ? default! : (T) xEvent;
+                xValue = xEvent switch
+                {
+                    null => default!,
+                    T t => t,
+                    // a number in another CLR type: hb_threadID()'s long
+                    // for a decimal variable
+                    _ when IsNumeric(xEvent) && IsNumericType(typeof(T)) =>
+                        (T) Convert.ChangeType(xEvent, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T), INV),
+                    _ => (T) xEvent,
+                };
                 return true;
             }
             finally

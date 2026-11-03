@@ -41,7 +41,7 @@ public static partial class Program
         AAdd(aParcels, new Parcel141().New("Rug", 7));
 
         // an element of the declared array: x is a Parcel141, the result bool
-        decimal nPos = AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
+        long nPos = AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
         QOut(nPos, ((Parcel141)aParcels[I(nPos)]).cLabel);
 
         // ASort's two parameters, both elements

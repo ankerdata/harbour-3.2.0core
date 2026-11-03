@@ -1547,6 +1547,13 @@ static const char * hb_astSubscriptType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
  * Infer the type of an expression using the type environment.
  * This extends hb_astInferFromExpr to handle variables and operators.
  */
+/* NUMERIC or INTEGER: a number, decimal or whole */
+static HB_BOOL hb_astIsNumberType( const char * szType )
+{
+   return szType && ( strcmp( szType, "NUMERIC" ) == 0 ||
+                      strcmp( szType, "INTEGER" ) == 0 );
+}
+
 static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
 {
    const char * szType;
@@ -1731,12 +1738,14 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          if( strcmp( szLeft, "STRING" ) == 0 && strcmp( szRight, "STRING" ) == 0 )
             return "STRING";
 
-         /* NUMERIC + NUMERIC = NUMERIC */
-         if( strcmp( szLeft, "NUMERIC" ) == 0 && strcmp( szRight, "NUMERIC" ) == 0 )
-            return "NUMERIC";
+         /* INTEGER + INTEGER = INTEGER; any other two numbers NUMERIC
+            (one family, as in the reftab: `Len( c ) + 1` is a number) */
+         if( hb_astIsNumberType( szLeft ) && hb_astIsNumberType( szRight ) )
+            return strcmp( szLeft, "INTEGER" ) == 0 &&
+                   strcmp( szRight, "INTEGER" ) == 0 ? "INTEGER" : "NUMERIC";
 
-         /* DATE + NUMERIC = DATE */
-         if( strcmp( szLeft, "DATE" ) == 0 && strcmp( szRight, "NUMERIC" ) == 0 )
+         /* DATE + a number = DATE */
+         if( strcmp( szLeft, "DATE" ) == 0 && hb_astIsNumberType( szRight ) )
             return "DATE";
 
          return NULL;
@@ -2521,9 +2530,9 @@ static void hb_astMarkSinkVars( PHB_EXPR pExpr )
 
 /* Provably-integral expression: safe as the RHS of an assignment to a
    C#-int variable. Conservative — anything unproven is non-integral.
-   Literals without a fractional part, a small set of index-producing
-   builtins, INTEGER-typed variables, and +,-,*,++,-- combinations
-   thereof qualify. Division never does (Harbour 5/2 = 2.5). */
+   Literals without a fractional part, calls that return INTEGER,
+   INTEGER-typed variables, and +,-,*,++,-- combinations thereof
+   qualify. Division never does (Harbour 5/2 = 2.5). */
 static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                                      const char * szSelf )
 {
@@ -2553,20 +2562,17 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
          {
             const char * szFn =
                pExpr->value.asFunCall.pFunName->value.asSymbol.name;
-            if( szFn && (
-                hb_stricmp( szFn, "INT"  ) == 0 ||
-                hb_stricmp( szFn, "LEN"  ) == 0 ||
-                hb_stricmp( szFn, "AT"   ) == 0 ||
-                hb_stricmp( szFn, "RAT"  ) == 0 ||
-                hb_stricmp( szFn, "ASC"  ) == 0 ) )
-               return HB_TRUE;
-            /* User function whose return already resolved to INTEGER
-               (its own index-shaped locals) — int-ness chains. */
-            if( szFn && pEnv && pEnv->pRefTab )
-            {
-               const char * szRet = hb_typeEnvFuncReturnType( pEnv, szFn );
-               return szRet && hb_stricmp( szRet, "INTEGER" ) == 0;
-            }
+            const char * szRet;
+            /* An HbRuntime function hbfuncs.tab says returns a whole
+               number (Len(), AScan(), Int(), Year() ...), or a user
+               function whose return already resolved to INTEGER (its
+               own index-shaped locals) — int-ness chains. */
+            if( ! szFn )
+               return HB_FALSE;
+            szRet = hb_funcTabReturnType( szFn );
+            if( ! szRet )
+               szRet = hb_typeEnvFuncReturnType( pEnv, szFn );
+            return szRet && hb_stricmp( szRet, "INTEGER" ) == 0;
          }
          return HB_FALSE;
       case HB_EO_PLUS:
@@ -4598,6 +4604,10 @@ static HB_BOOL hb_astWholeTyped( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
 
    if( ! pExpr || hb_astNumericConstant( pExpr ) )
       return HB_FALSE;
+   /* an `x` name holds anything on purpose, whatever it was last given */
+   if( pExpr->ExprType == HB_ET_VARIABLE &&
+       hb_astIsPolymorphicName( pExpr->value.asSymbol.name ) )
+      return HB_FALSE;
    szT = hb_astInferExprType( pExpr, pEnv );
    if( ! szT || strcmp( szT, "INTEGER" ) != 0 )
       return HB_FALSE;
@@ -4672,7 +4682,8 @@ static void hb_astWholeDecimalAssign( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
    if( hb_astDecimalField( pRhs, pEnv, szSym, sizeof( szSym ), szShape, sizeof( szShape ) ) )
    {
       const char * szT = NULL;
-      if( pLhs->ExprType == HB_ET_VARIABLE && pLhs->value.asSymbol.name )
+      if( pLhs->ExprType == HB_ET_VARIABLE && pLhs->value.asSymbol.name &&
+          ! hb_astIsPolymorphicName( pLhs->value.asSymbol.name ) )
          szT = hb_typeEnvGet( pEnv, pLhs->value.asSymbol.name );
       else if( pLhs->ExprType == HB_ET_SEND )
          szT = hb_astInferExprType( pLhs, pEnv );
@@ -4692,7 +4703,7 @@ static void hb_astWholeDecimalInit( const char * szVar, PHB_EXPR pInit,
    char         szSym[ 160 ];
    char         szShape[ 64 ];
 
-   if( ! hb_auditActive() || ! szVar || ! pInit )
+   if( ! hb_auditActive() || ! szVar || ! pInit || hb_astIsPolymorphicName( szVar ) )
       return;
    szT = hb_typeEnvGet( pEnv, szVar );
    if( szT && strcmp( szT, "INTEGER" ) == 0 &&

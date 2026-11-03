@@ -94,7 +94,7 @@ public static partial class Program
             });
     }
 
-    public static dynamic Width156(FieldRow156 aRow = default)
+    public static long Width156(FieldRow156 aRow = default)
     {
         return aRow.iLen + aRow.iDec;
 
@@ -105,7 +105,7 @@ public static partial class Program
         long iTotal = 0;
         foreach (FieldRow156 aRow in HbEnumValues(hRows))
         {
-            iTotal += (long)(aRow.iLen);
+            iTotal += aRow.iLen;
         }
 
         return iTotal;

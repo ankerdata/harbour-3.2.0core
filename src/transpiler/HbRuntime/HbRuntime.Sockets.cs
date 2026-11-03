@@ -351,7 +351,7 @@ public static partial class HbRuntime
 
     public static object? hb_inetCleanup() => null;
 
-    public static decimal hb_socketGetError() => t_sockError;
+    public static long hb_socketGetError() => t_sockError;
 
     // hb_socketErrorString( [<nError>], [<pSocket>] ): the text of an error
     // code, of the last error by default; a handle, in either place, only
@@ -555,8 +555,8 @@ public static partial class HbRuntime
 
     // hb_socketSend( <pSocket>, <cBuffer>, [<nLen>], [<nFlags>], [<nTimeout>] ):
     // how many bytes went; -1 on an error or the timeout (HB_SOCKET_ERR_TIMEOUT)
-    public static decimal hb_socketSend(object? pSocket, string cBuffer, decimal? nLen = null,
-                                        decimal? nFlags = null, decimal? nTimeout = null)
+    public static long hb_socketSend(object? pSocket, string cBuffer, decimal? nLen = null,
+                                     decimal? nFlags = null, decimal? nTimeout = null)
     {
         Socket sd = SockParam(pSocket, "HB_SOCKETSEND").sd!;
         byte[] aData = s_byteCP.GetBytes(cBuffer);
@@ -584,7 +584,7 @@ public static partial class HbRuntime
     // receive gives 0 — 0 when the timeout passed first, -1 on an error.
     // hbsockhb.c goes through hb_sockexCanRead(), whose raw socket has no
     // buffer of its own, to hb_socketSelectRead(); a timeout is not an error.
-    public static decimal hb_socketSelectRead(object? pSocket, decimal? nTimeout = null) =>
+    public static long hb_socketSelectRead(object? pSocket, decimal? nTimeout = null) =>
         SockSelect(SockParam(pSocket, "HB_SOCKETSELECTREAD").sd!, SelectMode.SelectRead,
                    SockTimeout(nTimeout)) switch
         {
@@ -597,8 +597,8 @@ public static partial class HbRuntime
     // read at most Len( cBuffer ) (or nLen, when less) bytes over the start
     // of cBuffer, which keeps its length. How many came; 0 when the other
     // end closed; -1 on an error or the timeout (HB_SOCKET_ERR_TIMEOUT).
-    public static decimal hb_socketRecv(object? pSocket, ref string cBuffer, decimal? nLen = null,
-                                        decimal? nFlags = null, decimal? nTimeout = null)
+    public static long hb_socketRecv(object? pSocket, ref string cBuffer, decimal? nLen = null,
+                                     decimal? nFlags = null, decimal? nTimeout = null)
     {
         Socket sd = SockParam(pSocket, "HB_SOCKETRECV").sd!;
         int nRead = cBuffer.Length;

@@ -99,7 +99,7 @@ public static partial class Program
 
     public static void Halve121(ref long iValue)
     {
-        iValue = (long)(Int((decimal)(iValue) / 2));
+        iValue = Int((decimal)(iValue) / 2);
     }
 
     public static long Thrice121(long iValue = default)

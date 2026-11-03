@@ -310,7 +310,7 @@ public static partial class HbRuntime
     // hb_BLen()/hb_BLeft()/hb_BSubStr(): the byte versions of Len(),
     // Left() and SubStr(). A Harbour string is bytes and a transpiled one
     // holds a byte per char, so they are the same functions.
-    public static decimal hb_BLen(string s) => s.Length;
+    public static long hb_BLen(string s) => s.Length;
     public static string hb_BLeft(string s, decimal n) => Left(s, n);
     public static string hb_BSubStr(string s, decimal nStart, decimal? nCount = null) => SubStr(s, nStart, nCount);
 
@@ -747,8 +747,8 @@ public static partial class HbRuntime
         }
     }
 
-    public static decimal MLCount(string cString, decimal nLineLength = 79, decimal nTabSize = 4,
-                                  bool lWrap = true, string cEOL = null)
+    public static long MLCount(string cString, decimal nLineLength = 79, decimal nTabSize = 4,
+                               bool lWrap = true, string cEOL = null)
     {
         int nSize = (int)Math.Truncate(nLineLength);
         if (cString is null || nSize <= 0)

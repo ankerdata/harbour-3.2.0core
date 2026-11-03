@@ -40,14 +40,14 @@ public static partial class HbRuntime
     static readonly object s_comLock = new();
 
     // hbcom.ch's error codes
-    public const decimal HB_COM_ERR_WRONGPORT = 1;
-    public const decimal HB_COM_ERR_CLOSED = 2;
-    public const decimal HB_COM_ERR_TIMEOUT = 3;
-    public const decimal HB_COM_ERR_NOSUPPORT = 4;
-    public const decimal HB_COM_ERR_PARAMVALUE = 5;
-    public const decimal HB_COM_ERR_BUSY = 6;
-    public const decimal HB_COM_ERR_OTHER = 7;
-    public const decimal HB_COM_ERR_ALREADYOPEN = 8;
+    public const long HB_COM_ERR_WRONGPORT = 1;
+    public const long HB_COM_ERR_CLOSED = 2;
+    public const long HB_COM_ERR_TIMEOUT = 3;
+    public const long HB_COM_ERR_NOSUPPORT = 4;
+    public const long HB_COM_ERR_PARAMVALUE = 5;
+    public const long HB_COM_ERR_BUSY = 6;
+    public const long HB_COM_ERR_OTHER = 7;
+    public const long HB_COM_ERR_ALREADYOPEN = 8;
 
     // hb_comFlush() types, and the modem lines of hbcom.ch
     const int ComIFlush = 1, ComOFlush = 2, ComIOFlush = 3;
@@ -115,7 +115,7 @@ public static partial class HbRuntime
     // was given it, and hb_comFindPort( ..., .T. ) takes the highest free
     // port above 16, counting down. EasiPOS hands the number straight back
     // to hb_comOpen(), so only the name matters.
-    public static decimal hb_comFindPort(string? cDevice, bool lCreate = false)
+    public static long hb_comFindPort(string? cDevice, bool lCreate = false)
     {
         if (string.IsNullOrEmpty(cDevice))
             return 0;
@@ -254,8 +254,8 @@ public static partial class HbRuntime
     // hb_comSend( <nPort>, <cBuffer>, [<nLen>], [<nTimeout>] ): the bytes
     // written, or -1. A timeout of its own applies to the whole write, as
     // Harbour's WriteTotalTimeoutConstant does.
-    public static decimal hb_comSend(object? xPort, string? cBuffer, decimal? nLen = null,
-                                     decimal? nTimeout = null)
+    public static long hb_comSend(object? xPort, string? cBuffer, decimal? nLen = null,
+                                  decimal? nTimeout = null)
     {
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
@@ -277,8 +277,8 @@ public static partial class HbRuntime
     // read, or -1; they overwrite the start of the buffer, which keeps its
     // length, as hb_socketRecv() does. Nothing within the timeout is 0 with
     // HB_COM_ERR_TIMEOUT.
-    public static decimal hb_comRecv(object? xPort, ref string cBuffer, decimal? nLen = null,
-                                     decimal? nTimeout = null)
+    public static long hb_comRecv(object? xPort, ref string cBuffer, decimal? nLen = null,
+                                  decimal? nTimeout = null)
     {
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
@@ -345,10 +345,10 @@ public static partial class HbRuntime
 
     // hb_comInputCount( <nPort> ) / hb_comOutputCount( <nPort> ): what is
     // waiting to be read, and what is waiting to go out
-    public static decimal hb_comInputCount(object? xPort) => ComQueue(xPort, true);
-    public static decimal hb_comOutputCount(object? xPort) => ComQueue(xPort, false);
+    public static long hb_comInputCount(object? xPort) => ComQueue(xPort, true);
+    public static long hb_comOutputCount(object? xPort) => ComQueue(xPort, false);
 
-    static decimal ComQueue(object? xPort, bool fInput)
+    static long ComQueue(object? xPort, bool fInput)
     {
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
@@ -486,7 +486,7 @@ public static partial class HbRuntime
     const int ComFlRtsCts = 0x20, ComFlDtrDsr = 0x40;
 
     // hb_comGetError( <nPort> ) / hb_comGetOSError( <nPort> )
-    public static decimal hb_comGetError(object? xPort)
+    public static long hb_comGetError(object? xPort)
     {
         if (ComWrongPort(xPort))
             return HB_COM_ERR_WRONGPORT;
@@ -494,7 +494,7 @@ public static partial class HbRuntime
         return pCom == null ? HB_COM_ERR_WRONGPORT : pCom.nError;
     }
 
-    public static decimal hb_comGetOSError(object? xPort)
+    public static long hb_comGetOSError(object? xPort)
     {
         HbComPort? pCom = ComPort(xPort, false);
         return pCom == null ? 0 : pCom.nOsError;
@@ -502,7 +502,7 @@ public static partial class HbRuntime
 
     // ---- Win32 ----
 
-    const decimal ComFailed = -1;
+    const long ComFailed = -1;
     static readonly IntPtr ComInvalidHandle = new(-1);
     const uint GenericRead = 0x80000000, GenericWrite = 0x40000000;
     const uint OpenExisting = 3, FileFlagNoBuffering = 0x20000000;

@@ -147,10 +147,10 @@ public static partial class Program
     }
     public static long Width155(FieldRow aRow = default)
     {
-        long iWidth = (long)(aRow.iLen);
+        long iWidth = aRow.iLen;
         if (aRow.iDec > 0)
         {
-            iWidth += (long)(aRow.iDec + 1);
+            iWidth += aRow.iDec + 1;
         }
 
         return iWidth;

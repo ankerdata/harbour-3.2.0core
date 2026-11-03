@@ -24,7 +24,7 @@ public class Ledger : IHbObject
 
     public virtual long Add(decimal nQty = default)
     {
-        nCovers += (long)(Int(nQty));
+        nCovers += Int(nQty);
         return nCovers;
 
         /* NUMERIC return with a by-ref parameter: the caller's assignment is

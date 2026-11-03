@@ -210,7 +210,9 @@ public static partial class HbRuntime
         return fNeg ? -nValue : nValue;
     }
 
-    public static decimal Int(decimal n) => Math.Truncate(n);
+    // Int( <n> ): n truncated toward zero. Past a long's ±9.2e18 the
+    // conversion throws, where Harbour answers the number.
+    public static long Int(decimal n) => (long) n;
     // Harbour Round() is half-away-from-zero; Math.Round defaults to
     // banker's rounding (ToEven), which would skew POS money math. A
     // negative nDec rounds to tens, hundreds, ...: Round( 150, -2 ) is 200.
@@ -295,13 +297,13 @@ public static partial class HbRuntime
     }
 
     // Bin2I( <c> ): 2 bytes, signed
-    public static decimal Bin2I(string s) => (short)BinLE(s, 2);
+    public static long Bin2I(string s) => (short)BinLE(s, 2);
 
     // Bin2W( <c> ): 2 bytes, unsigned
-    public static decimal Bin2W(string s) => (ushort)BinLE(s, 2);
+    public static long Bin2W(string s) => (ushort)BinLE(s, 2);
 
     // Bin2L( <c> ): 4 bytes, signed
-    public static decimal Bin2L(string s) => (int)BinLE(s, 4);
+    public static long Bin2L(string s) => (int)BinLE(s, 4);
 
     static string LEBytes(long v, int nBytes)
     {

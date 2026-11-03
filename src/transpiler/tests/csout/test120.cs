@@ -27,7 +27,7 @@ public static partial class Program
 
         QOut("count:", iCount, iLen);
 
-        long iWhole = (long)(Int(nPrice * 1.2m));
+        long iWhole = Int(nPrice * 1.2m);
         QOut("whole:", iWhole, aItems[I(iWhole)]);
 
         iWhole = (long)(Round(nPrice, 0) + iLen);

@@ -59,6 +59,10 @@ public static partial class HbRuntime
         x is decimal or int or long or double or float or short or byte
           or sbyte or ushort or uint or ulong;
 
+    // A CLR type that holds one, nullable or not
+    static bool IsNumericType(System.Type t) =>
+        System.Type.GetTypeCode(Nullable.GetUnderlyingType(t) ?? t) is >= TypeCode.SByte and <= TypeCode.Decimal;
+
     // ---- Terminal ----
 
     public static object? SetColor(string cColor) => null;
@@ -87,11 +91,11 @@ public static partial class HbRuntime
     // Inkey( [<nSeconds>] ): the next key's code, 0 when there is none.
     // With no argument it does not wait; 0 waits until a key comes. With no
     // console to read (input redirected) there are no keys.
-    public static decimal Inkey() => ReadKey(false, 0);
+    public static long Inkey() => ReadKey(false, 0);
 
-    public static decimal Inkey(decimal nSeconds) => ReadKey(true, nSeconds);
+    public static long Inkey(decimal nSeconds) => ReadKey(true, nSeconds);
 
-    static decimal ReadKey(bool lWait, decimal nSeconds)
+    static long ReadKey(bool lWait, decimal nSeconds)
     {
         if (Console.IsInputRedirected)
         {
@@ -118,7 +122,7 @@ public static partial class HbRuntime
 
     // The inkey.ch code of a key: its character for a plain one, the K_*
     // value for the keys that have one.
-    static decimal KeyCode(ConsoleKeyInfo k) => k.Key switch
+    static long KeyCode(ConsoleKeyInfo k) => k.Key switch
     {
         ConsoleKey.UpArrow => 5,        // K_UP
         ConsoleKey.DownArrow => 24,     // K_DOWN
@@ -137,7 +141,7 @@ public static partial class HbRuntime
 
     // hb_keyStd( <nKey> ): the standard code of a key. Inkey() gives
     // standard codes already.
-    public static decimal hb_keyStd(decimal nKey) => nKey;
+    public static long hb_keyStd(decimal nKey) => (long) nKey;
 
     // SetMode( <nRows>, <nCols> ): size the screen — here, the console's
     // buffer — and say whether that worked. There is no screen to size when

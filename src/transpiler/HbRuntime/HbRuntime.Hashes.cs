@@ -107,7 +107,7 @@ public static partial class HbRuntime
     }
 
     // hb_HPos( <h>, <key> ): the key's position, 1-based; 0 if absent
-    public static decimal hb_HPos(dynamic h, dynamic key)
+    public static long hb_HPos(dynamic h, dynamic key)
     {
         var d = AsDict((object)h);
         if (d == null)

@@ -143,9 +143,9 @@ public static partial class HbRuntime
         return lFound;
     }
 
-    public static decimal hb_vfErase(string cFile) => FErase(cFile);
+    public static long hb_vfErase(string cFile) => FErase(cFile);
 
-    public static decimal hb_vfSize(string cFile, bool lUseDirEntry = true)
+    public static long hb_vfSize(string cFile, bool lUseDirEntry = true)
     {
         if (cFile == null)
             return 0;
@@ -562,7 +562,7 @@ public static partial class HbRuntime
     // fails on a name that is taken (ERROR_ALREADY_EXISTS, which Harbour
     // reports as 5) and on a missing parent, where .NET would build the
     // whole chain instead.
-    public static decimal MakeDir(string cDir)
+    public static long MakeDir(string cDir)
     {
         if (cDir == null)
             return F_ERROR;
@@ -585,7 +585,7 @@ public static partial class HbRuntime
     }
 
     // DirRemove() / hb_DirDelete()
-    public static decimal DirRemove(string cDir)
+    public static long DirRemove(string cDir)
     {
         if (cDir == null)
             return F_ERROR;
@@ -603,7 +603,7 @@ public static partial class HbRuntime
     }
 
     // DirChange(): 0, or the OS error.
-    public static decimal DirChange(string cDir)
+    public static long DirChange(string cDir)
     {
         if (cDir == null)
             return F_ERROR;
@@ -685,7 +685,7 @@ public static partial class HbRuntime
 
     // DiskSpace( [<nDrive>] ): the free space the caller may use, in
     // bytes. 0 for a drive that is not there (where Harbour raises).
-    public static decimal DiskSpace(decimal nDrive = 0)
+    public static long DiskSpace(decimal nDrive = 0)
     {
         if (nDrive < 0)
             return 0;

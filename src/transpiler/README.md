@@ -1199,7 +1199,8 @@ fraction" so anything fractional flowing into one needs `Int()` or
   read into one, or returned by a routine declared AS INTEGER, the field's
   DBF name, length and decimals read from fieldtypes.tsv's columns 4 to 6
   (hb_fieldTypesMemberShape()); a literal does not count, every total
-  being reset with 0. It is the list for EasiPOS's batched def migration
+  being reset with 0, nor does an `x` name, which holds anything on
+  purpose. It is the list for EasiPOS's batched def migration
   (its plan E21); its first run also found a 2023 slip, the forex
   subtotal writing the rate into the free key's quantity. It is a
   leaderboard, not a gate.

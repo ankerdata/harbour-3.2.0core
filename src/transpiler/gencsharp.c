@@ -546,6 +546,12 @@ static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
       case HB_ET_FUNCALL:
          return hb_csCsTypeIs( hb_csExprCsType( pExpr ), "long" );
 
+      case HB_ET_ARRAYAT:   /* a record's field, a declared array's element */
+      {
+         const char * szT = hb_csExprHbType( pExpr );
+         return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+      }
+
       case HB_EO_PLUS:
       case HB_EO_MINUS:
       case HB_EO_MULT:

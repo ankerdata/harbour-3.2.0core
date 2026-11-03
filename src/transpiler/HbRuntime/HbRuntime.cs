@@ -276,7 +276,7 @@ public static partial class HbRuntime
             // a native library's handle: HbSqlit3's database and statement
             or System.Runtime.InteropServices.SafeHandle;
 
-    public static decimal PCount() => 0;  // varargs path uses hbva.Length directly
+    public static long PCount() => 0;  // varargs path uses hbva.Length directly
 
     // ---- Defaults helper (hb_default) ----
     // Harbour's hb_default( @var, val ) sets var to val if NIL. Without
@@ -329,7 +329,7 @@ public static partial class HbRuntime
     /// </summary>
     public static dynamic MacroStub;
 
-    public static decimal RecNo() => 0;
+    public static long RecNo() => 0;
 
     // ---- Function-reference resolution (Harbour's @FunName() operator) ----
 

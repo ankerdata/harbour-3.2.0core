@@ -154,14 +154,14 @@ public static partial class HbRuntime
     // exactly (by decision: no SET EXACT prefix rules), numbers and
     // logicals by value, dates by day (and time too with lExact), NIL
     // NIL; an array, hash or object only itself, and only with lExact.
-    public static decimal AScan(dynamic arr, dynamic xValue, decimal? nStart = null, decimal? nCount = null) =>
+    public static long AScan(dynamic arr, dynamic xValue, decimal? nStart = null, decimal? nCount = null) =>
         ArrayScan(arr, xValue, nStart, nCount, false);
 
-    public static decimal hb_AScan(dynamic arr, dynamic xValue, decimal? nStart = null,
-                                   decimal? nCount = null, bool lExact = false) =>
+    public static long hb_AScan(dynamic arr, dynamic xValue, decimal? nStart = null,
+                                decimal? nCount = null, bool lExact = false) =>
         ArrayScan(arr, xValue, nStart, nCount, lExact);
 
-    static decimal ArrayScan(object arr, object xValue, decimal? nStart, decimal? nCount, bool fExact)
+    static long ArrayScan(object arr, object xValue, decimal? nStart, decimal? nCount, bool fExact)
     {
         if (arr is not IList a || !IsHbArray(a))
             return 0;

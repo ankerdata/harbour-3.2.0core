@@ -107,7 +107,7 @@ public static partial class HbRuntime
     // FO_EXCL, the access from the low two bits, and the share mode from
     // FO_EXCLUSIVE / FO_DENYWRITE / FO_DENYREAD — anything else (FO_COMPAT,
     // FO_DENYNONE, FO_SHARED) shares both.
-    static decimal FsOpen(string cFile, int nFlags, int nAttr)
+    static long FsOpen(string cFile, int nFlags, int nAttr)
     {
         FileMode mode =
             (nFlags & HB_FO_CREAT) != 0
@@ -151,7 +151,7 @@ public static partial class HbRuntime
 
     // FOpen( <cFile>, [<nMode>] ): the handle, or -1. No file name is the
     // undocumented Clipper argument error.
-    public static decimal FOpen(string cFile, decimal nMode = 0)
+    public static long FOpen(string cFile, decimal nMode = 0)
     {
         if (cFile == null)
         {
@@ -163,7 +163,7 @@ public static partial class HbRuntime
 
     // FCreate( <cFile>, [<nAttr>] ): create or truncate, read-write and
     // exclusive (hb_fsCreate()).
-    public static decimal FCreate(string cFile, decimal nAttr = 0)
+    public static long FCreate(string cFile, decimal nAttr = 0)
     {
         if (cFile == null) { FsError(0); return F_ERROR; }
         return FsOpen(cFile, HB_FO_READWRITE | HB_FO_CREAT | HB_FO_TRUNC | HB_FO_EXCLUSIVE, (int) nAttr);
@@ -171,7 +171,7 @@ public static partial class HbRuntime
 
     // hb_FCreate( <cFile>, [<nAttr>], [<nFlags>] ): as FCreate(), but the
     // share mode is the caller's (hb_fsCreateEx() drops the access bits).
-    public static decimal hb_FCreate(string cFile, decimal nAttr = 0, decimal nFlags = 0)
+    public static long hb_FCreate(string cFile, decimal nAttr = 0, decimal nFlags = 0)
     {
         if (cFile == null) { FsError(0); return F_ERROR; }
         return FsOpen(cFile, ((int) nFlags & ~3) | HB_FO_READWRITE | HB_FO_CREAT | HB_FO_TRUNC, (int) nAttr);
@@ -208,7 +208,7 @@ public static partial class HbRuntime
     // _parcsiz(), so nBytes may be one more than Len( cBuffer ) — that byte
     // lands on the terminating zero and is lost — and anything longer reads
     // nothing at all and returns 0.
-    public static decimal FRead(decimal nHandle, ref string cBuf, decimal nBytes)
+    public static long FRead(decimal nHandle, ref string cBuf, decimal nBytes)
     {
         int nError = 0;
         int nRead = 0;
@@ -246,7 +246,7 @@ public static partial class HbRuntime
     // FWrite( <nHandle>, <cBuffer>, [<nBytes>] ): writes the buffer's
     // bytes, at most nBytes of them. Writing nothing truncates the file at
     // the current position, as hb_fsWriteLarge()'s SetEndOfFile() does.
-    public static decimal FWrite(decimal nHandle, string cBuf, decimal nBytes = -1)
+    public static long FWrite(decimal nHandle, string cBuf, decimal nBytes = -1)
     {
         int nError = 0;
         long nWritten = 0;
@@ -287,7 +287,7 @@ public static partial class HbRuntime
     // current one when the seek failed. hb_fsSeekLarge() refuses a negative
     // FS_SET offset itself, with error 25; a relative seek before the start
     // is Windows' ERROR_NEGATIVE_SEEK. Seeking past the end is allowed.
-    public static decimal FSeek(decimal nHandle, decimal nOffset, decimal nOrigin = 0)
+    public static long FSeek(decimal nHandle, decimal nOffset, decimal nOrigin = 0)
     {
         if (!TryGetFile(nHandle, out var fs))
         {
@@ -326,14 +326,14 @@ public static partial class HbRuntime
         }
     }
 
-    public static decimal FError() => t_fError;
+    public static long FError() => t_fError;
 
     // DosError( [<nError>] ): the OS error code the last raised error
     // carried, or what a caller stored here. Harbour keeps it on the
     // thread's stack and sets it from the error object.
     [ThreadStatic] static int t_dosError;
 
-    public static decimal DosError(decimal nError = -1)
+    public static long DosError(decimal nError = -1)
     {
         int nPrev = t_dosError;
         if (nError != -1)
@@ -346,7 +346,7 @@ public static partial class HbRuntime
     // directory that is not, 5 for a directory or a read-only file. .NET's
     // Delete succeeds on a missing file, so those cases are looked for
     // first. No name is 3.
-    public static decimal FErase(string cFile)
+    public static long FErase(string cFile)
     {
         if (string.IsNullOrEmpty(cFile))
         {
@@ -375,7 +375,7 @@ public static partial class HbRuntime
 
     // FRename( <cOldName>, <cNewName> ): 0, or -1 with FError() set.
     // MoveFile() renames a directory too, which .NET splits in two.
-    public static decimal FRename(string cOld, string cNew)
+    public static long FRename(string cOld, string cNew)
     {
         if (cOld == null || cNew == null)
         {
@@ -464,8 +464,8 @@ public static partial class HbRuntime
     // [<nAttr>] ): creates a file nobody else holds, named
     // <cDir><cPrefix>xxxxxx<cExt> with six random base-36 characters, and
     // hands back its handle and its name (hb_fsCreateTempEx()).
-    public static decimal hb_FTempCreateEx(ref string cName, string cDir = null, string cPrefix = null,
-                                           string cExt = null, decimal nAttr = 0)
+    public static long hb_FTempCreateEx(ref string cName, string cDir = null, string cPrefix = null,
+                                        string cExt = null, decimal nAttr = 0)
     {
         for (int nAttempt = 0; nAttempt < 99; nAttempt++)
         {
@@ -479,8 +479,8 @@ public static partial class HbRuntime
             cFile += cExt ?? "";
 
             cName = cFile;
-            decimal nHandle = FsOpen(cFile, HB_FO_READWRITE | HB_FO_CREAT | HB_FO_TRUNC |
-                                            HB_FO_EXCLUSIVE | HB_FO_EXCL, (int) nAttr);
+            long nHandle = FsOpen(cFile, HB_FO_READWRITE | HB_FO_CREAT | HB_FO_TRUNC |
+                                         HB_FO_EXCLUSIVE | HB_FO_EXCL, (int) nAttr);
             if (nHandle != F_ERROR)
                 return nHandle;
         }

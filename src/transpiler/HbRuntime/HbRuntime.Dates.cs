@@ -322,10 +322,10 @@ public static partial class HbRuntime
 
     // hb_TToMSec( <tTimeStamp> ): milliseconds from the start of Julian day
     // 0 — the Julian day times 86400000 plus the time
-    public static decimal hb_TToMSec(dynamic tTimeStamp)
+    public static long hb_TToMSec(dynamic tTimeStamp)
     {
         var (lJulian, lMSec) = TimeStampParts((object)tTimeStamp);
-        return (decimal)lJulian * MilliSecsPerDay + lMSec;
+        return lJulian * MilliSecsPerDay + lMSec;
     }
 
     // hb_TSToUTC( <tLocalTime> ): the same instant in UTC, by the local
@@ -340,10 +340,10 @@ public static partial class HbRuntime
 
     // hb_MilliSeconds(): the UTC time in milliseconds from Julian day 0
     // (common/hbdate.c, hb_dateMilliSeconds) — for measuring intervals
-    public static decimal hb_MilliSeconds()
+    public static long hb_MilliSeconds()
     {
         DateTime t = DateTime.UtcNow;
-        return (decimal)Julian(DateOnly.FromDateTime(t)) * MilliSecsPerDay +
+        return Julian(DateOnly.FromDateTime(t)) * MilliSecsPerDay +
                t.TimeOfDay.Ticks / TimeSpan.TicksPerMillisecond;
     }
 
@@ -777,10 +777,10 @@ public static partial class HbRuntime
     // timestamp; for the empty date all four are 0 (hb_dateDecode of
     // Julian day 0), and CDoW() / CMonth() are ""
     static bool IsEmptyDate(object d) => AsDate(d) == default;
-    public static decimal Year(dynamic d) => IsEmptyDate((object)d) ? 0 : AsDT(d).Year;
-    public static decimal Month(dynamic d) => IsEmptyDate((object)d) ? 0 : AsDT(d).Month;
-    public static decimal Day(dynamic d) => IsEmptyDate((object)d) ? 0 : AsDT(d).Day;
-    public static decimal DoW(dynamic d) => IsEmptyDate((object)d) ? 0 : (decimal)((int)AsDT(d).DayOfWeek + 1);
+    public static long Year(dynamic d) => IsEmptyDate((object)d) ? 0 : AsDT(d).Year;
+    public static long Month(dynamic d) => IsEmptyDate((object)d) ? 0 : AsDT(d).Month;
+    public static long Day(dynamic d) => IsEmptyDate((object)d) ? 0 : AsDT(d).Day;
+    public static long DoW(dynamic d) => IsEmptyDate((object)d) ? 0 : (int)AsDT(d).DayOfWeek + 1;
     public static string CDoW(dynamic d) => IsEmptyDate((object)d) ? "" : AsDT(d).ToString("dddd", INV);
     public static string CMonth(dynamic d) => IsEmptyDate((object)d) ? "" : AsDT(d).ToString("MMMM", INV);
 }

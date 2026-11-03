@@ -18,7 +18,7 @@ public static partial class HbRuntime
 
     // hb_argc(): how many arguments follow the program's name. Harbour
     // counts its own //switches among them, and so does this.
-    public static decimal hb_argc() => Environment.GetCommandLineArgs().Length - 1;
+    public static long hb_argc() => Environment.GetCommandLineArgs().Length - 1;
 
     // hb_argv( [<n>] ): argument n, "" past the last. Argument 0 is the
     // program, as the full path GetModuleFileName() gives — where .NET's
@@ -43,7 +43,7 @@ public static partial class HbRuntime
     // hb_run( <cCommand> ): what the C runtime's system() does — the
     // command through %COMSPEC% /c, in this console — and its exit code;
     // -1 when it could not be started.
-    public static decimal hb_run(string cCommand)
+    public static long hb_run(string cCommand)
     {
         if (cCommand == null)
             throw new ArgumentException("Argument error (HB_RUN)");
@@ -59,7 +59,7 @@ public static partial class HbRuntime
     // command line straight to CreateProcess(), no shell, with this
     // process's standard handles; the exit code, or -1 when it could not be
     // started, with FError() set either way.
-    public static decimal hb_processRun(string cCommand)
+    public static long hb_processRun(string cCommand)
     {
         if (cCommand == null)
             throw new ArgumentException("Argument error (HB_PROCESSRUN)");
@@ -72,7 +72,7 @@ public static partial class HbRuntime
         return RunAndWait(psi);
     }
 
-    static decimal RunAndWait(System.Diagnostics.ProcessStartInfo psi)
+    static long RunAndWait(System.Diagnostics.ProcessStartInfo psi)
     {
         try
         {
@@ -116,9 +116,9 @@ public static partial class HbRuntime
     // Main returns it (easipos-transpiled host/).
     static int s_errorLevel;
 
-    public static decimal ErrorLevel() => s_errorLevel;
+    public static long ErrorLevel() => s_errorLevel;
 
-    public static decimal ErrorLevel(decimal nNew)
+    public static long ErrorLevel(decimal nNew)
     {
         int nPrev = s_errorLevel;
         s_errorLevel = (int) nNew;
@@ -195,7 +195,7 @@ public static partial class HbRuntime
     public static string ProcName(decimal nLevel = 0) => RoutineName(CallerFrame(nLevel));
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    public static decimal ProcLine(decimal nLevel = 0) => CallerFrame(nLevel)?.GetFileLineNumber() ?? 0;
+    public static long ProcLine(decimal nLevel = 0) => CallerFrame(nLevel)?.GetFileLineNumber() ?? 0;
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     public static string ProcFile(decimal nLevel = 0) => Path.GetFileName(CallerFrame(nLevel)?.GetFileName() ?? "");
