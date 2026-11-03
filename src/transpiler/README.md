@@ -1203,7 +1203,17 @@ fraction" so anything fractional flowing into one needs `Int()` or
   purpose. It is the list for EasiPOS's batched def migration
   (its plan E21); its first run also found a 2023 slip, the forex
   subtotal writing the rate into the free key's quantity. It is a
-  leaderboard, not a gate.
+  leaderboard, not a gate. ORM-WIDEN rows are ORM-NARROW's mirror: a
+  whole-number field (a numeric row with no decimals, `long` in C#,
+  `oPLUTable:nNo`) read into an `n` local that stays decimal and is given
+  only whole numbers, never passed by `@`, or passed to an `n` parameter
+  the reftab types NUMERIC; they are scripts/rename_locals.py's worklist.
+  Pass 5 (hb_astRefineBlock()) finds them, after Pass 2.5 has made the
+  locals it can `long`. The same pass records every write to a field
+  declared with decimals as DEC-FIELD-WRITE, with what it writes (whole,
+  constant, number, fraction, unknown); audit.py moves those rows out of
+  the leaderboard into notes/decimal-fields.tsv, a verdict per field: a
+  field the POS writes only whole numbers into is a candidate for N n,0.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.

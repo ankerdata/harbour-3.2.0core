@@ -377,6 +377,13 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 non-integral assignment or @by-ref pass (audit-only).\n"
 "#                 Fix: wrap the disqualifying expression with int(), or\n"
 "#                 accept decimal. Clean candidates emit as int silently.\n"
+"#   ORM-WIDEN     a whole-number ORM field (long in C#) read into an `n`\n"
+"#                 local that stays decimal and is given only whole numbers,\n"
+"#                 or passed to an `n` parameter typed NUMERIC. Fix: an `i`\n"
+"#                 name (scripts/rename_locals.py).\n"
+"#   DEC-FIELD-WRITE  a write to a field declared with decimals, and the kind\n"
+"#                 of value it writes; audit.py moves these rows to\n"
+"#                 decimal-fields.tsv, one verdict per field (plan E21).\n"
 "#\n"
 "# Categories (added by scripts/audit.sh from reftab.tab):\n"
 "#   REF-UNTYPED   a by-ref (@) parameter slot typed USUAL/dynamic — C# ref\n"
@@ -3864,6 +3871,9 @@ static void hb_astCheckOmittedDefault( const char * szKey, PHB_EXPR pArg,
    }
 }
 
+static void hb_astWidenArg( const char * szCallee, int iPos, PHB_EXPR pArg,
+                            HB_TYPEENV * pEnv, int iLine );
+
 static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                  HB_TYPEENV * pEnv, int iLine )
 {
@@ -3934,6 +3944,8 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
             functions; here we cover the typed-receiver method calls
             (oCalc:Adjust(@n) and the like) where statically resolving
             the class needs the type env. */
+         /* ORM-WIDEN: a whole-number field passed to an `n` parameter */
+         hb_astWidenArg( szCallee, iPos, pArg, pEnv, iLine );
          if( pArg->ExprType == HB_ET_VARREF ||
              pArg->ExprType == HB_ET_REFERENCE )
             hb_refTabMark( pEnv->pRefTab, szCallee, iPos );
@@ -4507,11 +4519,13 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine );
    is a value the scan types INTEGER: a variable, a member, a call, their
    arithmetic. */
 
-/* pExpr, or the expression inside an Int() around it, as an ORM field
-   whose map row has decimals: "Class:accessor" and "DBNAME N len,dec". */
-static HB_BOOL hb_astDecimalField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
-                                   char * szSym, HB_SIZE nSym,
-                                   char * szShape, HB_SIZE nShape )
+/* pExpr, or with fInt the expression inside an Int() around it, as an ORM
+   field the map has a row for: "Class:accessor", "DBNAME N len,dec", its
+   decimals and its C# type. */
+static HB_BOOL hb_astFieldRow( PHB_EXPR pExpr, HB_TYPEENV * pEnv, HB_BOOL fInt,
+                               char * szSym, HB_SIZE nSym,
+                               char * szShape, HB_SIZE nShape,
+                               int * piDec, const char ** pszCs )
 {
    const char * szClass;
    const char * szDb = NULL;
@@ -4520,7 +4534,7 @@ static HB_BOOL hb_astDecimalField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
    int          iDepth;
    HB_BOOL      fFound = HB_FALSE;
 
-   if( pExpr && pExpr->ExprType == HB_ET_FUNCALL &&
+   if( fInt && pExpr && pExpr->ExprType == HB_ET_FUNCALL &&
        pExpr->value.asFunCall.pFunName &&
        pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
        pExpr->value.asFunCall.pFunName->value.asSymbol.name &&
@@ -4546,7 +4560,7 @@ static HB_BOOL hb_astDecimalField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       }
       szClass = hb_fieldTypesClassParent( szClass );
    }
-   if( ! fFound || iDec <= 0 )
+   if( ! fFound )
       return HB_FALSE;
    {
       const char * szCanon = hb_fieldTypesClassCanon( szClass );
@@ -4554,7 +4568,70 @@ static HB_BOOL hb_astDecimalField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                    pExpr->value.asMessage.szMessage );
    }
    hb_snprintf( szShape, nShape, "%s N %d,%d", szDb ? szDb : "?", iLen, iDec );
+   if( piDec )
+      *piDec = iDec;
+   if( pszCs )
+      *pszCs = hb_fieldTypesMember( szClass, pExpr->value.asMessage.szMessage, NULL );
    return HB_TRUE;
+}
+
+/* pExpr, or the expression inside an Int() around it, as an ORM field
+   whose map row has decimals: "Class:accessor" and "DBNAME N len,dec". */
+static HB_BOOL hb_astDecimalField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                   char * szSym, HB_SIZE nSym,
+                                   char * szShape, HB_SIZE nShape )
+{
+   int iDec = 0;
+
+   return hb_astFieldRow( pExpr, pEnv, HB_TRUE, szSym, nSym, szShape, nShape,
+                          &iDec, NULL ) && iDec > 0;
+}
+
+/* pExpr as an ORM field that holds a whole number: a numeric row with no
+   decimals, long in C# (`oPLUTable:nNo`, PLUNO N 16,0). */
+static HB_BOOL hb_astWholeField( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                 char * szSym, HB_SIZE nSym,
+                                 char * szShape, HB_SIZE nShape )
+{
+   int          iDec = 0;
+   const char * szCs = NULL;
+
+   return hb_astFieldRow( pExpr, pEnv, HB_FALSE, szSym, nSym, szShape, nShape,
+                          &iDec, &szCs ) && iDec == 0 && szCs &&
+          ( strcmp( szCs, "long" ) == 0 || strcmp( szCs, "int" ) == 0 );
+}
+
+/* A whole number: what hb_astExprIsIntegral proves, a whole-number ORM
+   field, and their sums, differences and products */
+static HB_BOOL hb_astWholeValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                 const char * szSelf )
+{
+   char szSym[ 160 ];
+   char szShape[ 64 ];
+
+   if( ! pExpr )
+      return HB_FALSE;
+   if( hb_astWholeField( pExpr, pEnv, szSym, sizeof( szSym ),
+                         szShape, sizeof( szShape ) ) )
+      return HB_TRUE;
+   switch( pExpr->ExprType )
+   {
+      case HB_EO_PLUS:
+      case HB_EO_MINUS:
+      case HB_EO_MULT:
+         return hb_astWholeValue( pExpr->value.asOperator.pLeft, pEnv, szSelf ) &&
+                hb_astWholeValue( pExpr->value.asOperator.pRight, pEnv, szSelf );
+      case HB_EO_NEGATE:
+         return hb_astWholeValue( pExpr->value.asOperator.pLeft, pEnv, szSelf );
+      case HB_ET_LIST:   /* ( <expr> ) */
+         if( pExpr->value.asList.pExprList &&
+             ! pExpr->value.asList.pExprList->pNext )
+            return hb_astWholeValue( pExpr->value.asList.pExprList, pEnv, szSelf );
+         return HB_FALSE;
+      default:
+         break;
+   }
+   return hb_astExprIsIntegral( pExpr, pEnv, szSelf );
 }
 
 /* What a whole value is called in a row: a variable's name, `recv:member`
@@ -4730,6 +4807,230 @@ static void hb_astWholeDecimalReturn( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
    }
 }
 
+/* ---- ORM-WIDEN (audit only) ----
+   ORM-NARROW's mirror: a whole-number ORM field (`oPLUTable:nNo`, long in
+   C#) read into an `n` local that stays decimal, or passed to an `n`
+   parameter the reftab types NUMERIC. The rows are rename_locals.py's
+   worklist. A local is listed only when every write to it in the routine
+   is a whole number and it is never passed by @, so each rename goes
+   through; Pass 5 runs after Pass 2.5, so a local Pass 2.5 made long is
+   INTEGER already and stays out. */
+#define HB_WIDEN_MAX 256
+static struct
+{
+   const char * szName;
+   int          iLine;           /* its first read of a whole field, 0 for none */
+   char         szSym[ 160 ];
+   char         szShape[ 64 ];
+   HB_BOOL      fOther;          /* a write that may not be whole, or an @ */
+} s_aWiden[ HB_WIDEN_MAX ];
+static int s_iWiden = 0;
+
+/* The entry of an `n` variable, -1 for any other name */
+static int hb_astWidenSlot( const char * szName )
+{
+   const char * szPrefix;
+   int          i;
+
+   if( ! szName )
+      return -1;
+   szPrefix = hb_astInferFromPrefix( szName );
+   if( ! szPrefix || strcmp( szPrefix, "NUMERIC" ) != 0 )
+      return -1;
+   for( i = 0; i < s_iWiden; i++ )
+      if( hb_stricmp( s_aWiden[ i ].szName, szName ) == 0 )
+         return i;
+   if( s_iWiden >= HB_WIDEN_MAX )
+      return -1;
+   s_aWiden[ s_iWiden ].szName = szName;
+   s_aWiden[ s_iWiden ].iLine = 0;
+   s_aWiden[ s_iWiden ].szSym[ 0 ] = '\0';
+   s_aWiden[ s_iWiden ].szShape[ 0 ] = '\0';
+   s_aWiden[ s_iWiden ].fOther = HB_FALSE;
+   return s_iWiden++;
+}
+
+/* A write to a variable: `:=`, an initialiser or a FOR's start (iOp
+   HB_EO_ASSIGN), or a compound assignment */
+static void hb_astWidenWrite( const char * szName, PHB_EXPR pValue, int iOp,
+                              HB_TYPEENV * pEnv, int iLine )
+{
+   char szSym[ 160 ];
+   char szShape[ 64 ];
+   int  i;
+
+   if( ! hb_auditActive() || ( i = hb_astWidenSlot( szName ) ) < 0 )
+      return;
+   if( iOp == HB_EO_DIVEQ || iOp == HB_EO_MODEQ || iOp == HB_EO_EXPEQ )
+      s_aWiden[ i ].fOther = HB_TRUE;
+   else if( iOp == HB_EO_ASSIGN &&
+            hb_astWholeField( pValue, pEnv, szSym, sizeof( szSym ),
+                              szShape, sizeof( szShape ) ) )
+   {
+      if( ! s_aWiden[ i ].iLine )
+      {
+         s_aWiden[ i ].iLine = iLine;
+         hb_strncpy( s_aWiden[ i ].szSym, szSym, sizeof( s_aWiden[ i ].szSym ) - 1 );
+         hb_strncpy( s_aWiden[ i ].szShape, szShape, sizeof( s_aWiden[ i ].szShape ) - 1 );
+      }
+   }
+   else if( ! hb_astWholeValue( pValue, pEnv, szName ) )
+      s_aWiden[ i ].fOther = HB_TRUE;
+}
+
+/* A variable that may be given anything: passed by @, a FOR EACH
+   variable, a RECOVER USING one */
+static void hb_astWidenOther( const char * szName )
+{
+   int i;
+
+   if( hb_auditActive() && ( i = hb_astWidenSlot( szName ) ) >= 0 )
+      s_aWiden[ i ].fOther = HB_TRUE;
+}
+
+/* The routine's rows: its own LOCALs and STATICs, as rename_locals.py
+   renames within a routine */
+static void hb_astWidenEmit( PHB_AST_NODE pBody, HB_TYPEENV * pEnv )
+{
+   int i;
+
+   if( ! hb_auditActive() || ! pBody )
+      return;
+   for( i = 0; i < s_iWiden; i++ )
+   {
+      PHB_AST_NODE pDecl;
+      const char * szT;
+
+      if( ! s_aWiden[ i ].iLine || s_aWiden[ i ].fOther )
+         continue;
+      szT = hb_typeEnvGet( pEnv, s_aWiden[ i ].szName );
+      if( ! szT || strcmp( szT, "NUMERIC" ) != 0 )
+         continue;
+      for( pDecl = pBody->value.asBlock.pFirst; pDecl; pDecl = pDecl->pNext )
+         if( ( pDecl->type == HB_AST_LOCAL || pDecl->type == HB_AST_STATIC ) &&
+             pDecl->value.asVar.szName &&
+             hb_stricmp( pDecl->value.asVar.szName, s_aWiden[ i ].szName ) == 0 )
+         {
+            char szDetail[ 320 ];
+            hb_snprintf( szDetail, sizeof( szDetail ), "%s read into %s",
+                         s_aWiden[ i ].szShape, s_aWiden[ i ].szName );
+            hb_auditEmit( "ORM-WIDEN", pEnv->szFile, s_aWiden[ i ].iLine,
+                          s_aWiden[ i ].szSym, szDetail,
+                          "an i name (rename_locals.py)" );
+            break;
+         }
+   }
+}
+
+/* ORM-WIDEN for an argument: a whole-number field passed to an `n`
+   parameter the reftab types NUMERIC */
+static void hb_astWidenArg( const char * szCallee, int iPos, PHB_EXPR pArg,
+                            HB_TYPEENV * pEnv, int iLine )
+{
+   char                szSym[ 160 ];
+   char                szShape[ 64 ];
+   const HB_REFPARAM * pP;
+   const char *        szPrefix;
+
+   if( ! hb_auditActive() || ! pEnv->pRefTab ||
+       ! hb_astWholeField( pArg, pEnv, szSym, sizeof( szSym ),
+                           szShape, sizeof( szShape ) ) )
+      return;
+   pP = hb_refTabParam( pEnv->pRefTab, szCallee, iPos );
+   if( ! pP || ! pP->szName || pP->fConflict || ! pP->szType ||
+       strcmp( pP->szType, "NUMERIC" ) != 0 )
+      return;
+   szPrefix = hb_astInferFromPrefix( pP->szName );
+   if( szPrefix && strcmp( szPrefix, "NUMERIC" ) == 0 )
+   {
+      char szParam[ 192 ];
+      char szDetail[ 320 ];
+      hb_snprintf( szParam, sizeof( szParam ), "%s:%s", szCallee, pP->szName );
+      hb_snprintf( szDetail, sizeof( szDetail ), "%s (%s) passed to %s",
+                   szShape, szSym, pP->szName );
+      hb_auditEmit( "ORM-WIDEN", pEnv->szFile, iLine, szParam, szDetail,
+                    "an i parameter, with its callers' locals" );
+   }
+}
+
+/* A numeric literal, or its negation, with a fraction: 0.5, not 0.00 */
+static HB_BOOL hb_astConstantHasFraction( PHB_EXPR pExpr )
+{
+   if( pExpr->ExprType == HB_EO_NEGATE )
+      pExpr = pExpr->value.asOperator.pLeft;
+   return pExpr && pExpr->ExprType == HB_ET_NUMERIC &&
+          pExpr->value.asNum.NumType != HB_ET_LONG &&
+          pExpr->value.asNum.val.d != ( double ) ( HB_MAXINT ) pExpr->value.asNum.val.d;
+}
+
+/* ---- DEC-FIELD-WRITE (audit only; audit.py moves the rows out) ----
+   Every write to an ORM field declared with decimals, with the kind of
+   value it writes: whole (a whole number the scan proves), constant (a
+   literal with no fraction, a reset), fraction (a division, a power, a
+   literal with one, a field with decimals, /= %= ^=), number (a number
+   the scan cannot prove either way: an `n` variable, Round()) or unknown.
+   audit.py turns them into notes/decimal-fields.tsv, a row per field: one
+   the POS writes only whole numbers into is a candidate for N n,0 (plan
+   E21). */
+static void hb_astDecFieldWrite( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
+{
+   PHB_EXPR     pLhs = pExpr->value.asOperator.pLeft;
+   PHB_EXPR     pValue = pExpr->value.asOperator.pRight;
+   char         szSym[ 160 ];
+   char         szShape[ 64 ];
+   char         szOther[ 160 ];
+   char         szOtherShape[ 64 ];
+   char         szFrom[ 160 ];
+   char         szDetail[ 400 ];
+   const char * szKind;
+   int          iDec = 0;
+   int          iOtherDec = 0;
+
+   if( ! hb_auditActive() || ! pLhs || ! pValue || pLhs->ExprType != HB_ET_SEND ||
+       ! hb_astFieldRow( pLhs, pEnv, HB_FALSE, szSym, sizeof( szSym ),
+                         szShape, sizeof( szShape ), &iDec, NULL ) || iDec <= 0 )
+      return;
+   /* `oT:nX := oT:nX + v`: what is added */
+   if( pExpr->ExprType == HB_EO_ASSIGN &&
+       ( pValue->ExprType == HB_EO_PLUS || pValue->ExprType == HB_EO_MINUS ) )
+   {
+      if( hb_astSameSend( pValue->value.asOperator.pLeft, pLhs ) )
+         pValue = pValue->value.asOperator.pRight;
+      else if( pValue->ExprType == HB_EO_PLUS &&
+               hb_astSameSend( pValue->value.asOperator.pRight, pLhs ) )
+         pValue = pValue->value.asOperator.pLeft;
+   }
+   if( ! pValue )
+      return;
+   if( pExpr->ExprType == HB_EO_DIVEQ || pExpr->ExprType == HB_EO_MODEQ ||
+       pExpr->ExprType == HB_EO_EXPEQ )
+      szKind = "fraction";
+   else if( hb_astNumericConstant( pValue ) )
+      szKind = hb_astConstantHasFraction( pValue ) ? "fraction" : "constant";
+   else if( hb_astMayHoldFraction( pValue ) ||
+            ( hb_astFieldRow( pValue, pEnv, HB_FALSE, szOther, sizeof( szOther ),
+                              szOtherShape, sizeof( szOtherShape ), &iOtherDec, NULL ) &&
+              iOtherDec > 0 ) )
+      szKind = "fraction";
+   else if( hb_astWholeValue( pValue, pEnv, NULL ) )
+      szKind = "whole";
+   else
+   {
+      const char * szT = hb_astInferExprType( pValue, pEnv );
+      szKind = ! szT ? "unknown"
+             : strcmp( szT, "INTEGER" ) == 0 ? "whole"
+             : strcmp( szT, "NUMERIC" ) == 0 ? "number" : "unknown";
+   }
+   if( pValue->ExprType == HB_ET_VARIABLE || pValue->ExprType == HB_ET_SEND ||
+       pValue->ExprType == HB_ET_FUNCALL )
+      hb_astWholeLabel( pValue, szFrom, sizeof( szFrom ) );
+   else
+      hb_strncpy( szFrom, hb_astNumericConstant( pValue ) ? "a literal" : "an expression",
+                  sizeof( szFrom ) - 1 );
+   hb_snprintf( szDetail, sizeof( szDetail ), "%s; %s; %s", szShape, szKind, szFrom );
+   hb_auditEmit( "DEC-FIELD-WRITE", pEnv->szFile, iLine, szSym, szDetail, "" );
+}
+
 static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
 {
    PHB_AST_NODE pStmt;
@@ -4773,15 +5074,31 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
             hb_astRefineBlock( pStmt->value.asWhile.pBody, pEnv );
             break;
          case HB_AST_FOR:
+            if( pStmt->value.asFor.szVar )
+            {
+               hb_astWidenWrite( pStmt->value.asFor.szVar, pStmt->value.asFor.pStart,
+                                 HB_EO_ASSIGN, pEnv, iLine );
+               if( pStmt->value.asFor.pStep )
+                  hb_astWidenWrite( pStmt->value.asFor.szVar, pStmt->value.asFor.pStep,
+                                    HB_EO_PLUSEQ, pEnv, iLine );
+            }
             hb_astRefineExpr( pStmt->value.asFor.pStart, pEnv, iLine );
             hb_astRefineExpr( pStmt->value.asFor.pEnd,   pEnv, iLine );
             hb_astRefineExpr( pStmt->value.asFor.pStep,  pEnv, iLine );
             hb_astRefineBlock( pStmt->value.asFor.pBody, pEnv );
             break;
          case HB_AST_FOREACH:
+         {
+            PHB_EXPR pVar = pStmt->value.asForEach.pVar;
+            if( pVar && ( pVar->ExprType == HB_ET_ARGLIST || pVar->ExprType == HB_ET_LIST ) )
+               pVar = pVar->value.asList.pExprList && ! pVar->value.asList.pExprList->pNext ?
+                      pVar->value.asList.pExprList : NULL;
+            if( pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) )
+               hb_astWidenOther( pVar->value.asSymbol.name );
             hb_astRefineExpr( pStmt->value.asForEach.pEnum, pEnv, iLine );
             hb_astRefineBlock( pStmt->value.asForEach.pBody, pEnv );
             break;
+         }
          case HB_AST_DOCASE:
          {
             PHB_AST_NODE p = pStmt->value.asDoCase.pCases;
@@ -4808,6 +5125,7 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
             break;
          }
          case HB_AST_BEGINSEQ:
+            hb_astWidenOther( pStmt->value.asSeq.szRecoverVar );
             hb_astRefineBlock( pStmt->value.asSeq.pBody, pEnv );
             hb_astRefineBlock( pStmt->value.asSeq.pRecover, pEnv );
             hb_astRefineBlock( pStmt->value.asSeq.pAlways, pEnv );
@@ -4824,8 +5142,13 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
          case HB_AST_PUBLIC:
          case HB_AST_PRIVATE:
             if( pStmt->type == HB_AST_LOCAL || pStmt->type == HB_AST_STATIC )
+            {
                hb_astWholeDecimalInit( pStmt->value.asVar.szName,
                                        pStmt->value.asVar.pInit, pEnv, iLine );
+               if( pStmt->value.asVar.pInit && ! pStmt->value.asVar.fArrayDim )
+                  hb_astWidenWrite( pStmt->value.asVar.szName, pStmt->value.asVar.pInit,
+                                    HB_EO_ASSIGN, pEnv, iLine );
+            }
             hb_astRefineExpr( pStmt->value.asVar.pInit, pEnv, iLine );
             break;
          default:
@@ -5093,6 +5416,10 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          hb_astRefineExpr( pExpr->value.asList.pIndex,    pEnv, iLine );
          break;
 
+      case HB_ET_VARREF:   /* @var: the callee may write anything into it */
+         hb_astWidenOther( pExpr->value.asSymbol.name );
+         break;
+
       case HB_EO_ASSIGN:
       case HB_EO_PLUSEQ:
       case HB_EO_MINUSEQ:
@@ -5105,6 +5432,14 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          hb_astOrmAssignCheck( pExpr, pEnv, iLine );
          /* WHOLE-IN-DECIMAL: a decimal field meeting a whole number */
          hb_astWholeDecimalAssign( pExpr, pEnv, iLine );
+         /* DEC-FIELD-WRITE: every write to a field with decimals */
+         hb_astDecFieldWrite( pExpr, pEnv, iLine );
+         /* ORM-WIDEN: what an `n` variable is given */
+         if( pExpr->value.asOperator.pLeft &&
+             pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+            hb_astWidenWrite( pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                              pExpr->value.asOperator.pRight, pExpr->ExprType,
+                              pEnv, iLine );
          /* MEMBER-TYPE evidence, both directions:
               ::member  := oOrm:field   (member takes the field's type)
               oOrm:field := ::member    (member feeds a typed field) */
@@ -6500,7 +6835,11 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       table get this skipped and behave as before). */
    env.szDeclRet = szDeclRet;
    if( env.pRefTab )
+   {
+      s_iWiden = 0;
       hb_astRefineBlock( pBody, &env );
+      hb_astWidenEmit( pBody, &env );
+   }
 
    {
       const char * szResult;
