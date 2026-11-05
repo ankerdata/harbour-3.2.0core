@@ -101,12 +101,12 @@ public static partial class HbSqlit3
     }
 
     // sqlite3_get_table( <pDb>, <cSQL> ): { { <column names> }, { <row> }, ... },
-    // every value text ("" for NULL); {} when the statement fails. Harbour
-    // arrays are List<dynamic> in C#.
-    public static List<dynamic> sqlite3_get_table(object? pDb, object? cSQL)
+    // every value text ("" for NULL); {} when the statement fails. A table
+    // of text, declared AS ARRAY OF ARRAY OF CHARACTER: List<List<string>>.
+    public static List<List<string>> sqlite3_get_table(object? pDb, object? cSQL)
     {
         IntPtr db = Db(pDb, "SQLITE3_GET_TABLE");
-        var aResult = new List<dynamic>();
+        var aResult = new List<List<string>>();
         int rc = Native.sqlite3_get_table(db, ToUtf8(cSQL as string ?? ""), out IntPtr pResult,
                                           out int nRow, out int nCol, out IntPtr pErr);
         if (rc == SQLITE_OK)
@@ -114,7 +114,7 @@ public static partial class HbSqlit3
             int k = 0;
             for (int i = 0; i < nRow + 1; i++)
             {
-                var aRow = new List<dynamic>(nCol);
+                var aRow = new List<string>(nCol);
                 for (int j = 0; j < nCol; j++, k++)
                     aRow.Add(FromUtf8(Marshal.ReadIntPtr(pResult, k * IntPtr.Size), -1));
                 aResult.Add(aRow);

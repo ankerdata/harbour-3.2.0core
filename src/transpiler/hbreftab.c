@@ -909,12 +909,12 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       return HB_REFINE_REFINED;
    }
 
-   /* An `a` slot, ARRAY by its prefix, given a record or a FIXED array
-      (plan C12): an array to Harbour and to the name, the class or the C#
-      array to C#, which the slot takes as an `a` local does
-      (hb_astPropagateVarAs). */
+   /* An `a` slot, ARRAY by its prefix, given a record, a FIXED array or a
+      typed list (plan C12): an array to Harbour and to the name, the class,
+      the C# array or the List<string> to C#, which the slot takes as an `a`
+      local does (hb_astPropagateVarAs). */
    if( hb_stricmp( pParam->szType, "ARRAY" ) == 0 &&
-       ( hb_astIsFixedType( szNewType ) || hb_refTabIsRecord( pTab, szNewType ) ) )
+       ( hb_astIsTypedStorage( szNewType ) || hb_refTabIsRecord( pTab, szNewType ) ) )
    {
       char * szDup = hb_refTabDup( szNewType );
       hb_refTabDefer( pTab, pParam->szType );
@@ -922,8 +922,8 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       return HB_REFINE_REFINED;
    }
 
-   /* The other way round, a plain ARRAY arriving at a record or FIXED
-      slot, is the weak form of what the slot holds, as OBJECT is of a
+   /* The other way round, a plain ARRAY arriving at a record, FIXED or
+      typed list slot, is the weak form of what the slot holds, as OBJECT is of a
       class and HASH of HASHC: the slot stays, no conflict. The scan
       converges a hop per pass -- OpenDefinition's slot takes FileDef from
       ConstructORMTable's only once that slot has it -- so the hop behind
@@ -933,7 +933,7 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       the C# build's CS1503 at the call, pointing at the holder to
       declare, which dynamic would have hidden. */
    if( hb_stricmp( szNewType, "ARRAY" ) == 0 && pParam->szType &&
-       ( hb_astIsFixedType( pParam->szType ) || hb_refTabIsRecord( pTab, pParam->szType ) ) )
+       ( hb_astIsTypedStorage( pParam->szType ) || hb_refTabIsRecord( pTab, pParam->szType ) ) )
       return HB_REFINE_OK;
 
    /* A class the reftab does not know yet, arriving at an `a` slot, may

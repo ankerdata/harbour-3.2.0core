@@ -74,7 +74,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var oCrate = new Crate136();
-        var aNames = new List<dynamic>();
+        var aNames = new List<string>();
 
         oCrate.Add(new Gizmo136().New("bolt", 3));
         oCrate.Add(new Gizmo136().New("beam", 9));
@@ -120,9 +120,9 @@ public static partial class Program
         return oBest;
     }
 
-    public static List<dynamic> test136_Names136(List<dynamic> aList = default)
+    public static List<string> test136_Names136(List<dynamic> aList = default)
     {
-        var aOut = new List<dynamic>();
+        var aOut = new List<string>();
         for (long iPos = 1; iPos <= Len(aList); iPos++)
         {
             AAdd(aOut, ((Gizmo136)aList[I(iPos)]).cName);

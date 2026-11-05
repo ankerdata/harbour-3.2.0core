@@ -107,7 +107,7 @@ FUNCTION Biggest136( aList AS ARRAY OF CLASS Gizmo136 ) AS CLASS Gizmo136
    RETURN oBest
 
 STATIC FUNCTION Names136( aList AS ARRAY OF CLASS Gizmo136 ) AS ARRAY OF CHARACTER
-   LOCAL aOut := {}
+   LOCAL aOut AS ARRAY OF CHARACTER := {}
    LOCAL iPos
    FOR iPos := 1 TO Len( aList )
       AAdd( aOut, aList[ iPos ]:cName )

@@ -2963,6 +2963,17 @@ static const char * hb_csTypeMap( const char * szHbType )
                    hb_csTypeMap( hb_astArrayElemType( szHbType ) ) );
       return szBuf;
    }
+   if( hb_astIsTypedList( szHbType ) )
+   {
+      /* an array of strings, or of such arrays (plan C12): List<string>,
+         List<List<string>>, grown in place as any other array is */
+      static char s_aList[ 4 ][ 160 ];
+      static int  s_iList = 0;
+      char * szBuf = s_aList[ s_iList++ & 3 ];
+      hb_snprintf( szBuf, sizeof( s_aList[ 0 ] ), "List<%s>",
+                   hb_csTypeMap( hb_astArrayElemType( szHbType ) ) );
+      return szBuf;
+   }
    if( hb_astIsArrayType( szHbType ) )
       /* ARRAY, and ARRAY<T> (a declared element type, which only types
          the reads: hb_csExprElemType). One object every holder shares, grown in place by AAdd() and
@@ -6086,19 +6097,22 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                fprintf( yyc, ")" );
                break;
             }
-            /* a declared array's literal is a C# array when FIXED, each
-               element under the element type (a record's literal is its
-               constructor); any other a List */
+            /* a declared array's literal is a C# array when FIXED, a
+               List<string> when a typed list, each element under the
+               element type (a record's literal is its constructor); any
+               other a List<dynamic> */
             if( ! pItem )
             {
                /* an empty literal: the type's empty instance */
                if( szElem && hb_astIsFixedType( szExpect ) )
                   fprintf( yyc, "System.Array.Empty<%s>()", hb_csTypeMap( szElem ) );
+               else if( hb_astIsTypedList( szExpect ) )
+                  fprintf( yyc, "new %s()", hb_csTypeMap( szExpect ) );
                else
                   fprintf( yyc, "new List<dynamic>()" );
                break;
             }
-            if( szElem && hb_astIsFixedType( szExpect ) )
+            if( szElem && ( hb_astIsFixedType( szExpect ) || hb_astIsTypedList( szExpect ) ) )
                fprintf( yyc, "new %s", hb_csTypeMap( szExpect ) );
             else
                fprintf( yyc, "new List<dynamic>" );
@@ -11081,6 +11095,23 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
             const char * szInitCs =
                hb_csTranslateInit( pMember->value.asClassData.szInit );
             HB_BOOL fIntCast = HB_FALSE;
+            char szEmpty[ 200 ];
+            /* `INIT {}` on a typed list or a FIXED array: the type's empty
+               instance, as a local's empty literal is (plan C12) */
+            if( szType && strcmp( szInitCs, "new List<dynamic>()" ) == 0 )
+            {
+               if( hb_astIsTypedList( szType ) )
+               {
+                  hb_snprintf( szEmpty, sizeof( szEmpty ), "new %s()", hb_csTypeMap( szType ) );
+                  szInitCs = szEmpty;
+               }
+               else if( hb_astIsFixedType( szType ) )
+               {
+                  hb_snprintf( szEmpty, sizeof( szEmpty ), "System.Array.Empty<%s>()",
+                               hb_csTypeMap( hb_astArrayElemType( szType ) ) );
+                  szInitCs = szEmpty;
+               }
+            }
             if( szType && hb_stricmp( hb_csTypeMap( szType ), "long" ) == 0 )
             {
                const char * q = szInitCs;

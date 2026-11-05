@@ -566,6 +566,28 @@ HB_BOOL hb_astIsFixedType( const char * szType )
    return szType && hb_strnicmp( szType, "FIXED<", 6 ) == 0;
 }
 
+/* ARRAY<STRING>, or ARRAY<T> of such a T: a C# List<string> or a List of
+   those, so the C# checks what is put in and read out (plan C12). NIL in
+   one is null. */
+HB_BOOL hb_astIsTypedList( const char * szType )
+{
+   const char * szElem;
+   if( ! szType || hb_strnicmp( szType, "ARRAY<", 6 ) != 0 )
+      return HB_FALSE;
+   szElem = hb_astArrayElemType( szType );
+   return szElem && ( hb_stricmp( szElem, "STRING" ) == 0 ||
+                      hb_stricmp( szElem, "CHARACTER" ) == 0 ||
+                      hb_astIsTypedList( szElem ) );
+}
+
+/* An array whose C# type is its own (a T[], a List<string>), not the
+   List<dynamic> every other array shares: it stays itself wherever it
+   goes, as a record does */
+HB_BOOL hb_astIsTypedStorage( const char * szType )
+{
+   return hb_astIsFixedType( szType ) || hb_astIsTypedList( szType );
+}
+
 /* One copy of each type string built here, for the life of the run. */
 static const char * hb_astIntern( const char * szText, HB_SIZE nLen )
 {
@@ -602,12 +624,13 @@ const char * hb_astArrayElemType( const char * szType )
    return hb_astIntern( szType + 6, nLen - 7 );
 }
 
-/* An ARRAY<T> going somewhere undeclared is an ARRAY. A FIXED<T> stays
-   one, as a record stays itself: a C# array or a record class is what the
-   value is, wherever it goes (plan C12). */
+/* An ARRAY<T> going somewhere undeclared is an ARRAY. A FIXED<T> or a
+   typed list stays one, as a record stays itself: a C# array, a
+   List<string> or a record class is what the value is, wherever it goes
+   (plan C12). */
 static const char * hb_astUndeclared( const char * szType )
 {
-   return hb_astArrayElemType( szType ) && ! hb_astIsFixedType( szType ) ?
+   return hb_astArrayElemType( szType ) && ! hb_astIsTypedStorage( szType ) ?
           "ARRAY" : szType;
 }
 
@@ -1982,9 +2005,11 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
        hb_stricmp( szActual, "OBJECT" ) == 0 || hb_stricmp( szActual, "NIL" ) == 0 ||
        hb_stricmp( szDecl, szActual ) == 0 )
       return HB_TRUE;
-   /* a FIXED array is a C# array, any other array a List: neither takes
-      the other (a literal is checked element by element before this) */
-   if( hb_astIsFixedType( szDecl ) != hb_astIsFixedType( szActual ) &&
+   /* a FIXED array is a C# array, a typed list a List<string>, any other
+      array a List<dynamic>: none takes another (a literal is checked
+      element by element before this) */
+   if( ( hb_astIsFixedType( szDecl ) != hb_astIsFixedType( szActual ) ||
+         hb_astIsTypedList( szDecl ) != hb_astIsTypedList( szActual ) ) &&
        ( hb_astIsArrayType( szDecl ) || hb_astIsArrayType( szActual ) ) )
       return HB_FALSE;
    if( ( szDeclElem = hb_astArrayElemType( szDecl ) ) != NULL )
@@ -2226,19 +2251,20 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
             *pfChanged = HB_TRUE;
       }
    }
-   /* An `a` name (ARRAY by its prefix) given a record or a FIXED array
-      (plan C12) is one: an array to Harbour and the name, a class or a C#
-      array to C#, which must declare it so (`TableDef aDef = PluDef()`).
-      A plain array given to it afterwards leaves it dynamic. */
+   /* An `a` name (ARRAY by its prefix) given a record, a FIXED array or a
+      typed list (plan C12) is one: an array to Harbour and the name, a
+      class, a C# array or a List<string> to C#, which must declare it so
+      (`TableDef aDef = PluDef()`). A plain array given to it afterwards
+      leaves it dynamic. */
    else if( strcmp( szCurType, "ARRAY" ) == 0 && s_pPropRefTab )
    {
       const char * szNewType = hb_astRhsType( pRHS, szGiven, pEnv );
-      if( szNewType && ( hb_astIsFixedType( szNewType ) ||
+      if( szNewType && ( hb_astIsTypedStorage( szNewType ) ||
                          hb_astIsRecordType( s_pPropRefTab, szNewType ) ) &&
           hb_typeEnvSet( pEnv, szVarName, szNewType ) )
          *pfChanged = HB_TRUE;
    }
-   else if( s_pPropRefTab && ( hb_astIsFixedType( szCurType ) ||
+   else if( s_pPropRefTab && ( hb_astIsTypedStorage( szCurType ) ||
                                hb_astHashValueType( szCurType ) ||
                                hb_astIsRecordType( s_pPropRefTab, szCurType ) ) )
    {
@@ -6988,10 +7014,11 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                   szPropType && strcmp( szPropType, "HASH" ) != 0 &&
                   hb_astIsHashFamily( szPropType ) )
             fOverride = HB_TRUE;
-         /* An `a` name holding a record or a FIXED array (plan C12): the
-            class or the C# array the value is, from an assignment. */
+         /* An `a` name holding a record, a FIXED array or a typed list
+            (plan C12): the class, the C# array or the List<string> the
+            value is, from an assignment. */
          else if( strcmp( szCurType, "ARRAY" ) == 0 && szPropType &&
-                  ( hb_astIsFixedType( szPropType ) ||
+                  ( hb_astIsTypedStorage( szPropType ) ||
                     hb_astIsRecordType( pRefTab, szPropType ) ) )
             fOverride = HB_TRUE;
          /* NUMERIC upgraded to INTEGER by Pass 2.5 index candidacy. */

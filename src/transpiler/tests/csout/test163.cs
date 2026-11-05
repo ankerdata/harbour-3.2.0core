@@ -33,11 +33,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var oOrder163 = new Order163();
-        var aTable = new List<dynamic>
+        var aTable = new List<List<string>>
         {
-            new List<dynamic> { "nId", "cName" },
-            new List<dynamic> { "7", "seven" },
-            new List<dynamic> { "9", "nine" }
+            new List<string> { "nId", "cName" },
+            new List<string> { "7", "seven" },
+            new List<string> { "9", "nine" }
         };
         var aFixed = new long[] { 3, 4 };
 
@@ -58,9 +58,9 @@ public static partial class Program
         return iSum;
     }
 
-    public static string Name163(List<dynamic> aRows = default, long iRow = default)
+    public static string Name163(List<List<string>> aRows = default, long iRow = default)
     {
-        List<dynamic> aRow = aRows[I(iRow)];
+        List<string> aRow = aRows[I(iRow)];
 
         return aRow[I(2)] + "/" + aRows[I(iRow)][I(1)];
     }
