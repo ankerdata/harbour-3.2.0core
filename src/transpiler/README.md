@@ -1051,7 +1051,13 @@ strongest. Later rungs override earlier ones.
    out. NIL in a `List<string>` is null; a `List<long>` cannot hold it, so
    a decimal put into one (AAdd() binds at run time, where it would throw)
    and a call that may leave NIL in one (ASize(), ADel(), AIns(), hb_ADel()
-   without lAutoSize `.T.`, hb_AIns() without a value and `.T.`) are W0041. Like a FIXED array, a typed list is what the
+   without lAutoSize `.T.`, hb_AIns() without a value and `.T.`) are W0041.
+   These writes are checked again after inference, for an undeclared local
+   the scan made a typed list (a StrToArr() result assigned to it), since
+   the declaration check runs before it. A local given a typed list, a
+   FIXED array or a record and another value is `dynamic`, frozen there
+   (hb_typeEnvFreezeMixed()): the C# list types take neither, and
+   unfrozen the two writes flipped its type for ever (test164). Like a FIXED array, a typed list is what the
    value is wherever it goes: an undeclared `a` local or `a` parameter
    given one becomes one (a later plain array leaves it dynamic), as does
    an undeclared function returning one; its literals are typed (`new
@@ -1864,7 +1870,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 161       | A LOCAL is declared in the innermost block that holds all its uses, before the first: a constant-initialised one first read in a branch, one first assigned there (one statement, `var` for a `new`), one first assigned in a loop's body, one used in both branches of an inner IF, a counter used only by its loop (in the header), FOR EACH variables (the foreach's own, or declared from the element), a RECOVER USING variable, one at the routine's own level (joined), one in a routine reading `MEMVAR->x`. At the top: one a loop reads before assigning, one a codeblock made in a loop uses, one initialised by a call, a counter read after its loop |
 | 162       | HbRuntime's whole-number functions return long: an `i` name takes one uncast, an index local AScan() fills is long (Pass 2.5 reads hbfuncs.tab's INTEGER), `/` of two keeps the fraction, and `+` of two whole numbers is whole, of one and a literal a number, of a date and one a date |
 | 163       | `AS ARRAY OF INTEGER` and `AS ARRAY OF ARRAY OF CHARACTER` on a member, a local, a parameter and a FIXED array: a `List<long>` (a FIXED one a `long[]`), its element a long; a row an array of strings, a value a string |
-| 164       | Typed lists: an array of strings and an array of those are `List<string>` / `List<List<string>>` (a member with `INIT {}`, a method's and a function's declared return, an empty and a nested literal); an undeclared `a` local, `a` parameter and function given one become one; AAdd() and FOR EACH over one; AClone() of one is a copy of the same type, its rows copied too |
+| 164       | Typed lists: an array of strings and an array of those are `List<string>` / `List<List<string>>` (a member with `INIT {}`, a method's and a function's declared return, an empty and a nested literal); an undeclared `a` local, `a` parameter and function given one become one; AAdd() and FOR EACH over one; AClone() of one is a copy of the same type, its rows copied too; a local given a typed list in one branch and a plain array in the other is `dynamic` |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
@@ -1922,7 +1928,7 @@ the errors, where the file fails and the test asserts the error line:
 | `x_subscript.prg`             | `W0036` | An `x` name subscripted by a number; the same value through an `a` name, and by a string, quiet |
 | `fixed_record.prg`            | `W0041` `W0046` | A record's literal by count and field, a string into an integer field, a plain array into a record or a FIXED array, a FIXED array grown or cut; a record read by a variable or an out-of-range subscript, given to Len(), walked by FOR EACH; the quiet lines quiet |
 | `typed_hash.prg`              | `W0041` `W0035` | A value of another type into `AS HASH OF RECORD X`, a plain hash into a typed one; a key of the other kind, a literal keyed the other way, a declaration whose key kind contradicts the name; the quiet lines quiet |
-| `typed_list.prg`              | `W0041`         | A number into a list of strings, by literal and by AAdd(); a plain array into a typed list and into a list of lists; a decimal into a `List<long>`, ASize() and ADel() on one (hb_ADel/hb_AIns with `.T.` quiet); the quiet lines quiet |
+| `typed_list.prg`              | `W0041`         | A number into a list of strings, by literal and by AAdd(); a plain array into a typed list and into a list of lists; a decimal into a `List<long>`, ASize() and ADel() on one (hb_ADel/hb_AIns with `.T.` quiet); a number into a local inference made a `List<string>`; the quiet lines quiet |
 | `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |

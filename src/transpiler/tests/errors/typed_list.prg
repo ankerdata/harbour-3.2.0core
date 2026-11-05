@@ -22,3 +22,18 @@ FUNCTION Use41i( nValue )
    hb_AIns( aIds, 1, 7, .T. )                       // quiet
    ADel( aIds, 1 )                                  // fires W0041: NIL left at the end
 RETURN Len( aIds )
+
+// An undeclared local inference makes a typed list (a declared function's
+// result, assigned after the declaration) is one in C#: a number put into
+// it is W0041 too
+FUNCTION Use41k( cText )
+   LOCAL aParts
+   aParts := Split41k( cText )                      // quiet: a List<string>
+   AAdd( aParts, "tail" )                           // quiet
+   aParts[ 1 ] := Val( aParts[ 1 ] )                // fires W0041: a number into a List<string>
+RETURN Len( aParts )
+
+FUNCTION Split41k( cText ) AS ARRAY OF CHARACTER
+   LOCAL aOut AS ARRAY OF CHARACTER := {}
+   AAdd( aOut, cText )
+RETURN aOut

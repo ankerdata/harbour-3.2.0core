@@ -51,6 +51,7 @@ public static partial class Program
         AAdd(aNames, "first");
         aNames = Names164(aNames);
         QOut(Len(aNames), aNames[I(2)]);
+        QOut(Mixed164(true), Mixed164(false));
     }
 
     public static List<List<string>> Rows164(bool lAny = default)
@@ -82,5 +83,23 @@ public static partial class Program
         AAdd(aList, "second");
 
         return aList;
+
+        // a local given a typed list in one place and a plain array in another is
+        // dynamic, and stays so
+    }
+    public static long Mixed164(bool lRows = default)
+    {
+        dynamic aLines;
+
+        if (lRows)
+        {
+            aLines = Rows164(true);
+        }
+        else
+        {
+            aLines = new List<dynamic> { 1, 2, 3 };
+        }
+
+        return Len(aLines);
     }
 }

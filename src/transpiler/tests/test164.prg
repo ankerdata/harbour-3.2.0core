@@ -51,6 +51,7 @@ PROCEDURE Main()
    AAdd( aNames, "first" )
    aNames := Names164( aNames )
    ? Len( aNames ), aNames[ 2 ]
+   ? Mixed164( .T. ), Mixed164( .F. )
 
    RETURN
 
@@ -75,3 +76,17 @@ FUNCTION Names164( aList )
    AAdd( aList, "second" )
 
 RETURN aList
+
+// a local given a typed list in one place and a plain array in another is
+// dynamic, and stays so
+FUNCTION Mixed164( lRows )
+
+   LOCAL aLines
+
+   IF lRows
+      aLines := Rows164( .T. )
+   ELSE
+      aLines := { 1, 2, 3 }
+   ENDIF
+
+RETURN Len( aLines )

@@ -1247,6 +1247,9 @@ typedef struct
    HB_BOOL      fFrozen;   /* conflict-widened — refuse re-refinement */
    HB_BOOL      fDeclared; /* `AS CLASS X` / `AS ARRAY OF …`: the declaration's
                               type, which nothing changes (hb_typeEnvDeclare) */
+   HB_BOOL      fMixed;    /* a record, FIXED array or typed list and another
+                              value: frozen USUAL, `dynamic` in C# whatever
+                              the name's prefix (hb_typeEnvFreezeMixed) */
 } HB_TYPEENV_ENTRY;
 
 typedef struct
@@ -1374,6 +1377,7 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
       pEnv->entries[ pEnv->count ].szType = szType;
       pEnv->entries[ pEnv->count ].fFrozen = HB_FALSE;
       pEnv->entries[ pEnv->count ].fDeclared = HB_FALSE;
+      pEnv->entries[ pEnv->count ].fMixed = HB_FALSE;
       pEnv->count++;
       return HB_TRUE;
    }
@@ -1419,6 +1423,32 @@ static HB_BOOL hb_typeEnvFreeze( HB_TYPEENV * pEnv, const char * szName,
       pEnv->entries[ pEnv->count - 1 ].fFrozen = HB_TRUE;
       return HB_TRUE;
    }
+   return HB_FALSE;
+}
+
+/* szName held a record, a FIXED array or a typed list, each a C# type of
+   its own, and then another value: frozen USUAL, and declared `dynamic`
+   in C# (Pass 3) where an `a` name would otherwise keep its List<dynamic>,
+   which takes neither */
+static HB_BOOL hb_typeEnvFreezeMixed( HB_TYPEENV * pEnv, const char * szName )
+{
+   HB_BOOL fChanged = hb_typeEnvFreeze( pEnv, szName, "USUAL" );
+   int     i;
+
+   for( i = 0; i < pEnv->count; i++ )
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 &&
+          ! pEnv->entries[ i ].fDeclared )
+         pEnv->entries[ i ].fMixed = HB_TRUE;
+   return fChanged;
+}
+
+static HB_BOOL hb_typeEnvMixed( HB_TYPEENV * pEnv, const char * szName )
+{
+   int i;
+
+   for( i = 0; i < pEnv->count; i++ )
+      if( hb_stricmp( pEnv->entries[ i ].szName, szName ) == 0 )
+         return pEnv->entries[ i ].fMixed;
    return HB_FALSE;
 }
 
@@ -2291,6 +2321,10 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
           hb_typeEnvSet( pEnv, szVarName, szNewType ) )
          *pfChanged = HB_TRUE;
    }
+   /* ...and frozen there: unfrozen, the next pass's write of the record,
+      FIXED array or typed list would refine the USUAL back and the other
+      write widen it again, and pass 2 would never end (a local given
+      StrLenToArr()'s list and BuffTrailer()'s, ccprt.prg; test164) */
    else if( s_pPropRefTab && ( hb_astIsTypedStorage( szCurType ) ||
                                hb_astHashValueType( szCurType ) ||
                                hb_astIsRecordType( s_pPropRefTab, szCurType ) ) )
@@ -2300,7 +2334,7 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
           hb_stricmp( szNewType, "USUAL" ) != 0 &&
           hb_stricmp( szNewType, "OBJECT" ) != 0 &&
           hb_stricmp( szNewType, "NIL" ) != 0 &&
-          hb_typeEnvSet( pEnv, szVarName, "USUAL" ) )
+          hb_typeEnvFreezeMixed( pEnv, szVarName ) )
          *pfChanged = HB_TRUE;
    }
    /* Weak HASH (keys unknown) upgrades to a key-typed HASHC/HASHN
@@ -6734,6 +6768,120 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
    }
 }
 
+/* W0041 after inference (Pass 2). Pass 1.5 checks the writes into an
+   array against its declaration, before inference: it cannot see an
+   undeclared `a` local the scan makes a record, a FIXED array or a typed
+   list from what it is given (a StrToArr() result). Its C# is
+   that type all the same, so an element of another type put into it, or a
+   call that may leave NIL in a List<long>, is a build error where the
+   write is bound early and a run-time failure where it is late (AAdd()).
+   Statement-level writes, as Pass 1.5's. */
+static void hb_astCheckInferredWrites( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
+                                       const char * szFile )
+{
+   PHB_AST_NODE pStmt;
+
+   if( ! pBlock || pBlock->type != HB_AST_BLOCK )
+      return;
+   for( pStmt = pBlock->value.asBlock.pFirst; pStmt; pStmt = pStmt->pNext )
+   {
+      switch( pStmt->type )
+      {
+         case HB_AST_EXPRSTMT:
+         {
+            PHB_EXPR     pExpr = pStmt->value.asExprStmt.pExpr;
+            PHB_EXPR     pArr = NULL;
+            PHB_EXPR     pIdx = NULL;
+            PHB_EXPR     pVal = NULL;
+            const char * szFn = NULL;
+            HB_TYPEENV_ENTRY * pEntry;
+
+            if( ! pExpr )
+               break;
+            if( pExpr->ExprType == HB_EO_ASSIGN && pExpr->value.asOperator.pLeft &&
+                pExpr->value.asOperator.pLeft->ExprType == HB_ET_ARRAYAT )
+            {
+               pArr = pExpr->value.asOperator.pLeft->value.asList.pExprList;
+               pIdx = pExpr->value.asOperator.pLeft->value.asList.pIndex;
+               pVal = pExpr->value.asOperator.pRight;
+            }
+            else if( pExpr->ExprType == HB_ET_FUNCALL && pExpr->value.asFunCall.pFunName &&
+                     pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+            {
+               PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
+               szFn = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
+               pArr = ( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                                    pParms->ExprType == HB_ET_ARGLIST ) ) ?
+                      pParms->value.asList.pExprList : pParms;
+               if( pArr && szFn && hb_stricmp( szFn, "AADD" ) == 0 )
+                  pVal = pArr->pNext;
+            }
+            if( ! pArr || pArr->ExprType != HB_ET_VARIABLE ||
+                ! ( pEntry = hb_typeEnvEntry( pEnv, pArr->value.asSymbol.name ) ) ||
+                pEntry->fDeclared || ! pEntry->szType ||
+                ! ( hb_astIsTypedStorage( pEntry->szType ) ||
+                    hb_astIsRecordType( pEnv->pRefTab, pEntry->szType ) ) )
+               break;
+            if( pVal )
+               hb_astCheckElemWrite( pArr, pIdx, pVal, pEnv, szFile, pStmt->iLine );
+            else if( szFn && hb_astIsValueList( pEntry->szType ) && hb_astPadsNil( szFn, pArr ) )
+            {
+               char szMsg[ 256 ];
+               hb_snprintf( szMsg, sizeof( szMsg ),
+                            "%s() may leave NIL in '%s', a List<long>, which cannot hold it",
+                            szFn, pArr->value.asSymbol.name );
+               hb_astDeclWarn( "W0041", szFile, pStmt->iLine, pArr->value.asSymbol.name, szMsg );
+            }
+            break;
+         }
+         case HB_AST_FOR:
+            hb_astCheckInferredWrites( pStmt->value.asFor.pBody, pEnv, szFile );
+            break;
+         case HB_AST_FOREACH:
+            hb_astCheckInferredWrites( pStmt->value.asForEach.pBody, pEnv, szFile );
+            break;
+         case HB_AST_DOWHILE:
+            hb_astCheckInferredWrites( pStmt->value.asWhile.pBody, pEnv, szFile );
+            break;
+         case HB_AST_IF:
+         {
+            PHB_AST_NODE pElseIf;
+            hb_astCheckInferredWrites( pStmt->value.asIf.pThen, pEnv, szFile );
+            for( pElseIf = pStmt->value.asIf.pElseIfs; pElseIf; pElseIf = pElseIf->pNext )
+               hb_astCheckInferredWrites( pElseIf->value.asElseIf.pBody, pEnv, szFile );
+            hb_astCheckInferredWrites( pStmt->value.asIf.pElse, pEnv, szFile );
+            break;
+         }
+         case HB_AST_DOCASE:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asDoCase.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckInferredWrites( pCase->value.asCase.pBody, pEnv, szFile );
+            hb_astCheckInferredWrites( pStmt->value.asDoCase.pOtherwise, pEnv, szFile );
+            break;
+         }
+         case HB_AST_SWITCH:
+         {
+            PHB_AST_NODE pCase;
+            for( pCase = pStmt->value.asSwitch.pCases; pCase; pCase = pCase->pNext )
+               hb_astCheckInferredWrites( pCase->value.asCase.pBody, pEnv, szFile );
+            hb_astCheckInferredWrites( pStmt->value.asSwitch.pDefault, pEnv, szFile );
+            break;
+         }
+         case HB_AST_BEGINSEQ:
+            hb_astCheckInferredWrites( pStmt->value.asSeq.pBody, pEnv, szFile );
+            hb_astCheckInferredWrites( pStmt->value.asSeq.pRecover, pEnv, szFile );
+            hb_astCheckInferredWrites( pStmt->value.asSeq.pAlways, pEnv, szFile );
+            break;
+         case HB_AST_WITHOBJECT:
+            hb_astCheckInferredWrites( pStmt->value.asWithObj.pBody, pEnv, szFile );
+            break;
+         default:
+            break;
+      }
+   }
+}
+
 /* ---- W0038: a FOR EACH variable read after its loop ----
    Harbour restores a FOR EACH loop variable when the loop ends: after
    NEXT it holds what it held before the loop, not the last element. The
@@ -7674,6 +7822,10 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                   szPropType && strcmp( szPropType, "OBJECT" ) != 0 &&
                   strcmp( szPropType, "USUAL" ) != 0 )
             fOverride = HB_TRUE;
+         /* A record, FIXED array or typed list and another value: dynamic,
+            whatever the prefix (hb_typeEnvFreezeMixed) */
+         else if( hb_typeEnvMixed( &env, pStmt->value.asVar.szName ) )
+            fOverride = HB_TRUE;
          /* Name-seeded class (weak hint from `o<ClassName>`): the env
             may hold a different class proved by an assignment — that
             evidence wins over the name-derived guess. */
@@ -7723,6 +7875,10 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       }
       pStmt = pStmt->pNext;
    }
+
+   /* W0041 for writes into what inference made a record, a FIXED array or
+      a typed list (Pass 1.5 saw only the declarations) */
+   hb_astCheckInferredWrites( pBody, &env, szFile );
 
    /* Pass 4: Infer return type from RETURN statements */
    hb_astCollectReturnTypes( pBody, &env, &szRetType, &fConflict, &fSawUnknown );
