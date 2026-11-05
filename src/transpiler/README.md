@@ -1030,7 +1030,10 @@ strongest. Later rungs override earlier ones.
    class body), and nothing in the body moves them: an assignment, a
    caller's argument (pflag `T`), a RETURN. `AS ARRAY OF CLASS X` (not `AS
    ARRAY OF X`: Harbour's syntax) and `AS ARRAY OF CHARACTER` (NUMERIC,
-   LOGICAL, DATE, ARRAY) type an array's elements: storage stays
+   INTEGER, LOGICAL, DATE, ARRAY, and an array of arrays, `AS ARRAY OF
+   ARRAY OF CHARACTER`: sqlite3_get_table()'s rows) type an array's
+   elements; INTEGER and the nested form are no Harbour type, so the lexer
+   composes them as it does a typed hash (test163). Storage stays
    `List<dynamic>`, a read of an element is an X, so a send on one is cast
    (`((TranLine)aBuffer[i]).nType`) and checked when C# builds, and a FOR
    EACH variable over it is an X. A member only a subclass of X declares is
@@ -1814,6 +1817,8 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 159       | A LOCAL with no initialiser is `T name;` where C# sees it assigned before every read (assigned first, both IF branches, every CASE with OTHERWISE, a FOR counter, a codeblock created after), its type's default where a read may come first (an IF without ELSE, a loop body's assignment, a SEQUENCE body's, `@x`, the right operand of .AND.): `0`, `false`, `null`, a date's `default` |
 | 160       | A LOCAL initialised with one `new` of its declared type is `var` (an array literal, a hash literal, an empty one of each, a class's New()); a scalar, a function's result, a call on the new object and an empty FIXED array keep the type written out; an empty literal is the type's empty instance |
 | 161       | A LOCAL is declared in the innermost block that holds all its uses, before the first: a constant-initialised one first read in a branch, one first assigned there (one statement, `var` for a `new`), one first assigned in a loop's body, one used in both branches of an inner IF, a counter used only by its loop (in the header), FOR EACH variables (the foreach's own, or declared from the element), a RECOVER USING variable, one at the routine's own level (joined), one in a routine reading `MEMVAR->x`. At the top: one a loop reads before assigning, one a codeblock made in a loop uses, one initialised by a call, a counter read after its loop |
+| 162       | HbRuntime's whole-number functions return long: an `i` name takes one uncast, an index local AScan() fills is long (Pass 2.5 reads hbfuncs.tab's INTEGER), `/` of two keeps the fraction, and `+` of two whole numbers is whole, of one and a literal a number, of a date and one a date |
+| 163       | `AS ARRAY OF INTEGER` and `AS ARRAY OF ARRAY OF CHARACTER` on a member, a local, a parameter and a FIXED array: an element read is a long, a row an array of strings, a value a string |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

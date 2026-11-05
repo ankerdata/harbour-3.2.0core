@@ -1583,14 +1583,21 @@ hb_comp_yylex_restart:
                {
                   int iUsed = 0;
                   const char * szHash = hb_compDeclTypeTokens( HB_COMP_PARAM, pTypeTok, &iUsed );
-                  if( szHash && iUsed > 1 && hb_astIsHashFamily( szHash ) )
+                  const char * szElem = szHash ? hb_astArrayElemType( szHash ) : NULL;
+                  /* the same for an array the type tokens cannot spell: of
+                     whole numbers (`AS ARRAY OF INTEGER`, a type Harbour
+                     has not) or of arrays (`AS ARRAY OF ARRAY OF
+                     CHARACTER`); the grammar sees AS ARRAY */
+                  HB_BOOL fArray = szElem && ( hb_stricmp( szElem, "INTEGER" ) == 0 ||
+                                               hb_astArrayElemType( szElem ) != NULL );
+                  if( szHash && iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray ) )
                   {
                      int i;
                      pLex->iState = DECLARE_TYPE;
                      for( i = 0; i < iUsed; i++ )
                         pToken = hb_pp_tokenGet( pLex->pPP );
                      pLex->szDeclType = szHash;
-                     return AS_VARIANT;
+                     return fArray ? AS_ARRAY : AS_VARIANT;
                   }
                }
                if( pTypeTok && HB_PP_TOKEN_TYPE( pTypeTok->type ) == HB_PP_TOKEN_KEYWORD &&

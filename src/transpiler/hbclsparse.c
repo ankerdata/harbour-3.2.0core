@@ -126,6 +126,14 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
          szElem = pElem->pNext->value;
          *piUsed = 4;
       }
+      else if( hb_clsTokenIs( pElem, "ARRAY" ) && hb_clsTokenIs( pElem->pNext, "OF" ) )
+      {
+         /* an array of arrays: `ARRAY OF ARRAY OF CHARACTER` is
+            ARRAY<ARRAY<STRING>> */
+         int iUsedElem = 0;
+         szElem = hb_compDeclTypeTokens( HB_COMP_PARAM, pElem, &iUsedElem );
+         *piUsed = 2 + iUsedElem;
+      }
       else if( pElem && HB_PP_TOKEN_TYPE( pElem->type ) == HB_PP_TOKEN_KEYWORD )
       {
          szElem = hb_clsScalarType( pElem );

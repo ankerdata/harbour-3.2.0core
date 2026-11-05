@@ -30,6 +30,7 @@
 #xtranslate AS CLASS <!name!>      =>
 #xtranslate AS ARRAY OF <!type!>   =>
 #xtranslate AS ARRAY OF CLASS <!name!> =>
+#xtranslate AS ARRAY OF ARRAY OF <!type!> =>
 
 /* Records and fixed arrays (plan C12): `RECORD X( f1, f2 AS … )` declares
    an array's positions, `AS RECORD X` holds one, `AS FIXED ARRAY OF …` an
