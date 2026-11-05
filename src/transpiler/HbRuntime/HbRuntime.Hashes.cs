@@ -161,9 +161,10 @@ public static partial class HbRuntime
 
     // AClone() and hb_HClone() (vm/arrays.c, hb_nestedCloneDo): nested
     // arrays and hashes are cloned as well, each once — an array reached
-    // twice is one clone reached twice, a cycle stays a cycle. A hash is
-    // cloned as its own C# type. An object is shared, where Harbour would
-    // clone its instance variables.
+    // twice is one clone reached twice, a cycle stays a cycle. A hash, a
+    // FIXED array and a typed list (List<string>, plan C12) are cloned as
+    // their own C# type, which a typed holder needs. An object is shared,
+    // where Harbour would clone its instance variables.
     static object CloneNested(object x, Dictionary<object, object> done)
     {
         if (x is System.Array fixedArr)   // a FIXED array (plan C16): a C# array of the same type
@@ -181,7 +182,11 @@ public static partial class HbRuntime
             var a = (System.Collections.IList)x;
             if (done.TryGetValue(a, out object c))
                 return c;
-            var copy = new List<dynamic>(a.Count);
+            System.Type tList = a.GetType();
+            var copy = a is List<dynamic> || !tList.IsGenericType ||
+                       tList.GetGenericTypeDefinition() != typeof(List<>)
+                ? new List<dynamic>(a.Count)
+                : (System.Collections.IList)Activator.CreateInstance(tList, a.Count)!;
             done[a] = copy;
             foreach (object xItem in a)
                 copy.Add(CloneNested(xItem, done));

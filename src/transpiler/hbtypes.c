@@ -390,6 +390,23 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#   WHOLE-N-BLOCKED  an `n` local given a whole number and no fraction, but\n"
 "#                 one value the scan cannot prove whole: that value, the\n"
 "#                 source fix to make (AS INTEGER, IntVal(), an `i` name).\n"
+"#   LIST-STRING   an undeclared `a` local every element put into which is a\n"
+"#                 string. Fix: AS ARRAY OF CHARACTER, a List<string> (C12).\n"
+"#   LIST-CLASS    an undeclared `a` local every element put into which is an\n"
+"#                 object of one class or its subclasses. Fix: AS ARRAY OF\n"
+"#                 CLASS X.\n"
+"#   LIST-INTEGER  an undeclared `a` local every element put into which is a\n"
+"#                 whole number. Fix: AS ARRAY OF INTEGER.\n"
+"#   LIST-BLOCKED  an `a` local given strings, one class or whole numbers,\n"
+"#                 and one value the scan cannot prove: that value, the\n"
+"#                 source fix to make.\n"
+"#   A-LOCAL       what each undeclared `a` local holds; audit.py moves the\n"
+"#                 rows to a-locals.tsv.\n"
+"#   EXACT-BLANKS  a string !=, <>, <, <=, >, >= or AScan() with a side that\n"
+"#                 may carry trailing blanks (padded, or unknown; the ORM\n"
+"#                 trims the fields it reads):\n"
+"#                 SET EXACT ON makes Harbour ignore them, C# does not.\n"
+"#                 Fix: RTrim() that side; !Empty( x ) for x != \"\".\n"
 "#   N-LOCAL, N-PARAM, N-ARG, N-DYNSEND  what each `n` local, parameter and\n"
 "#                 call is given; audit.py moves them to n-locals.tsv and\n"
 "#                 whole-params.tsv (WHOLE-N-PARAM: a parameter every call\n"
@@ -5178,6 +5195,562 @@ static void hb_astWidenArg( const char * szCallee, const char * szRow, int iPos,
    }
 }
 
+/* ---- What each undeclared `a` variable of a routine holds (audit only) ----
+   Plan C12: an array that only ever holds strings, or objects of one class,
+   can be declared so, a typed list. Pass 5 notes what is put into each `a`
+   LOCAL or STATIC with no declaration: an element (`a[ i ] := x`, AAdd(),
+   hb_AIns(), AFill(), a literal's), or the whole array (`a := …`), which
+   says something only when it is a literal or the scan knows its element
+   type. `{}`, NIL and ASize()'s padding say nothing (NIL is null in a list
+   of strings or of a class); Array( n ) and `LOCAL a[ n ]` block, as they
+   make a List<dynamic>, and so does an array passed by @, a FOR EACH or a
+   RECOVER USING variable. Each value is of one kind: strings, whole
+   numbers (INTEGER, a literal with no fraction: long in C#), numbers
+   (NUMERIC, a decimal; with whole numbers, numbers), arrays, hashes,
+   logicals, dates, a class (with its subclasses, the ancestor), a record,
+   or another type. hb_astListEmit() writes, once the routine is walked:
+     LIST-STRING   every element put into it is a string: AS ARRAY OF
+                   CHARACTER
+     LIST-CLASS    every element an object of one class, or of its
+                   subclasses: AS ARRAY OF CLASS X
+     LIST-INTEGER  every element a whole number: AS ARRAY OF INTEGER
+     LIST-BLOCKED  one of those kinds, and one value the scan cannot
+                   prove: the first, the source fix to make
+     A-LOCAL       (census) every `a` LOCAL with what it holds, one kind,
+                   mixed (two or more) or unproven; audit.py moves the
+                   rows to notes/a-locals.tsv */
+#define HB_LK_STRING   1
+#define HB_LK_WHOLE    2
+#define HB_LK_NUMBER   3
+#define HB_LK_ARRAY    4
+#define HB_LK_HASH     5
+#define HB_LK_LOGICAL  6
+#define HB_LK_DATE     7
+#define HB_LK_CLASS    8
+#define HB_LK_RECORD   9
+#define HB_LK_OTHER   10
+
+static struct
+{
+   const char * szName;
+   int          iKind;           /* the kind of what is put in, 0 for nothing yet */
+   const char * szType;          /* a class's, a record's or another type's name */
+   int          iMixed;          /* where a second kind came, 0 for none */
+   char         szMixed[ 160 ];  /* and the two */
+   int          iBlock;          /* the first value the scan cannot prove, 0 for none */
+   char         szBlock[ 160 ];  /* and what that value is */
+} s_aList[ HB_WIDEN_MAX ];
+static int s_iList = 0;
+
+/* The entry of an `a` variable, -1 for any other name */
+static int hb_astListSlot( const char * szName )
+{
+   const char * szPrefix;
+   int          i;
+
+   if( ! szName || ! hb_auditActive() )
+      return -1;
+   szPrefix = hb_astInferFromPrefix( szName );
+   if( ! szPrefix || strcmp( szPrefix, "ARRAY" ) != 0 )
+      return -1;
+   for( i = 0; i < s_iList; i++ )
+      if( hb_stricmp( s_aList[ i ].szName, szName ) == 0 )
+         return i;
+   if( s_iList >= HB_WIDEN_MAX )
+      return -1;
+   memset( &s_aList[ s_iList ], 0, sizeof( s_aList[ 0 ] ) );
+   s_aList[ s_iList ].szName = szName;
+   return s_iList++;
+}
+
+static void hb_astListBlock( int i, int iLine, const char * szWhat )
+{
+   if( ! s_aList[ i ].iBlock )
+   {
+      s_aList[ i ].iBlock = iLine;
+      hb_strncpy( s_aList[ i ].szBlock, szWhat, sizeof( s_aList[ i ].szBlock ) - 1 );
+   }
+}
+
+/* What a kind is called in a row */
+static void hb_astListKindName( int iKind, const char * szType, char * szBuf, HB_SIZE nBuf )
+{
+   switch( iKind )
+   {
+      case HB_LK_STRING:  hb_strncpy( szBuf, "strings", nBuf - 1 ); break;
+      case HB_LK_WHOLE:   hb_strncpy( szBuf, "whole numbers", nBuf - 1 ); break;
+      case HB_LK_NUMBER:  hb_strncpy( szBuf, "numbers", nBuf - 1 ); break;
+      case HB_LK_ARRAY:   hb_strncpy( szBuf, "arrays", nBuf - 1 ); break;
+      case HB_LK_HASH:    hb_strncpy( szBuf, "hashes", nBuf - 1 ); break;
+      case HB_LK_LOGICAL: hb_strncpy( szBuf, "logicals", nBuf - 1 ); break;
+      case HB_LK_DATE:    hb_strncpy( szBuf, "dates", nBuf - 1 ); break;
+      case HB_LK_CLASS:   hb_snprintf( szBuf, nBuf, "class %s", szType ); break;
+      case HB_LK_RECORD:  hb_snprintf( szBuf, nBuf, "record %s", szType ); break;
+      default:            hb_snprintf( szBuf, nBuf, "%s values", szType ? szType : "?" ); break;
+   }
+}
+
+/* A value of kind iKind (szType its class, record or type) put into entry i */
+static void hb_astListAdd( int i, int iKind, const char * szType, HB_TYPEENV * pEnv, int iLine )
+{
+   int          iCur = s_aList[ i ].iKind;
+   const char * szCur = s_aList[ i ].szType;
+
+   if( ! iCur )
+   {
+      s_aList[ i ].iKind = iKind;
+      s_aList[ i ].szType = szType;
+      return;
+   }
+   if( iCur == iKind && iKind == HB_LK_CLASS && hb_stricmp( szCur, szType ) != 0 )
+   {
+      /* a class and its subclasses: the ancestor */
+      HB_BOOL fClasses = pEnv->pRefTab && hb_refTabIsClass( pEnv->pRefTab, szCur ) &&
+                         hb_refTabIsClass( pEnv->pRefTab, szType );
+      if( fClasses && hb_refTabIsKindOf( pEnv->pRefTab, szCur, szType ) )
+      {
+         s_aList[ i ].szType = szType;
+         return;
+      }
+      if( fClasses && hb_refTabIsKindOf( pEnv->pRefTab, szType, szCur ) )
+         return;
+   }
+   else if( iCur == iKind && ( ( iKind != HB_LK_RECORD && iKind != HB_LK_OTHER ) ||
+                               hb_stricmp( szCur, szType ) == 0 ) )
+      return;
+   /* a whole number and a decimal: numbers */
+   else if( ( iCur == HB_LK_WHOLE || iCur == HB_LK_NUMBER ) &&
+            ( iKind == HB_LK_WHOLE || iKind == HB_LK_NUMBER ) )
+   {
+      s_aList[ i ].iKind = HB_LK_NUMBER;
+      return;
+   }
+   if( ! s_aList[ i ].iMixed )
+   {
+      char szNew[ 72 ];
+      char szOld[ 72 ];
+      hb_astListKindName( iKind, szType, szNew, sizeof( szNew ) );
+      hb_astListKindName( iCur, szCur, szOld, sizeof( szOld ) );
+      s_aList[ i ].iMixed = iLine;
+      hb_snprintf( s_aList[ i ].szMixed, sizeof( s_aList[ i ].szMixed ), "%s beside %s",
+                   szNew, szOld );
+   }
+}
+
+/* An element of type szT, a type the scan knows, put into entry i */
+static void hb_astListKind( int i, const char * szT, HB_TYPEENV * pEnv, int iLine )
+{
+   int iKind;
+
+   if( hb_stricmp( szT, "NIL" ) == 0 )
+      return;
+   if( hb_stricmp( szT, "STRING" ) == 0 || hb_stricmp( szT, "CHARACTER" ) == 0 )
+      iKind = HB_LK_STRING;
+   else if( hb_stricmp( szT, "INTEGER" ) == 0 )
+      iKind = HB_LK_WHOLE;
+   else if( hb_stricmp( szT, "NUMERIC" ) == 0 )
+      iKind = HB_LK_NUMBER;
+   else if( hb_stricmp( szT, "LOGICAL" ) == 0 )
+      iKind = HB_LK_LOGICAL;
+   else if( hb_stricmp( szT, "DATE" ) == 0 || hb_stricmp( szT, "TIMESTAMP" ) == 0 )
+      iKind = HB_LK_DATE;
+   else if( hb_astIsArrayType( szT ) )
+      iKind = HB_LK_ARRAY;
+   else if( hb_astIsHashFamily( szT ) || hb_astHashValueType( szT ) )
+      iKind = HB_LK_HASH;
+   else if( hb_astIsRecordType( pEnv->pRefTab, szT ) )
+      iKind = HB_LK_RECORD;
+   else if( hb_astIsClassType( szT ) )
+      iKind = HB_LK_CLASS;
+   else
+      iKind = HB_LK_OTHER;
+   hb_astListAdd( i, iKind, szT, pEnv, iLine );
+}
+
+/* x put into an element of the `a` variable szName */
+static void hb_astListElem( const char * szName, PHB_EXPR pVal, HB_TYPEENV * pEnv, int iLine )
+{
+   const char * szT;
+   char         szWhat[ 160 ];
+   int          i;
+
+   if( ! pVal || ( i = hb_astListSlot( szName ) ) < 0 || pVal->ExprType == HB_ET_NIL )
+      return;
+   if( hb_astNumericConstant( pVal ) )   /* typed NUMERIC; a whole one is an int in C# */
+   {
+      hb_astListAdd( i, hb_astConstantHasFraction( pVal ) ? HB_LK_NUMBER : HB_LK_WHOLE,
+                     NULL, pEnv, iLine );
+      return;
+   }
+   szT = hb_astInferExprType( pVal, pEnv );
+   if( ! szT || hb_stricmp( szT, "USUAL" ) == 0 || hb_stricmp( szT, "OBJECT" ) == 0 )
+   {
+      hb_astValueLabel( pVal, szWhat, sizeof( szWhat ) );
+      hb_astListBlock( i, iLine, szWhat );
+   }
+   else
+      hb_astListKind( i, szT, pEnv, iLine );
+}
+
+/* The whole `a` variable szName given pValue: `:=` or an initialiser */
+static void hb_astListWhole( const char * szName, PHB_EXPR pValue, HB_TYPEENV * pEnv, int iLine )
+{
+   const char * szT;
+   const char * szElem;
+   char         szWhat[ 160 ];
+   int          i;
+
+   if( ! pValue || ( i = hb_astListSlot( szName ) ) < 0 || pValue->ExprType == HB_ET_NIL )
+      return;
+   if( pValue->ExprType == HB_ET_ARRAY )
+   {
+      PHB_EXPR pItem;
+      for( pItem = pValue->value.asList.pExprList; pItem; pItem = pItem->pNext )
+         hb_astListElem( szName, pItem, pEnv, iLine );
+      return;
+   }
+   if( pValue->ExprType == HB_ET_FUNCALL && pValue->value.asFunCall.pFunName &&
+       pValue->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+       hb_stricmp( pValue->value.asFunCall.pFunName->value.asSymbol.name, "ARRAY" ) == 0 )
+   {
+      hb_astListBlock( i, iLine, "Array(), a List<dynamic>" );
+      return;
+   }
+   szT = hb_astInferExprType( pValue, pEnv );
+   szElem = hb_astArrayElemType( szT );
+   if( szElem )
+      hb_astListKind( i, szElem, pEnv, iLine );
+   else
+   {
+      char szLabel[ 140 ];
+      hb_astValueLabel( pValue, szLabel, sizeof( szLabel ) );
+      hb_snprintf( szWhat, sizeof( szWhat ), "an array from %s", szLabel );
+      hb_astListBlock( i, iLine, szWhat );
+   }
+}
+
+/* An `a` variable that may be given anything; szWhat says how */
+static void hb_astListOther( const char * szName, int iLine, const char * szWhat )
+{
+   int i;
+
+   if( ( i = hb_astListSlot( szName ) ) >= 0 )
+      hb_astListBlock( i, iLine, szWhat );
+}
+
+/* The variable an array-changing call's first argument names, or NULL;
+   *ppVal the element it puts in (AAdd()'s second, hb_AIns()'s third,
+   AFill()'s second), NULL for none */
+static const char * hb_astListCall( const char * szFunc, PHB_EXPR pParms, PHB_EXPR * ppVal )
+{
+   PHB_EXPR pArr = ( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                                 pParms->ExprType == HB_ET_ARGLIST ) ) ?
+                   pParms->value.asList.pExprList : pParms;
+   int      iVal;
+
+   *ppVal = NULL;
+   if( ! szFunc || ! pArr || pArr->ExprType != HB_ET_VARIABLE )
+      return NULL;
+   if( hb_stricmp( szFunc, "AADD" ) == 0 || hb_stricmp( szFunc, "AFILL" ) == 0 )
+      iVal = 1;
+   else if( hb_stricmp( szFunc, "HB_AINS" ) == 0 || hb_stricmp( szFunc, "AINS" ) == 0 )
+      iVal = 2;
+   else
+      return NULL;
+   *ppVal = pArr;
+   while( *ppVal && iVal-- > 0 )
+      *ppVal = ( *ppVal )->pNext;
+   return pArr->value.asSymbol.name;
+}
+
+/* The routine's rows, once it is walked: its own undeclared LOCALs and
+   STATICs still a plain ARRAY */
+static void hb_astListEmit( PHB_AST_NODE pBody, HB_TYPEENV * pEnv )
+{
+   int i;
+
+   if( ! hb_auditActive() || ! pBody || ! pEnv->szFuncKey[ 0 ] )
+      return;
+   for( i = 0; i < s_iList; i++ )
+   {
+      const char * szName = s_aList[ i ].szName;
+      const char * szT = hb_typeEnvGet( pEnv, szName );
+      const char * szCat;
+      const char * szOne;
+      int          iKind = s_aList[ i ].iKind;
+      char         szHolds[ 96 ];
+      char         szSym[ 320 ];
+      char         szDetail[ 400 ];
+      char         szFix[ 200 ];
+      int          iDecl = 0;
+
+      if( ! szT || strcmp( szT, "ARRAY" ) != 0 ||
+          ! hb_astWidenLocal( pBody, szName, &iDecl ) )
+         continue;
+      hb_snprintf( szSym, sizeof( szSym ), "%s:%s", pEnv->szFuncKey, szName );
+      szHolds[ 0 ] = '\0';
+      if( iKind )
+         hb_astListKindName( iKind, s_aList[ i ].szType, szHolds, sizeof( szHolds ) );
+      /* A-LOCAL: every undeclared `a` local, and what it holds */
+      if( s_aList[ i ].iMixed )
+         hb_snprintf( szDetail, sizeof( szDetail ), "mixed; line %d: %s",
+                      s_aList[ i ].iMixed, s_aList[ i ].szMixed );
+      else if( s_aList[ i ].iBlock )
+         hb_snprintf( szDetail, sizeof( szDetail ), "%s%sunproven; line %d: %s",
+                      szHolds, iKind ? ", " : "", s_aList[ i ].iBlock, s_aList[ i ].szBlock );
+      else if( iKind )
+         hb_strncpy( szDetail, szHolds, sizeof( szDetail ) - 1 );
+      else
+         hb_strncpy( szDetail, "nothing put in", sizeof( szDetail ) - 1 );
+      hb_auditCensus( "A-LOCAL", pEnv->szFile, iDecl, szSym, szDetail );
+
+      /* a typed list or an array of whole numbers to be */
+      if( s_aList[ i ].iMixed )
+         continue;
+      switch( iKind )
+      {
+         case HB_LK_STRING:
+            szCat = "LIST-STRING";
+            szOne = "a string";
+            hb_strncpy( szFix, "AS ARRAY OF CHARACTER", sizeof( szFix ) - 1 );
+            break;
+         case HB_LK_WHOLE:
+            szCat = "LIST-INTEGER";
+            szOne = "a whole number";
+            hb_strncpy( szFix, "AS ARRAY OF INTEGER", sizeof( szFix ) - 1 );
+            break;
+         case HB_LK_CLASS:
+            szCat = "LIST-CLASS";
+            szOne = s_aList[ i ].szType;
+            hb_snprintf( szFix, sizeof( szFix ), "AS ARRAY OF CLASS %s", s_aList[ i ].szType );
+            break;
+         default:
+            continue;
+      }
+      if( ! s_aList[ i ].iBlock )
+      {
+         hb_snprintf( szDetail, sizeof( szDetail ), "every element put into %s is %s",
+                      szName, szOne );
+         hb_auditEmit( szCat, pEnv->szFile, iDecl, szSym, szDetail, szFix );
+      }
+      else
+      {
+         char szThen[ 200 ];
+         hb_snprintf( szDetail, sizeof( szDetail ), "%s holds %s, and at line %d %s",
+                      szName, szHolds, s_aList[ i ].iBlock, s_aList[ i ].szBlock );
+         hb_snprintf( szThen, sizeof( szThen ), "type that value, then %s", szFix );
+         hb_auditEmit( "LIST-BLOCKED", pEnv->szFile, s_aList[ i ].iBlock, szSym, szDetail, szThen );
+      }
+   }
+}
+
+/* ---- EXACT-BLANKS: a string comparison SET EXACT can change (audit only) ----
+   EasiPOS runs with SET EXACT ON (startup.prg), under which Harbour's
+   `!=`, `<>`, `<`, `<=`, `>`, `>=` and AScan() of a string ignore the
+   trailing blanks the longer operand has past the shorter one's length;
+   the C# compares exactly (Alex, 2026-09-19), as `==` does in both. Such a
+   comparison can come out differently when a side may carry trailing
+   blanks. Each operand is trimmed (a literal with no trailing blank,
+   AllTrim(), RTrim(), Trim(), hb_ntos(), Str(), StrZero(), DToS(), Time(),
+   ValType(), Type(), Upper() or Lower() of a trimmed one, or an ORM field,
+   which both of the ORM's readers AllTrim()), padded (PadR(), PadC(),
+   Space(), a literal ending in a blank) or unknown. Both sides trimmed
+   cannot differ and make no row, nor does a test for NIL; otherwise the
+   row's detail starts with the worse kind, padded or unknown. An AScan()'s
+   elements are unknown; one with a block, or hb_AScan()'s lExact .T., is
+   exact in both. */
+#define HB_BK_TRIMMED 0
+#define HB_BK_UNKNOWN 1
+#define HB_BK_PADDED  2
+
+static const char * s_szBlankKind[] = { "trimmed", "unknown", "padded" };
+
+static PHB_EXPR hb_astUnparen( PHB_EXPR p )
+{
+   while( p && ( p->ExprType == HB_ET_LIST || p->ExprType == HB_ET_ARGLIST ) &&
+          p->value.asList.pExprList && ! p->value.asList.pExprList->pNext )
+      p = p->value.asList.pExprList;
+   return p;
+}
+
+/* The first argument of a call */
+static PHB_EXPR hb_astFirstArg( PHB_EXPR pCall )
+{
+   PHB_EXPR pParms = pCall->value.asFunCall.pParms;
+   return pParms && ( pParms->ExprType == HB_ET_LIST || pParms->ExprType == HB_ET_ARGLIST ) ?
+          pParms->value.asList.pExprList : pParms;
+}
+
+static int hb_astBlankKind( PHB_EXPR p, HB_TYPEENV * pEnv )
+{
+   static const char * s_aTrimmed[] = { "ALLTRIM", "RTRIM", "TRIM", "HB_NTOS", "STR",
+                                        "STRZERO", "DTOS", "TIME", "VALTYPE", "TYPE" };
+   static const char * s_aPadded[] = { "PADR", "PADC", "SPACE" };
+   const char * szFn;
+   int          i;
+
+   p = hb_astUnparen( p );
+   if( ! p )
+      return HB_BK_UNKNOWN;
+   if( p->ExprType == HB_ET_STRING )
+      return p->nLength > 0 && p->value.asString.string[ p->nLength - 1 ] == ' ' ?
+             HB_BK_PADDED : HB_BK_TRIMMED;
+   if( hb_astOrmFieldCs( p, pEnv ) )
+      return HB_BK_TRIMMED;
+   if( p->ExprType != HB_ET_FUNCALL || ! p->value.asFunCall.pFunName ||
+       p->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+       ! ( szFn = p->value.asFunCall.pFunName->value.asSymbol.name ) )
+      return HB_BK_UNKNOWN;
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aTrimmed ); i++ )
+      if( hb_stricmp( szFn, s_aTrimmed[ i ] ) == 0 )
+         return HB_BK_TRIMMED;
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aPadded ); i++ )
+      if( hb_stricmp( szFn, s_aPadded[ i ] ) == 0 )
+         return HB_BK_PADDED;
+   if( hb_stricmp( szFn, "UPPER" ) == 0 || hb_stricmp( szFn, "LOWER" ) == 0 )
+      return hb_astBlankKind( hb_astFirstArg( p ), pEnv );
+   return HB_BK_UNKNOWN;
+}
+
+/* An operand as a row names it: a literal as written, an element by its
+   array */
+static void hb_astBlankLabel( PHB_EXPR p, char * szBuf, HB_SIZE nBuf )
+{
+   p = hb_astUnparen( p );
+   if( p && p->ExprType == HB_ET_STRING )
+   {
+      /* the bytes a TSV row can hold as they are; a tab, a control or a
+         high byte as \xNN */
+      HB_SIZE n, nOut = 0;
+      szBuf[ nOut++ ] = '"';
+      for( n = 0; n < p->nLength && n < 40 && nOut + 8 < nBuf; n++ )
+      {
+         unsigned char c = ( unsigned char ) p->value.asString.string[ n ];
+         if( c >= 0x20 && c < 0x7F )
+            szBuf[ nOut++ ] = ( char ) c;
+         else
+            nOut += hb_snprintf( szBuf + nOut, nBuf - nOut, "\\x%02X", c );
+      }
+      if( n < p->nLength && nOut + 5 < nBuf )
+      {
+         memcpy( szBuf + nOut, "...", 3 );
+         nOut += 3;
+      }
+      szBuf[ nOut++ ] = '"';
+      szBuf[ nOut ] = '\0';
+   }
+   else if( p && p->ExprType == HB_ET_ARRAYAT && p->value.asList.pExprList )
+   {
+      char szBase[ 140 ];
+      hb_astBlankLabel( p->value.asList.pExprList, szBase, sizeof( szBase ) );
+      hb_snprintf( szBuf, nBuf, "%s[...]", szBase );
+   }
+   else
+      hb_astValueLabel( p, szBuf, nBuf );
+}
+
+static HB_BOOL hb_astIsStrType( const char * szT )
+{
+   return szT && ( hb_stricmp( szT, "STRING" ) == 0 || hb_stricmp( szT, "CHARACTER" ) == 0 );
+}
+
+static HB_BOOL hb_astIsUnknownType( const char * szT )
+{
+   return ! szT || hb_stricmp( szT, "USUAL" ) == 0;
+}
+
+static void hb_astBlankRow( int iKind, const char * szLeft, const char * szOp,
+                            const char * szRight, HB_TYPEENV * pEnv, int iLine )
+{
+   char szSym[ 320 ];
+   char szDetail[ 400 ];
+
+   if( szRight )
+   {
+      hb_snprintf( szSym, sizeof( szSym ), "%s:%s %s %s", pEnv->szFuncKey, szLeft, szOp, szRight );
+      hb_snprintf( szDetail, sizeof( szDetail ), "%s; %s %s %s",
+                   s_szBlankKind[ iKind ], szLeft, szOp, szRight );
+   }
+   else
+   {
+      hb_snprintf( szSym, sizeof( szSym ), "%s:%s( %s )", pEnv->szFuncKey, szOp, szLeft );
+      hb_snprintf( szDetail, sizeof( szDetail ), "%s; %s( %s ), the elements unknown",
+                   s_szBlankKind[ iKind ], szOp, szLeft );
+   }
+   hb_auditEmit( "EXACT-BLANKS", pEnv->szFile, iLine, szSym, szDetail,
+                 "RTrim() the side that may carry blanks; !Empty( x ) for x != \"\"" );
+}
+
+/* `l <op> r`: a row when it compares strings and a side may carry blanks */
+static void hb_astExactBlanks( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
+{
+   static const char * s_szOps[] = { "!=", "<", ">", "<=", ">=" };
+   PHB_EXPR     pLeft = pExpr->value.asOperator.pLeft;
+   PHB_EXPR     pRight = pExpr->value.asOperator.pRight;
+   const char * szL;
+   const char * szR;
+   const char * szOp;
+   char         szLeft[ 160 ];
+   char         szRight[ 160 ];
+   int          iKind;
+
+   if( ! hb_auditActive() || ! pLeft || ! pRight || ! pEnv->szFuncKey[ 0 ] ||
+       hb_astUnparen( pLeft )->ExprType == HB_ET_NIL ||
+       hb_astUnparen( pRight )->ExprType == HB_ET_NIL )   /* a test for NIL */
+      return;
+   switch( pExpr->ExprType )
+   {
+      case HB_EO_NE: szOp = s_szOps[ 0 ]; break;
+      case HB_EO_LT: szOp = s_szOps[ 1 ]; break;
+      case HB_EO_GT: szOp = s_szOps[ 2 ]; break;
+      case HB_EO_LE: szOp = s_szOps[ 3 ]; break;
+      case HB_EO_GE: szOp = s_szOps[ 4 ]; break;
+      default:       return;
+   }
+   szL = hb_astInferExprType( pLeft, pEnv );
+   szR = hb_astInferExprType( pRight, pEnv );
+   if( ! ( ( hb_astIsStrType( szL ) && ( hb_astIsStrType( szR ) || hb_astIsUnknownType( szR ) ) ) ||
+           ( hb_astIsStrType( szR ) && hb_astIsUnknownType( szL ) ) ) )
+      return;
+   iKind = HB_MAX( hb_astBlankKind( pLeft, pEnv ), hb_astBlankKind( pRight, pEnv ) );
+   if( iKind == HB_BK_TRIMMED )
+      return;
+   hb_astBlankLabel( pLeft, szLeft, sizeof( szLeft ) );
+   hb_astBlankLabel( pRight, szRight, sizeof( szRight ) );
+   hb_astBlankRow( iKind, szLeft, szOp, szRight, pEnv, iLine );
+}
+
+/* AScan( a, <string> ) and hb_AScan() without lExact .T.: the value against
+   elements the scan cannot see */
+static void hb_astExactBlanksScan( const char * szFunc, PHB_EXPR pCall,
+                                   HB_TYPEENV * pEnv, int iLine )
+{
+   PHB_EXPR pArr;
+   PHB_EXPR pVal;
+   char     szArr[ 140 ];
+   char     szVal[ 140 ];
+   char     szArgs[ 300 ];
+   int      iKind;
+
+   if( ! hb_auditActive() || ! szFunc || ! pEnv->szFuncKey[ 0 ] ||
+       ( hb_stricmp( szFunc, "ASCAN" ) != 0 && hb_stricmp( szFunc, "HB_ASCAN" ) != 0 ) )
+      return;
+   pArr = hb_astFirstArg( pCall );
+   pVal = pArr ? pArr->pNext : NULL;
+   if( ! pVal || ! hb_astIsStrType( hb_astInferExprType( pVal, pEnv ) ) )
+      return;
+   if( hb_stricmp( szFunc, "HB_ASCAN" ) == 0 && pVal->pNext && pVal->pNext->pNext &&
+       pVal->pNext->pNext->pNext && pVal->pNext->pNext->pNext->ExprType == HB_ET_LOGICAL &&
+       pVal->pNext->pNext->pNext->value.asLogical )
+      return;
+   iKind = HB_MAX( HB_BK_UNKNOWN, hb_astBlankKind( pVal, pEnv ) );
+   hb_astBlankLabel( pArr, szArr, sizeof( szArr ) );
+   hb_astBlankLabel( pVal, szVal, sizeof( szVal ) );
+   hb_snprintf( szArgs, sizeof( szArgs ), "%s, %s", szArr, szVal );
+   hb_astBlankRow( iKind, szArgs, hb_stricmp( szFunc, "HB_ASCAN" ) == 0 ? "hb_AScan" : "AScan",
+                   NULL, pEnv, iLine );
+}
+
 /* ---- DEC-FIELD-WRITE (audit only; audit.py moves the rows out) ----
    Every write to an ORM field declared with decimals, with the kind of
    value it writes: whole (a whole number the scan proves), constant (a
@@ -5309,7 +5882,10 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
                pVar = pVar->value.asList.pExprList && ! pVar->value.asList.pExprList->pNext ?
                       pVar->value.asList.pExprList : NULL;
             if( pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) )
+            {
                hb_astWidenOther( pVar->value.asSymbol.name, iLine, "a FOR EACH element" );
+               hb_astListOther( pVar->value.asSymbol.name, iLine, "a FOR EACH element" );
+            }
             hb_astRefineExpr( pStmt->value.asForEach.pEnum, pEnv, iLine );
             hb_astRefineBlock( pStmt->value.asForEach.pBody, pEnv );
             break;
@@ -5341,6 +5917,7 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
          }
          case HB_AST_BEGINSEQ:
             hb_astWidenOther( pStmt->value.asSeq.szRecoverVar, iLine, "a RECOVER USING value" );
+            hb_astListOther( pStmt->value.asSeq.szRecoverVar, iLine, "a RECOVER USING value" );
             hb_astRefineBlock( pStmt->value.asSeq.pBody, pEnv );
             hb_astRefineBlock( pStmt->value.asSeq.pRecover, pEnv );
             hb_astRefineBlock( pStmt->value.asSeq.pAlways, pEnv );
@@ -5361,8 +5938,15 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
                hb_astWholeDecimalInit( pStmt->value.asVar.szName,
                                        pStmt->value.asVar.pInit, pEnv, iLine );
                if( pStmt->value.asVar.pInit && ! pStmt->value.asVar.fArrayDim )
+               {
                   hb_astWidenWrite( pStmt->value.asVar.szName, pStmt->value.asVar.pInit,
                                     HB_EO_ASSIGN, pEnv, iLine );
+                  hb_astListWhole( pStmt->value.asVar.szName, pStmt->value.asVar.pInit,
+                                   pEnv, iLine );
+               }
+               else if( pStmt->value.asVar.fArrayDim )
+                  hb_astListOther( pStmt->value.asVar.szName, iLine,
+                                   "LOCAL a[ n ], a List<dynamic>" );
             }
             hb_astRefineExpr( pStmt->value.asVar.pInit, pEnv, iLine );
             break;
@@ -5389,6 +5973,7 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
 
          hb_astRefineArgList( szName, pExpr->value.asFunCall.pParms,
                               pEnv, iLine );
+         hb_astExactBlanksScan( szName, pExpr, pEnv, iLine );
          /* Recurse into args too (nested calls). */
          {
             PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
@@ -5404,7 +5989,16 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                {
                   hb_astWidenWrite( p->value.asSymbol.name, p->pNext,
                                     HB_EO_ASSIGN, pEnv, iLine );
+                  hb_astListWhole( p->value.asSymbol.name, p->pNext, pEnv, iLine );
                   pDefaulted = p;
+               }
+               /* AAdd( a, x ), hb_AIns( a, n, x ), AFill( a, x ): x put
+                  into the `a` variable */
+               {
+                  PHB_EXPR pVal;
+                  const char * szArr = hb_astListCall( szName, pParms, &pVal );
+                  if( szArr && pVal )
+                     hb_astListElem( szArr, pVal, pEnv, iLine );
                }
                while( p )
                {
@@ -5647,6 +6241,7 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
 
       case HB_ET_VARREF:   /* @var: the callee may write anything into it */
          hb_astWidenOther( pExpr->value.asSymbol.name, iLine, "passed by @" );
+         hb_astListOther( pExpr->value.asSymbol.name, iLine, "passed by @" );
          break;
 
       case HB_EO_ASSIGN:
@@ -5669,6 +6264,18 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
             hb_astWidenWrite( pExpr->value.asOperator.pLeft->value.asSymbol.name,
                               pExpr->value.asOperator.pRight, pExpr->ExprType,
                               pEnv, iLine );
+         /* what an `a` variable is given whole, or put into an element */
+         if( pExpr->ExprType == HB_EO_ASSIGN && pExpr->value.asOperator.pLeft &&
+             pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+            hb_astListWhole( pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                             pExpr->value.asOperator.pRight, pEnv, iLine );
+         else if( pExpr->ExprType == HB_EO_ASSIGN && pExpr->value.asOperator.pLeft &&
+                  pExpr->value.asOperator.pLeft->ExprType == HB_ET_ARRAYAT &&
+                  pExpr->value.asOperator.pLeft->value.asList.pExprList &&
+                  pExpr->value.asOperator.pLeft->value.asList.pExprList->ExprType == HB_ET_VARIABLE )
+            hb_astListElem(
+               pExpr->value.asOperator.pLeft->value.asList.pExprList->value.asSymbol.name,
+               pExpr->value.asOperator.pRight, pEnv, iLine );
          /* MEMBER-TYPE evidence, both directions:
               ::member  := oOrm:field   (member takes the field's type)
               oOrm:field := ::member    (member feeds a typed field) */
@@ -5696,6 +6303,8 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
       case HB_EO_GT:
       case HB_EO_LE:
       case HB_EO_GE:
+         /* EXACT-BLANKS: a string comparison SET EXACT can change */
+         hb_astExactBlanks( pExpr, pEnv, iLine );
          /* MEMBER-TYPE evidence from comparisons — `oPlu:nNo ==
             ::nSalePluNo` ties the member to the field's type just as
             firmly as an assignment. */
@@ -7067,8 +7676,10 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
    if( env.pRefTab )
    {
       s_iWiden = 0;
+      s_iList = 0;
       hb_astRefineBlock( pBody, &env );
       hb_astWidenEmit( pFunc, pBody, &env );
+      hb_astListEmit( pBody, &env );
    }
 
    {

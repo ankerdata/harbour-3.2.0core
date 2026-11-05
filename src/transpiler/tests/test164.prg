@@ -3,7 +3,8 @@
 // List<dynamic> (plan C12). Declared, its literals are typed, an empty one
 // too; an undeclared `a` local or parameter given one becomes one, as for a
 // FIXED array, and so does an undeclared function's return; a row read from
-// one is a List<string>; AAdd() and FOR EACH work on it as on any array.
+// one is a List<string>; AAdd() and FOR EACH work on it as on any array, and
+// AClone() gives back a copy of the same type.
 
 #include "../include/astype.ch"
 #include "hbclass.ch"
@@ -31,6 +32,7 @@ PROCEDURE Main()
    LOCAL oStore164 := Store164():New()
    LOCAL aTable
    LOCAL aRow
+   LOCAL aCopy
    LOCAL aNames AS ARRAY OF CHARACTER := {}
 
    AAdd( oStore164:aRows, { "red", "apple" } )
@@ -41,6 +43,10 @@ PROCEDURE Main()
    aRow := aTable[ 2 ]
    ? Len( aTable ), aRow[ 1 ], Upper( aTable[ 3 ][ 1 ] )
    ? Count164( aTable ), Count164( Rows164( .F. ) ), Last164( Rows164( .T. ) )
+
+   aCopy := AClone( aTable )
+   aCopy[ 2 ][ 1 ] := "pear"
+   ? Len( aCopy ), aCopy[ 2 ][ 1 ], aTable[ 2 ][ 1 ]
 
    AAdd( aNames, "first" )
    aNames := Names164( aNames )

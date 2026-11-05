@@ -1053,8 +1053,9 @@ strongest. Later rungs override earlier ones.
    an undeclared function returning one; its literals are typed (`new
    List<string> { … }`, `{}` the empty list, a member's `INIT {}` too); and
    a plain array or a value of another type put where one is declared is
-   W0041, as C# takes neither. HbRuntime's array functions take any IList
-   but ASize(), which none of these needs. A class nothing defines is
+   W0041, as C# takes neither. HbRuntime's array functions take any IList:
+   ASize() pads a typed list with null, a List<string>'s NIL, and AClone()
+   gives back a copy of the same type. A class nothing defines is
    W0040; a value of another type put where a declaration says otherwise
    is W0041 (a subclass is accepted, and a value of unknown type passes,
    converted at run time as before) (test136).
@@ -1242,6 +1243,34 @@ fraction" so anything fractional flowing into one needs `Int()` or
   and a WHOLE-N-PARAM row per parameter every call passes a whole number;
   notes/n-locals.tsv lists every `n` local with its first unproven value.
   A file's STATICs are left out, other routines writing them.
+  The pass notes, too, what is put into every undeclared `a` local
+  (hb_astListElem(), hb_astListWhole()): an element (`a[ i ] := x`,
+  AAdd(), hb_AIns(), AFill(), a literal's) or the whole array, which says
+  something only when it is a literal or its element type is known. Each
+  value is of one kind (strings, whole numbers, numbers, arrays, hashes,
+  logicals, dates, a class with its subclasses, a record, another type).
+  LIST-STRING, LIST-CLASS and LIST-INTEGER rows are locals every element of
+  which is a string, an object of one class or its subclasses, or a whole
+  number (INTEGER, or a literal with no fraction): typed lists, or arrays
+  of whole numbers, to be (plan C12). LIST-BLOCKED rows hold one of those
+  kinds and one value the scan cannot prove, that value the source fix;
+  `{}`, NIL and ASize()'s
+  padding say nothing, and Array( n ), `LOCAL a[ n ]`, `@`, a FOR EACH and
+  a RECOVER USING variable block. The census rows A-LOCAL become
+  notes/a-locals.tsv, every undeclared `a` local with what it holds.
+  EXACT-BLANKS rows are string comparisons that SET EXACT can decide
+  differently: EasiPOS runs with SET EXACT ON, under which Harbour's `!=`,
+  `<>`, `<`, `<=`, `>`, `>=` and AScan() ignore the trailing blanks the
+  longer string has past the shorter one, where the C# compares exactly
+  (`==` is exact in both). Each operand is trimmed (a literal with no
+  trailing blank, AllTrim(), RTrim(), Trim(), hb_ntos(), Str(), StrZero(),
+  DToS(), Time(), ValType(), Type(), Upper() or Lower() of a trimmed one,
+  an ORM field, which the ORM AllTrim()s as it reads), padded (PadR(),
+  PadC(), Space(), a literal ending in a blank) or unknown; a comparison
+  with a side that is not trimmed is a row, its detail starting with the
+  worse kind. A test for NIL is no row, nor is AScan() with a block or
+  hb_AScan()'s lExact .T.; the fix is RTrim() on the side that may carry
+  blanks, or `!Empty( x )` for `x != ""`.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.
@@ -1831,7 +1860,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 161       | A LOCAL is declared in the innermost block that holds all its uses, before the first: a constant-initialised one first read in a branch, one first assigned there (one statement, `var` for a `new`), one first assigned in a loop's body, one used in both branches of an inner IF, a counter used only by its loop (in the header), FOR EACH variables (the foreach's own, or declared from the element), a RECOVER USING variable, one at the routine's own level (joined), one in a routine reading `MEMVAR->x`. At the top: one a loop reads before assigning, one a codeblock made in a loop uses, one initialised by a call, a counter read after its loop |
 | 162       | HbRuntime's whole-number functions return long: an `i` name takes one uncast, an index local AScan() fills is long (Pass 2.5 reads hbfuncs.tab's INTEGER), `/` of two keeps the fraction, and `+` of two whole numbers is whole, of one and a literal a number, of a date and one a date |
 | 163       | `AS ARRAY OF INTEGER` and `AS ARRAY OF ARRAY OF CHARACTER` on a member, a local, a parameter and a FIXED array: an element read is a long, a row an array of strings, a value a string |
-| 164       | Typed lists: an array of strings and an array of those are `List<string>` / `List<List<string>>` (a member with `INIT {}`, a method's and a function's declared return, an empty and a nested literal); an undeclared `a` local, `a` parameter and function given one become one; AAdd() and FOR EACH over one |
+| 164       | Typed lists: an array of strings and an array of those are `List<string>` / `List<List<string>>` (a member with `INIT {}`, a method's and a function's declared return, an empty and a nested literal); an undeclared `a` local, `a` parameter and function given one become one; AAdd() and FOR EACH over one; AClone() of one is a copy of the same type, its rows copied too |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

@@ -3,7 +3,8 @@
 // List<dynamic> (plan C12). Declared, its literals are typed, an empty one
 // too; an undeclared `a` local or parameter given one becomes one, as for a
 // FIXED array, and so does an undeclared function's return; a row read from
-// one is a List<string>; AAdd() and FOR EACH work on it as on any array.
+// one is a List<string>; AAdd() and FOR EACH work on it as on any array, and
+// AClone() gives back a copy of the same type.
 public class Store164 : IHbObject
 {
     public List<List<string>> aRows = new List<List<string>>();
@@ -42,6 +43,10 @@ public static partial class Program
         List<string> aRow = aTable[I(2)];
         QOut(Len(aTable), aRow[I(1)], Upper(aTable[I(3)][I(1)]));
         QOut(Count164(aTable), Count164(Rows164(false)), Last164(Rows164(true)));
+
+        List<List<string>> aCopy = AClone(aTable);
+        aCopy[I(2)][I(1)] = "pear";
+        QOut(Len(aCopy), aCopy[I(2)][I(1)], aTable[I(2)][I(1)]);
 
         AAdd(aNames, "first");
         aNames = Names164(aNames);
