@@ -1,12 +1,12 @@
 // Test 163: arrays of whole numbers and arrays of arrays, declared. `AS
 // ARRAY OF INTEGER` (a type Harbour has not, so the lexer composes it as it
-// does a typed hash) reads an element as a long; `AS ARRAY OF ARRAY OF
-// CHARACTER`, sqlite3_get_table()'s rows of text, reads a row as an array
-// of strings and a value as a string. On a member, a local, a parameter
-// and a FIXED array.
+// does a typed hash) is a List<long>, an element a long; `AS ARRAY OF ARRAY
+// OF CHARACTER`, sqlite3_get_table()'s rows of text, reads a row as an
+// array of strings and a value as a string. On a member, a local, a
+// parameter and a FIXED array.
 public class Order163 : IHbObject
 {
-    public List<dynamic> aIds = new List<dynamic>();
+    public List<long> aIds = new List<long>();
 
     public virtual Order163 Add163(long iId = default)
     {
@@ -46,7 +46,7 @@ public static partial class Program
         QOut(Name163(aTable, 2), Upper(aTable[I(3)][I(2)]), Len(aTable[I(2)]));
     }
 
-    public static long Sum163(List<dynamic> aIds = default)
+    public static long Sum163(List<long> aIds = default)
     {
         long iSum = 0;
 

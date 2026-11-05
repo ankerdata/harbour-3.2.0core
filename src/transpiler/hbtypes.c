@@ -583,9 +583,10 @@ HB_BOOL hb_astIsFixedType( const char * szType )
    return szType && hb_strnicmp( szType, "FIXED<", 6 ) == 0;
 }
 
-/* ARRAY<STRING>, or ARRAY<T> of such a T: a C# List<string> or a List of
-   those, so the C# checks what is put in and read out (plan C12). NIL in
-   one is null. */
+/* ARRAY<STRING>, ARRAY<INTEGER>, or ARRAY<T> of such a T: a C#
+   List<string>, List<long> or a List of those, so the C# checks what is
+   put in and read out (plan C12). NIL in a List<string> is null; a
+   List<long> cannot hold it (hb_astIsValueList). */
 HB_BOOL hb_astIsTypedList( const char * szType )
 {
    const char * szElem;
@@ -594,7 +595,16 @@ HB_BOOL hb_astIsTypedList( const char * szType )
    szElem = hb_astArrayElemType( szType );
    return szElem && ( hb_stricmp( szElem, "STRING" ) == 0 ||
                       hb_stricmp( szElem, "CHARACTER" ) == 0 ||
+                      hb_stricmp( szElem, "INTEGER" ) == 0 ||
                       hb_astIsTypedList( szElem ) );
+}
+
+/* A typed list whose elements are a C# value type (List<long>), where NIL
+   cannot go */
+static HB_BOOL hb_astIsValueList( const char * szType )
+{
+   const char * szElem = hb_astIsTypedList( szType ) ? hb_astArrayElemType( szType ) : NULL;
+   return szElem && hb_stricmp( szElem, "INTEGER" ) == 0;
 }
 
 /* An array whose C# type is its own (a T[], a List<string>), not the
@@ -6525,9 +6535,49 @@ static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
       szElem = hb_astHashValueType( szArr );   /* `h[ k ] := x` into a typed hash */
    if( ! szElem )
       return;
+   /* a List<long> takes a long, where Harbour's numbers agree: a decimal
+      throws in AAdd(), whose C# binds at run time (a literal with no
+      fraction is an int, which goes in) */
+   if( hb_astIsValueList( szArr ) &&
+       ! ( hb_astNumericConstant( pVal ) && ! hb_astConstantHasFraction( pVal ) ) )
+   {
+      const char * szT = hb_astInferExprType( pVal, pEnv );
+      if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )
+      {
+         char szMsg[ 256 ];
+         hb_snprintf( szMsg, sizeof( szMsg ), "putting NUMERIC, a decimal, into '%s', a List<long>",
+                      szName ? szName : "an array" );
+         hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+         return;
+      }
+   }
    hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into '%s'",
                 szName ? szName : "an array" );
    hb_astDeclCheckExpr( szElem, pVal, pEnv, szFile, iLine, szName, szWhat );
+}
+
+/* A call that may leave NIL in its array: ASize() (growing it), ADel()
+   and AIns(), hb_ADel() without lAutoSize .T., hb_AIns() without a value
+   and lAutoSize .T. */
+static HB_BOOL hb_astPadsNil( const char * szFunc, PHB_EXPR pArr )
+{
+   PHB_EXPR pArg = pArr;
+   int      n = 0;
+   PHB_EXPR aArgs[ 4 ] = { NULL, NULL, NULL, NULL };
+
+   for( ; pArg && n < 4; pArg = pArg->pNext )
+      aArgs[ n++ ] = pArg;
+   if( hb_stricmp( szFunc, "ASIZE" ) == 0 || hb_stricmp( szFunc, "ADEL" ) == 0 ||
+       hb_stricmp( szFunc, "AINS" ) == 0 )
+      return HB_TRUE;
+   if( hb_stricmp( szFunc, "HB_ADEL" ) == 0 )
+      return ! ( aArgs[ 2 ] && aArgs[ 2 ]->ExprType == HB_ET_LOGICAL &&
+                 aArgs[ 2 ]->value.asLogical );
+   if( hb_stricmp( szFunc, "HB_AINS" ) == 0 )
+      return ! ( aArgs[ 2 ] && aArgs[ 2 ]->ExprType != HB_ET_NIL &&
+                 aArgs[ 3 ] && aArgs[ 3 ]->ExprType == HB_ET_LOGICAL &&
+                 aArgs[ 3 ]->value.asLogical );
+   return HB_FALSE;
 }
 
 /* AAdd(), ASize(), hb_ADel() and hb_AIns(): the functions that change an
@@ -6580,15 +6630,31 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                else if( pExpr->ExprType == HB_ET_FUNCALL &&
                         pExpr->value.asFunCall.pFunName &&
                         pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
-                        hb_astChangesArraySize(
-                           pExpr->value.asFunCall.pFunName->value.asSymbol.name ) )
+                        ( hb_astChangesArraySize(
+                             pExpr->value.asFunCall.pFunName->value.asSymbol.name ) ||
+                          hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "ADEL" ) == 0 ||
+                          hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "AINS" ) == 0 ) )
                {
                   const char * szFn = pExpr->value.asFunCall.pFunName->value.asSymbol.name;
                   PHB_EXPR pParms = pExpr->value.asFunCall.pParms;
                   PHB_EXPR pArr = ( pParms && ( pParms->ExprType == HB_ET_LIST ||
                                                 pParms->ExprType == HB_ET_ARGLIST ) ) ?
                                   pParms->value.asList.pExprList : pParms;
-                  if( pArr && hb_astIsFixedType( hb_astInferExprType( pArr, pEnv ) ) )
+                  const char * szArrT = pArr ? hb_astInferExprType( pArr, pEnv ) : NULL;
+                  /* NIL left in a List<long> (W0041): it cannot hold one */
+                  if( pArr && hb_astIsValueList( szArrT ) && hb_astPadsNil( szFn, pArr ) )
+                  {
+                     const char * szArrName = pArr->ExprType == HB_ET_VARIABLE ?
+                        pArr->value.asSymbol.name : pArr->ExprType == HB_ET_SEND ?
+                        pArr->value.asMessage.szMessage : "an array";
+                     char szMsg[ 256 ];
+                     hb_snprintf( szMsg, sizeof( szMsg ),
+                                  "%s() may leave NIL in '%s', a List<long>, which cannot hold it",
+                                  szFn, szArrName );
+                     hb_astDeclWarn( "W0041", szFile, pStmt->iLine, szArrName, szMsg );
+                  }
+                  else if( pArr && hb_astIsFixedType( szArrT ) &&
+                           hb_astChangesArraySize( szFn ) )
                   {
                      const char * szArrName = pArr->ExprType == HB_ET_VARIABLE ?
                         pArr->value.asSymbol.name : "an array";

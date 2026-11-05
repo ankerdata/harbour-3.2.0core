@@ -142,6 +142,9 @@ CASES_B = [
     ('typed_list.prg', 'W0041', "putting NUMERIC into 'aNames', declared STRING"),
     ('typed_list.prg', 'W0041', "assigning ARRAY to 'aNames', declared ARRAY<STRING>"),
     ('typed_list.prg', 'W0041', "putting ARRAY into 'aRows', declared ARRAY<STRING>"),
+    ('typed_list.prg', 'W0041', "putting NUMERIC, a decimal, into 'aIds', a List<long>"),
+    ('typed_list.prg', 'W0041', "ASize\\(\\) may leave NIL in 'aIds', a List<long>"),
+    ('typed_list.prg', 'W0041', "ADel\\(\\) may leave NIL in 'aIds', a List<long>"),
 ]
 
 
@@ -161,8 +164,9 @@ def main():
     count_of("typed_hash.prg", "warning W00[34][15]", 7)
     # records and fixed arrays, and no more
     count_of("fixed_record.prg", "warning W004[16]", 13)
-    # typed lists: no plain array, no value of another type
-    count_of("typed_list.prg", "warning W", 4)
+    # typed lists: no plain array, no value of another type; a List<long> no
+    # decimal and no NIL
+    count_of("typed_list.prg", "warning W", 7)
     # W0042 once, for the one question; the unread header is no warning by itself
     count_of("cond_unread.prg", "warning W", 1, "warning")
     # W0025 for the string, not for the whole number

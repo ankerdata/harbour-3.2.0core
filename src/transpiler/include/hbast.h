@@ -349,10 +349,10 @@ extern HB_BOOL      hb_astDeclKnown( void * pRefTab, const char * szDecl );
    row's parameters in order. A subscript that is a whole-number literal or
    a #define of one (the file's own, or the defines map's) is constant. */
 extern HB_BOOL      hb_astIsFixedType( const char * szType );
-/* Typed lists (plan C12): an array of strings, or of such arrays, is a C#
-   List<string> / List<List<string>>, where any other ARRAY<T> is a
-   List<dynamic>. A typed list, like a FIXED array, is what the value is
-   wherever it goes: hb_astIsTypedStorage. */
+/* Typed lists (plan C12): an array of strings or of whole numbers, or of
+   such arrays, is a C# List<string> / List<long> / List<List<string>>,
+   where any other ARRAY<T> is a List<dynamic>. A typed list, like a FIXED
+   array, is what the value is wherever it goes: hb_astIsTypedStorage. */
 extern HB_BOOL      hb_astIsTypedList( const char * szType );
 extern HB_BOOL      hb_astIsTypedStorage( const char * szType );
 /* Typed hashes: HASHC<T> / HASHN<T> are hashes keyed by strings / whole

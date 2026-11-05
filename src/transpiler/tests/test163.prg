@@ -1,9 +1,9 @@
 // Test 163: arrays of whole numbers and arrays of arrays, declared. `AS
 // ARRAY OF INTEGER` (a type Harbour has not, so the lexer composes it as it
-// does a typed hash) reads an element as a long; `AS ARRAY OF ARRAY OF
-// CHARACTER`, sqlite3_get_table()'s rows of text, reads a row as an array
-// of strings and a value as a string. On a member, a local, a parameter
-// and a FIXED array.
+// does a typed hash) is a List<long>, an element a long; `AS ARRAY OF ARRAY
+// OF CHARACTER`, sqlite3_get_table()'s rows of text, reads a row as an
+// array of strings and a value as a string. On a member, a local, a
+// parameter and a FIXED array.
 
 #include "../include/astype.ch"
 #include "hbclass.ch"
