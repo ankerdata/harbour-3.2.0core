@@ -1,0 +1,13 @@
+<Project>
+
+  <!-- Every project below this folder: no commit hash in the assembly's
+       version or its source link. A hash there is an input to every
+       compile, so each commit made every project compile again; the
+       DLLs do not name the commit they were built from. -->
+  <PropertyGroup>
+    <EnableSourceLink>false</EnableSourceLink>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+</Project>

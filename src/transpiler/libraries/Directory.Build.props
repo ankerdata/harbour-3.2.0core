@@ -1,5 +1,8 @@
 <Project>
 
+  <!-- the settings of every project in the repository -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
   <!-- Every contrib library project below this folder: the symbols inside
        the DLL. An application ships DLLs without .pdb files, and a stack
        trace through a library still has file and line. -->
