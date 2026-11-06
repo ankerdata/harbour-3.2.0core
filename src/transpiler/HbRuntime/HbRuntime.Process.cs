@@ -200,6 +200,23 @@ public static partial class HbRuntime
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     public static string ProcFile(decimal nLevel = 0) => Path.GetFileName(CallerFrame(nLevel)?.GetFileName() ?? "");
 
+    // One level of ProcStack(): what ProcName(), ProcLine() and ProcFile()
+    // give for it.
+    public readonly record struct ProcFrame(string Name, long Line, string File);
+
+    // ProcStack( [<n>] ): every routine from level n up, as ProcName(),
+    // ProcLine() and ProcFile() would give them, from one walk of the stack
+    // where those take one each per call. Not Harbour's: for code that
+    // wants every level, Stack2Str() in a #pragma BEGINCSHARP block.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    public static List<ProcFrame> ProcStack(decimal nLevel = 0) =>
+        nLevel < 0 ? [] :
+        new System.Diagnostics.StackTrace(1, true).GetFrames()
+            .Where(IsRoutine)
+            .Skip((int) nLevel)
+            .Select(f => new ProcFrame(RoutineName(f), f.GetFileLineNumber(), Path.GetFileName(f.GetFileName() ?? "")))
+            .ToList();
+
     // The routine nLevel above the caller of ProcName() / ProcLine() /
     // ProcFile(): the trace starts past this method and the ProcXxx() that
     // called it.
@@ -210,19 +227,21 @@ public static partial class HbRuntime
         if (n < 0)
             return null;
         foreach (var f in new System.Diagnostics.StackTrace(2, true).GetFrames())
-        {
-            var m = f.GetMethod();
-            string ns = m?.DeclaringType?.Namespace ?? "";
-            if (m?.DeclaringType == null || ns == "System" || ns.StartsWith("System.") || ns.StartsWith("Microsoft."))
-                continue;
-            // HbRuntime's own machinery — the error launcher, a block's
-            // invocation — is no routine of the program's
-            if (m.IsDefined(typeof(System.Diagnostics.StackTraceHiddenAttribute), false))
-                continue;
-            if (n-- == 0)
+            if (IsRoutine(f) && n-- == 0)
                 return f;
-        }
         return null;
+    }
+
+    // Whether a frame is one of the program's routines. The runtime's own
+    // frames are not, and neither is HbRuntime's machinery hidden from the
+    // stack trace (the error launcher, a block's invocation).
+    static bool IsRoutine(System.Diagnostics.StackFrame f)
+    {
+        var m = f.GetMethod();
+        string ns = m?.DeclaringType?.Namespace ?? "";
+        if (m?.DeclaringType == null || ns == "System" || ns.StartsWith("System.") || ns.StartsWith("Microsoft."))
+            return false;
+        return !m.IsDefined(typeof(System.Diagnostics.StackTraceHiddenAttribute), false);
     }
 
     // A routine as C# names it: one of Program's functions by its own name,
