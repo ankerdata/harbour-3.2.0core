@@ -2544,6 +2544,26 @@ static const char * s_szGapNameKey = NULL;
    arguments do not inherit it. */
 static HB_BOOL s_fCallArgsFunc = HB_FALSE;
 
+/* A call's bindings of a generic callee's type parameters, from its
+   arguments' types as the emitter reads them (hb_astTypeParamBindArg; the
+   scan binds the same through its type env). A literal says nothing: the
+   binding types it. */
+static void hb_csCallBind( const char * szFunc, PHB_EXPR pArg, const char ** aszBind )
+{
+   int iPos;
+
+   memset( ( void * ) aszBind, 0, HB_AST_TYPEPARAMS * sizeof( const char * ) );
+   for( iPos = 0; pArg && szFunc; pArg = pArg->pNext, iPos++ )
+   {
+      const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
+      PHB_EXPR pEffective = pArg->ExprType == HB_ET_REFERENCE ?
+                            pArg->value.asReference : pArg;
+      if( pP && pP->fDeclType && hb_astTypeParamOf( pP->szType ) && pEffective &&
+          pEffective->ExprType != HB_ET_NONE && pEffective->ExprType != HB_ET_ARRAY )
+         hb_astTypeParamBindArg( pP->szType, hb_csExprHbType( pEffective ), aszBind );
+   }
+}
+
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc )
 {
    PHB_EXPR pHead;
@@ -2552,6 +2572,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    int      iPos;
    HB_BOOL  fFirst = HB_TRUE;
    HB_BOOL  fNamed = HB_FALSE;
+   const char * aszBind[ HB_AST_TYPEPARAMS ];   /* a generic callee's, hb_csCallBind */
    /* Consume the ref-shim map set by the enclosing brace block, then
       clear it so nested funcall args don't inherit it. iShimBase names
       the temps this call's shimmed slots refer to. */
@@ -2576,6 +2597,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
       pHead = pParms->value.asList.pExprList;
    else
       pHead = pParms;
+   hb_csCallBind( szFunc, pHead, aszBind );
 
    /* Pass 1: find the last index that holds a real (non-HB_ET_NONE)
       argument. Everything past that is a trailing default and gets
@@ -2669,7 +2691,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                   const char * szSlot = NULL;
                   const char * szCs;
                   if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
-                     szSlot = pP->szType;
+                     szSlot = hb_astTypeParamSubst( pP->szType, aszBind );
                   if( ! szSlot )
                      szSlot = hb_astInferType( pP ? pP->szName : NULL, NULL );
                   szCs = hb_csTypeMap( szSlot );
@@ -2870,10 +2892,13 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                (by value only: a `ref` slot cannot take a cast) */
             if( pP && ! pP->fByRef )
             {
-               const char * szDown = hb_csDowncastTo( pP->szType, pArg );
+               /* a generic parameter's ARRAY<T>: the list this call binds
+                  T to, so a literal is that list */
+               const char * szSlot = hb_astTypeParamSubst( pP->szType, aszBind );
+               const char * szDown = hb_csDowncastTo( szSlot, pArg );
                if( szDown )
                   fprintf( yyc, "(%s)", szDown );
-               hb_csExpectLiteral( pP->szType, pArg );
+               hb_csExpectLiteral( szSlot, pArg );
             }
          }
          /* A block AScan / AEval / ASort hands each element to: its first
@@ -2961,6 +2986,16 @@ static const char * hb_csTypeMap( const char * szHbType )
       char * szBuf = s_aFixed[ s_iFixed++ & 3 ];
       hb_snprintf( szBuf, sizeof( s_aFixed[ 0 ] ), "%s[]",
                    hb_csTypeMap( hb_astArrayElemType( szHbType ) ) );
+      return szBuf;
+   }
+   if( hb_astTypeParamOf( szHbType ) )
+   {
+      /* a generic function's ARRAY<T> (plan C12): List<T>, T its own */
+      static char s_aParam[ 4 ][ 16 ];
+      static int  s_iParam = 0;
+      char * szBuf = s_aParam[ s_iParam++ & 3 ];
+      hb_snprintf( szBuf, sizeof( s_aParam[ 0 ] ), "List<%c>",
+                   hb_astTypeParamOf( szHbType ) );
       return szBuf;
    }
    if( hb_astIsTypedList( szHbType ) )
@@ -4442,6 +4477,26 @@ static const char * hb_csFuncHbType( const char * szFn )
    return szRet ? szRet : hb_funcTabReturnType( szFn );
 }
 
+/* A call's result type, Harbour's name: a generic function's ARRAY<T> is
+   the list this call binds T to (hb_csCallBind) */
+static const char * hb_csCallHbType( PHB_EXPR pCall )
+{
+   const char * szFn = pCall->value.asFunCall.pFunName->value.asSymbol.name;
+   const char * szRet = hb_csFuncHbType( szFn );
+   if( hb_astTypeParamOf( szRet ) )
+   {
+      const char * aszBind[ HB_AST_TYPEPARAMS ];
+      PHB_EXPR pParms = pCall->value.asFunCall.pParms;
+      if( pParms && ( pParms->ExprType == HB_ET_LIST ||
+                      pParms->ExprType == HB_ET_ARGLIST ||
+                      pParms->ExprType == HB_ET_MACROARGLIST ) )
+         pParms = pParms->value.asList.pExprList;
+      hb_csCallBind( szFn, pParms, aszBind );
+      return hb_astTypeParamSubst( szRet, aszBind );
+   }
+   return szRet;
+}
+
 /* The Harbour type of an expression that holds an array or a record: a
    variable's, a member's, a call's, or an element's — of a declared array
    its element type, of a record by a constant subscript its field's type
@@ -4465,7 +4520,7 @@ static const char * hb_csExprHbType( PHB_EXPR pExpr )
       case HB_ET_FUNCALL:
          if( pExpr->value.asFunCall.pFunName &&
              pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
-            return hb_csFuncHbType( pExpr->value.asFunCall.pFunName->value.asSymbol.name );
+            return hb_csCallHbType( pExpr );
          return NULL;
       case HB_ET_LIST:
       case HB_ET_ARGLIST:
@@ -4657,24 +4712,7 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr )
          {
             /* reftab row — the file-static one first, as every other
                resolver here — then the builtin table */
-            const char * szFn =
-               pExpr->value.asFunCall.pFunName->value.asSymbol.name;
-            const char * szRet = NULL;
-            if( s_pRefTab )
-            {
-               if( hb_csIsFileStaticFunc( szFn ) && s_szFileBase[ 0 ] )
-               {
-                  char szKey[ 256 ];
-                  hb_snprintf( szKey, sizeof( szKey ), "%s::%s",
-                               s_szFileBase, szFn );
-                  szRet = hb_refTabReturnType( s_pRefTab, szKey );
-               }
-               if( ! szRet )
-                  szRet = hb_refTabReturnType( s_pRefTab, szFn );
-            }
-            if( ! szRet )
-               szRet = hb_funcTabReturnType( szFn );
-            return hb_csKnownCsType( szRet );
+            return hb_csKnownCsType( hb_csCallHbType( pExpr ) );
          }
          return NULL;
 
@@ -6106,13 +6144,14 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                /* an empty literal: the type's empty instance */
                if( szElem && hb_astIsFixedType( szExpect ) )
                   fprintf( yyc, "System.Array.Empty<%s>()", hb_csTypeMap( szElem ) );
-               else if( hb_astIsTypedList( szExpect ) )
+               else if( hb_astIsTypedList( szExpect ) || hb_astTypeParamOf( szExpect ) )
                   fprintf( yyc, "new %s()", hb_csTypeMap( szExpect ) );
                else
                   fprintf( yyc, "new List<dynamic>()" );
                break;
             }
-            if( szElem && ( hb_astIsFixedType( szExpect ) || hb_astIsTypedList( szExpect ) ) )
+            if( szElem && ( hb_astIsFixedType( szExpect ) || hb_astIsTypedList( szExpect ) ||
+                            hb_astTypeParamOf( szExpect ) ) )
                fprintf( yyc, "new %s", hb_csTypeMap( szExpect ) );
             else
                fprintf( yyc, "new List<dynamic>" );
@@ -11672,6 +11711,32 @@ static void hb_csCollectReturnVars( PHB_AST_NODE pNode,
    }
 }
 
+/* A generic function's type parameters as C# writes them after its name,
+   `<T>` or `<T, U>`; "" for any other routine (hb_astFuncTypeParams) */
+static const char * hb_csTypeParamList( PHB_AST_NODE pFunc, int nParams )
+{
+   static char s_szList[ 3 * HB_AST_TYPEPARAMS + 2 ];
+   char szParams[ HB_AST_TYPEPARAMS + 1 ];
+   int i, n = 0;
+
+   hb_astFuncTypeParams( pFunc, nParams, szParams );
+   if( ! szParams[ 0 ] )
+      return "";
+   s_szList[ n++ ] = '<';
+   for( i = 0; szParams[ i ]; i++ )
+   {
+      if( i )
+      {
+         s_szList[ n++ ] = ',';
+         s_szList[ n++ ] = ' ';
+      }
+      s_szList[ n++ ] = szParams[ i ];
+   }
+   s_szList[ n++ ] = '>';
+   s_szList[ n ] = '\0';
+   return s_szList;
+}
+
 static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
                             FILE * yyc, int iIndent )
 {
@@ -11769,7 +11834,8 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
       const char * szEmitName = fIsMain ? "Main"
          : hb_csMangleStaticFunc( pFunc->value.asFunc.szName,
                                    szMangledBuf, sizeof( szMangledBuf ) );
-      fprintf( yyc, " %s(", szEmitName );
+      fprintf( yyc, " %s%s(", szEmitName,
+               hb_csTypeParamList( pFunc, ( int ) pCompFunc->wParamCount ) );
    }
 
    /* Parameters */
@@ -11983,7 +12049,8 @@ static void hb_csEmitFunc( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          fprintf( yyc, "%s",
                   pFunc->value.asFunc.fProcedure ? "void"
                   : szRetType ? hb_csTypeMap( szRetType ) : "dynamic" );
-         fprintf( yyc, " %s(", szEmitName );
+         fprintf( yyc, " %s%s(", szEmitName,
+                  hb_csTypeParamList( pFunc, ( int ) pCompFunc->wParamCount ) );
          pP = pFunc->value.asFunc.pParams;
          for( k = 0; pP && k < iFirstRef; k++ )
          {

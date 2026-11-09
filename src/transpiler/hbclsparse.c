@@ -134,6 +134,17 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
          szElem = hb_compDeclTypeTokens( HB_COMP_PARAM, pElem, &iUsedElem );
          *piUsed = 2 + iUsedElem;
       }
+      else if( pElem && HB_PP_TOKEN_TYPE( pElem->type ) == HB_PP_TOKEN_KEYWORD &&
+               pElem->len == 1 && HB_ISALPHA( ( HB_UCHAR ) pElem->value[ 0 ] ) )
+      {
+         /* `ARRAY OF T`: a type parameter, one capital letter (plan C12,
+            hb_astIsTypeParam) */
+         char szParam[ 2 ];
+         szParam[ 0 ] = ( char ) HB_TOUPPER( ( HB_UCHAR ) pElem->value[ 0 ] );
+         szParam[ 1 ] = '\0';
+         szElem = hb_compIdentifierNew( HB_COMP_PARAM, szParam, HB_IDENT_COPY );
+         *piUsed = 3;
+      }
       else if( pElem && HB_PP_TOKEN_TYPE( pElem->type ) == HB_PP_TOKEN_KEYWORD )
       {
          szElem = hb_clsScalarType( pElem );

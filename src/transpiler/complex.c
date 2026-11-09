@@ -1586,10 +1586,12 @@ hb_comp_yylex_restart:
                   const char * szElem = szHash ? hb_astArrayElemType( szHash ) : NULL;
                   /* the same for an array the type tokens cannot spell: of
                      whole numbers (`AS ARRAY OF INTEGER`, a type Harbour
-                     has not) or of arrays (`AS ARRAY OF ARRAY OF
-                     CHARACTER`); the grammar sees AS ARRAY */
+                     has not), of arrays (`AS ARRAY OF ARRAY OF
+                     CHARACTER`) or of a type parameter (`AS ARRAY OF T`);
+                     the grammar sees AS ARRAY */
                   HB_BOOL fArray = szElem && ( hb_stricmp( szElem, "INTEGER" ) == 0 ||
-                                               hb_astArrayElemType( szElem ) != NULL );
+                                               hb_astArrayElemType( szElem ) != NULL ||
+                                               hb_astIsTypeParam( szElem ) );
                   if( szHash && iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray ) )
                   {
                      int i;

@@ -661,6 +661,102 @@ static const char * hb_astUndeclared( const char * szType )
           "ARRAY" : szType;
 }
 
+/* A type parameter: one capital letter (no class in the corpus has a name
+   so short) */
+HB_BOOL hb_astIsTypeParam( const char * szType )
+{
+   return szType && szType[ 0 ] >= 'A' && szType[ 0 ] <= 'Z' && szType[ 1 ] == '\0';
+}
+
+/* T of ARRAY<T> when T is a type parameter, else 0 */
+char hb_astTypeParamOf( const char * szType )
+{
+   const char * szElem;
+   if( ! szType || hb_strnicmp( szType, "ARRAY<", 6 ) != 0 )
+      return 0;
+   szElem = hb_astArrayElemType( szType );
+   return hb_astIsTypeParam( szElem ) ? szElem[ 0 ] : 0;
+}
+
+/* What an argument of type szArgType binds the T of an ARRAY<T> parameter
+   to: a typed list its element type, the caller's own ARRAY<U> its U, any
+   other List (a plain array, an array of a class) USUAL, as C# binds T to
+   dynamic for a List<dynamic>; NULL when it says nothing (no type, not a
+   List) */
+const char * hb_astTypeParamArg( const char * szArgType )
+{
+   if( hb_astIsTypedList( szArgType ) || hb_astTypeParamOf( szArgType ) )
+      return hb_astArrayElemType( szArgType );
+   if( hb_astIsArrayType( szArgType ) && ! hb_astIsFixedType( szArgType ) )
+      return "USUAL";
+   return NULL;
+}
+
+/* One argument's part in its call's bindings: when the parameter is an
+   ARRAY<T> and nothing bound T yet, what the argument's type says. The
+   parameter's T, or 0. A literal argument is typed by the binding, so the
+   caller leaves it out (szArgType NULL). */
+char hb_astTypeParamBindArg( const char * szParamType, const char * szArgType,
+                             const char ** aszBind )
+{
+   char c = hb_astTypeParamOf( szParamType );
+   if( c && ! aszBind[ c - 'A' ] )
+      aszBind[ c - 'A' ] = hb_astTypeParamArg( szArgType );
+   return c;
+}
+
+const char * hb_astTypeParamSubst( const char * szType, const char * const * aszBind )
+{
+   char c = hb_astTypeParamOf( szType );
+   const char * szBound;
+   char szBuf[ 160 ];
+   if( ! c )
+      return szType;
+   szBound = aszBind ? aszBind[ c - 'A' ] : NULL;
+   if( ! szBound || hb_stricmp( szBound, "USUAL" ) == 0 )
+      return "ARRAY";
+   hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szBound );
+   return hb_astIntern( szBuf, strlen( szBuf ) );
+}
+
+/* The letters (A to Z, each once) a function's parameters (the first
+   nParams of its variable records, which list its locals after them; all of
+   them when nParams is negative) and its return declare as type
+   parameters, in szBuf (27 bytes); "" for a method, whose class declares
+   no type parameters */
+const char * hb_astFuncTypeParams( PHB_AST_NODE pFunc, int nParams, char * szBuf )
+{
+   PHB_AST_NODE pFirst = NULL;
+   PHB_HVAR pVar;
+   HB_BOOL aHas[ HB_AST_TYPEPARAMS ];
+   int i, n = 0;
+   char c;
+
+   szBuf[ 0 ] = '\0';
+   if( ! pFunc || pFunc->type != HB_AST_FUNCTION )
+      return szBuf;
+   if( pFunc->value.asFunc.pBody && pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
+      pFirst = pFunc->value.asFunc.pBody->value.asBlock.pFirst;
+   if( pFirst && pFirst->type == HB_AST_CLASSMETHOD && pFirst->value.asClassMethod.szClass )
+      return szBuf;
+   memset( aHas, 0, sizeof( aHas ) );
+   for( pVar = pFunc->value.asFunc.pParams, i = 0;
+        pVar && ( nParams < 0 || i < nParams ); pVar = pVar->pNext, i++ )
+      if( ( c = hb_astTypeParamOf( pVar->szDeclType ) ) != 0 )
+         aHas[ c - 'A' ] = HB_TRUE;
+   if( ( c = hb_astTypeParamOf( pFunc->value.asFunc.szDeclType ) ) != 0 )
+      aHas[ c - 'A' ] = HB_TRUE;
+   for( i = 0; i < HB_AST_TYPEPARAMS; i++ )
+      if( aHas[ i ] )
+         szBuf[ n++ ] = ( char ) ( 'A' + i );
+   szBuf[ n ] = '\0';
+   return szBuf;
+}
+
+/* The type parameters of the function hb_astPropagate is working on, the
+   element types hb_astDeclKnown accepts */
+static char s_szTypeParams[ HB_AST_TYPEPARAMS + 1 ] = "";
+
 static HB_BOOL hb_astIsDeclScalar( const char * szType )
 {
    static const char * s_aScalars[] = { "STRING", "NUMERIC", "INTEGER", "LOGICAL",
@@ -716,18 +812,29 @@ const char * hb_astDeclCanon( void * pRefTab, const char * szDecl )
    }
 }
 
-/* HB_TRUE when every class the declaration names is defined (W0040) */
-HB_BOOL hb_astDeclKnown( void * pRefTab, const char * szDecl )
+/* HB_TRUE when every class the declaration names is defined (W0040). An
+   ARRAY<T> of a type parameter is known as the whole declaration in a
+   function that declares T, and nowhere else: nested, on a method or a
+   member, T would be a class nothing defines. */
+static HB_BOOL hb_astDeclKnownAt( void * pRefTab, const char * szDecl, HB_BOOL fTop )
 {
    const char * szElem = hb_astArrayElemType( szDecl );
    const char * szClass;
+   char c = hb_astTypeParamOf( szDecl );
+   if( c )
+      return fTop && strchr( s_szTypeParams, c ) != NULL;
    if( hb_astHashValueType( szDecl ) )
-      return hb_astDeclKnown( pRefTab, hb_astHashValueType( szDecl ) );
+      return hb_astDeclKnownAt( pRefTab, hb_astHashValueType( szDecl ), HB_FALSE );
    if( szElem && ( hb_astArrayElemType( szElem ) || hb_astHashValueType( szElem ) ) )
-      return hb_astDeclKnown( pRefTab, szElem );   /* nested: ARRAY OF HASH OF … */
+      return hb_astDeclKnownAt( pRefTab, szElem, HB_FALSE );   /* nested: ARRAY OF HASH OF … */
    szClass = szElem ? szElem : szDecl;
    return ! szClass || hb_astIsDeclScalar( szClass ) || hb_astIsHashFamily( szClass ) ||
           hb_astDeclClass( pRefTab, szClass ) != NULL;
+}
+
+HB_BOOL hb_astDeclKnown( void * pRefTab, const char * szDecl )
+{
+   return hb_astDeclKnownAt( pRefTab, szDecl, HB_TRUE );
 }
 
 /* Records (plan C12): a class row the reftab flags R, its fields the
@@ -1311,30 +1418,80 @@ HB_BOOL hb_astIsFileStaticFunc( const char * szName )
    file's own function list decides it, not the key: member rows share the
    separator (`Class::member`), and a class may be named after its file
    (OrmTestSuite in ormtestsuite.prg, Queue in queue.prg). */
-static const char * hb_typeEnvFuncReturnType( HB_TYPEENV * pEnv,
-                                              const char * szFunc )
+static const char * hb_typeEnvFuncRow( HB_TYPEENV * pEnv, const char * szFunc,
+                                       char * szBuf, HB_SIZE nBuf )
 {
-   if( ! pEnv || ! pEnv->pRefTab || ! szFunc )
-      return NULL;
    if( pEnv->szFile && ! strstr( szFunc, "::" ) &&
        hb_astIsFileStaticFunc( szFunc ) )
    {
       PHB_FNAME pSplit = hb_fsFNameSplit( pEnv->szFile );
-      const char * szRet = NULL;
+      const char * szRow = NULL;
       if( pSplit && pSplit->szName )
       {
-         char szStaticKey[ 256 ];
-         hb_snprintf( szStaticKey, sizeof( szStaticKey ), "%s::%s",
-                      pSplit->szName, szFunc );
-         szRet = hb_refTabReturnType( pEnv->pRefTab, szStaticKey );
+         hb_snprintf( szBuf, nBuf, "%s::%s", pSplit->szName, szFunc );
+         szRow = szBuf;
       }
       if( pSplit )
          hb_xfree( pSplit );
       /* the file's own function: a free function of the same name
          elsewhere is not the one called */
-      return szRet;
+      return szRow;
    }
-   return hb_refTabReturnType( pEnv->pRefTab, szFunc );
+   return szFunc;
+}
+
+/* The return type a called function's row holds: a generic function's
+   ARRAY<T> as it stands, for a call to bind */
+static const char * hb_typeEnvFuncRetDecl( HB_TYPEENV * pEnv, const char * szFunc )
+{
+   char szRow[ 256 ];
+   const char * szKey;
+   if( ! pEnv || ! pEnv->pRefTab || ! szFunc )
+      return NULL;
+   szKey = hb_typeEnvFuncRow( pEnv, szFunc, szRow, sizeof( szRow ) );
+   return szKey ? hb_refTabReturnType( pEnv->pRefTab, szKey ) : NULL;
+}
+
+/* A generic function's ARRAY<T>, read without its call's arguments, is a
+   plain ARRAY */
+static const char * hb_typeEnvFuncReturnType( HB_TYPEENV * pEnv,
+                                              const char * szFunc )
+{
+   const char * szRet = hb_typeEnvFuncRetDecl( pEnv, szFunc );
+   return hb_astTypeParamOf( szRet ) ? "ARRAY" : szRet;
+}
+
+static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv );
+
+/* A call's bindings of its callee's type parameters (szRow, the row it
+   resolves to), aszBind[ HB_AST_TYPEPARAMS ] by letter: what the arguments
+   passed for its ARRAY<T> parameters say, the first that says winning
+   (hb_astTypeParamBindArg). A literal says nothing: the binding types it. */
+static void hb_typeEnvCallBind( HB_TYPEENV * pEnv, const char * szRow,
+                                PHB_EXPR pParms, const char ** aszBind )
+{
+   PHB_EXPR pArg;
+   int iPos;
+
+   memset( ( void * ) aszBind, 0, HB_AST_TYPEPARAMS * sizeof( const char * ) );
+   if( ! pEnv || ! pEnv->pRefTab || ! szRow || ! pParms )
+      return;
+   if( pParms->ExprType == HB_ET_LIST || pParms->ExprType == HB_ET_ARGLIST ||
+       pParms->ExprType == HB_ET_MACROARGLIST )
+      pArg = pParms->value.asList.pExprList;
+   else
+      pArg = pParms;
+   for( iPos = 0; pArg; pArg = pArg->pNext, iPos++ )
+   {
+      const HB_REFPARAM * pP = hb_refTabParam( pEnv->pRefTab, szRow, iPos );
+      PHB_EXPR pEffective = pArg->ExprType == HB_ET_REFERENCE ?
+                            pArg->value.asReference : pArg;
+      if( pP && pP->fDeclType && hb_astTypeParamOf( pP->szType ) &&
+          pEffective && pEffective->ExprType != HB_ET_NONE &&
+          pEffective->ExprType != HB_ET_ARRAY )
+         hb_astTypeParamBindArg( pP->szType, hb_astInferExprType( pEffective, pEnv ),
+                                 aszBind );
+   }
 }
 
 static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
@@ -2015,7 +2172,17 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             szRet = hb_funcTabReturnType( szFunc );
             if( szRet )
                return szRet;
-            return hb_typeEnvFuncReturnType( pEnv, szFunc );
+            szRet = hb_typeEnvFuncRetDecl( pEnv, szFunc );
+            /* a generic function's ARRAY<T>: the list this call binds T to */
+            if( hb_astTypeParamOf( szRet ) )
+            {
+               const char * aszBind[ HB_AST_TYPEPARAMS ];
+               char szRow[ 256 ];
+               hb_typeEnvCallBind( pEnv, hb_typeEnvFuncRow( pEnv, szFunc, szRow, sizeof( szRow ) ),
+                                   pExpr->value.asFunCall.pParms, aszBind );
+               return hb_astTypeParamSubst( szRet, aszBind );
+            }
+            return szRet;
          }
          return NULL;
 
@@ -2160,6 +2327,9 @@ static void hb_astDeclCheck( const char * szDecl, const char * szActual,
    one for an array (FIXED<T>, ARRAY<T>) element by element, each under
    its own declared type (plan C12); any other value by its type
    (hb_astDeclCheck). */
+static HB_BOOL hb_astNumericConstant( PHB_EXPR pExpr );
+static HB_BOOL hb_astConstantHasFraction( PHB_EXPR pExpr );
+
 static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
                                  HB_TYPEENV * pEnv, const char * szFile, int iLine,
                                  const char * szName, const char * szWhat )
@@ -2208,7 +2378,25 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
       hb_snprintf( szInto, sizeof( szInto ), "putting %%s into '%s'",
                    szName ? szName : "an array" );
       for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext )
+      {
+         /* a List<long> takes no decimal, as AAdd() into one does not
+            (hb_astCheckElemWrite): `new List<long> { nValue }` is no C# */
+         if( hb_astIsValueList( szDecl ) &&
+             ! ( hb_astNumericConstant( pItem ) && ! hb_astConstantHasFraction( pItem ) ) )
+         {
+            const char * szT = hb_astInferExprType( pItem, pEnv );
+            if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )
+            {
+               char szMsg[ 256 ];
+               hb_snprintf( szMsg, sizeof( szMsg ),
+                            "putting NUMERIC, a decimal, into '%s', a List<long>",
+                            szName ? szName : "an array" );
+               hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+               continue;
+            }
+         }
          hb_astDeclCheckExpr( szElem, pItem, pEnv, szFile, iLine, szName, szInto );
+      }
       return;
    }
    if( pExpr->ExprType == HB_ET_HASH && hb_astHashValueType( szDecl ) )
@@ -3992,6 +4180,7 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
    char     szStaticKey[ 256 ];
    char     szRowBuf[ 256 ];
    const char * szRow;
+   const char * aszBind[ HB_AST_TYPEPARAMS ];
 
    if( ! szCallee || ! pEnv->pRefTab )
       return;
@@ -4030,6 +4219,9 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
       return;
 
    hb_astCheckArity( szCallee, pParms, pEnv, iLine );
+
+   /* a generic callee: what this call binds its type parameters to */
+   hb_typeEnvCallBind( pEnv, szCallee, pParms, aszBind );
 
    if( pParms->ExprType == HB_ET_LIST ||
        pParms->ExprType == HB_ET_ARGLIST ||
@@ -4092,14 +4284,44 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
             const char * szAuditType;
             HB_REFINE_RESULT r;
 
-            /* W0041: an argument for a declared parameter (`o AS CLASS X`) */
+            /* W0041: an argument for a declared parameter (`o AS CLASS X`).
+               A generic parameter's ARRAY<T> is what this call binds T to,
+               and an argument that would bind T otherwise, or a C# array,
+               is no List<T> C# can take beside the others. */
             if( pDecl && pDecl->fDeclType )
             {
                char szWhat[ 192 ];
-               hb_snprintf( szWhat, sizeof( szWhat ), "passing %%s as '%s' to '%s'",
-                            pDecl->szName ? pDecl->szName : "?", szCallee );
-               hb_astDeclCheckExpr( pDecl->szType, pEffective, pEnv, pEnv->szFile,
-                                    iLine, pDecl->szName, szWhat );
+               char c = hb_astTypeParamOf( pDecl->szType );
+               const char * szOwn = c && pEffective->ExprType != HB_ET_ARRAY ?
+                                    hb_astTypeParamArg( szArgType ) : NULL;
+               const char * szBound = c ? aszBind[ c - 'A' ] : NULL;
+               if( c && hb_astIsFixedType( szArgType ) )
+               {
+                  char szMsg[ 256 ];
+                  hb_snprintf( szMsg, sizeof( szMsg ),
+                               "passing %s as '%s' to '%s', a List<%c>: a FIXED array "
+                               "is a C# array, no List", szArgType,
+                               pDecl->szName ? pDecl->szName : "?", szCallee, c );
+                  hb_astDeclWarn( "W0041", pEnv->szFile, iLine, pDecl->szName, szMsg );
+               }
+               else if( szOwn && szBound && hb_stricmp( szOwn, szBound ) != 0 )
+               {
+                  char szMsg[ 256 ];
+                  hb_snprintf( szMsg, sizeof( szMsg ),
+                               "passing %s as '%s' to '%s', whose %c this call binds "
+                               "to %s", szArgType, pDecl->szName ? pDecl->szName : "?",
+                               szCallee, c, hb_stricmp( szBound, "USUAL" ) == 0 ?
+                               "a plain array's elements" : szBound );
+                  hb_astDeclWarn( "W0041", pEnv->szFile, iLine, pDecl->szName, szMsg );
+               }
+               else
+               {
+                  hb_snprintf( szWhat, sizeof( szWhat ), "passing %%s as '%s' to '%s'",
+                               pDecl->szName ? pDecl->szName : "?", szCallee );
+                  hb_astDeclCheckExpr( hb_astTypeParamSubst( pDecl->szType, aszBind ),
+                                       pEffective, pEnv, pEnv->szFile, iLine,
+                                       pDecl->szName, szWhat );
+               }
             }
             /* an ARRAY<T> refines an undeclared slot as a plain ARRAY */
             r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos,
@@ -7421,9 +7643,20 @@ void hb_astDeclCheckKnown( void * pRefTab, const char * szDecl,
    if( pRefTab && szDecl && ! hb_astDeclKnown( pRefTab, szDecl ) )
    {
       char szMsg[ 256 ];
-      hb_snprintf( szMsg, sizeof( szMsg ),
-                   "'%s' is declared %s, a class nothing defines",
-                   szName ? szName : "?", szDecl );
+      const char * szIn = szDecl;
+      /* a type parameter at any depth: ARRAY OF ARRAY OF T, HASH OF … */
+      while( szIn && ! hb_astTypeParamOf( szIn ) )
+         szIn = hb_astArrayElemType( szIn ) ? hb_astArrayElemType( szIn ) :
+                hb_astHashValueType( szIn );
+      if( szIn )
+         hb_snprintf( szMsg, sizeof( szMsg ),
+                      "'%s' is declared %s: a type parameter is only a "
+                      "function's own ARRAY OF T, on its parameters, return and locals",
+                      szName ? szName : "?", szDecl );
+      else
+         hb_snprintf( szMsg, sizeof( szMsg ),
+                      "'%s' is declared %s, a class nothing defines",
+                      szName ? szName : "?", szDecl );
       hb_astDeclWarn( "W0040", szFile, iLine, szName, szMsg );
    }
 }
@@ -7469,6 +7702,7 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
    HB_BOOL fConflict = HB_FALSE;
    HB_BOOL fSawUnknown = HB_FALSE;
    PHB_REFTAB pSavedPropRefTab;
+   char szSavedTypeParams[ HB_AST_TYPEPARAMS + 1 ];
 
    if( ! pBody || pBody->type != HB_AST_BLOCK )
       return NULL;
@@ -7480,6 +7714,11 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       once nested propagate calls return. */
    pSavedPropRefTab = s_pPropRefTab;
    s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
+   /* the type parameters this function declares, for hb_astDeclKnown */
+   memcpy( szSavedTypeParams, s_szTypeParams, sizeof( s_szTypeParams ) );
+   hb_astFuncTypeParams( pFunc, pRefTab && szFuncKey ?
+                         hb_refTabParamCount( ( PHB_REFTAB ) pRefTab, szFuncKey ) : -1,
+                         s_szTypeParams );
    if( pClassList )
       hb_astSetFileDecls( pClassList );   /* its #defines: constant subscripts */
 
@@ -7968,6 +8207,7 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       /* Pair with the entry save so an outer codegen-set reftab (or a
          nesting propagate call) is restored. */
       s_pPropRefTab = pSavedPropRefTab;
+      memcpy( s_szTypeParams, szSavedTypeParams, sizeof( s_szTypeParams ) );
       return szResult;
    }
 }

@@ -146,6 +146,13 @@ CASES_B = [
     ('typed_list.prg', 'W0041', "ASize\\(\\) may leave NIL in 'aIds', a List<long>"),
     ('typed_list.prg', 'W0041', "ADel\\(\\) may leave NIL in 'aIds', a List<long>"),
     ('typed_list.prg', 'W0041', "putting NUMERIC into 'aParts', declared STRING"),
+    ('generic.prg', 'W0041', "passing ARRAY<STRING> as 'aFrom' to 'Join41g', whose T this call binds to INTEGER"),
+    ('generic.prg', 'W0041', "passing ARRAY as 'aFrom' to 'Join41g', whose T this call binds to INTEGER"),
+    ('generic.prg', 'W0041', "passing FIXED<INTEGER> as 'aFrom' to 'Join41g', a List<T>: a FIXED array"),
+    ('generic.prg', 'W0041', "putting NUMERIC, a decimal, into 'aFrom', a List<long>"),
+    ('generic.prg', 'W0040', "'aRows' is declared ARRAY<ARRAY<T>>: a type parameter"),
+    ('generic.prg', 'W0040', "'aItems' is declared ARRAY<T>: a type parameter"),
+    ('generic.prg', 'W0040', "'aList' is declared ARRAY<T>: a type parameter"),
 ]
 
 
@@ -168,6 +175,9 @@ def main():
     # typed lists: no plain array, no value of another type; a List<long> no
     # decimal and no NIL
     count_of("typed_list.prg", "warning W", 8)
+    # generic functions: a call's arguments bind T one way, and T is only a
+    # function's own ARRAY OF T
+    count_of("generic.prg", "warning W", 7)
     # W0042 once, for the one question; the unread header is no warning by itself
     count_of("cond_unread.prg", "warning W", 1, "warning")
     # W0025 for the string, not for the whole number

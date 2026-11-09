@@ -355,6 +355,22 @@ extern HB_BOOL      hb_astIsFixedType( const char * szType );
    array, is what the value is wherever it goes: hb_astIsTypedStorage. */
 extern HB_BOOL      hb_astIsTypedList( const char * szType );
 extern HB_BOOL      hb_astIsTypedStorage( const char * szType );
+/* Generic functions (plan C12): `AS ARRAY OF T`, T one capital letter, on
+   a function's parameters, return and locals is a type parameter, ARRAY<T>,
+   a C# List<T> in a generic method. A call binds T from the arguments
+   passed for its ARRAY<T> parameters, the first that says winning
+   (hb_astTypeParamBindArg): a typed list to its element type, any other
+   List to USUAL. ARRAY<T> read at that call is the list T is bound to
+   (hb_astTypeParamSubst), a plain ARRAY when T is bound to USUAL or not at
+   all. hb_astFuncTypeParams gives a function's letters, none for a method. */
+extern HB_BOOL      hb_astIsTypeParam( const char * szType );
+extern char         hb_astTypeParamOf( const char * szType );
+extern const char * hb_astTypeParamArg( const char * szArgType );
+extern char         hb_astTypeParamBindArg( const char * szParamType, const char * szArgType,
+                                            const char ** aszBind );
+extern const char * hb_astTypeParamSubst( const char * szType, const char * const * aszBind );
+extern const char * hb_astFuncTypeParams( PHB_AST_NODE pFunc, int nParams, char * szBuf );
+#define HB_AST_TYPEPARAMS  26   /* aszBind's size: one per letter */
 /* Typed hashes: HASHC<T> / HASHN<T> are hashes keyed by strings / whole
    numbers whose values are T (`AS HASH OF …`, `AS INTEGER HASH OF …`), a
    C# OrderedDictionary<string|long, T>; HASH, HASHC and HASHN hold
