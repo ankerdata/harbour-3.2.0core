@@ -663,6 +663,14 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                }
             }
 
+            /* an array name declares its elements (`VAR aiIds INIT {}`), a
+               plain AS ARRAY saying nothing against it */
+            if( ! fDeclType && ( ! szType || hb_stricmp( szType, "ARRAY" ) == 0 ) &&
+                hb_astArrayNameType( szDataName ) )
+            {
+               szType = hb_astArrayNameType( szDataName );
+               fDeclType = HB_TRUE;
+            }
             pData = hb_astNew( HB_AST_CLASSDATA, hb_clsCurrLine( HB_COMP_PARAM ) );
             pData->value.asClassData.szName    = szDataName;
             pData->value.asClassData.szType    = szType;
@@ -952,6 +960,14 @@ HB_BOOL hb_compRecordParse( HB_COMP_DECL )
                iUsed = 1;     /* a type word the declaration ignores (OBJECT) */
             for( i = 0; i < iUsed; i++ )
                pToken = hb_clsNextToken( HB_COMP_PARAM );
+         }
+         /* an array name declares its elements, as a declaration does */
+         if( ! pField->value.asClassData.fDeclType &&
+             hb_astArrayNameType( pField->value.asClassData.szName ) )
+         {
+            pField->value.asClassData.szType =
+               hb_astArrayNameType( pField->value.asClassData.szName );
+            pField->value.asClassData.fDeclType = HB_TRUE;
          }
          hb_clsAddMember( pRecord, pField );
          continue;

@@ -2931,6 +2931,15 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
          if( szFunc && pHead != pArg && iPos == 2 &&
              hb_stricmp( szFunc, "hb_HSet" ) == 0 )
             hb_csExpectLiteral( hb_astHashValueType( hb_csExprHbType( pHead ) ), pArg );
+         /* hb_default( @a, { … } ), hb_defaultValue( x, { … } ): the default
+            is the value's own type, hb_default<T>( ref T, T ) taking one T
+            and hb_defaultValue()'s dynamic result going where the value's
+            type does (a List<long> for `ai`) */
+         if( szFunc && pHead != pArg && iPos == 1 && pArg->ExprType == HB_ET_ARRAY &&
+             ( hb_stricmp( szFunc, "hb_default" ) == 0 ||
+               hb_stricmp( szFunc, "hb_defaultValue" ) == 0 ) )
+            hb_csExpectLiteral( hb_csExprHbType( pHead->ExprType == HB_ET_REFERENCE ?
+                                                 pHead->value.asReference : pHead ), pArg );
          hb_csEmitExpr( pArg, yyc, HB_FALSE );
          s_szCbElemType = NULL;
          s_nCbElemParams = 0;

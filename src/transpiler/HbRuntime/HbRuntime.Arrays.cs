@@ -76,10 +76,58 @@ public static partial class HbRuntime
     public static dynamic AAdd(dynamic arr, dynamic val)
     {
         if ((object)arr is IList a && IsHbArray(a))
-            a.Add(val);
+            a.Add(ElementFor(a, (object?)val));
         else if (ValType((object)arr) != "O")
             throw new ArgumentException("Argument error (AADD, 1123)");
         return val;
+    }
+
+    // The element type of a typed list (List<long>, List<string>, …):
+    // object for a List<dynamic>, null for anything else
+    static Type? ListElementType(IList a)
+    {
+        Type t = a.GetType();
+        return t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>)
+            ? t.GetGenericArguments()[0] : null;
+    }
+
+    // A value for a list. For a List<long> or a List<decimal>, a number of
+    // another C# type converted as a C# assignment would convert it (only
+    // a whole number into a List<long>); anything else as it is, for the
+    // list to refuse what it cannot hold
+    static object? ElementFor(IList a, object? val)
+    {
+        Type? e = ListElementType(a);
+        if (val is null || e is null || val.GetType() == e)
+            return val;
+        if (e == typeof(long))
+            return val switch
+            {
+                int i => (long)i,
+                short s => (long)s,
+                decimal d when d == decimal.Truncate(d) => (long)d,
+                _ => val,
+            };
+        if (e == typeof(decimal))
+            return val switch
+            {
+                int i => (decimal)i,
+                long l => (decimal)l,
+                short s => (decimal)s,
+                double d => (decimal)d,
+                _ => val,
+            };
+        return val;
+    }
+
+    // What a list holds where Harbour's array holds NIL for a moment: null,
+    // or a value list's zero (List<long>, List<decimal>), which the scan
+    // lets through only where a value takes its place: hb_ADel() and
+    // hb_AIns() with lAutoSize .T., hb_AIns() with a value
+    static object? Blank(IList a)
+    {
+        Type? e = ListElementType(a);
+        return e is not null && e.IsValueType ? Activator.CreateInstance(e) : null;
     }
 
     // ASize( <aArray>, <nLen> ): the array itself, grown with NILs or cut
@@ -242,7 +290,7 @@ public static partial class HbRuntime
         if (i < 1 || i > a.Count)
             return false;
         a.RemoveAt((int)i - 1);
-        a.Add(null);
+        a.Add(Blank(a));
         return true;
     }
 
@@ -254,7 +302,7 @@ public static partial class HbRuntime
         if (i < 1 || i > a.Count)
             return false;
         a.RemoveAt(a.Count - 1);
-        a.Insert((int)i - 1, null);
+        a.Insert((int)i - 1, Blank(a));
         return true;
     }
 
@@ -279,9 +327,9 @@ public static partial class HbRuntime
         if (i == 0)
             i = 1;
         if (lAutoSize && i >= 1 && i <= a.Count + 1)
-            a.Add(null);
+            a.Add(Blank(a));
         if (ArrayIns(a, i) && xValue is not null)
-            a[(int)i - 1] = xValue;
+            a[(int)i - 1] = ElementFor(a, (object?)xValue);
         return arr;
     }
 
@@ -338,8 +386,9 @@ public static partial class HbRuntime
             dCount = 0;
         }
         (long i, long n) = StartCount(a.Count, nStart is null ? null : lStart, dCount is null || dCount == 0 ? null : dCount);
+        object? xElement = ElementFor(a, (object?)xValue);
         for (; n > 0; n--)
-            a[(int)i++] = xValue;
+            a[(int)i++] = xElement;
         return arr;
     }
 

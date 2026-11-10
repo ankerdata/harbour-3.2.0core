@@ -613,13 +613,13 @@ can reach zero. Things that are merely *type debt* go to the
 | W0032 | scan  | Message sent to a scalar-named variable (`aLine:nQty`) — rename to `o<…>`   |
 | W0033 | scan  | A bare BREAK ends a SWITCH CASE: C's `break`, which Harbour runs as the sequence BREAK — leave the CASE with EXIT |
 | W0034 | emit  | THREAD STATIC with an initializer other than NIL, 0 or .F.: a `[ThreadStatic]` field's initializer runs on the first thread only, so another would start with the C# default |
-| W0035 | scan  | A hash used with keys its name does not declare: a number as the key of an `h` name, a string as the key of an `hn` one, or a hash of the other kind assigned to it — rename (`hn<...>` for numbers, `h<...>` for strings) or change the key. A declaration whose key kind contradicts the name (`hnX AS STRING HASH`) too (tests/errors/typed_hash.prg) |
+| W0035 | scan  | A hash used with keys its name does not declare: a number as the key of an `h` name, a string as the key of an `hn` one, or a hash of the other kind assigned to it — rename (`hn<...>` for numbers, `h<...>` for strings) or change the key. A declaration whose key kind contradicts the name (`hnX AS STRING HASH`) too, and one whose elements contradict an array name (`acNames AS ARRAY OF INTEGER`) (tests/errors/typed_hash.prg, array_names.prg) |
 | W0036 | scan  | An `x` name subscripted by a key that is not a string: C# cannot tell an array from a hash — assign it to an `a`/`h`/`hn` name where the code knows which (a `ValType()` branch), or read a hash whose keys may be either kind with `hb_HGet()` |
 | W0037 | scan  | `Self` sends a message neither its class nor an ancestor declares (an ancestor in another file included), on a class that keeps no members in a dynamic bag: Harbour raises "No exported method" when the line runs, C# would go through `((dynamic)this)` and throw there. HBObject's and the VM's own messages (`Init`, `ClassName`, `Super`, `__enum*` …) and ancestors the reftab does not know say nothing; the scan's last pass decides, as for W0018. First found easipos easizvt.prg sending to `::oEasiZVT` for its member oEasiZVTProxy in four methods |
 | W0038 | scan  | A FOR EACH variable read after its loop, before it is assigned again: Harbour has restored its value from before the loop, C# keeps the last element — keep what the loop found in a variable of its own (tests/errors/foreach_after.prg) |
 | W0039 | scan  | A FOR EACH variable that is an integer by inference only (an `n` name keying an `hn` hash, set from `At()`): C# casts each element to long, dropping a fraction Harbour keeps — name it `i<...>` if the elements are whole numbers. Decided by the scan's last pass, since the types it reads settle over the passes (tests/errors/foreach_integer.prg) |
 | W0040 | scan  | A declaration (`AS CLASS X`, `AS ARRAY OF CLASS X`) names a class nothing defines — a program class or an ORM model — or a type parameter (`AS ARRAY OF T`) anywhere but a function's own parameters, return and locals. Decided by the scan's last pass, when the reftab holds every class (tests/errors/declared_types.prg, generic.prg) |
-| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`) or a record's field, passed to a declared parameter, returned from a declared function; a `{ … }` literal for a record checked by count and field by field, for a declared array element by element; a FIXED array given a plain array, or grown or cut (AAdd, ASize, hb_ADel, hb_AIns); a typed list (an array of strings or whole numbers, or of those) given a plain array; a decimal put into a `List<long>`, a literal's included, or a call that may leave NIL in one (ASize, ADel, AIns, hb_ADel/hb_AIns without lAutoSize .T.); at a call to a generic function, an argument that would bind T otherwise than the call does, or a FIXED array for a `List<T>`. A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg, fixed_record.prg, typed_list.prg, generic.prg) |
+| W0041 | scan  | A value of another type put where a declaration says otherwise: assigned to a declared variable, put into a declared array (`a[i] := x`, `AAdd( a, x )`) or a record's field, passed to a declared parameter, returned from a declared function; a `{ … }` literal for a record checked by count and field by field, for a declared array element by element; a FIXED array given a plain array, or grown or cut (AAdd, ASize, hb_ADel, hb_AIns); a typed list (an array of strings, whole numbers or numbers, or of those, declared or named `ac`/`ai`/`an`) given a plain array; a decimal put into a `List<long>`, a literal's included; a call that may leave NIL in a `List<long>` or a `List<decimal>` (ASize, ADel, AIns, hb_ADel/hb_AIns without lAutoSize .T.); at a call to a generic function, an argument that would bind T otherwise than the call does, or a FIXED array for a `List<T>`. A subclass is accepted where its parent is declared, the parent where a subclass is (a downcast, which the emitter casts), and a value of unknown type passes. Decided by the scan's last pass (tests/errors/declared_types.prg, fixed_record.prg, typed_list.prg, generic.prg, array_names.prg) |
 | W0042 | pp    | A `#ifdef`, `#ifndef` or `defined()` asks about a name a header the file includes might define, and the transpiler cannot find that header on its include path, so it cannot answer as Harbour would; it takes the name for undefined. Give the transpiler the directories the build finds headers in (see [Preprocessor conditionals](#preprocessor-conditionals); tests/errors/cond_unread.prg) |
 | W0043 | scan  | A value parameter with no default of its own, which some caller leaves out (past its last argument, a gap, NIL), handed on to a parameter that declares one: Harbour passes NIL and the callee's default applies, C# passes the type's zero, 0, .F. or an empty date (EasiPOS's MCNameNumber() made the receipt say POS 00). Silent when the callee's default is 0 or .F. itself, or the routine reassigns or NIL-tests the parameter. The fix is the same default declared on the parameter. A send to a receiver of unknown class is not checked: there is no callee row to read. Decided by the scan's last pass, since the omissions gather over every caller (reftab pflags `O`, `Z`; tests/errors/omitted_default.prg) |
 | W0044 | scan  | An `x` name, which may hold NIL, passed to a value parameter whose declared default is a C# constant on the signature (by value, after the last by-ref parameter; pflag `L`): NIL cannot be converted to it, a run-time error in C#, where Harbour's default took it (EasiPOS's FnOpenTable() handed FSMTender() a NIL panel). The fix is to pass the value meant. Decided by the scan's last pass (tests/errors/omitted_default.prg) |
@@ -1004,7 +1004,10 @@ strongest. Later rungs override earlier ones.
    `t` `DateTime`, `a` `List<dynamic>`, `h` `OrderedDictionary<string, dynamic>`
    (a hash keyed by strings), `hn` `OrderedDictionary<long, dynamic>` (keyed
    by numbers; an `hn` name beats an empty `{ => }` initializer, as `i`
-   beats a number),
+   beats a number), `an`, `ai` and `ac` before a capital (a static's
+   `san`, `sai`, `sac`) a `List<decimal>`, `List<long>` and `List<string>`
+   — an array name, a declaration as `AS ARRAY OF NUMERIC`, `INTEGER` and
+   `CHARACTER` are (Typed lists, below),
    `o` the class of that name when one exists (`oTransaction` →
    `Transaction`, `oClerkTable` → the ORM model `ClerkTable`) and
    `dynamic` otherwise, `x` `dynamic` on purpose.
@@ -1043,15 +1046,24 @@ strongest. Later rungs override earlier ones.
    argument to an undeclared parameter, an undeclared function's RETURN)
    an ARRAY OF X is a plain array again, or one later assignment of an
    untyped array would leave a name claiming X.
-   **Typed lists** (plan C12, test163, test164) are the exception: an
-   array of strings or of whole numbers, or of such arrays (`AS ARRAY OF
-   CHARACTER`, `AS ARRAY OF INTEGER`, `AS ARRAY OF ARRAY OF CHARACTER`), is
-   stored typed, a `List<string>`, a `List<long>` or a
+   **Typed lists** (plan C12, test163, test164, test166) are the exception:
+   an array of strings, of whole numbers or of numbers, or of such arrays
+   (`AS ARRAY OF CHARACTER` or `STRING`, `AS ARRAY OF INTEGER`, `AS ARRAY
+   OF NUMERIC`, `AS ARRAY OF ARRAY OF CHARACTER`), is stored typed, a
+   `List<string>`, a `List<long>`, a `List<decimal>` or a
    `List<List<string>>`, so C# checks what goes in as well as what comes
-   out. NIL in a `List<string>` is null; a `List<long>` cannot hold it, so
-   a decimal put into one (AAdd() binds at run time, where it would throw)
-   and a call that may leave NIL in one (ASize(), ADel(), AIns(), hb_ADel()
-   without lAutoSize `.T.`, hb_AIns() without a value and `.T.`) are W0041.
+   out. **An array name declares one**: `an`, `ai` and `ac` before a capital
+   (a static's `san`, `sai`, `sac`) are a declaration on a local, a static,
+   a parameter, a member and a record's field, exactly as `AS ARRAY OF
+   NUMERIC`, `INTEGER` and `CHARACTER` are (hb_astArrayNameType, read where
+   each declaration is: hb_compVariableAdd, the class and record parsers),
+   and a declaration that contradicts the name (`acNames AS ARRAY OF
+   INTEGER`) is W0035; a FIXED array of the same elements does not. NIL in
+   a `List<string>` is null; a `List<long>` or a `List<decimal>` cannot hold
+   it, so a call that may leave NIL in one (ASize(), ADel(), AIns(),
+   hb_ADel() without lAutoSize `.T.`, hb_AIns() without a value and `.T.`)
+   is W0041, as is a decimal put into a `List<long>`, by AAdd() or in a
+   literal (AAdd() binds at run time, where it would throw).
    These writes are checked again after inference, for an undeclared local
    the scan made a typed list (a StrToArr() result assigned to it), since
    the declaration check runs before it. A local given a typed list, a
@@ -1063,9 +1075,14 @@ strongest. Later rungs override earlier ones.
    an undeclared function returning one; its literals are typed (`new
    List<string> { … }`, `{}` the empty list, a member's `INIT {}` too); and
    a plain array or a value of another type put where one is declared is
-   W0041, as C# takes neither. HbRuntime's array functions take any IList:
-   ASize() pads a typed list with null, a List<string>'s NIL, and AClone()
-   gives back a copy of the same type. A class nothing defines is
+   W0041, as C# takes neither; the literal default of hb_default( @a, {} )
+   and hb_defaultValue( x, {} ) is the value's own type. HbRuntime's array
+   functions take any IList: ASize() pads a typed list with null, a
+   List<string>'s NIL; AClone() gives back a copy of the same type; AAdd(),
+   AFill() and hb_AIns() convert a number to a `List<long>`'s or a
+   `List<decimal>`'s element type, as a C# assignment would (a whole number
+   only into a `List<long>`), and hb_ADel() and hb_AIns() with lAutoSize
+   open and close a value list's slot with its zero, never NIL. A class nothing defines is
    W0040; a value of another type put where a declaration says otherwise
    is W0041 (a subclass is accepted, and a value of unknown type passes,
    converted at run time as before) (test136).
@@ -1895,6 +1912,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 163       | `AS ARRAY OF INTEGER` and `AS ARRAY OF ARRAY OF CHARACTER` on a member, a local, a parameter and a FIXED array: a `List<long>` (a FIXED one a `long[]`), its element a long; a row an array of strings, a value a string |
 | 164       | Typed lists: an array of strings and an array of those are `List<string>` / `List<List<string>>` (a member with `INIT {}`, a method's and a function's declared return, an empty and a nested literal); an undeclared `a` local, `a` parameter and function given one become one; AAdd() and FOR EACH over one; AClone() of one is a copy of the same type, its rows copied too; a local given a typed list in one branch and a plain array in the other is `dynamic` |
 | 165       | A generic function: `AS ARRAY OF T` is `List<T> Join165<T>( List<T>, List<T> )`, called with whole numbers, strings, rows of strings and a plain array; a literal argument, an empty one too, built as the list the other argument binds T to; the call's result that list |
+| 166       | Array names: `ai`, `an` and `ac` (a static's `sai`) a `List<long>`, `List<decimal>` and `List<string>` on a local, a static, a parameter, a member and a record's field, their literals typed; `AS ARRAY OF STRING`; AAdd() of a whole literal into a `List<long>`, hb_AIns() and hb_ADel() with lAutoSize on value lists; hb_default()'s and hb_defaultValue()'s `{}` the value's own type, a static left NIL read through a function |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
@@ -1954,6 +1972,7 @@ the errors, where the file fails and the test asserts the error line:
 | `typed_hash.prg`              | `W0041` `W0035` | A value of another type into `AS HASH OF RECORD X`, a plain hash into a typed one; a key of the other kind, a literal keyed the other way, a declaration whose key kind contradicts the name; the quiet lines quiet |
 | `typed_list.prg`              | `W0041`         | A number into a list of strings, by literal and by AAdd(); a plain array into a typed list and into a list of lists; a decimal into a `List<long>`, ASize() and ADel() on one (hb_ADel/hb_AIns with `.T.` quiet); a number into a local inference made a `List<string>`; the quiet lines quiet |
 | `generic.prg`                 | `W0041` `W0040` | A generic function's call: a list of strings, a plain array and a FIXED array beside a `List<long>`, a decimal in a literal bound to one; T nested, on a member and on a method's parameter; a plain array with a literal, an empty literal bound by the other argument and a local of the function's own T quiet |
+| `array_names.prg`             | `W0035` `W0041` | An `ac` name declared an array of integers; a plain array assigned to an `ai` local and passed for an `ac` parameter, a decimal AAdd()ed to an `ai` one, ASize() on an `an` one; a FIXED array of the same elements, a decimal and a whole number into an `an` list quiet |
 | `self_undeclared.prg`         | `W0037` | `Self` sending to a member the class does not have; `Init`, a declared and an inherited member, and a dynamic class, quiet — scanned (`-GF`) with a reftab of its own |
 | `foreach_after.prg`           | `W0038` | a FOR EACH variable read after its loop, after EXIT and after a nested loop; one assigned first, and one bound again by a second loop, quiet |
 | `foreach_integer.prg`         | `W0039` | an `n` FOR EACH variable made an integer by keying an `hn` hash; an `i` one and a decimal one quiet |

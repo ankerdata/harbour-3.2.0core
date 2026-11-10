@@ -153,6 +153,11 @@ CASES_B = [
     ('generic.prg', 'W0040', "'aRows' is declared ARRAY<ARRAY<T>>: a type parameter"),
     ('generic.prg', 'W0040', "'aItems' is declared ARRAY<T>: a type parameter"),
     ('generic.prg', 'W0040', "'aList' is declared ARRAY<T>: a type parameter"),
+    ('array_names.prg', 'W0035', "'acNames' is declared ARRAY<INTEGER>, but its name declares ARRAY<STRING>"),
+    ('array_names.prg', 'W0041', "assigning ARRAY to 'aiIds', declared ARRAY<INTEGER>"),
+    ('array_names.prg', 'W0041', "putting NUMERIC, a decimal, into 'aiIds', a List<long>"),
+    ('array_names.prg', 'W0041', "ASize\\(\\) may leave NIL in 'anPrices', a List<decimal>"),
+    ('array_names.prg', 'W0041', "passing ARRAY as 'acItems' to 'Count35n', declared ARRAY<STRING>"),
 ]
 
 
@@ -178,6 +183,9 @@ def main():
     # generic functions: a call's arguments bind T one way, and T is only a
     # function's own ARRAY OF T
     count_of("generic.prg", "warning W", 7)
+    # array names: a declaration its name contradicts, and what such an
+    # array cannot take
+    count_of("array_names.prg", "warning W", 5)
     # W0042 once, for the one question; the unread header is no warning by itself
     count_of("cond_unread.prg", "warning W", 1, "warning")
     # W0025 for the string, not for the whole number

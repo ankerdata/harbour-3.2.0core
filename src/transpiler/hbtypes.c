@@ -583,10 +583,11 @@ HB_BOOL hb_astIsFixedType( const char * szType )
    return szType && hb_strnicmp( szType, "FIXED<", 6 ) == 0;
 }
 
-/* ARRAY<STRING>, ARRAY<INTEGER>, or ARRAY<T> of such a T: a C#
-   List<string>, List<long> or a List of those, so the C# checks what is
-   put in and read out (plan C12). NIL in a List<string> is null; a
-   List<long> cannot hold it (hb_astIsValueList). */
+/* ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, or ARRAY<T> of such a
+   T: a C# List<string>, List<long>, List<decimal> or a List of those, so
+   the C# checks what is put in and read out (plan C12). NIL in a
+   List<string> is null; a List<long> or a List<decimal> cannot hold it
+   (hb_astIsValueList). */
 HB_BOOL hb_astIsTypedList( const char * szType )
 {
    const char * szElem;
@@ -596,15 +597,53 @@ HB_BOOL hb_astIsTypedList( const char * szType )
    return szElem && ( hb_stricmp( szElem, "STRING" ) == 0 ||
                       hb_stricmp( szElem, "CHARACTER" ) == 0 ||
                       hb_stricmp( szElem, "INTEGER" ) == 0 ||
+                      hb_stricmp( szElem, "NUMERIC" ) == 0 ||
                       hb_astIsTypedList( szElem ) );
 }
 
-/* A typed list whose elements are a C# value type (List<long>), where NIL
-   cannot go */
+/* A typed list whose elements are a C# value type (List<long>,
+   List<decimal>), where NIL cannot go */
 static HB_BOOL hb_astIsValueList( const char * szType )
 {
    const char * szElem = hb_astIsTypedList( szType ) ? hb_astArrayElemType( szType ) : NULL;
+   return szElem && ( hb_stricmp( szElem, "INTEGER" ) == 0 ||
+                      hb_stricmp( szElem, "NUMERIC" ) == 0 );
+}
+
+/* A List<long>, which takes no decimal */
+static HB_BOOL hb_astIsWholeList( const char * szType )
+{
+   const char * szElem = hb_astIsTypedList( szType ) ? hb_astArrayElemType( szType ) : NULL;
    return szElem && hb_stricmp( szElem, "INTEGER" ) == 0;
+}
+
+/* A value list's C# type, for a message */
+static const char * hb_astValueListCs( const char * szType )
+{
+   return hb_astIsWholeList( szType ) ? "List<long>" : "List<decimal>";
+}
+
+/* The array a name declares, its prefix being Hungarian for arrays: `an`,
+   `ai` or `ac` before a capital, a static's `san`, `sai` or `sac`, is an
+   array of numbers, of whole numbers or of strings, as `AS ARRAY OF
+   NUMERIC`, `INTEGER` or `CHARACTER` declares one; NULL for any other
+   name */
+const char * hb_astArrayNameType( const char * szName )
+{
+   const char * p = szName;
+   if( ! p )
+      return NULL;
+   if( p[ 0 ] == 's' && p[ 1 ] == 'a' )
+      p++;
+   if( p[ 0 ] != 'a' || ! p[ 1 ] || p[ 2 ] < 'A' || p[ 2 ] > 'Z' )
+      return NULL;
+   switch( p[ 1 ] )
+   {
+      case 'n': return "ARRAY<NUMERIC>";
+      case 'i': return "ARRAY<INTEGER>";
+      case 'c': return "ARRAY<STRING>";
+   }
+   return NULL;
 }
 
 /* An array whose C# type is its own (a T[], a List<string>), not the
@@ -1140,6 +1179,14 @@ static const char * hb_astInferFromPrefix( const char * szName )
    if( hb_astHashNameKeys( szName ) == 'N' )
       return "HASHN";
 
+   /* `an<X>`, `ai<X>`, `ac<X>` (and a static's `san`, `sai`, `sac`): an
+      array of numbers, whole numbers or strings */
+   {
+      const char * szArray = hb_astArrayNameType( szName );
+      if( szArray )
+         return szArray;
+   }
+
    /* The prefix is the first character, which should be lowercase.
       If the name starts with uppercase or underscore, no prefix. */
    if( szName[ 0 ] >= 'a' && szName[ 0 ] <= 'z' &&
@@ -1223,6 +1270,11 @@ static const char * hb_astNameOverInit( const char * szName,
    if( szType && hb_stricmp( szType, "HASH" ) == 0 &&
        hb_astHashNameKeys( szName ) == 'N' )
       return "HASHN";
+   /* an array name (`aiIds := {}`): the list its name declares, which a
+      plain array's literal says nothing against */
+   if( szType && hb_stricmp( szType, "ARRAY" ) == 0 &&
+       hb_astArrayNameType( szName ) )
+      return hb_astArrayNameType( szName );
    return szType;
 }
 
@@ -2381,7 +2433,7 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
       {
          /* a List<long> takes no decimal, as AAdd() into one does not
             (hb_astCheckElemWrite): `new List<long> { nValue }` is no C# */
-         if( hb_astIsValueList( szDecl ) &&
+         if( hb_astIsWholeList( szDecl ) &&
              ! ( hb_astNumericConstant( pItem ) && ! hb_astConstantHasFraction( pItem ) ) )
          {
             const char * szT = hb_astInferExprType( pItem, pEnv );
@@ -6794,7 +6846,7 @@ static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
    /* a List<long> takes a long, where Harbour's numbers agree: a decimal
       throws in AAdd(), whose C# binds at run time (a literal with no
       fraction is an int, which goes in) */
-   if( hb_astIsValueList( szArr ) &&
+   if( hb_astIsWholeList( szArr ) &&
        ! ( hb_astNumericConstant( pVal ) && ! hb_astConstantHasFraction( pVal ) ) )
    {
       const char * szT = hb_astInferExprType( pVal, pEnv );
@@ -6897,7 +6949,8 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                                                 pParms->ExprType == HB_ET_ARGLIST ) ) ?
                                   pParms->value.asList.pExprList : pParms;
                   const char * szArrT = pArr ? hb_astInferExprType( pArr, pEnv ) : NULL;
-                  /* NIL left in a List<long> (W0041): it cannot hold one */
+                  /* NIL left in a List<long> or List<decimal> (W0041): it
+                     cannot hold one */
                   if( pArr && hb_astIsValueList( szArrT ) && hb_astPadsNil( szFn, pArr ) )
                   {
                      const char * szArrName = pArr->ExprType == HB_ET_VARIABLE ?
@@ -6905,8 +6958,8 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                         pArr->value.asMessage.szMessage : "an array";
                      char szMsg[ 256 ];
                      hb_snprintf( szMsg, sizeof( szMsg ),
-                                  "%s() may leave NIL in '%s', a List<long>, which cannot hold it",
-                                  szFn, szArrName );
+                                  "%s() may leave NIL in '%s', a %s, which cannot hold it",
+                                  szFn, szArrName, hb_astValueListCs( szArrT ) );
                      hb_astDeclWarn( "W0041", szFile, pStmt->iLine, szArrName, szMsg );
                   }
                   else if( pArr && hb_astIsFixedType( szArrT ) &&
@@ -7050,8 +7103,9 @@ static void hb_astCheckInferredWrites( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
             {
                char szMsg[ 256 ];
                hb_snprintf( szMsg, sizeof( szMsg ),
-                            "%s() may leave NIL in '%s', a List<long>, which cannot hold it",
-                            szFn, pArr->value.asSymbol.name );
+                            "%s() may leave NIL in '%s', a %s, which cannot hold it",
+                            szFn, pArr->value.asSymbol.name,
+                            hb_astValueListCs( pEntry->szType ) );
                hb_astDeclWarn( "W0041", szFile, pStmt->iLine, pArr->value.asSymbol.name, szMsg );
             }
             break;
@@ -7686,6 +7740,21 @@ static void hb_astDeclareVar( HB_TYPEENV * pEnv, const char * szName,
                    cDecl == 'N' ? "numbers" : "strings",
                    cName == 'N' ? "numbers" : "strings" );
       hb_astDeclWarn( "W0035", szFile, iLine, szName, szMsg );
+   }
+   /* W0035 for an array: the elements an array name declares (`acNames`)
+      against the declaration's; a FIXED array of the same is one */
+   {
+      const char * szNamed = hb_astArrayNameType( szName );
+      const char * szElem = hb_astArrayElemType( hb_astDeclCanon( pRefTab, szDecl ) );
+      if( szNamed && ! ( szElem &&
+                         hb_stricmp( szElem, hb_astArrayElemType( szNamed ) ) == 0 ) )
+      {
+         char szMsg[ 256 ];
+         hb_snprintf( szMsg, sizeof( szMsg ),
+                      "'%s' is declared %s, but its name declares %s",
+                      szName, szDecl, szNamed );
+         hb_astDeclWarn( "W0035", szFile, iLine, szName, szMsg );
+      }
    }
 }
 
