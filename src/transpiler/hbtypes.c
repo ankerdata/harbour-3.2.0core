@@ -4375,6 +4375,26 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                        pDecl->szName, szWhat );
                }
             }
+            /* W0041 for a plain array passed to a parameter other calls made
+               a typed list, a FIXED array or a record (an undeclared `a`
+               slot given one becomes one): C# takes no List<dynamic> there.
+               hb_refTabRefineParamType keeps the slot, a plain array being
+               its weak form while the scan converges, so the last pass,
+               which decides W0041, sees only the ones that stay. */
+            else if( pDecl && pDecl->szType && szArgType &&
+                     hb_astIsArrayType( szArgType ) && ! hb_astIsTypedStorage( szArgType ) &&
+                     ! hb_astTypeParamOf( szArgType ) &&
+                     ( hb_astIsTypedStorage( pDecl->szType ) ||
+                       hb_astIsRecordType( pEnv->pRefTab, pDecl->szType ) ) )
+            {
+               char szMsg[ 256 ];
+               hb_snprintf( szMsg, sizeof( szMsg ),
+                            "passing %s as '%s' to '%s', which other calls made %s: "
+                            "C# takes no plain array there",
+                            szArgType, pDecl->szName ? pDecl->szName : "?", szCallee,
+                            pDecl->szType );
+               hb_astDeclWarn( "W0041", pEnv->szFile, iLine, pDecl->szName, szMsg );
+            }
             /* an ARRAY<T> refines an undeclared slot as a plain ARRAY */
             r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos,
                                           hb_astUndeclared( szArgType ) );

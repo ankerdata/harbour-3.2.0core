@@ -37,3 +37,15 @@ FUNCTION Split41k( cText ) AS ARRAY OF CHARACTER
    LOCAL aOut AS ARRAY OF CHARACTER := {}
    AAdd( aOut, cText )
 RETURN aOut
+
+// A parameter its callers made a typed list (an undeclared `a` parameter
+// given one becomes one): a plain array passed to it is W0041, as C# takes
+// none
+FUNCTION Use41p( aPlain )
+   LOCAL aNames AS ARRAY OF CHARACTER := { "a" }
+   Count41p( aNames )                               // quiet: makes aItems a List<string>
+   Count41p( aPlain )                               // fires W0041: a plain array for it
+RETURN NIL
+
+FUNCTION Count41p( aItems )
+RETURN Len( aItems )
