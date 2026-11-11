@@ -2415,6 +2415,29 @@ static void hb_astDeclCheck( const char * szDecl, const char * szActual,
 static HB_BOOL hb_astNumericConstant( PHB_EXPR pExpr );
 static HB_BOOL hb_astConstantHasFraction( PHB_EXPR pExpr );
 
+/* A value that is a whole number in C# too, a long: a literal with no
+   fraction, something the scan types INTEGER, or a sum, difference,
+   product or remainder of two such (`iIndex + 1`), which the inference
+   calls NUMERIC for the literal's sake */
+static HB_BOOL hb_astIsWholeValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
+{
+   const char * szT;
+
+   while( pExpr && ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( ! pExpr )
+      return HB_FALSE;
+   if( hb_astNumericConstant( pExpr ) )
+      return ! hb_astConstantHasFraction( pExpr );
+   if( pExpr->ExprType == HB_EO_PLUS || pExpr->ExprType == HB_EO_MINUS ||
+       pExpr->ExprType == HB_EO_MULT || pExpr->ExprType == HB_EO_MOD )
+      return hb_astIsWholeValue( pExpr->value.asOperator.pLeft, pEnv ) &&
+             hb_astIsWholeValue( pExpr->value.asOperator.pRight, pEnv );
+   szT = hb_astInferExprType( pExpr, pEnv );
+   return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+}
+
 static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
                                  HB_TYPEENV * pEnv, const char * szFile, int iLine,
                                  const char * szName, const char * szWhat )
@@ -2469,8 +2492,7 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
       {
          /* a List<long> takes no decimal, as AAdd() into one does not
             (hb_astCheckElemWrite): `new List<long> { nValue }` is no C# */
-         if( hb_astIsWholeList( szDecl ) &&
-             ! ( hb_astNumericConstant( pItem ) && ! hb_astConstantHasFraction( pItem ) ) )
+         if( hb_astIsWholeList( szDecl ) && ! hb_astIsWholeValue( pItem, pEnv ) )
          {
             const char * szT = hb_astInferExprType( pItem, pEnv );
             if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )
@@ -7298,8 +7320,7 @@ static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
    /* a List<long> takes a long, where Harbour's numbers agree: a decimal
       throws in AAdd(), whose C# binds at run time (a literal with no
       fraction is an int, which goes in) */
-   if( hb_astIsWholeList( szArr ) &&
-       ! ( hb_astNumericConstant( pVal ) && ! hb_astConstantHasFraction( pVal ) ) )
+   if( hb_astIsWholeList( szArr ) && ! hb_astIsWholeValue( pVal, pEnv ) )
    {
       const char * szT = hb_astInferExprType( pVal, pEnv );
       if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )

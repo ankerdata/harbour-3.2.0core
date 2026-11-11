@@ -12,6 +12,7 @@ FUNCTION Use35n( aPlain, nValue, iCount )
    AAdd( aiIds, nValue )                            // fires W0041: a decimal into a List<long>
    AAdd( anPrices, nValue )                         // quiet: a List<decimal> takes one
    AAdd( anPrices, iCount )                         // quiet: and a whole number
+   AAdd( aiIds, iCount + 1 )                        // quiet: whole arithmetic is whole
    ASize( anPrices, 3 )                             // fires W0041: NIL into a List<decimal>
    Count35n( aPlain )                               // fires W0041: a plain array for an `ac` parameter
 RETURN Len( acNames ) + Len( aiIds ) + Len( aiFixed )
