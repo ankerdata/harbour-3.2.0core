@@ -8398,11 +8398,12 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       {
          /* declared (a static is not among the function's locals, so it
             is declared here; a local again, harmlessly); the initializer
-            is checked against the declaration (W0041) */
+            is checked against the declaration (W0041), but `LOCAL a[ n ]`,
+            whose pInit is its dimensions */
          hb_astDeclareVar( &env, pStmt->value.asVar.szName,
                            pStmt->value.asVar.szDeclType, pRefTab, szFile,
                            pStmt->iLine );
-         if( pStmt->value.asVar.pInit )
+         if( pStmt->value.asVar.pInit && ! pStmt->value.asVar.fArrayDim )
             hb_astCheckOneAssign( pStmt->value.asVar.szName,
                                   pStmt->value.asVar.pInit, &env, szFile,
                                   pStmt->iLine );

@@ -18,3 +18,10 @@ RETURN Len( acNames ) + Len( aiIds ) + Len( aiFixed )
 
 FUNCTION Count35n( acItems )
 RETURN Len( acItems )
+
+// A dimension, and Array( n ), make the list the name declares
+FUNCTION Dim35n()
+   LOCAL acLabels[ 2 ]                              // quiet
+   LOCAL anTotals
+   anTotals := Array( 3 )                           // quiet
+RETURN Len( acLabels ) + Len( anTotals )
