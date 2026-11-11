@@ -382,6 +382,9 @@ static const char * s_szLiteralHbType = NULL;
 /* The typed list an `Array( n )` about to be emitted is for
    (hb_csExpectLiteral), read and cleared by hb_csEmitExpr */
 static const char * s_szArrayOfHbType = NULL;
+/* The type an iif() about to be emitted goes into, for a literal in
+   either of its values (hb_csExpectLiteral), read and cleared by HB_ET_IIF */
+static const char * s_szIifHbType = NULL;
 
 static const char * hb_csHashKeyCsFor( const char * szType )
 {
@@ -4581,6 +4584,7 @@ static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr )
         ( pExpr->ExprType == HB_ET_HASH && hb_astHashValueType( szHbType ) ) ) ?
       szHbType : NULL;
    s_szArrayOfHbType = hb_astIsArrayOfCall( pExpr, szHbType ) ? szHbType : NULL;
+   s_szIifHbType = pExpr && pExpr->ExprType == HB_ET_IIF ? szHbType : NULL;
 }
 
 /* The elements of a `{ … }` literal, each under its own expected type (a
@@ -6323,6 +6327,10 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          {
             PHB_EXPR pCond = pExpr->value.asList.pExprList;
             HB_BOOL fWrap = hb_csConditionNeedsBoolUnwrap( pCond );
+            /* what the iif() goes into is what a literal in either value
+               must be: `::anX := iif( a == NIL, {}, AClone( a ) )` */
+            const char * szExpect = s_szIifHbType;
+            s_szIifHbType = NULL;
             fprintf( yyc, "(" );
             hb_csEmitExpr( pCond, yyc, HB_FALSE );
             if( fWrap )
@@ -6335,10 +6343,16 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                if( pTrue->ExprType == HB_ET_NONE )
                   fprintf( yyc, "default" );
                else
+               {
+                  hb_csExpectLiteral( szExpect, pTrue );
                   hb_csEmitExpr( pTrue, yyc, HB_FALSE );
+               }
                fprintf( yyc, " : " );
                if( pFalse && pFalse->ExprType != HB_ET_NONE )
+               {
+                  hb_csExpectLiteral( szExpect, pFalse );
                   hb_csEmitExpr( pFalse, yyc, HB_FALSE );
+               }
                else
                   fprintf( yyc, "default" );
             }

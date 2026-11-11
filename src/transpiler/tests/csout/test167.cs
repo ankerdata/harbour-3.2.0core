@@ -3,7 +3,7 @@
 // dimension, is that list in C#, a List<decimal>, List<long> or
 // List<string> of n blanks (zero, or null for a string) where Harbour's
 // elements are NIL until filled. A plain name's Array( n ) stays an array
-// of NIL.
+// of NIL. A `{}` in an iif() given to a typed list is that list too.
 public static partial class Program
 {
     public static void Main(string[] args)
@@ -35,5 +35,10 @@ public static partial class Program
         QOut(Len(acLabels), acLabels[I(1)], acLabels[I(2)] == null, acLabels[I(3)]);
         QOut(Len(aWords), aWords[I(1)] == null, aWords[I(2)]);
         QOut(Len(aPlain), aPlain[I(1)], aPlain[I(2)]);
+
+        // A literal in an iif() is the list the iif() goes into
+        aiCounts = (Len(aWords) > 5 ? aiCounts : new List<long>());
+        anAmounts = (Len(aWords) > 5 ? new List<decimal>() : AClone(anAmounts));
+        QOut(Len(aiCounts), Len(anAmounts), anAmounts[I(2)]);
     }
 }
