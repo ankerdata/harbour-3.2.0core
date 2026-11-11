@@ -1162,8 +1162,13 @@ strongest. Later rungs override earlier ones.
    row flagged `R` whose parameters are the fields, in order. In C# a
    record is a plain sealed class of its fields and a positional
    constructor, nothing else; `AS FIXED ARRAY OF RECORD X` (or `OF
-   CHARACTER`, …) is a C# array, `X[]` / `string[]`, where `AS ARRAY OF
-   RECORD X` stays a `List<dynamic>` whose elements are records. A `{ … }`
+   CHARACTER`, …) is a C# array, `X[]` / `string[]`, and `AS ARRAY OF
+   RECORD X` a `List<X>` (test168): a record has no subclasses, so the
+   list holds nothing else, and it is a typed list as a `List<string>`
+   is (W0041 where a plain array meets it, `ArrayOf<X>( n )` for `Array(
+   n )`). A codeblock parameter with an `a` name is the record, or the
+   inner list, where the block is handed the elements of such a list
+   (AScan(), AEval(), ASort()). A `{ … }`
    literal going into a declared slot — a local's or a static's
    initialiser, an assignment, a RETURN, a declared argument, AAdd()'s
    value — is the record's constructor or `new X[] { … }`, nested as deep
@@ -1944,6 +1949,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 165       | A generic function: `AS ARRAY OF T` is `List<T> Join165<T>( List<T>, List<T> )`, called with whole numbers, strings, rows of strings and a plain array; a literal argument, an empty one too, built as the list the other argument binds T to; the call's result that list |
 | 166       | Array names: `ai`, `an` and `ac` (a static's `sai`) a `List<long>`, `List<decimal>` and `List<string>` on a local, a static, a parameter, a member and a record's field, their literals typed; `AS ARRAY OF STRING`; AAdd() of a whole literal into a `List<long>`, hb_AIns() and hb_ADel() with lAutoSize on value lists; hb_default()'s and hb_defaultValue()'s `{}` the value's own type, a static left NIL read through a function |
 | 167       | `Array( n )` and `LOCAL a[ n ]` for a typed list: an `an`, `ai` or `ac` name, or `AS ARRAY OF`, makes a `List<decimal>`, `List<long>` or `List<string>` of n blanks (`ArrayOf<T>( n )`), a plain name's stays an array of NIL |
+| 168       | A list of records: `AS ARRAY OF RECORD X` is a `List<X>` on a local, a parameter and a caller-typed one; its literal, AAdd(), FOR EACH, `Array( n )`, and an AScan() block whose `a` parameter is the record |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

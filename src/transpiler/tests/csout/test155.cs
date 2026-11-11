@@ -80,7 +80,7 @@ public static partial class Program
         FieldRow aRow;
         FieldRow[] aFields = aDef.aFields;
         // a list of records, grown
-        var aMore = new List<dynamic>
+        var aMore = new List<FieldRow>
         {
             new FieldRow("TAX", "N", 1, 0)
         };

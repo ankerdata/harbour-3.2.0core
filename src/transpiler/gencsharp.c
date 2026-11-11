@@ -4826,6 +4826,12 @@ static void hb_csBlockSig( PHB_EXPR pBlock, const char * szElem, int nElem,
       const char * szType = hb_astInferType( pVar->szName, NULL );
       if( strcmp( hb_csTypeMap( szType ), "dynamic" ) == 0 )
          szType = ( szElem && n < nElem ) ? szElem : NULL;
+      /* an `a` name takes the record or the list the array's rows are, as
+         an `a` local does: `{ |aRow| aRow[ ROW_NAME ] == c }` over a list
+         of records */
+      else if( szElem && n < nElem && szType && hb_stricmp( szType, "ARRAY" ) == 0 &&
+               ( hb_csIsRecordType( szElem ) || hb_astIsArrayType( szElem ) ) )
+         szType = szElem;
       if( n < HB_CS_MAXCBPARAMS )
          aszHb[ n ] = szType;
    }

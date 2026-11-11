@@ -594,11 +594,12 @@ HB_BOOL hb_astIsFixedType( const char * szType )
    return szType && hb_strnicmp( szType, "FIXED<", 6 ) == 0;
 }
 
-/* ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, or ARRAY<T> of such a
-   T: a C# List<string>, List<long>, List<decimal> or a List of those, so
-   the C# checks what is put in and read out (plan C12). NIL in a
-   List<string> is null; a List<long> or a List<decimal> cannot hold it
-   (hb_astIsValueList). */
+/* ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, ARRAY<X> of a record X,
+   or ARRAY<T> of such a T: a C# List<string>, List<long>, List<decimal>,
+   List<X> or a List of those, so the C# checks what is put in and read
+   out (plan C12). A record has no subclasses, which is what keeps a list
+   of a class a List<dynamic>. NIL in a List<string> or a List<X> is null;
+   a List<long> or a List<decimal> cannot hold it (hb_astIsValueList). */
 HB_BOOL hb_astIsTypedList( const char * szType )
 {
    const char * szElem;
@@ -609,7 +610,8 @@ HB_BOOL hb_astIsTypedList( const char * szType )
                       hb_stricmp( szElem, "CHARACTER" ) == 0 ||
                       hb_stricmp( szElem, "INTEGER" ) == 0 ||
                       hb_stricmp( szElem, "NUMERIC" ) == 0 ||
-                      hb_astIsTypedList( szElem ) );
+                      hb_astIsTypedList( szElem ) ||
+                      hb_astIsRecordType( s_pPropRefTab, szElem ) );
 }
 
 /* A typed list whose elements are a C# value type (List<long>,
