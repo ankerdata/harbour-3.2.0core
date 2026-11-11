@@ -665,6 +665,25 @@ HB_BOOL hb_astIsTypedStorage( const char * szType )
    return hb_astIsFixedType( szType ) || hb_astIsTypedList( szType );
 }
 
+/* Whether pExpr is `Array( n )`, one dimension, going into the typed list
+   szType (a list of strings or numbers, not of lists): the generator
+   makes it that list, n blanks of its element type (ArrayOf<T>()), where
+   Harbour's are NIL until filled */
+HB_BOOL hb_astIsArrayOfCall( PHB_EXPR pExpr, const char * szType )
+{
+   PHB_EXPR pParms;
+   if( ! pExpr || ! szType || pExpr->ExprType != HB_ET_FUNCALL ||
+       ! pExpr->value.asFunCall.pFunName ||
+       pExpr->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+       hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "ARRAY" ) != 0 ||
+       ! hb_astIsTypedList( szType ) || hb_astIsArrayType( hb_astArrayElemType( szType ) ) )
+      return HB_FALSE;
+   pParms = pExpr->value.asFunCall.pParms;
+   if( pParms && ( pParms->ExprType == HB_ET_LIST || pParms->ExprType == HB_ET_ARGLIST ) )
+      pParms = pParms->value.asList.pExprList;
+   return pParms && pParms->ExprType != HB_ET_NONE && ! pParms->pNext;
+}
+
 /* One copy of each type string built here, for the life of the run. */
 static const char * hb_astIntern( const char * szText, HB_SIZE nLen )
 {
@@ -2407,6 +2426,9 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
    while( ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
           pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
       pExpr = pExpr->value.asList.pExprList;
+   /* `Array( n )` for a typed list is emitted as that list */
+   if( hb_astIsArrayOfCall( pExpr, szDecl ) )
+      return;
    if( pExpr->ExprType == HB_ET_ARRAY && pEnv &&
        hb_astIsRecordType( pEnv->pRefTab, szDecl ) )
    {

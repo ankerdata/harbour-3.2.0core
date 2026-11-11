@@ -379,6 +379,9 @@ static const char * s_szHashKeyCs = "string";
    argument — for a literal only (hb_csExpectLiteral), read and cleared by
    HB_ET_ARRAY, which sets it again for each element that is a literal. */
 static const char * s_szLiteralHbType = NULL;
+/* The typed list an `Array( n )` about to be emitted is for
+   (hb_csExpectLiteral), read and cleared by hb_csEmitExpr */
+static const char * s_szArrayOfHbType = NULL;
 
 static const char * hb_csHashKeyCsFor( const char * szType )
 {
@@ -4577,6 +4580,7 @@ static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr )
           ( hb_astArrayElemType( szHbType ) || hb_csIsRecordType( szHbType ) ) ) ||
         ( pExpr->ExprType == HB_ET_HASH && hb_astHashValueType( szHbType ) ) ) ?
       szHbType : NULL;
+   s_szArrayOfHbType = hb_astIsArrayOfCall( pExpr, szHbType ) ? szHbType : NULL;
 }
 
 /* The elements of a `{ … }` literal, each under its own expected type (a
@@ -5124,6 +5128,20 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 
    if( ! pExpr )
       return;
+
+   /* `Array( n )` for a typed list: that list, n blanks of its element
+      type (HbRuntime's ArrayOf<T>()) */
+   {
+      const char * szArrayOf = s_szArrayOfHbType;
+      s_szArrayOfHbType = NULL;
+      if( szArrayOf && hb_astIsArrayOfCall( pExpr, szArrayOf ) )
+      {
+         fprintf( yyc, "ArrayOf<%s>(", hb_csTypeMap( hb_astArrayElemType( szArrayOf ) ) );
+         hb_csEmitExpr( hb_csFunCallArgHead( pExpr ), yyc, HB_FALSE );
+         fprintf( yyc, ")" );
+         return;
+      }
+   }
 
    /* A funcall hoisted out of this expression: emit the temp that already
       holds its result instead of re-emitting (and re-evaluating) the call. */
@@ -8419,6 +8437,16 @@ static void hb_csEmitLocalDecl( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
       PHB_EXPR pDim =
          pNode->value.asVar.pInit->value.asList.pExprList;
       hb_csEmitIndent( yyc, iIndent );
+      /* `LOCAL acNames[ n ]`: one dimension of a typed list is that list */
+      if( pDim && ! pDim->pNext && hb_astIsTypedList( szType ) &&
+          ! hb_astIsArrayType( hb_astArrayElemType( szType ) ) )
+      {
+         fprintf( yyc, "%s %s = ArrayOf<%s>(", hb_csTypeMap( szType ),
+                  pNode->value.asVar.szName, hb_csTypeMap( hb_astArrayElemType( szType ) ) );
+         hb_csEmitExpr( pDim, yyc, HB_FALSE );
+         fprintf( yyc, ");\n" );
+         return;
+      }
       fprintf( yyc, "List<dynamic> %s = ", pNode->value.asVar.szName );
       hb_csEmitArrayNew( pDim, yyc );
       fprintf( yyc, ";\n" );

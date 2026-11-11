@@ -355,6 +355,9 @@ extern HB_BOOL      hb_astIsFixedType( const char * szType );
    array, is what the value is wherever it goes: hb_astIsTypedStorage. */
 extern HB_BOOL      hb_astIsTypedList( const char * szType );
 extern HB_BOOL      hb_astIsTypedStorage( const char * szType );
+/* Whether pExpr is `Array( n )`, one dimension, going into the typed list
+   szType: the generator makes it that list (HbRuntime's ArrayOf<T>()) */
+extern HB_BOOL      hb_astIsArrayOfCall( PHB_EXPR pExpr, const char * szType );
 /* The array a name declares: `an`, `ai`, `ac` (a static's `san`, `sai`,
    `sac`) before a capital is ARRAY<NUMERIC>, ARRAY<INTEGER>, ARRAY<STRING>,
    a declaration as AS ARRAY OF … is; NULL for any other name */

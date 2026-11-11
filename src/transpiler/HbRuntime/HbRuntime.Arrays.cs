@@ -59,6 +59,25 @@ public static partial class HbRuntime
         return ArrayRagged(anElements, 0);
     }
 
+    // Array( n ) or `LOCAL a[ n ]` for a typed list (an `ac`, `ai` or `an`
+    // name, AS ARRAY OF …): that list, n elements of its type's blank, null
+    // for strings and zero for numbers, where Harbour's are NIL until
+    // filled. A negative n is Harbour's bound error.
+    public static List<T> ArrayOf<T>(long iElements)
+    {
+        if (iElements < 0)
+            throw new ArgumentOutOfRangeException(nameof(iElements), iElements,
+                "Bound error: array dimension (ARRAY)");
+        var aNew = new List<T>((int) iElements);
+        for (long i = 0; i < iElements; i++)
+            aNew.Add(default!);
+        return aNew;
+    }
+
+    // The count as an `n` variable holds it, a decimal: its whole part
+    public static List<T> ArrayOf<T>(decimal nElements) =>
+        ArrayOf<T>((long) Math.Truncate(nElements));
+
     static List<dynamic> ArrayRagged(decimal[] anElements, int iDimension)
     {
         int n = (int)Math.Truncate(anElements[iDimension]);
