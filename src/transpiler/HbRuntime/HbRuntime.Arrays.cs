@@ -48,16 +48,22 @@ public static partial class HbRuntime
     // three (vm/arrayshb.c, hb_arrayNewRagged). No argument gives NIL; a
     // negative dimension is Harbour's bound error. (Harbour gives NIL for
     // a non-numeric argument too; the signature makes that a compile error.)
-    public static List<dynamic> Array(params decimal[] anElements)
+    public static List<dynamic> Array(params long[] aiDimensions)
     {
-        if (anElements.Length == 0)
+        if (aiDimensions.Length == 0)
             return null;
-        foreach (decimal n in anElements)
-            if (Math.Truncate(n) < 0)
-                throw new ArgumentOutOfRangeException(nameof(anElements), n,
+        foreach (long i in aiDimensions)
+            if (i < 0)
+                throw new ArgumentOutOfRangeException(nameof(aiDimensions), i,
                     "Bound error: array dimension (ARRAY)");
-        return ArrayRagged(anElements, 0);
+        return ArrayRagged(aiDimensions, 0);
     }
+
+    public static List<dynamic> Array() => null;
+
+    // A dimension as an `n` variable holds it, a decimal: its whole part
+    public static List<dynamic> Array(params decimal[] anDimensions) =>
+        Array(System.Array.ConvertAll(anDimensions, n => (long) Math.Truncate(n)));
 
     // Array( n ) or `LOCAL a[ n ]` for a typed list (an `ac`, `ai` or `an`
     // name, AS ARRAY OF …): that list, n elements of its type's blank, null
@@ -78,12 +84,12 @@ public static partial class HbRuntime
     public static List<T> ArrayOf<T>(decimal nElements) =>
         ArrayOf<T>((long) Math.Truncate(nElements));
 
-    static List<dynamic> ArrayRagged(decimal[] anElements, int iDimension)
+    static List<dynamic> ArrayRagged(long[] aiDimensions, int iDimension)
     {
-        int n = (int)Math.Truncate(anElements[iDimension]);
+        int n = (int) aiDimensions[iDimension];
         var a = new List<dynamic>(n);
         for (int i = 0; i < n; i++)
-            a.Add(iDimension + 1 < anElements.Length ? ArrayRagged(anElements, iDimension + 1) : null);
+            a.Add(iDimension + 1 < aiDimensions.Length ? ArrayRagged(aiDimensions, iDimension + 1) : null);
         return a;
     }
 

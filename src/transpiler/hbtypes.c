@@ -6042,6 +6042,14 @@ static void hb_astEscapeCheckExpr( const char * szDest, HB_BOOL fSlot, PHB_EXPR 
                                 szElem, HB_TRUE, pItem, pEnv, iLine, "put into an array literal" );
       return;
    }
+   if( pExpr->ExprType == HB_ET_IIF )
+   {
+      /* iif( cond, a, b ): either value may be what goes there */
+      PHB_EXPR pItem = pExpr->value.asList.pExprList;
+      for( pItem = pItem ? pItem->pNext : NULL; pItem; pItem = pItem->pNext )
+         hb_astEscapeCheckExpr( szDest, fSlot, pItem, pEnv, iLine, szWhere );
+      return;
+   }
    if( pExpr->ExprType == HB_ET_HASH )
    {
       const char * szVal = hb_astHashValueType( szDest );

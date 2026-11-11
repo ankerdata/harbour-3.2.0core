@@ -9,6 +9,7 @@ PROCEDURE Keep41s( acLines )
    LOCAL xHeld
    saKept41s := AClone( acLines )                   // fires W0041: a List<string> into a plain array
    xHeld := acLines                                 // quiet: a dynamic holds it as it is
+   saKept41s := iif( xHeld == NIL, {}, AClone( acLines ) )   // fires W0041: through iif() too
    ? xHeld
 RETURN
 

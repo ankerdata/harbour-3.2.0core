@@ -187,7 +187,7 @@ def main():
     # decimal and no NIL; no plain array for a parameter its callers made one
     count_of("typed_list.prg", "warning W", 13)
     # a typed list given to a plain array, and not to a dynamic
-    count_of("list_escape.prg", "warning W", 1)
+    count_of("list_escape.prg", "warning W", 2)
     # generic functions: a call's arguments bind T one way, and T is only a
     # function's own ARRAY OF T
     count_of("generic.prg", "warning W", 7)
