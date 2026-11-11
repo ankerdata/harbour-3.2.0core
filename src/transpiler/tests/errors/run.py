@@ -147,6 +147,11 @@ CASES_B = [
     ('typed_list.prg', 'W0041', "ADel\\(\\) may leave NIL in 'aIds', a List<long>"),
     ('typed_list.prg', 'W0041', "putting NUMERIC into 'aParts', declared STRING"),
     ('typed_list.prg', 'W0041', "passing ARRAY as 'aItems' to 'Count41p', which other calls made ARRAY<STRING>"),
+    ('typed_list.prg', 'W0041', "putting NUMERIC into 'aItems', declared STRING"),
+    ('typed_list.prg', 'W0041', "putting NUMERIC into 'aBits'"),
+    ('list_escape.prg', 'W0041', "AClone\(\), an ARRAY<STRING>, assigned to saKept41s, a plain array"),
+    ('typed_list.prg', 'W0041', "passing an untyped value as 'aItems' to 'Count41q', an ARRAY<STRING>: C# converts it at run time"),
+    ('typed_list.prg', 'W0041', "passing an untyped value as 'acItems' to 'Take41q', an ARRAY<STRING>"),
     ('generic.prg', 'W0041', "passing ARRAY<STRING> as 'aFrom' to 'Join41g', whose T this call binds to INTEGER"),
     ('generic.prg', 'W0041', "passing ARRAY as 'aFrom' to 'Join41g', whose T this call binds to INTEGER"),
     ('generic.prg', 'W0041', "passing FIXED<INTEGER> as 'aFrom' to 'Join41g', a List<T>: a FIXED array"),
@@ -180,7 +185,9 @@ def main():
     count_of("fixed_record.prg", "warning W004[16]", 13)
     # typed lists: no plain array, no value of another type; a List<long> no
     # decimal and no NIL; no plain array for a parameter its callers made one
-    count_of("typed_list.prg", "warning W", 9)
+    count_of("typed_list.prg", "warning W", 13)
+    # a typed list given to a plain array, and not to a dynamic
+    count_of("list_escape.prg", "warning W", 1)
     # generic functions: a call's arguments bind T one way, and T is only a
     # function's own ARRAY OF T
     count_of("generic.prg", "warning W", 7)

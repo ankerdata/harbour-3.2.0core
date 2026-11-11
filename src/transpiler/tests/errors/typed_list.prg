@@ -45,7 +45,34 @@ FUNCTION Use41p( aPlain )
    LOCAL aNames AS ARRAY OF CHARACTER := { "a" }
    Count41p( aNames )                               // quiet: makes aItems a List<string>
    Count41p( aPlain )                               // fires W0041: a plain array for it
+   Count41p( { "c", "d" } )                         // quiet: the literal is emitted a List<string>
+   Count41p( { 1 } )                                // fires W0041: a number in that literal
 RETURN NIL
 
 FUNCTION Count41p( aItems )
 RETURN Len( aItems )
+
+// An untyped value passed to such a parameter, or to one its name declares:
+// C# converts it at run time, and throws unless it holds a List<string>,
+// which a plain array, what an untyped one nearly always is, is not
+FUNCTION Use41q( hRows )
+   LOCAL aNames AS ARRAY OF CHARACTER := { "b" }
+   Count41q( aNames )                               // quiet: makes aItems a List<string>
+   Count41q( hRows[ "x" ] )                         // fires W0041: an untyped value for it
+   Count41q( NIL )                                  // quiet: NIL is null
+   Take41q( hRows[ "y" ] )                          // fires W0041: and for a declared one
+RETURN NIL
+
+FUNCTION Count41q( aItems )
+RETURN Len( aItems )
+
+FUNCTION Take41q( acItems )
+RETURN Len( acItems )
+
+// An assignment inside an expression types its variable as a statement does
+FUNCTION Use41n()
+   LOCAL aBits
+   IF Len( aBits := Split41k( "x" ) ) > 0
+      AAdd( aBits, 5 )                              // fires W0041: a number into the List<string> it made aBits
+   ENDIF
+RETURN NIL

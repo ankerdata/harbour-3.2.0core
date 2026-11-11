@@ -391,15 +391,26 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 one value the scan cannot prove whole: that value, the\n"
 "#                 source fix to make (AS INTEGER, IntVal(), an `i` name).\n"
 "#   LIST-STRING   an undeclared `a` local every element put into which is a\n"
-"#                 string. Fix: AS ARRAY OF CHARACTER, a List<string> (C12).\n"
+"#                 string. Fix: an `ac` name, a List<string> (C12).\n"
 "#   LIST-CLASS    an undeclared `a` local every element put into which is an\n"
 "#                 object of one class or its subclasses. Fix: AS ARRAY OF\n"
 "#                 CLASS X.\n"
 "#   LIST-INTEGER  an undeclared `a` local every element put into which is a\n"
-"#                 whole number. Fix: AS ARRAY OF INTEGER.\n"
+"#                 whole number. Fix: an `ai` name, a List<long>.\n"
 "#   LIST-BLOCKED  an `a` local given strings, one class or whole numbers,\n"
 "#                 and one value the scan cannot prove: that value, the\n"
 "#                 source fix to make.\n"
+"#   LIST-ESCAPES  an `a` local given strings or whole numbers, and put where\n"
+"#                 C# holds it as dynamic (an array literal, a hash, another\n"
+"#                 array, an element, member or parameter of no known type):\n"
+"#                 as a List<string> or List<long> it would reach the\n"
+"#                 List<dynamic> a plain array is read back into, and throw.\n"
+"#                 Fix: type where it goes first.\n"
+"#   LIST-SLOT     a typed list (a List<string>, List<long> or List<decimal>)\n"
+"#                 put into an element of a plain array or a hash's value,\n"
+"#                 a dynamic slot: read back as a plain array, it throws.\n"
+"#                 Fix: check every reader takes it element by element, or\n"
+"#                 type the container.\n"
 "#   A-LOCAL       what each undeclared `a` local holds; audit.py moves the\n"
 "#                 rows to a-locals.tsv.\n"
 "#   EXACT-BLANKS  a string !=, <>, <, <=, >, >= or AScan() with a side that\n"
@@ -1445,6 +1456,9 @@ static void hb_typeEnvInit( HB_TYPEENV * pEnv, PHB_REFTAB pRefTab,
    tells a call to one of the file's STATIC functions from a call to a
    free function of the same name. */
 static PHB_AST_NODE s_pFileFuncs = NULL;
+
+/* The routine the refine walk (Pass 5) is in, for what a name in it is */
+static PHB_AST_NODE s_pRefineFunc = NULL;
 
 void hb_astSetFileFuncs( PHB_AST_NODE pFuncList )
 {
@@ -2648,6 +2662,59 @@ static void hb_astPropagateVar( const char * szVarName, PHB_EXPR pRHS,
 }
 
 /* Recursively walk a block and its nested structures for assignments */
+/* Assignments nested in an expression (`Len( a := f() )`, `IF ( n :=
+   At( … ) ) > 0`, `Foo( a := {} )`): each types its variable as the same
+   assignment made a statement does (hb_astPropagateVar), or the C#
+   declares the variable from its other assignments and the nested one
+   fails to compile (PrintOrder()'s `Len( aOrderTypes := GetaOrderTypes() )`,
+   a List<long> into a List<dynamic>). A codeblock's run when the block
+   is evaluated and are left alone. fTop marks the statement's own
+   expression, whose assignment hb_astPropagateBlock reads itself. */
+static void hb_astPropagateNested( PHB_EXPR pExpr, HB_TYPEENV * pEnv, HB_BOOL * pfChanged,
+                                   HB_BOOL fTop )
+{
+   if( ! pExpr )
+      return;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_FUNCALL:
+         hb_astPropagateNested( pExpr->value.asFunCall.pParms, pEnv, pfChanged, HB_FALSE );
+         return;
+      case HB_ET_SEND:
+         hb_astPropagateNested( pExpr->value.asMessage.pObject, pEnv, pfChanged, HB_FALSE );
+         hb_astPropagateNested( pExpr->value.asMessage.pParms, pEnv, pfChanged, HB_FALSE );
+         return;
+      case HB_ET_LIST:
+      case HB_ET_ARGLIST:
+      case HB_ET_MACROARGLIST:
+      case HB_ET_ARRAY:
+      case HB_ET_HASH:
+      case HB_ET_IIF:
+      {
+         PHB_EXPR p;
+         for( p = pExpr->value.asList.pExprList; p; p = p->pNext )
+            hb_astPropagateNested( p, pEnv, pfChanged, HB_FALSE );
+         return;
+      }
+      case HB_ET_ARRAYAT:
+         hb_astPropagateNested( pExpr->value.asList.pExprList, pEnv, pfChanged, HB_FALSE );
+         hb_astPropagateNested( pExpr->value.asList.pIndex, pEnv, pfChanged, HB_FALSE );
+         return;
+      default:
+         if( pExpr->ExprType >= HB_EO_POSTINC )
+         {
+            PHB_EXPR pLeft = pExpr->value.asOperator.pLeft;
+            if( ! fTop && pExpr->ExprType == HB_EO_ASSIGN && pLeft &&
+                pLeft->ExprType == HB_ET_VARIABLE )
+               hb_astPropagateVar( pLeft->value.asSymbol.name,
+                                   pExpr->value.asOperator.pRight, pEnv, pfChanged );
+            hb_astPropagateNested( pLeft, pEnv, pfChanged, HB_FALSE );
+            hb_astPropagateNested( pExpr->value.asOperator.pRight, pEnv, pfChanged, HB_FALSE );
+         }
+         return;
+   }
+}
+
 static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                                   HB_BOOL * pfChanged )
 {
@@ -2715,10 +2782,23 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                                             pEnv, pfChanged );
                   }
                }
+               hb_astPropagateNested( pExpr, pEnv, pfChanged, HB_TRUE );
             }
             break;
 
+         case HB_AST_LOCAL:
+         case HB_AST_STATIC:
+            hb_astPropagateNested( pStmt->value.asVar.pInit, pEnv, pfChanged, HB_FALSE );
+            break;
+
+         case HB_AST_RETURN:
+            hb_astPropagateNested( pStmt->value.asReturn.pExpr, pEnv, pfChanged, HB_FALSE );
+            break;
+
          case HB_AST_FOR:
+            hb_astPropagateNested( pStmt->value.asFor.pStart, pEnv, pfChanged, HB_FALSE );
+            hb_astPropagateNested( pStmt->value.asFor.pEnd, pEnv, pfChanged, HB_FALSE );
+            hb_astPropagateNested( pStmt->value.asFor.pStep, pEnv, pfChanged, HB_FALSE );
             /* FOR variable gets type from start expression */
             if( pStmt->value.asFor.szVar && pStmt->value.asFor.pStart )
                hb_astPropagateVar( pStmt->value.asFor.szVar,
@@ -2773,15 +2853,19 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
             break;
 
          case HB_AST_DOWHILE:
+            hb_astPropagateNested( pStmt->value.asWhile.pCondition, pEnv, pfChanged, HB_FALSE );
             hb_astPropagateBlock( pStmt->value.asWhile.pBody, pEnv, pfChanged );
             break;
 
          case HB_AST_IF:
+            hb_astPropagateNested( pStmt->value.asIf.pCondition, pEnv, pfChanged, HB_FALSE );
             hb_astPropagateBlock( pStmt->value.asIf.pThen, pEnv, pfChanged );
             {
                PHB_AST_NODE pElseIf = pStmt->value.asIf.pElseIfs;
                while( pElseIf )
                {
+                  hb_astPropagateNested( pElseIf->value.asElseIf.pCondition, pEnv, pfChanged,
+                                         HB_FALSE );
                   hb_astPropagateBlock( pElseIf->value.asElseIf.pBody, pEnv, pfChanged );
                   pElseIf = pElseIf->pNext;
                }
@@ -2794,6 +2878,8 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                PHB_AST_NODE pCase = pStmt->value.asDoCase.pCases;
                while( pCase )
                {
+                  hb_astPropagateNested( pCase->value.asCase.pCondition, pEnv, pfChanged,
+                                         HB_FALSE );
                   hb_astPropagateBlock( pCase->value.asCase.pBody, pEnv, pfChanged );
                   pCase = pCase->pNext;
                }
@@ -2802,6 +2888,7 @@ static void hb_astPropagateBlock( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
             break;
 
          case HB_AST_SWITCH:
+            hb_astPropagateNested( pStmt->value.asSwitch.pSwitch, pEnv, pfChanged, HB_FALSE );
             {
                PHB_AST_NODE pCase = pStmt->value.asSwitch.pCases;
                while( pCase )
@@ -4224,6 +4311,11 @@ static void hb_astCheckOmittedDefault( const char * szKey, PHB_EXPR pArg,
 static void hb_astWidenArg( const char * szCallee, const char * szRow, int iPos,
                             PHB_EXPR pArg, HB_TYPEENV * pEnv, int iLine );
 
+static void hb_astListEscape( PHB_EXPR pVal, int iLine, const char * szWhere );
+static HB_BOOL hb_astListDynamic( const char * szType );
+static void hb_astEscapeCheckExpr( const char * szDest, HB_BOOL fSlot, PHB_EXPR pExpr,
+                                   HB_TYPEENV * pEnv, int iLine, const char * szWhere );
+
 static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                  HB_TYPEENV * pEnv, int iLine )
 {
@@ -4387,13 +4479,65 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                      ( hb_astIsTypedStorage( pDecl->szType ) ||
                        hb_astIsRecordType( pEnv->pRefTab, pDecl->szType ) ) )
             {
+               PHB_EXPR pLit = pEffective;
+               while( ( pLit->ExprType == HB_ET_LIST || pLit->ExprType == HB_ET_ARGLIST ) &&
+                      pLit->value.asList.pExprList && ! pLit->value.asList.pExprList->pNext )
+                  pLit = pLit->value.asList.pExprList;
+               /* a `{ … }` literal is emitted as the parameter's own list or
+                  record (hb_csExpectLiteral): its elements are what must fit */
+               if( pLit->ExprType == HB_ET_ARRAY )
+               {
+                  char szWhat[ 192 ];
+                  hb_snprintf( szWhat, sizeof( szWhat ), "passing %%s as '%s' to '%s'",
+                               pDecl->szName ? pDecl->szName : "?", szCallee );
+                  hb_astDeclCheckExpr( pDecl->szType, pLit, pEnv, pEnv->szFile, iLine,
+                                       pDecl->szName, szWhat );
+               }
+               else
+               {
+                  char szMsg[ 256 ];
+                  hb_snprintf( szMsg, sizeof( szMsg ),
+                               "passing %s as '%s' to '%s', which other calls made %s: "
+                               "C# takes no plain array there",
+                               szArgType, pDecl->szName ? pDecl->szName : "?", szCallee,
+                               pDecl->szType );
+                  hb_astDeclWarn( "W0041", pEnv->szFile, iLine, pDecl->szName, szMsg );
+               }
+            }
+            /* W0041 for an untyped value passed to a parameter declared, or
+               made by other calls, a typed list: C# converts it at run time
+               and throws unless it holds one, and a plain array, which is
+               what an untyped one nearly always is, is none (a report row
+               reaching AAccess() through dynamic). A generic parameter,
+               ARRAY<T>, binds T to it at run time instead. */
+            if( pDecl && pDecl->szType && ! pDecl->fConflict &&
+                hb_astIsTypedList( pDecl->szType ) &&
+                pArg->ExprType != HB_ET_VARREF && pArg->ExprType != HB_ET_REFERENCE &&
+                pEffective->ExprType != HB_ET_NIL && hb_astListDynamic( szArgType ) )
+            {
                char szMsg[ 256 ];
                hb_snprintf( szMsg, sizeof( szMsg ),
-                            "passing %s as '%s' to '%s', which other calls made %s: "
-                            "C# takes no plain array there",
-                            szArgType, pDecl->szName ? pDecl->szName : "?", szCallee,
-                            pDecl->szType );
+                            "passing an untyped value as '%s' to '%s', an %s: C# converts "
+                            "it at run time and throws unless it holds one",
+                            pDecl->szName ? pDecl->szName : "?", szCallee, pDecl->szType );
                hb_astDeclWarn( "W0041", pEnv->szFile, iLine, pDecl->szName, szMsg );
+            }
+            /* an `a` variable, or any typed list, passed to a parameter C#
+               holds as dynamic */
+            if( pDecl && pArg->ExprType != HB_ET_VARREF && pArg->ExprType != HB_ET_REFERENCE )
+            {
+               char szWhere[ 160 ];
+               hb_snprintf( szWhere, sizeof( szWhere ), "passed to %s() as %s", szCallee,
+                            pDecl->szName ? pDecl->szName : "?" );
+               if( hb_astListDynamic( pDecl->szType ) )
+                  hb_astListEscape( pEffective, iLine, szWhere );
+               /* a plain ARRAY slot is the weak form this call refines
+                  (hb_refTabRefineParamType); one its callers left plain
+                  reports them (W0041 above) */
+               hb_astEscapeCheckExpr( pDecl->fConflict || ( pDecl->szType &&
+                                         hb_stricmp( pDecl->szType, "ARRAY" ) == 0 ) ?
+                                      NULL : pDecl->szType, HB_FALSE,
+                                      pEffective, pEnv, iLine, szWhere );
             }
             /* an ARRAY<T> refines an undeclared slot as a plain ARRAY */
             r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos,
@@ -5554,9 +5698,12 @@ static void hb_astWidenArg( const char * szCallee, const char * szRow, int iPos,
      LIST-INTEGER  every element a whole number: AS ARRAY OF INTEGER
      LIST-BLOCKED  one of those kinds, and one value the scan cannot
                    prove: the first, the source fix to make
+     LIST-ESCAPES  strings or whole numbers, and the variable itself put
+                   where C# holds it as dynamic (hb_astListEscape()): the
+                   first such place, what to type first
      A-LOCAL       (census) every `a` LOCAL with what it holds, one kind,
-                   mixed (two or more) or unproven; audit.py moves the
-                   rows to notes/a-locals.tsv */
+                   mixed (two or more), escaping or unproven; audit.py
+                   moves the rows to notes/a-locals.tsv */
 #define HB_LK_STRING   1
 #define HB_LK_WHOLE    2
 #define HB_LK_NUMBER   3
@@ -5577,6 +5724,8 @@ static struct
    char         szMixed[ 160 ];  /* and the two */
    int          iBlock;          /* the first value the scan cannot prove, 0 for none */
    char         szBlock[ 160 ];  /* and what that value is */
+   int          iEscape;         /* where it is first put where C# holds it as dynamic */
+   char         szEscape[ 160 ]; /* and where that is */
 } s_aList[ HB_WIDEN_MAX ];
 static int s_iList = 0;
 
@@ -5776,6 +5925,146 @@ static void hb_astListOther( const char * szName, int iLine, const char * szWhat
       hb_astListBlock( i, iLine, szWhat );
 }
 
+/* The `a` variable pVal names put where C# holds it as dynamic: an array
+   literal, a hash, an element or member of a type the scan does not know,
+   another array, an untyped parameter. A List<string> or List<long> there
+   reaches, at run time, the List<dynamic> a plain array is read back into,
+   which cannot take it; szWhere says where. */
+static void hb_astListEscape( PHB_EXPR pVal, int iLine, const char * szWhere )
+{
+   int i;
+
+   if( pVal && pVal->ExprType == HB_ET_VARIABLE &&
+       ( i = hb_astListSlot( pVal->value.asSymbol.name ) ) >= 0 && ! s_aList[ i ].iEscape )
+   {
+      s_aList[ i ].iEscape = iLine;
+      hb_strncpy( s_aList[ i ].szEscape, szWhere, sizeof( s_aList[ i ].szEscape ) - 1 );
+   }
+}
+
+/* Whether a type is one C# holds as dynamic: unknown, or USUAL */
+static HB_BOOL hb_astListDynamic( const char * szType )
+{
+   return ! szType || hb_stricmp( szType, "USUAL" ) == 0;
+}
+
+/* The type of the C# field the generator makes of the file static szName
+   (gencsharp.c, hb_csFileStaticType): its declaration's, else its
+   initialiser's or its name's. The walk types an undeclared one by what
+   each routine gives it, the field keeps its own. NULL when szName is no
+   file static, or a parameter or local of the routine walked hides it. */
+static const char * hb_astFileStaticFieldType( const char * szName, PHB_REFTAB pRefTab )
+{
+   PHB_AST_NODE pDecl;
+   PHB_AST_NODE pFileBody;
+
+   if( ! szName || ! s_pFileFuncs || s_pFileFuncs->type != HB_AST_FUNCTION ||
+       ! ( pFileBody = s_pFileFuncs->value.asFunc.pBody ) || pFileBody->type != HB_AST_BLOCK )
+      return NULL;
+   if( s_pRefineFunc && s_pRefineFunc->type == HB_AST_FUNCTION )
+   {
+      PHB_HVAR     pVar;
+      PHB_AST_NODE pBody = s_pRefineFunc->value.asFunc.pBody;
+      for( pVar = s_pRefineFunc->value.asFunc.pParams; pVar; pVar = pVar->pNext )
+         if( pVar->szName && hb_stricmp( pVar->szName, szName ) == 0 )
+            return NULL;
+      if( s_pRefineFunc != s_pFileFuncs && pBody && pBody->type == HB_AST_BLOCK )
+         for( pDecl = pBody->value.asBlock.pFirst; pDecl; pDecl = pDecl->pNext )
+            if( ( pDecl->type == HB_AST_LOCAL || pDecl->type == HB_AST_STATIC ) &&
+                pDecl->value.asVar.szName && hb_stricmp( pDecl->value.asVar.szName, szName ) == 0 )
+               return NULL;
+   }
+   for( pDecl = pFileBody->value.asBlock.pFirst; pDecl; pDecl = pDecl->pNext )
+      if( pDecl->type == HB_AST_STATIC && pDecl->value.asVar.szName &&
+          hb_stricmp( pDecl->value.asVar.szName, szName ) == 0 )
+         return pDecl->value.asVar.szDeclType ?
+                hb_astDeclCanon( pRefTab, pDecl->value.asVar.szDeclType ) :
+                hb_astInferType( szName, pDecl->value.asVar.pInit );
+   return NULL;
+}
+
+/* A typed list (ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, or a list
+   of them), whatever holds it, put where C# holds a plain array's
+   List<dynamic> or a dynamic: szDest is the type of where it goes (NULL
+   for dynamic), szWhere names that. C# cannot make a List<dynamic> of a
+   List<string>: a plain array variable, member or parameter given one is
+   W0041 (the static AClone() copied Set3rdPartyMessage()'s list into
+   threw), the build failing or, through dynamic, the run. A dynamic
+   variable, member or parameter holds one as it is (ToString() reads it
+   so); an element of a plain array or a hash's value (fSlot) is often
+   read back as a row, which throws (the state hash StateFileValue()
+   walks), but only where it is: LIST-SLOT, audit only. A `{ … }` literal
+   is checked element by element against where it goes, as the generator
+   types it (hb_csExpectLiteral): a record's field by its type, a list's
+   element by the list's, a plain array's element or a hash's value as a
+   dynamic slot. A typed destination is the declared checks' (W0041). */
+static void hb_astEscapeCheckExpr( const char * szDest, HB_BOOL fSlot, PHB_EXPR pExpr,
+                                   HB_TYPEENV * pEnv, int iLine, const char * szWhere )
+{
+   const char * szT;
+
+   if( ! pExpr )
+      return;
+   while( ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( pExpr->ExprType == HB_ET_ARRAY )
+   {
+      HB_BOOL      fRecord = szDest && pEnv->pRefTab &&
+                             hb_astIsRecordType( pEnv->pRefTab, szDest );
+      const char * szElem = fRecord ? NULL : hb_astArrayElemType( szDest );
+      PHB_EXPR     pItem;
+      int          i = 1;
+      for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext, i++ )
+         hb_astEscapeCheckExpr( fRecord ? hb_astRecordFieldType( pEnv->pRefTab, szDest, i ) :
+                                szElem, HB_TRUE, pItem, pEnv, iLine, "put into an array literal" );
+      return;
+   }
+   if( pExpr->ExprType == HB_ET_HASH )
+   {
+      const char * szVal = hb_astHashValueType( szDest );
+      PHB_EXPR     pItem;
+      HB_BOOL      fValue = HB_FALSE;   /* keys and values alternate */
+      for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext )
+      {
+         if( fValue )
+            hb_astEscapeCheckExpr( szVal, HB_TRUE, pItem, pEnv, iLine, "put into a hash" );
+         fValue = ! fValue;
+      }
+      return;
+   }
+   if( pExpr->ExprType == HB_ET_NIL ||
+       ( hb_astListDynamic( szDest ) ? ! fSlot : hb_stricmp( szDest, "ARRAY" ) != 0 ) )
+      return;
+   szT = hb_astInferExprType( pExpr, pEnv );
+   if( szT && hb_astIsTypedList( szT ) )
+   {
+      char szLabel[ 140 ];
+      char szMsg[ 360 ];
+      hb_astValueLabel( pExpr, szLabel, sizeof( szLabel ) );
+      if( ! hb_astListDynamic( szDest ) )
+      {
+         hb_snprintf( szMsg, sizeof( szMsg ),
+                      "%s, an %s, %s, a plain array: C# holds a List<dynamic> there, "
+                      "which takes no typed list", szLabel, szT, szWhere );
+         hb_astDeclWarn( "W0041", pEnv->szFile, iLine, szLabel, szMsg );
+      }
+      else if( hb_auditActive() )
+      {
+         /* LIST-SLOT (audit only, as ARG-DYNAMIC): a dynamic slot holds it,
+            and it throws only where something reads it back as a plain
+            array, which the scan cannot see */
+         char szSym[ 320 ];
+         hb_snprintf( szSym, sizeof( szSym ), "%s:%s", pEnv->szFuncKey, szLabel );
+         hb_snprintf( szMsg, sizeof( szMsg ), "%s, an %s, %s: read back as a plain "
+                      "array, it throws", szLabel, szT, szWhere );
+         hb_auditEmit( "LIST-SLOT", pEnv->szFile, iLine, szSym, szMsg,
+                       "check every reader takes it element by element, or type the "
+                       "container (a record, a typed list or hash)" );
+      }
+   }
+}
+
 /* The variable an array-changing call's first argument names, or NULL;
    *ppVal the element it puts in (AAdd()'s second, hb_AIns()'s third,
    AFill()'s second), NULL for none */
@@ -5821,6 +6110,11 @@ static void hb_astListEmit( PHB_AST_NODE pBody, HB_TYPEENV * pEnv )
       char         szDetail[ 400 ];
       char         szFix[ 200 ];
       int          iDecl = 0;
+      /* a list of strings or whole numbers would be a List<string> or a
+         List<long>, which cannot go where C# holds it as dynamic; a list
+         of a class stays a List<dynamic>, which can */
+      HB_BOOL      fEscapes = s_aList[ i ].iEscape && ! s_aList[ i ].iMixed &&
+                              ( iKind == HB_LK_STRING || iKind == HB_LK_WHOLE );
 
       if( ! szT || strcmp( szT, "ARRAY" ) != 0 ||
           ! hb_astWidenLocal( pBody, szName, &iDecl ) )
@@ -5833,6 +6127,9 @@ static void hb_astListEmit( PHB_AST_NODE pBody, HB_TYPEENV * pEnv )
       if( s_aList[ i ].iMixed )
          hb_snprintf( szDetail, sizeof( szDetail ), "mixed; line %d: %s",
                       s_aList[ i ].iMixed, s_aList[ i ].szMixed );
+      else if( fEscapes )
+         hb_snprintf( szDetail, sizeof( szDetail ), "%s, escapes; line %d: %s",
+                      szHolds, s_aList[ i ].iEscape, s_aList[ i ].szEscape );
       else if( s_aList[ i ].iBlock )
          hb_snprintf( szDetail, sizeof( szDetail ), "%s%sunproven; line %d: %s",
                       szHolds, iKind ? ", " : "", s_aList[ i ].iBlock, s_aList[ i ].szBlock );
@@ -5845,17 +6142,26 @@ static void hb_astListEmit( PHB_AST_NODE pBody, HB_TYPEENV * pEnv )
       /* a typed list or an array of whole numbers to be */
       if( s_aList[ i ].iMixed )
          continue;
+      if( fEscapes )
+      {
+         hb_snprintf( szDetail, sizeof( szDetail ), "%s holds %s, and at line %d is %s",
+                      szName, szHolds, s_aList[ i ].iEscape, s_aList[ i ].szEscape );
+         hb_auditEmit( "LIST-ESCAPES", pEnv->szFile, s_aList[ i ].iEscape, szSym, szDetail,
+                       "type where it goes first (a record, a typed member or "
+                       "parameter), then give it its array name" );
+         continue;
+      }
       switch( iKind )
       {
          case HB_LK_STRING:
             szCat = "LIST-STRING";
             szOne = "a string";
-            hb_strncpy( szFix, "AS ARRAY OF CHARACTER", sizeof( szFix ) - 1 );
+            hb_strncpy( szFix, "an `ac` name, a List<string>", sizeof( szFix ) - 1 );
             break;
          case HB_LK_WHOLE:
             szCat = "LIST-INTEGER";
             szOne = "a whole number";
-            hb_strncpy( szFix, "AS ARRAY OF INTEGER", sizeof( szFix ) - 1 );
+            hb_strncpy( szFix, "an `ai` name, a List<long>", sizeof( szFix ) - 1 );
             break;
          case HB_LK_CLASS:
             szCat = "LIST-CLASS";
@@ -6281,6 +6587,14 @@ static void hb_astRefineBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv )
                                     HB_EO_ASSIGN, pEnv, iLine );
                   hb_astListWhole( pStmt->value.asVar.szName, pStmt->value.asVar.pInit,
                                    pEnv, iLine );
+                  {
+                     char szWhere[ 160 ];
+                     hb_snprintf( szWhere, sizeof( szWhere ), "given to %s",
+                                  pStmt->value.asVar.szName );
+                     hb_astEscapeCheckExpr( hb_typeEnvGet( pEnv, pStmt->value.asVar.szName ),
+                                            HB_FALSE, pStmt->value.asVar.pInit, pEnv, iLine,
+                                            szWhere );
+                  }
                }
                else if( pStmt->value.asVar.fArrayDim )
                   hb_astListOther( pStmt->value.asVar.szName, iLine,
@@ -6337,6 +6651,31 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                   const char * szArr = hb_astListCall( szName, pParms, &pVal );
                   if( szArr && pVal )
                      hb_astListElem( szArr, pVal, pEnv, iLine );
+               }
+               /* and an `a` variable put so into an array whose elements C#
+                  holds as dynamic */
+               if( szName && ( hb_stricmp( szName, "AADD" ) == 0 ||
+                               hb_stricmp( szName, "AFILL" ) == 0 ||
+                               hb_stricmp( szName, "HB_AINS" ) == 0 ||
+                               hb_stricmp( szName, "AINS" ) == 0 ) && p && p->pNext )
+               {
+                  PHB_EXPR pVal = p->pNext;
+                  if( hb_stricmp( szName, "AADD" ) != 0 && hb_stricmp( szName, "AFILL" ) != 0 )
+                     pVal = pVal->pNext;
+                  if( pVal )
+                  {
+                     const char * szElem =
+                        hb_astArrayElemType( hb_astInferExprType( p, pEnv ) );
+                     char szWhere[ 160 ];
+                     if( p->ExprType == HB_ET_VARIABLE )
+                        hb_snprintf( szWhere, sizeof( szWhere ), "added to %s",
+                                     p->value.asSymbol.name );
+                     else
+                        hb_strncpy( szWhere, "added to another array", sizeof( szWhere ) - 1 );
+                     if( hb_astListDynamic( szElem ) )
+                        hb_astListEscape( pVal, iLine, szWhere );
+                     hb_astEscapeCheckExpr( szElem, HB_TRUE, pVal, pEnv, iLine, szWhere );
+                  }
                }
                while( p )
                {
@@ -6555,6 +6894,10 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
          PHB_EXPR p = pExpr->value.asList.pExprList;
          while( p )
          {
+            if( pExpr->ExprType == HB_ET_ARRAY )
+               hb_astListEscape( p, iLine, "put into an array literal" );
+            else if( pExpr->ExprType == HB_ET_HASH )
+               hb_astListEscape( p, iLine, "put into a hash" );
             hb_astRefineExpr( p, pEnv, iLine );
             p = p->pNext;
          }
@@ -6614,6 +6957,65 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
             hb_astListElem(
                pExpr->value.asOperator.pLeft->value.asList.pExprList->value.asSymbol.name,
                pExpr->value.asOperator.pRight, pEnv, iLine );
+         /* an `a` variable given to an element, member or variable C#
+            holds as dynamic */
+         if( pExpr->ExprType == HB_EO_ASSIGN && pExpr->value.asOperator.pLeft &&
+             pExpr->value.asOperator.pRight &&
+             pExpr->value.asOperator.pRight->ExprType == HB_ET_VARIABLE &&
+             hb_astListDynamic( hb_astInferExprType( pExpr->value.asOperator.pLeft, pEnv ) ) )
+         {
+            PHB_EXPR pTo = pExpr->value.asOperator.pLeft;
+            char     szWhere[ 160 ];
+            if( pTo->ExprType == HB_ET_ARRAYAT )
+            {
+               PHB_EXPR pBase = pTo->value.asList.pExprList;
+               if( pBase && pBase->ExprType == HB_ET_VARIABLE )
+                  hb_snprintf( szWhere, sizeof( szWhere ), "put into an element of %s",
+                               pBase->value.asSymbol.name );
+               else
+                  hb_strncpy( szWhere, "put into an element", sizeof( szWhere ) - 1 );
+            }
+            else if( pTo->ExprType == HB_ET_SEND && pTo->value.asMessage.szMessage )
+               hb_snprintf( szWhere, sizeof( szWhere ), "given to the member %s",
+                            pTo->value.asMessage.szMessage );
+            else if( pTo->ExprType == HB_ET_VARIABLE )
+               hb_snprintf( szWhere, sizeof( szWhere ), "given to %s",
+                            pTo->value.asSymbol.name );
+            else
+               szWhere[ 0 ] = '\0';
+            if( szWhere[ 0 ] )
+               hb_astListEscape( pExpr->value.asOperator.pRight, iLine, szWhere );
+         }
+         /* any typed list given to an element, member or variable C# holds
+            as dynamic, or as a plain array */
+         if( pExpr->ExprType == HB_EO_ASSIGN && pExpr->value.asOperator.pLeft &&
+             pExpr->value.asOperator.pRight )
+         {
+            PHB_EXPR     pTo = pExpr->value.asOperator.pLeft;
+            const char * szToType = hb_astInferExprType( pTo, pEnv );
+            char         szTo[ 140 ];
+            char         szWhere[ 192 ];
+            if( pTo->ExprType == HB_ET_ARRAYAT && pTo->value.asList.pExprList &&
+                pTo->value.asList.pExprList->ExprType == HB_ET_VARIABLE )
+               hb_snprintf( szTo, sizeof( szTo ), "an element of %s",
+                            pTo->value.asList.pExprList->value.asSymbol.name );
+            else if( ( pTo->ExprType == HB_ET_ALIASVAR || pTo->ExprType == HB_ET_VARIABLE ) &&
+                     hb_astTargetName( pTo ) )
+            {
+               /* a file static is its C# field's type, whatever this
+                  routine gives it (the walk types it by that) */
+               const char * szName = hb_astTargetName( pTo );
+               const char * szField = hb_astFileStaticFieldType( szName, pEnv->pRefTab );
+               hb_strncpy( szTo, szName, sizeof( szTo ) - 1 );
+               if( szField )
+                  szToType = szField;
+            }
+            else
+               hb_astValueLabel( pTo, szTo, sizeof( szTo ) );
+            hb_snprintf( szWhere, sizeof( szWhere ), "assigned to %s", szTo );
+            hb_astEscapeCheckExpr( szToType, pTo->ExprType == HB_ET_ARRAYAT,
+                                   pExpr->value.asOperator.pRight, pEnv, iLine, szWhere );
+         }
          /* MEMBER-TYPE evidence, both directions:
               ::member  := oOrm:field   (member takes the field's type)
               oOrm:field := ::member    (member feeds a typed field) */
@@ -8227,7 +8629,9 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
    {
       s_iWiden = 0;
       s_iList = 0;
+      s_pRefineFunc = pFunc;
       hb_astRefineBlock( pBody, &env );
+      s_pRefineFunc = NULL;
       hb_astWidenEmit( pFunc, pBody, &env );
       hb_astListEmit( pBody, &env );
    }
