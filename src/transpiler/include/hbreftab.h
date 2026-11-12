@@ -317,6 +317,7 @@ extern void    hb_refTabMarkRecord( PHB_REFTAB pTab, const char * szName,
                                     int nFields, const char ** ppNames,
                                     const char ** ppTypes );
 extern HB_BOOL hb_refTabIsRecord( PHB_REFTAB pTab, const char * szName );
+extern HB_BOOL hb_refTabIsStandaloneClass( PHB_REFTAB pTab, const char * szName );
 
 /* Mark szName as a PUBLIC variable. szOwnerBase is the basename of the
    .prg declaring it; only the first caller sets the owner (subsequent

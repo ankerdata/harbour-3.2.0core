@@ -29,7 +29,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        var aParcels = new List<dynamic>();
+        var aParcels = new List<Parcel141>();
         var aLoose = new List<dynamic> { new Parcel141().New("Crate", 3) };
         var aCounts = new List<dynamic>();
         decimal nTotal = 0;

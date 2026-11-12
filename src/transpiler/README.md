@@ -1036,7 +1036,11 @@ strongest. Later rungs override earlier ones.
    INTEGER, LOGICAL, DATE, ARRAY, and an array of arrays, `AS ARRAY OF
    ARRAY OF CHARACTER`: sqlite3_get_table()'s rows) type an array's
    elements; INTEGER and the nested form are no Harbour type, so the lexer
-   composes them as it does a typed hash (test163). Storage stays
+   composes them as it does a typed hash (test163). A list of a class
+   that inherits nothing and that nothing inherits is a `List<X>`, typed
+   storage as a list of records is (hb_refTabIsStandaloneClass, test169):
+   EasiPOS's DialogLayoutField and DialogOptionButton. For a class with a
+   family, since a `List<Child>` is no `List<Parent>`, storage stays
    `List<dynamic>`, a read of an element is an X, so a send on one is cast
    (`((TranLine)aBuffer[i]).nType`) and checked when C# builds, and a FOR
    EACH variable over it is an X. A member only a subclass of X declares is
@@ -1187,9 +1191,10 @@ strongest. Later rungs override earlier ones.
    FOR EACH over one; a row held as `dynamic` is declared before it is
    read. A record or a FIXED array keeps its type into an undeclared slot
    (a C# array or a class is what the value is), and an `a` name takes
-   it. Harbour sees arrays: astype.ch removes the RECORD line and reads
-   the declarations as `AS ARRAY` (tests/errors/fixed_record.prg has the
-   warnings).
+   it. Harbour sees arrays: astype.ch removes the RECORD line and the
+   declarations whole, a member's `AS ARRAY OF` too, since Harbour
+   would refuse such a member NIL where the C# list holds null
+   (tests/errors/fixed_record.prg has the warnings).
    **`AS HASH OF …`, `AS INTEGER HASH [OF …]`, `AS STRING HASH [OF …]`**
    (2026-10-17; test156) type a hash as the arrays are typed: the keys by
    kind (`INTEGER` whole numbers, `STRING` or nothing strings, what an
@@ -1950,6 +1955,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 166       | Array names: `ai`, `an` and `ac` (a static's `sai`) a `List<long>`, `List<decimal>` and `List<string>` on a local, a static, a parameter, a member and a record's field, their literals typed; `AS ARRAY OF STRING`; AAdd() of a whole literal into a `List<long>`, hb_AIns() and hb_ADel() with lAutoSize on value lists; hb_default()'s and hb_defaultValue()'s `{}` the value's own type, a static left NIL read through a function |
 | 167       | `Array( n )` and `LOCAL a[ n ]` for a typed list: an `an`, `ai` or `ac` name, or `AS ARRAY OF`, makes a `List<decimal>`, `List<long>` or `List<string>` of n blanks (`ArrayOf<T>( n )`), a plain name's stays an array of NIL |
 | 168       | A list of records: `AS ARRAY OF RECORD X` is a `List<X>` on a local, a parameter and a caller-typed one; its literal, AAdd(), FOR EACH, `Array( n )`, and an AScan() block whose `a` parameter is the record |
+| 169       | A list of a class that stands alone: `AS ARRAY OF CLASS X`, X with no parent and no subclass, is a `List<X>` on a local, a member, a parameter and a function's result, its literal and AAdd() the objects; a list of a class with a subclass stays a `List<dynamic>` |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

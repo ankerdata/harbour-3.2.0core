@@ -597,8 +597,10 @@ HB_BOOL hb_astIsFixedType( const char * szType )
 /* ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, ARRAY<X> of a record X,
    or ARRAY<T> of such a T: a C# List<string>, List<long>, List<decimal>,
    List<X> or a List of those, so the C# checks what is put in and read
-   out (plan C12). A record has no subclasses, which is what keeps a list
-   of a class a List<dynamic>. NIL in a List<string> or a List<X> is null;
+   out (plan C12). X is also a class that inherits nothing and that
+   nothing inherits: a list of a class with a family is a List<dynamic>,
+   since a List<Child> is no List<Parent>. NIL in a List<string> or a
+   List<X> is null;
    a List<long> or a List<decimal> cannot hold it (hb_astIsValueList). */
 HB_BOOL hb_astIsTypedList( const char * szType )
 {
@@ -611,7 +613,9 @@ HB_BOOL hb_astIsTypedList( const char * szType )
                       hb_stricmp( szElem, "INTEGER" ) == 0 ||
                       hb_stricmp( szElem, "NUMERIC" ) == 0 ||
                       hb_astIsTypedList( szElem ) ||
-                      hb_astIsRecordType( s_pPropRefTab, szElem ) );
+                      hb_astIsRecordType( s_pPropRefTab, szElem ) ||
+                      ( s_pPropRefTab && ! hb_astIsArrayType( szElem ) &&
+                        hb_refTabIsStandaloneClass( ( PHB_REFTAB ) s_pPropRefTab, szElem ) ) );
 }
 
 /* A typed list whose elements are a C# value type (List<long>,
