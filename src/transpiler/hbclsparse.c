@@ -267,6 +267,7 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
    PHB_PP_TOKEN pToken;
    const char * szMethodName;
    const char * szClassName = NULL;
+   const char * szRetType = NULL;
    const char * szParams[ 32 ];
    const char * szParamTypes[ 32 ];
    int nParams = 0;
@@ -310,10 +311,23 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
          pToken = hb_clsNextToken( HB_COMP_PARAM );
    }
 
-   /* Scan rest of line looking for CLASS keyword */
+   /* Scan rest of line looking for CLASS keyword. The method's own
+      return type may stand before it, `METHOD M() AS CLASS X CLASS Y`:
+      its words are consumed so that its CLASS is not taken for the
+      method's. */
    while( ! hb_clsTokenIsEOL( pToken ) )
    {
-      if( hb_clsTokenIs( pToken, "CLASS" ) )
+      if( hb_clsTokenIs( pToken, "AS" ) && ! szClassName )
+      {
+         int iUsed, i;
+         const char * szType =
+            hb_compDeclTypeTokens( HB_COMP_PARAM, pToken->pNext, &iUsed );
+         if( iUsed > 0 )
+            szRetType = szType;
+         for( i = 0; i < iUsed; i++ )
+            pToken = hb_clsNextToken( HB_COMP_PARAM );
+      }
+      else if( hb_clsTokenIs( pToken, "CLASS" ) )
       {
          pToken = hb_clsNextToken( HB_COMP_PARAM );
          szClassName = hb_clsSaveId( HB_COMP_PARAM, pToken );
@@ -340,8 +354,9 @@ HB_BOOL hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure )
       size_t nLen = strlen( szClassName ) + 2 + strlen( szMethodName ) + 1;
       char * szKey = ( char * ) hb_xgrab( nLen );
       hb_snprintf( szKey, nLen, "%s__%s", szClassName, szMethodName );
-      /* the class body's `METHOD M() AS <type>`, for hb_astBeginFunc */
-      HB_COMP_PARAM->ast.szPendingRetType =
+      /* the type this line declares, or the class body's `METHOD M() AS
+         <type>`, for hb_astBeginFunc */
+      HB_COMP_PARAM->ast.szPendingRetType = szRetType ? szRetType :
          hb_clsMethodDeclType( HB_COMP_PARAM, szClassName, szMethodName );
       hb_compFunctionAdd( HB_COMP_PARAM,
                           hb_compIdentifierNew( HB_COMP_PARAM, szKey, HB_IDENT_COPY ),

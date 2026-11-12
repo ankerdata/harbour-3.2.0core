@@ -1030,7 +1030,8 @@ strongest. Later rungs override earlier ones.
    member holding TranLines. They go on a local, a parameter, a file or
    routine static, a class member (`VAR`), a function's return
    (`FUNCTION f( … ) AS CLASS X`) and a method's (`METHOD M() AS …` in the
-   class body), and nothing in the body moves them: an assignment, a
+   class body, or on its own line before its class, `METHOD M() AS CLASS
+   X CLASS Y`, which wins: test171), and nothing in the body moves them: an assignment, a
    caller's argument (pflag `T`), a RETURN. `AS ARRAY OF CLASS X` (not `AS
    ARRAY OF X`: Harbour's syntax) and `AS ARRAY OF CHARACTER` (NUMERIC,
    INTEGER, LOGICAL, DATE, ARRAY, and an array of arrays, `AS ARRAY OF
