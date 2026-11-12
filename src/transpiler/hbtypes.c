@@ -407,8 +407,9 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 List<dynamic> a plain array is read back into, and throw.\n"
 "#                 Fix: type where it goes first.\n"
 "#   LIST-SLOT     a typed list (a List<string>, List<long> or List<decimal>)\n"
-"#                 put into an element of a plain array or a hash's value,\n"
-"#                 a dynamic slot: read back as a plain array, it throws.\n"
+"#                 or a record put into an element of a plain array or a\n"
+"#                 hash's value, a dynamic slot: read back as a plain\n"
+"#                 array, it throws.\n"
 "#                 Fix: check every reader takes it element by element, or\n"
 "#                 type the container.\n"
 "#   A-LOCAL       what each undeclared `a` local holds; audit.py moves the\n"
@@ -6095,6 +6096,26 @@ static void hb_astEscapeCheckExpr( const char * szDest, HB_BOOL fSlot, PHB_EXPR 
        ( hb_astListDynamic( szDest ) ? ! fSlot : hb_stricmp( szDest, "ARRAY" ) != 0 ) )
       return;
    szT = hb_astInferExprType( pExpr, pEnv );
+   /* A record in a dynamic slot is the same hazard: an object in C#, an
+      array to whoever subscripts it there. An `a` variable given one takes
+      its type, so only the slot is named. */
+   if( szT && pEnv->pRefTab && hb_astIsRecordType( pEnv->pRefTab, szT ) )
+   {
+      if( hb_astListDynamic( szDest ) && hb_auditActive() )
+      {
+         char szLabel[ 140 ];
+         char szMsg[ 360 ];
+         char szSym[ 320 ];
+         hb_astValueLabel( pExpr, szLabel, sizeof( szLabel ) );
+         hb_snprintf( szSym, sizeof( szSym ), "%s:%s", pEnv->szFuncKey, szLabel );
+         hb_snprintf( szMsg, sizeof( szMsg ), "%s, a record %s, %s: subscripted there "
+                      "as an array, it throws", szLabel, szT, szWhere );
+         hb_auditEmit( "LIST-SLOT", pEnv->szFile, iLine, szSym, szMsg,
+                       "put its fields there, or type the container (a record, a "
+                       "typed list or hash)" );
+      }
+      return;
+   }
    if( szT && hb_astIsTypedList( szT ) )
    {
       char szLabel[ 140 ];

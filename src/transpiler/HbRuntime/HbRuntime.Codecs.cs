@@ -100,9 +100,18 @@ public static partial class HbRuntime
                 JsonEncodeArray(aValues, sb, nLevel, nIndent, aPath);
                 break;
             default:
-                // An object, a codeblock, a pointer: hbjson.c has no form
-                // for them and writes null.
-                sb.Append("null");
+                // A record is an array to Harbour, so it is written as
+                // the array of its fields. An object, a codeblock, a
+                // pointer: hbjson.c has no form for them and writes null.
+                if (JsonRecordFields(x.GetType()) is { } aFields)
+                {
+                    var aRecord = new List<object?>(aFields.Length);
+                    foreach (var oField in aFields)
+                        aRecord.Add(oField.GetValue(x));
+                    JsonEncodeArray(aRecord, sb, nLevel, nIndent, aPath);
+                }
+                else
+                    sb.Append("null");
                 break;
         }
 
@@ -111,6 +120,37 @@ public static partial class HbRuntime
     }
 
     static string JsonEol() => Set(_SET_EOL) as string ?? "\r\n";
+
+    // The fields of a record's class, in the order of its positions, or
+    // null for any other type. The emitter writes a record as a sealed
+    // class of public fields and one constructor that takes them in
+    // order, and nothing else; a CLASS is an IHbObject.
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.FieldInfo[]?>
+        s_jsonRecordFields = new();
+
+    static System.Reflection.FieldInfo[]? JsonRecordFields(Type oType) =>
+        s_jsonRecordFields.GetOrAdd(oType, static oRecord =>
+        {
+            const System.Reflection.BindingFlags Fields =
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            if (!oRecord.IsClass || !oRecord.IsSealed || typeof(IHbObject).IsAssignableFrom(oRecord))
+                return null;
+            var aConstructors = oRecord.GetConstructors();
+            if (aConstructors.Length != 1)
+                return null;
+            var aParameters = aConstructors[0].GetParameters();
+            if (aParameters.Length == 0 || oRecord.GetFields(Fields).Length != aParameters.Length)
+                return null;
+            var aFields = new System.Reflection.FieldInfo[aParameters.Length];
+            for (int i = 0; i < aParameters.Length; i++)
+            {
+                var oField = oRecord.GetField(aParameters[i].Name ?? "", Fields);
+                if (oField == null)
+                    return null;
+                aFields[i] = oField;
+            }
+            return aFields;
+        });
 
     static int JsonSize(object? x) => x switch
     {

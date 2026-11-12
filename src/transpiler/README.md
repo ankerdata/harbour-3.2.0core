@@ -1194,7 +1194,12 @@ strongest. Later rungs override earlier ones.
    it. Harbour sees arrays: astype.ch removes the RECORD line and the
    declarations whole, a member's `AS ARRAY OF` too, since Harbour
    would refuse such a member NIL where the C# list holds null
-   (tests/errors/fixed_record.prg has the warnings).
+   (tests/errors/fixed_record.prg has the warnings). Where a record
+   leaves typed code it is still an object: hb_jsonEncode() writes one as
+   the array of its fields, as Harbour's is (HbRuntime finds the fields
+   by the constructor's parameters; test170), and the audit's LIST-SLOT
+   names a record put into an element of a plain array or a hash's
+   value, where a reader that subscripts it would throw.
    **`AS HASH OF …`, `AS INTEGER HASH [OF …]`, `AS STRING HASH [OF …]`**
    (2026-10-17; test156) type a hash as the arrays are typed: the keys by
    kind (`INTEGER` whole numbers, `STRING` or nothing strings, what an
@@ -1956,6 +1961,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 167       | `Array( n )` and `LOCAL a[ n ]` for a typed list: an `an`, `ai` or `ac` name, or `AS ARRAY OF`, makes a `List<decimal>`, `List<long>` or `List<string>` of n blanks (`ArrayOf<T>( n )`), a plain name's stays an array of NIL |
 | 168       | A list of records: `AS ARRAY OF RECORD X` is a `List<X>` on a local, a parameter and a caller-typed one; its literal, AAdd(), FOR EACH, `Array( n )`, and an AScan() block whose `a` parameter is the record |
 | 169       | A list of a class that stands alone: `AS ARRAY OF CLASS X`, X with no parent and no subclass, is a `List<X>` on a local, a member, a parameter and a function's result, its literal and AAdd() the objects; a list of a class with a subclass stays a `List<dynamic>` |
+| 170       | A record written by hb_jsonEncode() is the array of its fields: alone, in a list of records, nested in another record, as a hash's value and as an element of a plain array |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
