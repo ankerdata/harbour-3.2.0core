@@ -503,7 +503,7 @@ gen_cs.py does exactly this (tests/errors/reconcile_*.prg).
 
 A Harbour program reaches a COM object through `win_oleCreateObject()`
 and late binding. Where that object is a .NET class (EasiPOS's EasiPos.*
-shims), the C# needs no COM: it references the class's .NET build and
+connectors), the C# needs no COM: it references the class's .NET build and
 calls it directly. Through `dynamic` that fails as soon as a call passes
 `@`: C# has two by-reference mechanisms, `ref` and `out`, the binder will
 not take a `ref` argument for an `out` parameter, and only the method

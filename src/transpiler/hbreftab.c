@@ -40,7 +40,7 @@ typedef struct HB_REFENTRY_
    HB_BOOL               fIsPublic;    /* this is a PUBLIC variable marker */
    HB_BOOL               fPublicArrayDim; /* PUBLIC declared with [size] — emit `new dynamic[N]` at runtime */
    HB_BOOL               fExtern;      /* loaded from the --extern= table: a .NET
-                                          class the program uses (a COM shim's
+                                          class the program uses (a COM connector's
                                           .NET build) or one of its methods.
                                           Never saved: the table is read again
                                           each run. */

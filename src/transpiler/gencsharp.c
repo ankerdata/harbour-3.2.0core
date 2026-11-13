@@ -3076,7 +3076,7 @@ static const char * hb_csTypeMap( const char * szHbType )
       every use site lets the COM call sites compile. */
    if( hb_stricmp( szHbType, "TOleAuto" ) == 0 )
       return "dynamic";
-   /* A .NET class the --extern= table declares (a COM shim's .NET build)
+   /* A .NET class the --extern= table declares (a COM connector's .NET build)
       is its C# type name: `EasiSI` is `EasiPos.EasiSI.EasiSI`. */
    {
       const char * szCs = hb_refTabExternCsName( s_pRefTab, szHbType );

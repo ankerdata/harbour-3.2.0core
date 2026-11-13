@@ -67,7 +67,7 @@ extern HB_BOOL      hb_refTabReconcileRequested( void );
 extern int          hb_refTabReconcileRun( void );
 
 /* `--extern=<path>`: a table of the .NET classes the program reaches
-   (the .NET builds of its COM shims), in the reftab's row format with
+   (the .NET builds of its COM connectors), in the reftab's row format with
    row flag X and pflag U (see persistence below). The scan and the C#
    emitter load it after the reftab (hb_refTabLoadExtern); its rows are
    never saved. NULL when none was given. */
