@@ -2261,7 +2261,10 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
                }
             }
 
-            szRet = hb_funcTabReturnType( szFunc );
+            /* a name the program defines is the program's: hbfuncs.tab
+               types hbnf's FT_Elapsed(), not EasiPOS's own (test172) */
+            szRet = hb_refTabIsDefinedFunc( s_pPropRefTab, szFunc ) ? NULL :
+                    hb_funcTabReturnType( szFunc );
             if( szRet )
                return szRet;
             szRet = hb_typeEnvFuncRetDecl( pEnv, szFunc );
@@ -3064,7 +3067,8 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                own index-shaped locals) — int-ness chains. */
             if( ! szFn )
                return HB_FALSE;
-            szRet = hb_funcTabReturnType( szFn );
+            szRet = hb_refTabIsDefinedFunc( s_pPropRefTab, szFn ) ? NULL :
+                    hb_funcTabReturnType( szFn );
             if( ! szRet )
                szRet = hb_typeEnvFuncReturnType( pEnv, szFn );
             return szRet && hb_stricmp( szRet, "INTEGER" ) == 0;
