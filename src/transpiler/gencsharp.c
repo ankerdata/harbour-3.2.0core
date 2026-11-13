@@ -8619,7 +8619,18 @@ static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
          hb_csEmitIndent( yyc, iIndent );
          fprintf( yyc, "%s %s = %s ?? ", hb_csTypeMap( szDefType ),
                   hb_csParamAliasName( szDefParam ), szDefParam );
-         hb_csEmitExpr( pDefVal, yyc, HB_FALSE );
+         /* a whole-number parameter's default, as a write into an `i`
+            local: `DEFAULT iMcNo TO aMCFlag[ F_MCNo ]`, an untyped value
+            that holds a decimal, is no long without the cast */
+         if( szDefType && hb_stricmp( szDefType, "INTEGER" ) == 0 &&
+             hb_csNeedsIntCast( pDefVal ) )
+         {
+            fprintf( yyc, "(long)(" );
+            hb_csEmitExpr( pDefVal, yyc, HB_FALSE );
+            fprintf( yyc, ")" );
+         }
+         else
+            hb_csEmitExpr( pDefVal, yyc, HB_FALSE );
          fprintf( yyc, ";\n" );
          hb_csParamAliasActivate( szDefParam );
          return;

@@ -406,6 +406,12 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 as a List<string> or List<long> it would reach the\n"
 "#                 List<dynamic> a plain array is read back into, and throw.\n"
 "#                 Fix: type where it goes first.\n"
+"#   NARROW-ARG    a decimal passed to a whole-number (`i`) parameter: the\n"
+"#                 call casts it to long, and a fraction it holds is lost\n"
+"#                 without a word. Fix: an i name or Int() at the caller, or\n"
+"#                 the parameter is no whole number.\n"
+"#   NARROW-RET    a decimal returned from a function declared AS INTEGER,\n"
+"#                 cast to long the same way.\n"
 "#   LIST-SLOT     a typed list (a List<string>, List<long> or List<decimal>)\n"
 "#                 or a record put into an element of a plain array or a\n"
 "#                 hash's value, a dynamic slot: read back as a plain\n"
@@ -4519,6 +4525,23 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
             const char * szAuditType;
             HB_REFINE_RESULT r;
 
+            /* NARROW-ARG: a decimal given to a whole-number parameter, which
+               the call casts to long. A value the scan proves whole is
+               silent; the rest lose a fraction they may hold, without a
+               word from C#. */
+            if( pDecl && pDecl->szType && pDecl->szName && ! pDecl->fByRef &&
+                hb_stricmp( pDecl->szType, "INTEGER" ) == 0 &&
+                szArgType && hb_stricmp( szArgType, "NUMERIC" ) == 0 &&
+                ! hb_astIsWholeValue( pEffective, pEnv ) )
+            {
+               char szSym[ 192 ];
+               hb_snprintf( szSym, sizeof( szSym ), "%s:%s", szCallee, pDecl->szName );
+               if( ! hb_astOrmSeen( iLine, szSym ) )
+                  hb_auditEmit( "NARROW-ARG", pEnv->szFile, iLine, szSym,
+                                "a decimal passed to a whole-number parameter, cast (long)",
+                                "make the value whole (an i name, Int()), or the parameter n" );
+            }
+
             /* W0041: an argument for a declared parameter (`o AS CLASS X`).
                A generic parameter's ARRAY<T> is what this call binds T to,
                and an argument that would bind T otherwise, or a C# array,
@@ -8187,6 +8210,17 @@ static void hb_astCheckDeclReturns( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                             szFunc ? szFunc : "?" );
                hb_astDeclCheckExpr( szDecl, pStmt->value.asReturn.pExpr, pEnv,
                                     szFile, pStmt->iLine, szFunc, szWhat );
+               /* NARROW-RET: a decimal returned from a function declared
+                  AS INTEGER, which the RETURN casts to long */
+               if( hb_stricmp( szDecl, "INTEGER" ) == 0 )
+               {
+                  const char * szRet = hb_astInferExprType( pStmt->value.asReturn.pExpr, pEnv );
+                  if( szRet && hb_stricmp( szRet, "NUMERIC" ) == 0 &&
+                      ! hb_astIsWholeValue( pStmt->value.asReturn.pExpr, pEnv ) )
+                     hb_auditEmit( "NARROW-RET", szFile, pStmt->iLine, szFunc ? szFunc : "?",
+                                   "a decimal returned from a function declared AS INTEGER, cast (long)",
+                                   "make the value whole (an i name, Int()), or declare AS NUMERIC" );
+               }
             }
             break;
          case HB_AST_IF:
