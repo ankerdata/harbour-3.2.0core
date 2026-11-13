@@ -68,7 +68,7 @@ public static partial class Program
         };
     }
 
-    public static decimal Count164(List<List<string>> aRows = default)
+    public static long Count164(List<List<string>> aRows = default)
     {
         return Max(Len(aRows) - 1, 0);
     }

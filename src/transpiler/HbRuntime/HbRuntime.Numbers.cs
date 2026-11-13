@@ -229,6 +229,11 @@ public static partial class HbRuntime
     public static decimal Max(decimal a, decimal b) => Math.Max(a, b);
     public static decimal Min(decimal a, decimal b) => Math.Min(a, b);
     public static decimal Mod(decimal a, decimal b) => a % b;
+    // Whole numbers in, a whole number out (hb_astWholeInWholeOut).
+    public static long Abs(long n) => Math.Abs(n);
+    public static long Max(long a, long b) => Math.Max(a, b);
+    public static long Min(long a, long b) => Math.Min(a, b);
+    public static long Mod(long a, long b) => a % b;
     public static decimal Pow(decimal a, decimal b) => FromDouble(Math.Pow((double)a, (double)b));
     // Harbour's Sqrt() of 0 or less is 0 (rtl/math.c)
     public static decimal Sqrt(decimal n) => n <= 0 ? 0 : FromDouble(Math.Sqrt((double)n));

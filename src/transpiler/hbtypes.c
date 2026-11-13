@@ -189,7 +189,10 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
          if( pName && pName->ExprType == HB_ET_FUNNAME &&
              pName->value.asSymbol.name &&
              hb_funcTabPrefix( pName->value.asSymbol.name ) &&
-             ! hb_refTabIsDefinedFunc( s_pPropRefTab, pName->value.asSymbol.name ) )
+             ! hb_refTabIsDefinedFunc( s_pPropRefTab, pName->value.asSymbol.name ) &&
+             /* Min(), Max(), Abs(), Mod(): by their arguments, which the
+                inference with the routine's types reads */
+             ! hb_astWholeInWholeOut( pName->value.asSymbol.name ) )
             return hb_funcTabReturnType( pName->value.asSymbol.name );
          break;
       }
@@ -1567,6 +1570,7 @@ static const char * hb_typeEnvFuncReturnType( HB_TYPEENV * pEnv,
 }
 
 static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv );
+static HB_BOOL hb_astIsWholeCall( PHB_EXPR pExpr, HB_TYPEENV * pEnv );
 
 /* A call's bindings of its callee's type parameters (szRow, the row it
    resolves to), aszBind[ HB_AST_TYPEPARAMS ] by letter: what the arguments
@@ -2124,14 +2128,27 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
       }
 
       case HB_EO_MULT:
-      case HB_EO_DIV:
       case HB_EO_MOD:
+      {
+         /* INTEGER * INTEGER and INTEGER % INTEGER are whole, as the sum
+            is and as C# has them (long op long is long) */
+         const char * szLeft = hb_astInferExprType(
+            pExpr->value.asOperator.pLeft, pEnv );
+         const char * szRight = hb_astInferExprType(
+            pExpr->value.asOperator.pRight, pEnv );
+         if( szLeft && szRight && strcmp( szLeft, "INTEGER" ) == 0 &&
+             strcmp( szRight, "INTEGER" ) == 0 )
+            return "INTEGER";
+         return "NUMERIC";
+      }
+
+      case HB_EO_DIV:
       case HB_EO_POWER:
-         /* These four operators are arithmetic-only in Harbour: there
-            is no other meaning. The result is always NUMERIC, even when
-            one or both operand types haven't been inferred yet. This
-            is what lets `n * 2` infer NUMERIC for an untyped parameter
-            `n` — the operator itself constrains the result. */
+         /* Arithmetic-only in Harbour, as `*` and `%` are: there is no
+            other meaning, so the result is a number even when an operand's
+            type has not been inferred yet. This is what lets `n / 2` infer
+            NUMERIC for an untyped parameter `n`. A quotient and a power are
+            never taken for whole. */
          return "NUMERIC";
 
       case HB_EO_MINUS:
@@ -2148,6 +2165,9 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          if( szLeft && szRight &&
              strcmp( szLeft, "DATE" ) == 0 && strcmp( szRight, "DATE" ) == 0 )
             return "NUMERIC";  /* DATE - DATE = days */
+         if( szLeft && szRight &&
+             strcmp( szLeft, "INTEGER" ) == 0 && strcmp( szRight, "INTEGER" ) == 0 )
+            return "INTEGER";  /* as the sum is */
 
          /* All other minus uses (DATE - NUMERIC, NUMERIC - NUMERIC,
             NUMERIC - unknown, unknown - unknown) → NUMERIC. */
@@ -2273,6 +2293,10 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
                      return szCanon;
                }
             }
+
+            /* Min(), Max(), Abs() and Mod() of whole numbers are whole */
+            if( hb_astIsWholeCall( pExpr, pEnv ) )
+               return "INTEGER";
 
             /* a name the program defines is the program's: hbfuncs.tab
                types hbnf's FT_Elapsed(), not EasiPOS's own (test172) */
@@ -2437,6 +2461,37 @@ static void hb_astDeclCheck( const char * szDecl, const char * szActual,
    (hb_astDeclCheck). */
 static HB_BOOL hb_astNumericConstant( PHB_EXPR pExpr );
 static HB_BOOL hb_astConstantHasFraction( PHB_EXPR pExpr );
+static HB_BOOL hb_astIsWholeValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv );
+
+/* Min(), Max(), Abs() and Mod(): HbRuntime has each for decimals and for
+   longs, and C# binds the long one when every argument is a long, so the
+   call's type follows its arguments, as an operator's does. Not for a
+   function of the name the program defines. */
+HB_BOOL hb_astWholeInWholeOut( const char * szName )
+{
+   return szName && ( hb_stricmp( szName, "MIN" ) == 0 || hb_stricmp( szName, "MAX" ) == 0 ||
+                      hb_stricmp( szName, "ABS" ) == 0 || hb_stricmp( szName, "MOD" ) == 0 ) &&
+          ! hb_refTabIsDefinedFunc( s_pPropRefTab, szName );
+}
+
+/* Such a call with whole numbers for all its arguments */
+static HB_BOOL hb_astIsWholeCall( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
+{
+   PHB_EXPR pArg;
+   int n = 0;
+
+   if( ! pExpr || pExpr->ExprType != HB_ET_FUNCALL || ! pExpr->value.asFunCall.pFunName ||
+       pExpr->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+       ! hb_astWholeInWholeOut( pExpr->value.asFunCall.pFunName->value.asSymbol.name ) )
+      return HB_FALSE;
+   pArg = pExpr->value.asFunCall.pParms;
+   if( pArg && ( pArg->ExprType == HB_ET_LIST || pArg->ExprType == HB_ET_ARGLIST ) )
+      pArg = pArg->value.asList.pExprList;
+   for( ; pArg; pArg = pArg->pNext, n++ )
+      if( pArg->ExprType == HB_ET_NONE || ! hb_astIsWholeValue( pArg, pEnv ) )
+         return HB_FALSE;
+   return n > 0;
+}
 
 /* A value that is a whole number in C# too, a long: a literal with no
    fraction, something the scan types INTEGER, or a sum, difference,
@@ -2457,6 +2512,8 @@ static HB_BOOL hb_astIsWholeValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
        pExpr->ExprType == HB_EO_MULT || pExpr->ExprType == HB_EO_MOD )
       return hb_astIsWholeValue( pExpr->value.asOperator.pLeft, pEnv ) &&
              hb_astIsWholeValue( pExpr->value.asOperator.pRight, pEnv );
+   if( hb_astIsWholeCall( pExpr, pEnv ) )
+      return HB_TRUE;
    szT = hb_astInferExprType( pExpr, pEnv );
    return szT && hb_stricmp( szT, "INTEGER" ) == 0;
 }
@@ -3080,6 +3137,8 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                own index-shaped locals) — int-ness chains. */
             if( ! szFn )
                return HB_FALSE;
+            if( hb_astIsWholeCall( pExpr, pEnv ) )
+               return HB_TRUE;
             szRet = hb_refTabIsDefinedFunc( s_pPropRefTab, szFn ) ? NULL :
                     hb_funcTabReturnType( szFn );
             if( ! szRet )

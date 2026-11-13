@@ -354,6 +354,7 @@ extern HB_BOOL      hb_astIsFixedType( const char * szType );
    where any other ARRAY<T> is a List<dynamic>. A typed list, like a FIXED
    array, is what the value is wherever it goes: hb_astIsTypedStorage. */
 extern HB_BOOL      hb_astIsTypedList( const char * szType );
+extern HB_BOOL      hb_astWholeInWholeOut( const char * szName );
 extern HB_BOOL      hb_astIsTypedStorage( const char * szType );
 /* Whether pExpr is `Array( n )`, one dimension, going into the typed list
    szType: the generator makes it that list (HbRuntime's ArrayOf<T>()) */

@@ -4727,6 +4727,20 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr )
              pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
              pExpr->value.asFunCall.pFunName->value.asSymbol.name )
          {
+            /* Min(), Max(), Abs() and Mod() of longs bind HbRuntime's long
+               overload */
+            if( hb_astWholeInWholeOut( pExpr->value.asFunCall.pFunName->value.asSymbol.name ) )
+            {
+               PHB_EXPR pArg = pExpr->value.asFunCall.pParms;
+               int n = 0;
+               if( pArg && ( pArg->ExprType == HB_ET_LIST || pArg->ExprType == HB_ET_ARGLIST ) )
+                  pArg = pArg->value.asList.pExprList;
+               for( ; pArg; pArg = pArg->pNext, n++ )
+                  if( pArg->ExprType == HB_ET_NONE || ! hb_csExprIsCsIntegral( pArg ) )
+                     break;
+               if( ! pArg && n > 0 )
+                  return "long";
+            }
             /* reftab row — the file-static one first, as every other
                resolver here — then the builtin table */
             return hb_csKnownCsType( hb_csCallHbType( pExpr ) );

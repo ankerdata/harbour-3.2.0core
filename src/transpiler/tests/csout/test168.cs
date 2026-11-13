@@ -55,7 +55,7 @@ public static partial class Program
 
         for (long i = 1; i <= Len(aList); i++)
         {
-            iBest = (long)(Max(iBest, aList[I(i)].iSpeed));
+            iBest = Max(iBest, aList[I(i)].iSpeed);
         }
 
         return iBest;
