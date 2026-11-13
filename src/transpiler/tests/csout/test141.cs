@@ -42,7 +42,7 @@ public static partial class Program
 
         // an element of the declared array: x is a Parcel141, the result bool
         long nPos = AScan(aParcels, ((Func<Parcel141, bool>)((x) => x.nWeight > 5)));
-        QOut(nPos, ((Parcel141)aParcels[I(nPos)]).cLabel);
+        QOut(nPos, aParcels[I(nPos)].cLabel);
 
         // ASort's two parameters, both elements
         ASort(aParcels, null, null, ((Func<Parcel141, Parcel141, bool>)((x, y) => x.nWeight < y.nWeight)));

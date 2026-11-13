@@ -88,11 +88,11 @@ public static partial class Program
 
         for (long iPos = 1; iPos <= Len(oCrate.aGizmos); iPos++)
         {
-            QOut(((Gizmo136)oCrate.aGizmos[I(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[I(iPos)]).nSize);
+            QOut(oCrate.aGizmos[I(iPos)].cName, oCrate.aGizmos[I(iPos)].nSize);
         }
 
         Bigizmo136 oBigizmo136 = (Bigizmo136)oCrate.aGizmos[I(4)];
-        QOut(oBigizmo136.cColour, ((Gizmo136)oCrate.aGizmos[I(4)]).nSize);
+        QOut(oBigizmo136.cColour, oCrate.aGizmos[I(4)].nSize);
 
         Gizmo136 oAny = oCrate.Largest();
         QOut(oAny.Label());
@@ -124,7 +124,7 @@ public static partial class Program
         var aOut = new List<string>();
         for (long iPos = 1; iPos <= Len(aList); iPos++)
         {
-            AAdd(aOut, ((Gizmo136)aList[I(iPos)]).cName);
+            AAdd(aOut, aList[I(iPos)].cName);
         }
 
         return aOut;

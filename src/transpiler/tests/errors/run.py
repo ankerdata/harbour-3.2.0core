@@ -131,6 +131,8 @@ CASES_B = [
     ('fixed_record.prg', 'W0046', "an element of 'aRows' is a FieldRow41, read by a subscript that is not a constant"),
     ('fixed_record.prg', 'W0046', "'aRow' is a FieldRow41, given to Len\\(\\) as an array"),
     ('fixed_record.prg', 'W0046', "FOR EACH over 'aRow', a FieldRow41"),
+    ('class_list_member.prg', 'W0047', "'iWidth' read off an element of a list of Base47, which does not declare it"),
+    ('class_list_member.prg', 'W0047', "'Area47' read off an element of a list of Base47, which does not declare it"),
     ('typed_hash.prg', 'W0041', "putting NUMERIC into 'hRows', declared Row41h"),
     ('typed_hash.prg', 'W0035', "'hnById' is given a hash keyed by strings, but its name declares one keyed by numbers"),
     ('typed_hash.prg', 'W0035', "'hnWrong' is declared HASHC, a hash keyed by strings, but its name declares one keyed by numbers"),

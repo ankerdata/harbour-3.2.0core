@@ -625,6 +625,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0044 | scan  | An `x` name, which may hold NIL, passed to a value parameter whose declared default is a C# constant on the signature (by value, after the last by-ref parameter; pflag `L`): NIL cannot be converted to it, a run-time error in C#, where Harbour's default took it (EasiPOS's FnOpenTable() handed FSMTender() a NIL panel). The fix is to pass the value meant. Decided by the scan's last pass (tests/errors/omitted_default.prg) |
 | W0045 | reconcile | Two builds of one program give a parameter of a routine both compile types that do not merge (two classes with no common ancestor, a scalar and a class): one C# signature serves both builds, so the slot falls back to USUAL (dynamic). Reported by `--reconcile` (see [Two builds, one signature](#two-builds-one-signature---reconcile)), which then exits 1. The fix is in the callers, or a declared type on the parameter (tests/errors/reconcile_*.prg) |
 | W0046 | scan  | A record read as an array: a subscript that is not a constant (a whole-number literal or a `#define` of one) or is past the last field; Len(), AScan(), AEval(), ACopy(), AClone(), ASort(), ATail(), AAdd(), ASize(), hb_ADel(), hb_AIns() or AFill() given one; FOR EACH over one. A record is a plain C# class of its fields, so the fix is the position by name, the FIXED array that holds the rows, or a declaration on the holder (tests/errors/fixed_record.prg) |
+| W0047 | scan  | A member read off an element of a list of a class (`aBuffer[i]:iFlags`, aBuffer a `List<TranLine>`) that neither that class nor an ancestor declares: a subclass's member, which the element in C# has not. Give the element to a variable named or declared for the subclass first, which is the cast, or read it through a function that returns it as one (tests/errors/class_list_member.prg) |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -1004,8 +1005,9 @@ strongest. Later rungs override earlier ones.
    `t` `DateTime`, `a` `List<dynamic>`, `h` `OrderedDictionary<string, dynamic>`
    (a hash keyed by strings), `hn` `OrderedDictionary<long, dynamic>` (keyed
    by numbers; an `hn` name beats an empty `{ => }` initializer, as `i`
-   beats a number), `an`, `ai` and `ac` before a capital (a static's
-   `san`, `sai`, `sac`) a `List<decimal>`, `List<long>` and `List<string>`
+   beats a number), `an`, `ai`, `ac` and `al` before a capital (a static's
+   `san`, `sai`, `sac`, `sal`) a `List<decimal>`, `List<long>`,
+   `List<string>` and `List<bool>`
    — an array name, a declaration as `AS ARRAY OF NUMERIC`, `INTEGER` and
    `CHARACTER` are (Typed lists, below),
    `o` the class of that name when one exists (`oTransaction` →
@@ -1056,8 +1058,9 @@ strongest. Later rungs override earlier ones.
    OF NUMERIC`, `AS ARRAY OF ARRAY OF CHARACTER`), is stored typed, a
    `List<string>`, a `List<long>`, a `List<decimal>` or a
    `List<List<string>>`, so C# checks what goes in as well as what comes
-   out. **An array name declares one**: `an`, `ai` and `ac` before a capital
-   (a static's `san`, `sai`, `sac`) are a declaration on a local, a static,
+   out. **An array name declares one**: `an`, `ai`, `ac` and `al` (logicals,
+   test173) before a capital (a static's `san`, `sai`, `sac`, `sal`) are a
+   declaration on a local, a static,
    a parameter, a member and a record's field, exactly as `AS ARRAY OF
    NUMERIC`, `INTEGER` and `CHARACTER` are (hb_astArrayNameType, read where
    each declaration is: hb_compVariableAdd, the class and record parsers),
@@ -1143,8 +1146,9 @@ strongest. Later rungs override earlier ones.
    returning it. The name or the declaration is the claim, and C# needs the
    cast Harbour has no way to write, so the emitter writes it (`oItemTranLine
    = (ItemTranLine)oLine;`, `Price( (ItemTranLine)oLine )`, `return
-   (ItemTranLine)oLine;`); an element of a declared array is `dynamic` in C#
-   and needs none. A wrong claim throws InvalidCastException at the cast,
+   (ItemTranLine)oLine;`), and for an element of a list of a class
+   (`oItemTranLine = (ItemTranLine)aBuffer[i];`); an element of a
+   `List<dynamic>` converts by itself and needs none. A wrong claim throws InvalidCastException at the cast,
    where Harbour goes on to the first message the object does not answer. A
    parameter named for its class keeps it when a caller passes the parent,
    as a local does, rather than widen to the parent, whatever its slot held
@@ -1155,8 +1159,9 @@ strongest. Later rungs override earlier ones.
    declarations on locals, parameters and statics only, and wants a
    forward declaration (`_HB_CLASS X`) of a class from another file;
    EasiPOS's include/astype.ch removes them for it, as hbclass.ch's
-   HB_CLS_NO_DECLARATIONS does, and the generated C is the same (members
-   keep `AS ARRAY`). The transpiler never reads that header (includes are
+   HB_CLS_NO_DECLARATIONS does, and the generated C is the same (a
+   member keeps a plain `AS ARRAY`; an `AS ARRAY OF …` goes whole, so such
+   a member may hold NIL). The transpiler never reads that header (includes are
    off), so it sees the declarations as written.
    **`RECORD X( f1, f2 AS … )`, `AS RECORD X` and `AS FIXED ARRAY OF …`**
    (plan C12 / C16, 2026-10-16/17; test155) declare an array used as a

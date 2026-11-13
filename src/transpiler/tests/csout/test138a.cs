@@ -46,7 +46,7 @@ public static partial class Program
         decimal nTotal = 0;
         for (long iPos = 1; iPos <= Len(oTill138.aLines); iPos++)
         {
-            if (((Line138)oTill138.aLines[I(iPos)]).nKind != 0)
+            if (oTill138.aLines[I(iPos)].nKind != 0)
             {
                 PrintLine138 oPrintLine138 = (PrintLine138)oTill138.aLines[I(iPos)];
                 nTotal += oPrintLine138.nValue;

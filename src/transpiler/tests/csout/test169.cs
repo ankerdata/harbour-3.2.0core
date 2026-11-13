@@ -76,13 +76,13 @@ public static partial class Program
             oPanel169.Add(oKnob169);
         }
 
-        QOut(CodeTotal169(aKnobs), Len(Yes169()), ((Knob169)Yes169()[I(1)]).cText);
+        QOut(CodeTotal169(aKnobs), Len(Yes169()), Yes169()[I(1)].cText);
         QOut(AScan(aKnobs, ((Func<Knob169, bool>)((oKnob169) => oKnob169.iCode == 3))));
         QOut(oPanel169.Texts(), Len(oPanel169.aKnobs));
 
         for (long i = 1; i <= Len(aShapes); i++)
         {
-            QOut(((Shape169)aShapes[I(i)]).Name());
+            QOut(aShapes[I(i)].Name());
         }
     }
 
@@ -92,7 +92,7 @@ public static partial class Program
 
         for (long i = 1; i <= Len(aList); i++)
         {
-            iTotal += ((Knob169)aList[I(i)]).iCode;
+            iTotal += aList[I(i)].iCode;
         }
 
         return iTotal;

@@ -1,8 +1,9 @@
 // Test 173: a list of logicals is typed storage. AS ARRAY OF LOGICAL is a
 // C# List<bool>, on a local, a member, a parameter and a function's
-// result: its literal, AAdd(), an element read as a condition and an
-// element written are checked by the C#, where a List<dynamic> made each
-// read a run-time conversion.
+// result, and a name says it too, `al` before a capital (`alDone`, a
+// static's `sal`), as `ac`, `ai` and `an` do. Its literal, AAdd(), an
+// element read as a condition and an element written are checked by the
+// C#, where a List<dynamic> made each read a run-time conversion.
 
 #include "hbclass.ch"
 #include "../include/astype.ch"
@@ -54,6 +55,7 @@ PROCEDURE Main()
 
    LOCAL aFlags AS ARRAY OF LOGICAL := Flags173( .F. )
    LOCAL oSwitches173 := Switches173():New()
+   LOCAL alDone := Flags173( .T. )
 
    ? Len( aFlags ), aFlags[ 1 ], aFlags[ 2 ], aFlags[ 3 ]
    aFlags[ 1 ] := .T.
@@ -63,5 +65,9 @@ PROCEDURE Main()
 
    oSwitches173:Add173( .T. ):Add173( .F. ):Add173( aFlags[ 2 ] )
    ? oSwitches173:CountOn173()
+
+   alDone[ 3 ] := alDone[ 1 ] .AND. alDone[ 2 ]
+   AAdd( alDone, ! alDone[ 3 ] )
+   ? Len( alDone ), alDone[ 3 ], alDone[ 4 ], AnyOn173( alDone )
 
 RETURN

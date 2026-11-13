@@ -5924,11 +5924,16 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                      : hb_csIsConstructor( pExpr->value.asMessage.pObject );
                   HB_BOOL fCtorRecv = szRecvCtor != NULL &&
                      hb_csCtorEmitsCast( pExpr->value.asMessage.pObject, szRecvCtor );
-                  /* an element of a declared array (`AS ARRAY OF CLASS X`):
-                     its List<dynamic> slot is cast to X, so the send is
-                     checked when C# builds */
+                  /* an element of a declared array whose storage is
+                     List<dynamic> (a dynamic class, an ORM model) is cast
+                     to its class, so the send is checked when C# builds;
+                     an element of a List<X> is an X already */
                   const char * szElemCls = ( fViaDynamic || fElemDynamic ) ? NULL
                      : hb_csElemClass( pExpr->value.asMessage.pObject );
+                  if( szElemCls &&
+                      hb_astIsTypedList( hb_csExprHbType(
+                         pExpr->value.asMessage.pObject->value.asList.pExprList ) ) )
+                     szElemCls = NULL;
                   if( fViaDynamic )
                      fprintf( yyc, "((dynamic)" );
                   else if( szElemCls )

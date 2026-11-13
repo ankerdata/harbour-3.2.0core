@@ -648,10 +648,10 @@ static const char * hb_astValueListCs( const char * szType )
 }
 
 /* The array a name declares, its prefix being Hungarian for arrays: `an`,
-   `ai` or `ac` before a capital, a static's `san`, `sai` or `sac`, is an
-   array of numbers, of whole numbers or of strings, as `AS ARRAY OF
-   NUMERIC`, `INTEGER` or `CHARACTER` declares one; NULL for any other
-   name */
+   `ai`, `ac` or `al` before a capital, a static's `san`, `sai`, `sac` or
+   `sal`, is an array of numbers, of whole numbers, of strings or of
+   logicals, as `AS ARRAY OF NUMERIC`, `INTEGER`, `CHARACTER` or `LOGICAL`
+   declares one; NULL for any other name */
 const char * hb_astArrayNameType( const char * szName )
 {
    const char * p = szName;
@@ -666,6 +666,7 @@ const char * hb_astArrayNameType( const char * szName )
       case 'n': return "ARRAY<NUMERIC>";
       case 'i': return "ARRAY<INTEGER>";
       case 'c': return "ARRAY<STRING>";
+      case 'l': return "ARRAY<LOGICAL>";
    }
    return NULL;
 }
@@ -3308,16 +3309,16 @@ static void hb_astAuditTypedView( PHB_EXPR pCond, PHB_AST_NODE pBody,
    dynamic bag (::&(name) - SQLtTable's per-table fields, nId), and when
    the chain reaches a class the reftab does not know (a contrib or
    HwGUI parent, whose messages it cannot list). */
-static HB_BOOL hb_astSelfMessageUndeclared( HB_TYPEENV * pEnv, const char * szMsg )
+static HB_BOOL hb_astClassMessageUndeclared( HB_TYPEENV * pEnv, const char * szCls,
+                                             const char * szMsg )
 {
    static const char * s_aBuiltin[] = {
       "SUPER", "NEW", "INIT", "ERROR", "MSGNOTFOUND", "ISDERIVEDFROM",
       "ISKINDOF", "CLASS", "CLASSNAME", "CLASSH", "CLASSSEL", "EVAL",
       "EXEC", NULL };
-   const char * szCls = pEnv->szSelfClass;
    int i;
 
-   if( ! pEnv->pRefTab || ! szCls[ 0 ] || ! szMsg || ! szMsg[ 0 ] ||
+   if( ! pEnv->pRefTab || ! szCls || ! szCls[ 0 ] || ! szMsg || ! szMsg[ 0 ] ||
        ( szMsg[ 0 ] == '_' && szMsg[ 1 ] == '_' ) )
       return HB_FALSE;
    for( i = 0; s_aBuiltin[ i ]; i++ )
@@ -3587,7 +3588,8 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
              hb_stricmp( pExpr->value.asMessage.pObject->value.asSymbol.name,
                          "Self" ) == 0 &&
              pExpr->value.asMessage.szMessage &&
-             hb_astSelfMessageUndeclared( pEnv, pExpr->value.asMessage.szMessage ) )
+             hb_astClassMessageUndeclared( pEnv, pEnv->szSelfClass,
+                                           pExpr->value.asMessage.szMessage ) )
          {
             char szKey[ 160 ];
             hb_snprintf( szKey, sizeof( szKey ), "W0037:%s",
@@ -3600,6 +3602,34 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                   pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
                   s_iObserveLine, pEnv->szSelfClass,
                   pExpr->value.asMessage.szMessage, pEnv->szSelfClass );
+         }
+         /* W0047 — a message sent to an element of a list of a class,
+            which neither that class nor an ancestor declares: a member of
+            a subclass. The list is a List<X>, so C# has no such member on
+            the element; the element goes to a variable named or declared
+            for the subclass first (`oItemTranLine := aBuffer[ i ]`), or
+            through a function that returns it as one. */
+         if( pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_ARRAYAT &&
+             pExpr->value.asMessage.szMessage )
+         {
+            const char * szElem = hb_astInferExprType( pExpr->value.asMessage.pObject, pEnv );
+            if( szElem && ! hb_astIsArrayType( szElem ) &&
+                hb_refTabIsListClass( ( PHB_REFTAB ) pEnv->pRefTab, szElem ) &&
+                hb_astClassMessageUndeclared( pEnv, szElem, pExpr->value.asMessage.szMessage ) )
+            {
+               char szKey[ 200 ];
+               hb_snprintf( szKey, sizeof( szKey ), "W0047:%s:%s", szElem,
+                            pExpr->value.asMessage.szMessage );
+               if( ! hb_astOrmSeen( s_iObserveLine, szKey ) )
+                  fprintf( stderr,
+                     "hbtranspiler: %s(%d): warning W0047  '%s' read off an "
+                     "element of a list of %s, which does not declare it: "
+                     "give the element to a variable named for the subclass "
+                     "first\n",
+                     pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                     s_iObserveLine, pExpr->value.asMessage.szMessage, szElem );
+            }
          }
          hb_astObserveExpr( pExpr->value.asMessage.pObject, pEnv, pfChanged );
          hb_astObserveExpr( pExpr->value.asMessage.pParms,  pEnv, pfChanged );
