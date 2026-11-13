@@ -1341,28 +1341,21 @@ HB_BOOL hb_refTabIsRecord( PHB_REFTAB pTab, const char * szName )
    return e && e->fRecord;
 }
 
-/* A class that inherits nothing and that nothing inherits: as closed as
-   a record, so a list of it can be a C# List<X> where a list of a class
-   with a family is a List<dynamic> */
-HB_BOOL hb_refTabIsStandaloneClass( PHB_REFTAB pTab, const char * szName )
+/* A class of the program whose list is typed storage, a C# List<X>: any
+   class but a record (typed by its own rule), a class that extends
+   HbDynamicObject and an ORM model, whose members are reached by name. A
+   class with a family is one too: an element read into a subclass's
+   variable gets the cast the name or the declaration claims
+   (hb_csDowncastTo), and a member only a subclass declares cannot be read
+   off an element. */
+HB_BOOL hb_refTabIsListClass( PHB_REFTAB pTab, const char * szName )
 {
    PHB_REFENTRY e;
-   HB_SIZE i;
    if( ! pTab || ! szName )
       return HB_FALSE;
    e = hb_refTabFindEntry( pTab, szName, NULL );
-   if( ! e || ! e->fIsClass || e->fRecord || e->fClassDynamic ||
-       e->szClassParent || hb_fieldTypesClassParent( szName ) )
-      return HB_FALSE;
-   for( i = 0; i < HB_REFTAB_BUCKETS; i++ )
-   {
-      PHB_REFENTRY c;
-      for( c = pTab->buckets[ i ]; c; c = c->pNext )
-         if( c->fIsClass && c->szClassParent &&
-             hb_stricmp( c->szClassParent, szName ) == 0 )
-            return HB_FALSE;
-   }
-   return HB_TRUE;
+   return e && e->fIsClass && ! e->fRecord && ! e->fClassDynamic &&
+          ! hb_fieldTypesClassParent( szName ) && ! hb_fieldTypesClassCanon( szName );
 }
 
 void hb_refTabMarkPublic( PHB_REFTAB pTab, const char * szName,

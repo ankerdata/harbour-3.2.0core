@@ -5,9 +5,8 @@
 // does, in every position: a local, a parameter, a file or routine
 // static, a class member (`VAR`), a function's or a method's return.
 // A declared variable is what its declaration says, and nothing in the
-// body moves it. An array declared `AS ARRAY OF CLASS X` keeps its
-// List<dynamic> storage, but a read of an element is an X: a send on one
-// is cast, `((Gizmo136)aGizmos[i]).nSize`, and checked when C# builds,
+// body moves it. An array declared `AS ARRAY OF CLASS X` is a List<X>:
+// a read of an element is an X, a send on one is checked when C# builds,
 // and a FOR EACH variable over it is an X. The element type lives only
 // where the source declares it; into anything undeclared an
 // ARRAY OF X is a plain array again.
@@ -38,9 +37,8 @@ METHOD New( cName, nSize ) CLASS Gizmo136
 METHOD Label() CLASS Gizmo136
    RETURN ::cName + "(" + hb_ntos( ::nSize ) + ")"
 
-// A member only a subclass declares, read through an element declared
-// Gizmo136, is read as it stands: the element is `dynamic` in C# (a
-// List<dynamic> slot), so it needs no cast (test138).
+// A member only a subclass declares is read through a variable named for
+// the subclass, which the element is cast to (test138).
 CLASS Bigizmo136 INHERIT Gizmo136
    VAR cColour INIT "red"
 ENDCLASS
@@ -65,6 +63,7 @@ METHOD Largest() CLASS Crate136
 PROCEDURE Main()
    LOCAL oCrate := Crate136():New()
    LOCAL oAny AS CLASS Gizmo136
+   LOCAL oBigizmo136
    LOCAL aNames AS ARRAY OF CHARACTER := {}
    LOCAL oItem
    LOCAL iPos
@@ -83,7 +82,8 @@ PROCEDURE Main()
       ? oCrate:aGizmos[ iPos ]:cName, oCrate:aGizmos[ iPos ]:nSize
    NEXT
 
-   ? oCrate:aGizmos[ 4 ]:cColour, oCrate:aGizmos[ 4 ]:nSize
+   oBigizmo136 := oCrate:aGizmos[ 4 ]
+   ? oBigizmo136:cColour, oCrate:aGizmos[ 4 ]:nSize
 
    oAny := oCrate:Largest()
    ? oAny:Label()

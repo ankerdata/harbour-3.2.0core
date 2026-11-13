@@ -65,7 +65,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var aKnobs = new List<Knob169> { new Knob169().New("Cancel", 0), new Knob169().New("OK", 1) };
-        var aShapes = new List<dynamic> { new Shape169(), new Round169() };
+        var aShapes = new List<Shape169> { new Shape169(), new Round169() };
         var oPanel169 = new Panel169();
 
         AAdd(aKnobs, new Knob169().New("Search", 3));

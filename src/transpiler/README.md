@@ -1038,15 +1038,14 @@ strongest. Later rungs override earlier ones.
    ARRAY OF CHARACTER`: sqlite3_get_table()'s rows) type an array's
    elements; INTEGER and the nested form are no Harbour type, so the lexer
    composes them as it does a typed hash (test163). A list of a class
-   that inherits nothing and that nothing inherits is a `List<X>`, typed
-   storage as a list of records is (hb_refTabIsStandaloneClass, test169):
-   EasiPOS's DialogLayoutField and DialogOptionButton. For a class with a
-   family, since a `List<Child>` is no `List<Parent>`, storage stays
-   `List<dynamic>`, a read of an element is an X, so a send on one is cast
-   (`((TranLine)aBuffer[i]).nType`) and checked when C# builds, and a FOR
-   EACH variable over it is an X. A member only a subclass of X declares is
-   read off the element as it stands (`aBuffer[i].nFlags`): the element is
-   `dynamic` in C#, so a `(dynamic)` cast would add nothing (test138). The element type lives only where the
+   of the program is a `List<X>`, typed storage as a list of records is
+   (hb_refTabIsListClass, test169): EasiPOS's dialog fields and its
+   transaction buffer, a `List<TranLine>`. A `List<Child>` is no
+   `List<Parent>`, so a list is declared the class its users agree on. An
+   element given to a variable named or declared for a subclass is cast
+   (`oItemTranLine := aBuffer[ i ]`, test138); a member only a subclass
+   declares is not read off an element, which C# refuses, and a FOR
+   EACH variable over it is an X. The element type lives only where the
    source declares it: into anything undeclared (an assignment, an
    argument to an undeclared parameter, an undeclared function's RETURN)
    an ARRAY OF X is a plain array again, or one later assignment of an

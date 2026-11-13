@@ -1,5 +1,5 @@
 // Test 138 (multi-file pair): downcasts across files, and an element's
-// subclass member left uncast (plan C11).
+// subclass member read through a view (plan C11).
 //
 // A parameter named for its class (`oPrintLine138`) keeps the class when a
 // caller passes its parent. The name used to be taken only once the slot
@@ -11,11 +11,11 @@
 // came out TranLine that way. Now a parent given to a name reads as the
 // name's class: the slot is PrintLine138 and the parent's call casts.
 //
-// A member only a subclass declares, read off an element of a declared
-// array (`oTill138:aLines[ i ]:nValue`, aLines AS ARRAY OF CLASS Line138),
-// is written as it was before the declaration: the element is `dynamic`
-// in C# (a List<dynamic> slot), so `((dynamic)...)` added nothing but
-// noise, 2,516 times in EasiPOS's sale buffer.
+// A member only a subclass declares is not read off an element of a
+// declared array (aLines AS ARRAY OF CLASS Line138 is a List<Line138>,
+// and Line138 has no nValue): the element goes to a variable named for
+// the subclass first, which is the cast (`oPrintLine138 := oTill138:aLines[
+// i ]`), as EasiPOS reads its sale buffer.
 //
 // This file has the callers and the named parameter.
 
@@ -32,13 +32,15 @@ FUNCTION LaterTotal138( oFcnLine138, oGenLine138 )
 FUNCTION Amount138( oPrintLine138 )
    RETURN oPrintLine138:nValue
 
-// a member only a subclass declares, read off an element: no cast
+// a member only a subclass declares, read through a view of the element
 FUNCTION SumValues138( oTill138 )
    LOCAL nTotal := 0
    LOCAL iPos
+   LOCAL oPrintLine138
    FOR iPos := 1 TO Len( oTill138:aLines )
       IF oTill138:aLines[ iPos ]:nKind != 0
-         nTotal += oTill138:aLines[ iPos ]:nValue
+         oPrintLine138 := oTill138:aLines[ iPos ]
+         nTotal += oPrintLine138:nValue
       ENDIF
    NEXT
    RETURN nTotal

@@ -5,9 +5,8 @@
 // does, in every position: a local, a parameter, a file or routine
 // static, a class member (`VAR`), a function's or a method's return.
 // A declared variable is what its declaration says, and nothing in the
-// body moves it. An array declared `AS ARRAY OF CLASS X` keeps its
-// List<dynamic> storage, but a read of an element is an X: a send on one
-// is cast, `((Gizmo136)aGizmos[i]).nSize`, and checked when C# builds,
+// body moves it. An array declared `AS ARRAY OF CLASS X` is a List<X>:
+// a read of an element is an X, a send on one is checked when C# builds,
 // and a FOR EACH variable over it is an X. The element type lives only
 // where the source declares it; into anything undeclared an
 // ARRAY OF X is a plain array again.
@@ -32,9 +31,8 @@ public class Gizmo136 : IHbObject
     {
         return cName + "(" + hb_ntos(nSize) + ")";
 
-        // A member only a subclass declares, read through an element declared
-        // Gizmo136, is read as it stands: the element is `dynamic` in C# (a
-        // List<dynamic> slot), so it needs no cast (test138).
+        // A member only a subclass declares is read through a variable named for
+        // the subclass, which the element is cast to (test138).
     }
 }
 
@@ -46,7 +44,7 @@ public class Bigizmo136 : Gizmo136
 
 public class Crate136 : IHbObject
 {
-    public List<dynamic> aGizmos = new List<dynamic>();
+    public List<Gizmo136> aGizmos = new List<Gizmo136>();
     public Gizmo136 oFirst;
 
     public virtual Crate136 Add(Gizmo136 oGizmo = default)
@@ -69,7 +67,7 @@ public class Crate136 : IHbObject
 public static partial class Program
 {
     public static Gizmo136 test136_soSpare136;
-    public static List<dynamic> test136_saShelf136;
+    public static List<Gizmo136> test136_saShelf136;
     public static decimal test136_Total136_snCalls;
     public static void Main(string[] args)
     {
@@ -93,7 +91,8 @@ public static partial class Program
             QOut(((Gizmo136)oCrate.aGizmos[I(iPos)]).cName, ((Gizmo136)oCrate.aGizmos[I(iPos)]).nSize);
         }
 
-        QOut(oCrate.aGizmos[I(4)].cColour, ((Gizmo136)oCrate.aGizmos[I(4)]).nSize);
+        Bigizmo136 oBigizmo136 = (Bigizmo136)oCrate.aGizmos[I(4)];
+        QOut(oBigizmo136.cColour, ((Gizmo136)oCrate.aGizmos[I(4)]).nSize);
 
         Gizmo136 oAny = oCrate.Largest();
         QOut(oAny.Label());
@@ -106,7 +105,7 @@ public static partial class Program
         QOut(test136_Total136());
     }
 
-    public static Gizmo136 Biggest136(List<dynamic> aList = default)
+    public static Gizmo136 Biggest136(List<Gizmo136> aList = default)
     {
         Gizmo136 oBest = null;
         foreach (Gizmo136 oOne in HbEnumValues(aList))
@@ -120,7 +119,7 @@ public static partial class Program
         return oBest;
     }
 
-    public static List<string> test136_Names136(List<dynamic> aList = default)
+    public static List<string> test136_Names136(List<Gizmo136> aList = default)
     {
         var aOut = new List<string>();
         for (long iPos = 1; iPos <= Len(aList); iPos++)

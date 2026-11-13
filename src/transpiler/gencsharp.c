@@ -4902,8 +4902,9 @@ static HB_BOOL hb_csIsClassOrModel( const char * sz )
    its parent (`oItemTranLine := oLine`, oLine a TranLine). C# converts a
    base to a derived class only by a cast, and Harbour has none to write;
    the slot's name or declaration is the claim. Returns the C# type to cast
-   to, or NULL. An element of a declared array is `dynamic` in C# (the list
-   is List<dynamic>), so it converts by itself and gets no cast. */
+   to, or NULL. An element of a list of a class is one too
+   (`oItemTranLine := aBuffer[ i ]`, aBuffer a List<TranLine>); an element
+   of a List<dynamic> has no class and converts by itself. */
 static const char * hb_csDowncastTo( const char * szTarget, PHB_EXPR pVal )
 {
    const char * szVal;
@@ -4914,7 +4915,7 @@ static const char * hb_csDowncastTo( const char * szTarget, PHB_EXPR pVal )
           pVal->value.asList.pExprList && ! pVal->value.asList.pExprList->pNext )
       pVal = pVal->value.asList.pExprList;
    if( pVal->ExprType != HB_ET_VARIABLE && pVal->ExprType != HB_ET_SEND &&
-       pVal->ExprType != HB_ET_FUNCALL )
+       pVal->ExprType != HB_ET_FUNCALL && pVal->ExprType != HB_ET_ARRAYAT )
       return NULL;
    /* `Class():New( … )` is emitted as the class itself (`new Class()`,
       `(Class)new Class().New( … )`, HbRuntime.Initialised()), whatever

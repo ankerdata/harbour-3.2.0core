@@ -54,7 +54,7 @@ public class ItemLine137 : Line137
 
 public class Till137 : IHbObject
 {
-    public List<dynamic> aLines = new List<dynamic>();
+    public List<Line137> aLines = new List<Line137>();
     public ItemLine137 oLastItem;
 
     public virtual Till137 Add(Line137 oLine = default)

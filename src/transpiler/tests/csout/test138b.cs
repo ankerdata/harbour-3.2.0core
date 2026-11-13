@@ -36,7 +36,7 @@ public class GenLine138 : PrintLine138
 
 public class Till138 : IHbObject
 {
-    public List<dynamic> aLines = new List<dynamic>();
+    public List<Line138> aLines = new List<Line138>();
 
 }
 
