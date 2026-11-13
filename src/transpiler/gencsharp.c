@@ -2086,6 +2086,8 @@ static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
 {
    const char * szSlot = NULL;
    const char * szCs;
+   if( pP && pP->szNetType )
+      return pP->szNetType;   /* a .NET method's int / uint */
    if( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
       szSlot = pP->szType;
    szCs = hb_csTypeMap( szSlot );
@@ -2187,6 +2189,22 @@ static void hb_csEmitShimTemps( const char * szFunc, PHB_EXPR pHead,
          HB_BOOL fIntCast = strncmp( szSlot, "long", 4 ) == 0 &&   /* long, long? */
                             ! hb_csExprIsCsIntegral( pTarget );
          hb_csEmitIndent( yyc, iIndent );
+         if( pP && pP->szNetType )
+         {
+            /* A .NET method's int / uint: its out reads nothing, so the
+               temporary is only declared; its ref takes the value
+               narrowed, an overflow thrown rather than wrapped. */
+            hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) );
+            if( pP->fOut )
+               fprintf( yyc, "%s %s;\n", szSlot, szName );
+            else
+            {
+               fprintf( yyc, "%s %s = checked((%s)(", szSlot, szName, szSlot );
+               hb_csEmitRefTarget( pArg, yyc );
+               fprintf( yyc, "));\n" );
+            }
+            continue;
+         }
          fprintf( yyc, "%s %s = %s", szSlot,
                   hb_csShimTempName( pArg, iBase, iArg, szName, sizeof( szName ) ),
                   fIntCast ? "(long)(" : "" );
@@ -2700,7 +2718,8 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                      szSlot = hb_astTypeParamSubst( pP->szType, aszBind );
                   if( ! szSlot )
                      szSlot = hb_astInferType( pP ? pP->szName : NULL, NULL );
-                  szCs = hb_csTypeMap( szSlot );
+                  szCs = ( pP && pP->szNetType ) ? pP->szNetType
+                                                 : hb_csTypeMap( szSlot );
                   if( pP && pP->fOut )
                      fprintf( yyc, "out _" );   /* a .NET method's out: discarded */
                   else if( pP && pP->fByRef &&
@@ -2816,7 +2835,8 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                   ( pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
                      ? pP->szType
                      : hb_astInferType( pP->szName, NULL );
-               const char * szCs = hb_csTypeMap( szSlot );
+               const char * szCs = pP->szNetType ? pP->szNetType
+                                                 : hb_csTypeMap( szSlot );
                /* `dynamic` can't be a generic holder here: Seed's ref
                   return would bind dynamically and CS1510. `object` is
                   the same at runtime and ref-compatible with a
@@ -2836,6 +2856,14 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                HB_BOOL fArgDyn = ! szArgT ||
                   hb_stricmp( hb_csTypeMap( szArgT ), "dynamic" ) == 0;
                fprintf( yyc, "ref HbDiscard<%s%s>.Seed(", szHold, szNil );
+               if( pP->szNetType )
+               {
+                  fprintf( yyc, "checked((%s)(", szHold );
+                  hb_csEmitExpr( pArg, yyc, HB_FALSE );
+                  fprintf( yyc, ")))" );
+                  pItem = pItem->pNext;
+                  continue;
+               }
                if( fArgDyn )
                   fprintf( yyc, "(%s%s)(", szHold, szNil );
                hb_csEmitExpr( pArg, yyc, HB_FALSE );
@@ -2884,6 +2912,17 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                the slot, as it names a gap */
             const HB_REFPARAM * pCast = ( ! pP && szGapKey )
                ? hb_refTabParam( s_pRefTab, szGapKey, iPos ) : pP;
+            if( pP && ! pP->fByRef && pP->szNetType )
+            {
+               /* A .NET method's int / uint takes the program's long
+                  narrowed: checked, so a value that does not fit throws
+                  where an unchecked cast would wrap. */
+               fprintf( yyc, "checked((%s)(", pP->szNetType );
+               hb_csEmitExpr( pArg, yyc, HB_FALSE );
+               fprintf( yyc, "))" );
+               pItem = pItem->pNext;
+               continue;
+            }
             if( pCast && ! pCast->fByRef && ! pCast->fNilable && pCast->szType &&
                 hb_stricmp( pCast->szType, "INTEGER" ) == 0 &&
                 hb_csNeedsIntCast( pArg ) )

@@ -1708,8 +1708,10 @@ static int hb_refTabParseParam( char * sz, char ** ppName,
    format. The table's rows say what a .NET class offers, so they are
    marked fExtern and never saved, and they may use two letters the
    reftab does not: row flag X (a .NET class; RETTYPE is its C# type
-   name, `EasiPos.EasiSI.EasiSI`) and pflag U (an `out` parameter, by
-   reference as R is: the emitter writes `out` for its `@` argument). */
+   name, `EasiPos.EasiSI.EasiSI`), pflag U (an `out` parameter, by
+   reference as R is: the emitter writes `out` for its `@` argument) and
+   pflags I and J (a whole-number parameter that is an `int` or a `uint`
+   in .NET: INTEGER to the scan, converted at the call by the emitter). */
 static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
                                   HB_BOOL fExtern )
 {
@@ -1743,6 +1745,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
       HB_BOOL cdef[ HB_REFTAB_MAXPARAM ];
       HB_BOOL zdef[ HB_REFTAB_MAXPARAM ];
       HB_BOOL outs[ HB_REFTAB_MAXPARAM ];
+      const char * nets[ HB_REFTAB_MAXPARAM ];
       HB_BOOL fExtClass = HB_FALSE;
       int i;
 
@@ -1864,6 +1867,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          cdef[ i ]  = HB_FALSE;
          zdef[ i ]  = HB_FALSE;
          outs[ i ]  = HB_FALSE;
+         nets[ i ]  = NULL;
          for( c = pf; *c; c++ )
          {
             if( *c == 'R' || *c == 'r' )
@@ -1886,6 +1890,10 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
                zdef[ i ] = HB_TRUE;
             else if( fExtern && ( *c == 'U' || *c == 'u' ) )
                outs[ i ] = refs[ i ] = HB_TRUE;
+            else if( fExtern && ( *c == 'I' || *c == 'i' ) )
+               nets[ i ] = "int";
+            else if( fExtern && ( *c == 'J' || *c == 'j' ) )
+               nets[ i ] = "uint";
          }
       }
 
@@ -1930,6 +1938,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
                   pe->pParams[ i ].fConflict = HB_TRUE;
                if( outs[ i ] )
                   pe->pParams[ i ].fOut = HB_TRUE;
+               pe->pParams[ i ].szNetType = nets[ i ];
             }
          }
       }

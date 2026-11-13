@@ -3,8 +3,11 @@
 // names the class, so it is declared as its C# type, Test47.NetShim47,
 // and its calls are typed: `@` into an out parameter is `out`, through
 // the reference shim's temporary when the local's type is another; an
-// omitted out is `out _`; a method's return type types the result. The
-// table's rows are never saved into the reftab.
+// omitted out is `out _`; a method's return type types the result. A
+// whole number that is an int or a uint in .NET is INTEGER here and
+// converted at the call: a value checked, an out or a ref through a
+// temporary of the .NET type. The table's rows are never saved into the
+// reftab.
 
 static soNetShim47
 
@@ -13,10 +16,16 @@ procedure ExternShim47()
    local cName
    local nSize
    local lReady
+   local iFrom := 7
+   local iFound
+   local iSerial
+   local iStep := 1
+   local iCount
 
    soNetShim47:Fill( @cName, @nSize )
    soNetShim47:Fill( @cName )
    lReady := soNetShim47:Ready( "probe" )
-   ? cName, nSize, lReady
+   iCount := soNetShim47:Count( iFrom + 1, @iFound, @iSerial, @iStep )
+   ? cName, nSize, lReady, iCount, iFound, iSerial, iStep
 
 return

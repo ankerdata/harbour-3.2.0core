@@ -133,6 +133,11 @@ struct HB_REFPARAM_
                                --extern= table only; fByRef too): Harbour's
                                `@` is one by-reference mechanism, C# has
                                two, and an `out` slot takes `out x`. */
+   const char * szNetType;  /* a .NET method's whole-number parameter that
+                               is not a long: its C# type, "int" (pflag
+                               `I`) or "uint" (pflag `J`), --extern= table
+                               only. The slot's type stays INTEGER; the
+                               emitter converts at the call, checked. */
 };
 
 /* Result of hb_refTabRefineParamType. Distinguishing these lets the

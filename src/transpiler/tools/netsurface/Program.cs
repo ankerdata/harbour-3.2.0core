@@ -87,7 +87,11 @@ void Describe(Type type, string file)
     // The C# type of a variable that holds the connector: its interface I<Class>
     // where it has one, so that the variable takes any implementation (the
     // connector, or its mock in a test), the class itself otherwise.
-    var cls = type.Name;
+    // The row is named for the variable that holds the connector: EasiPOS
+    // wraps EasiPos.EasiTSE.EasiTSE in a class of its own called EasiTSE and
+    // holds the connector in `oEasiTSEProxy`, so the class is EasiTSEProxy
+    // to the transpiler, and the name rule types the variable.
+    var cls = type.Name + "Proxy";
     var own = OwnInterface(type);
     rows.Add($"{cls}\tX\t{(own ?? type).FullName}\t0");
 
@@ -117,7 +121,7 @@ void Describe(Type type, string file)
         {
             var byRef = p.ParameterType.IsByRef;
             var pType = byRef ? p.ParameterType.GetElementType()! : p.ParameterType;
-            var flags = "T" + (byRef ? (p.IsOut ? "U" : "R") : "");
+            var flags = "T" + (byRef ? (p.IsOut ? "U" : "R") : "") + NarrowFlag(pType);
             row.Append($"\t{p.Name}:{HarbourType(pType, $"{type.FullName}.{method.Name}: parameter {p.Name}", file)}:{flags}");
         }
         rows.Add(row.ToString());
@@ -132,17 +136,25 @@ string HarbourType(Type type, string where, string file)
     {
         case "System.String": return "STRING";
         case "System.Int64": return "INTEGER";
+        case "System.Int32": return "INTEGER";
+        case "System.UInt32": return "INTEGER";
         case "System.Decimal": return "NUMERIC";
         case "System.Boolean": return "LOGICAL";
         case "System.DateTime": return "TIMESTAMP";
         case "System.DateOnly": return "DATE";
         case "System.Object": return "USUAL";
     }
-    errors.Add($"{file}: {where}: {type.FullName} has no Harbour type here (string, long, decimal, bool, DateTime, DateOnly, object)");
+    errors.Add($"{file}: {where}: {type.FullName} has no Harbour type here (string, long, int, uint, decimal, bool, DateTime, DateOnly, object)");
     return "USUAL";
 }
 
-static // The public interface named for the class, I<Class>, in its namespace
+// A whole-number parameter that is not a long: INTEGER to the transpiler,
+// with the flag that says which C# type the call converts to (I int,
+// J uint). A return needs none: C# widens it to long by itself.
+static string NarrowFlag(Type type) =>
+    type.FullName == "System.Int32" ? "I" : type.FullName == "System.UInt32" ? "J" : "";
+
+// The public interface named for the class, I<Class>, in its namespace
 Type? OwnInterface(Type type) =>
     type.GetInterfaces().FirstOrDefault(i => i.IsPublic && i.Namespace == type.Namespace && i.Name == "I" + type.Name);
 
@@ -152,7 +164,7 @@ bool IsOtherImplementation(Type type) =>
     type.GetInterfaces().Any(i => i.IsPublic && i.Namespace == type.Namespace && i.Name.StartsWith("I") &&
                                   type.Assembly.GetTypes().Any(c => c.IsClass && c != type && "I" + c.Name == i.Name));
 
-bool IsComVisible(Type type) =>
+static bool IsComVisible(Type type) =>
     type.CustomAttributes.Any(a =>
         a.AttributeType.FullName == "System.Runtime.InteropServices.ComVisibleAttribute" &&
         a.ConstructorArguments.Count == 1 && a.ConstructorArguments[0].Value is true);

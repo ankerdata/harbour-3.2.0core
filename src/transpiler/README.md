@@ -514,37 +514,50 @@ hbtranspiler ... --extern=<table> ...      # with -GF and with -GS
 ```
 
 `<table>` is in this table's row format, with two letters more: row flag
-`X` marks a .NET class, its RETTYPE the C# type name, and pflag `U` an
-`out` parameter (by reference, as `R` is). `tools/netsurface` writes it
+`X` marks a .NET class, its RETTYPE the C# type name, pflag `U` an
+`out` parameter (by reference, as `R` is), and pflags `I` and `J` a
+whole-number parameter that is an `int` or a `uint` in .NET. `tools/netsurface` writes it
 from the assemblies' metadata (every public class marked
 `[ComVisible(true)]`, its public instance methods; a type with no tag
-below, a property or an overload stops it, exit 1):
+below, a property or an overload stops it, exit 1). It names a class's
+row `<Class>Proxy`, for the variable that holds the object (a program's
+own wrapper class often has the class's name), gives it the interface
+`I<Class>` as its C# type where the class has one, and leaves out a
+class that implements another's interface (a mock):
 
 ```
-EasiSI                      X  EasiPos.EasiSI.EasiSI  0
-EasiSI::EasiSI__Version     -  STRING                 0
-EasiSI::EasiSI__SystemInfo  N  -                      11  pcName:STRING:TU ...
+EasiSIProxy                           X  EasiPos.EasiSI.IEasiSI  0
+EasiSIProxy::EasiSIProxy__Version     -  STRING                  0
+EasiSIProxy::EasiSIProxy__SystemInfo  N  -                       11  pcName:STRING:TU ...
 ```
 
 The types are the tags that map back to the C# type exactly: string
 STRING, long INTEGER, decimal NUMERIC, bool LOGICAL, DateTime TIMESTAMP,
-DateOnly DATE, object USUAL. Every slot is `T`, so no caller refines it.
+DateOnly DATE, object USUAL. An `int` or a `uint` is INTEGER too, the
+program's whole number, with its pflag on a parameter (a return needs
+none: C# widens it). Every slot is `T`, so no caller refines it.
 The scan and the emitter load the table after the reftab, and its rows
 are never saved. With it:
 
 - the class is known, so the name rule types a variable that names it
-  (`soEasiSI` is an `EasiSI`), and a declaration can name it;
-- the class prints as its C# name (`public static EasiPos.EasiSI.EasiSI
-  EasiSI_soEasiSI;`), and its calls bind and are checked when C# builds:
+  (`soEasiSIProxy` is an `EasiSIProxy`), and a declaration can name it;
+- the class prints as its C# name (`public static EasiPos.EasiSI.IEasiSI
+  EasiSI_soEasiSIProxy;`), and its calls bind and are checked when C# builds:
   a method's return type types the result, as a Harbour class's does;
 - `@x` into an `out` parameter is `out x`; a local of another type goes
   through the reference shim's temporary, as for any by-ref slot
   (`long _hbref_nSize`, copied back after the call); an omitted `out`
-  is `out _`.
+  is `out _`;
+- a value into an `int` or `uint` parameter is narrowed at the call,
+  `checked((int)(iPort))`, so a number that does not fit throws where a
+  plain cast would wrap; `@x` into one goes through a temporary of the
+  .NET type (`int _hbref_iNo;` for an `out`, seeded
+  `checked((int)(iNo))` for a `ref`) and is copied back. The library's
+  interface stays as it is, whatever widths it chose.
 
-What creates the object is the program's: EasiPOS's easisi.prg creates
-it in a BEGINCSHARP block (`new EasiPos.EasiSI.EasiSI()`), its Harbour
-side keeping `win_oleCreateObject()`. tests/errors/extern_shim.prg.
+What creates the object is the program's: EasiPOS's ConnectorCreate()
+creates it in a BEGINCSHARP block (`new EasiPos.EasiSI.EasiSI()`), its
+Harbour side keeping `win_oleCreateObject()`. tests/errors/extern_shim.prg.
 
 The runtime's own classes are declared the same way, in
 `hbclasses.tab` beside hbfuncs.tab, loaded with the `--extern=` table
@@ -2203,7 +2216,7 @@ check that passed.
 |---|---|---|---|
 | `gen_library_stubs.py` | Rewrites each contrib library's `<Class>.Stubs.cs` from the emitted call shapes of every generated target, creating a missing project | every target's `cs/`, `libraries/<lib>/<Class>.cs` → `libraries/<lib>/<Class>.Stubs.cs` here | after gen, when a library call fails the build as CS0117 |
 | `gen_native_stubs.py` | The same for EasiPOS's own C functions (`HB_FUNC` in BEGINDUMP sections and in the linked `.c` files), in EasiPosNative | the `.prg` and `.c` files, every target's `cs/`, `native/<source>.cs` → `native/<source>.Stubs.cs` | after gen, when a C function's call fails as CS0103 |
-| `gen_shim_table.py` | Builds each COM shim's .NET DLL and runs `tools/netsurface` over them: the classes, methods and `out` parameters the transpiler types a shim variable with | `shims.txt`, the shim projects → `shimtypes.tab` (`--extern=`) | when `shims.txt` or a shim's public methods change, then a full check |
+| `gen_connector_table.py` | Builds each COM connector's .NET DLL and runs `tools/netsurface` over them: the classes, methods and `out` parameters the transpiler types a connector variable with | `connectors.txt`, the connector projects → `connectortypes.tab` (`--extern=`) | when `connectors.txt` or a connector's public methods change, then a full check |
 | `filename_casing.py` | The file stems `filename_casing.txt` has no spelling for, each with a proposal; exit 1 when one is missing | every target's corpus and headers, `filename_casing.txt` → report | after adding a `.prg` or `.ch` file |
 | `run_pos.py` | Runs the C# EasiPos.exe against a real POS from a folder of its own and leaves it running; reports its output, what it added to TRACE.ATL and, with `--log-exceptions`, every distinct exception (`tools/exceptionlog`) | the Release build, `C:\EASIPOS` → `C:\EASIPOS\CS`, `targets/easipos/notes/pos/` | trying the product by hand |
 | `member-types.py` | Per-member naming proposals in the `i` convention from the audit's MEMBER-TYPE and MEMBER-DIV rows | a target's `notes/type-audit.tsv` → report | analysis, before a member rename |
@@ -2252,7 +2265,7 @@ check that passed.
 | `rtltest/extract.py` | hbtest's `rt_*.prg` and `own/own_*.prg` as test programs, every assertion given its disposition | `utils/hbtest/`, `own/`, `rulings.tsv`, easipos-transpiled's `notes/hbruntime.txt` → `generated/`, `manifest.tsv` | when hbtest, `own/` or the application's calls change |
 | `tools/genfunctab.py` | `hbfuncs.tab`: HbRuntime's functions and the return types in Harbour's doc blocks | `HbRuntime/*.cs`, `doc/`, `contrib/`, `src/rtl` and the rest → `hbfuncs.tab` | after a function is added to HbRuntime |
 | `tools/test_gendefines.py` | gendefines.py's tests of its `#define` value reading | — | called first by runsuite.py's gen |
-| `tools/netsurface/` | .NET assemblies' classes and methods as an `--extern=` table | the DLLs → the table | called by gen_shim_table.py |
+| `tools/netsurface/` | .NET assemblies' classes and methods as an `--extern=` table | the DLLs → the table | called by gen_connector_table.py |
 | `tools/exceptionlog/` | A startup hook that logs every distinct exception of a transpiled program with its stack | — → the `EXCEPTIONLOG` file | called by run_pos.py `--log-exceptions` |
 | `build.bat`, `build.sh` | Build the transpiler: MSVC on Windows (x86 by default; `HB_ARCH=arm64`, `HB_LIBDIR`, `HB_OUT` for the native ARM64 binary, after harbour-core's `call-win-make-arm64.bat`), clang on macOS and Linux | the sources, Harbour's libraries → `bin/hbtranspiler[.exe]` | after a change to the transpiler's C |
 | `libraries/hbsqlit3/native/build.bat` | SQLite3 Multiple Ciphers, the amalgamation Harbour's hbsqlit3 uses, as a DLL for HbSqlit3 | `contrib/3rd/sqlite3/sqlite3.c` → `native/<arch>/sqlite3mc.dll` | once per machine and architecture |

@@ -2,6 +2,8 @@
 # tools/netsurface writes: a .NET class Test47.NetShim47 with
 #   void Fill(out string name, out long size)
 #   bool Ready(string host)
+#   int Count(int from, out int found, out uint serial, ref int step)
 NetShim47	X	Test47.NetShim47	0
 NetShim47::NetShim47__Fill	N	-	2	name:STRING:TU	size:INTEGER:TU
 NetShim47::NetShim47__Ready	-	LOGICAL	1	host:STRING:T
+NetShim47::NetShim47__Count	-	INTEGER	4	from:INTEGER:TI	found:INTEGER:TUI	serial:INTEGER:TUJ	step:INTEGER:TRI

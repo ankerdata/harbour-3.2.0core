@@ -314,7 +314,8 @@ def main():
 
     # --extern=: a .NET class from extern_shim.tab types the static that names
     # it, `@` into an out parameter is `out` (a shim temporary when the local is
-    # decimal and the slot long), an omitted out `out _`, and the scan saves
+    # decimal and the slot long, or the slot an int or a uint), a value into an
+    # int `checked((int)...)`, an omitted out `out _`, and the scan saves
     # none of the table's rows.
     remove("extern_shim_reftab.tab")
     ext = "--extern=" + here("extern_shim.tab")
@@ -337,6 +338,12 @@ def main():
              and "nSize = _hbref_nSize;" in cs, "@ into out, a shim for another type"),
             (re.search(r"\.Fill\(out cName, out _\);", cs), "an omitted out is out _"),
             ("bool lReady" in cs and re.search(r"lReady = [A-Za-z_]*soNetShim47\.Ready\(\"probe\"\);", cs), "a typed return"),
+            ("checked((int)(iFrom + 1))" in cs, "a value into an int is narrowed checked"),
+            ("int _hbref_iFound;" in cs and "uint _hbref_iSerial;" in cs
+             and "out _hbref_iFound, out _hbref_iSerial" in cs and "iSerial = (long)(_hbref_iSerial);" in cs,
+             "@ into an out int and an out uint, temporaries of the .NET type"),
+            ("int _hbref_iStep = checked((int)(iStep));" in cs and "ref _hbref_iStep" in cs,
+             "@ into a ref int, seeded checked"),
             (saved == 0, "the scan saves none of the table's rows")):
         result(bool(ok), "extern (%s)" % what, "extern (%s)" % what, cs)
 
