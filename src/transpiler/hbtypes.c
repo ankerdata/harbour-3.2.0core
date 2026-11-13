@@ -595,14 +595,15 @@ HB_BOOL hb_astIsFixedType( const char * szType )
    return szType && hb_strnicmp( szType, "FIXED<", 6 ) == 0;
 }
 
-/* ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, ARRAY<X> of a record X,
-   or ARRAY<T> of such a T: a C# List<string>, List<long>, List<decimal>,
-   List<X> or a List of those, so the C# checks what is put in and read
+/* ARRAY<STRING>, ARRAY<INTEGER>, ARRAY<NUMERIC>, ARRAY<LOGICAL>, ARRAY<X>
+   of a record X, or ARRAY<T> of such a T: a C# List<string>, List<long>,
+   List<decimal>, List<bool>, List<X> or a List of those, so the C# checks what is put in and read
    out (plan C12). X is also a class that inherits nothing and that
    nothing inherits: a list of a class with a family is a List<dynamic>,
    since a List<Child> is no List<Parent>. NIL in a List<string> or a
    List<X> is null;
-   a List<long> or a List<decimal> cannot hold it (hb_astIsValueList). */
+   a List<long>, a List<decimal> or a List<bool> cannot hold it
+   (hb_astIsValueList). */
 HB_BOOL hb_astIsTypedList( const char * szType )
 {
    const char * szElem;
@@ -613,6 +614,7 @@ HB_BOOL hb_astIsTypedList( const char * szType )
                       hb_stricmp( szElem, "CHARACTER" ) == 0 ||
                       hb_stricmp( szElem, "INTEGER" ) == 0 ||
                       hb_stricmp( szElem, "NUMERIC" ) == 0 ||
+                      hb_stricmp( szElem, "LOGICAL" ) == 0 ||
                       hb_astIsTypedList( szElem ) ||
                       hb_astIsRecordType( s_pPropRefTab, szElem ) ||
                       ( s_pPropRefTab && ! hb_astIsArrayType( szElem ) &&
@@ -625,7 +627,8 @@ static HB_BOOL hb_astIsValueList( const char * szType )
 {
    const char * szElem = hb_astIsTypedList( szType ) ? hb_astArrayElemType( szType ) : NULL;
    return szElem && ( hb_stricmp( szElem, "INTEGER" ) == 0 ||
-                      hb_stricmp( szElem, "NUMERIC" ) == 0 );
+                      hb_stricmp( szElem, "NUMERIC" ) == 0 ||
+                      hb_stricmp( szElem, "LOGICAL" ) == 0 );
 }
 
 /* A List<long>, which takes no decimal */
@@ -638,6 +641,9 @@ static HB_BOOL hb_astIsWholeList( const char * szType )
 /* A value list's C# type, for a message */
 static const char * hb_astValueListCs( const char * szType )
 {
+   const char * szElem = hb_astArrayElemType( szType );
+   if( szElem && hb_stricmp( szElem, "LOGICAL" ) == 0 )
+      return "List<bool>";
    return hb_astIsWholeList( szType ) ? "List<long>" : "List<decimal>";
 }
 
