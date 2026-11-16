@@ -155,30 +155,54 @@ PROCEDURE Main_CODECS()
 
 
 
-   TEST_CALL( "own_codecs:168", 'hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) ) }, "82", .F., NIL )
-   TEST_CALL( "own_codecs:169", 'hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) ) }, "3F", .F., NIL )
-   TEST_CALL( "own_codecs:170", 'hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) ) }, "61823F7A", .F., NIL )
-   TEST_CALL( "own_codecs:171", 'hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) )', {|| hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) ) }, "C3A9", .F., NIL )
-   TEST_CALL( "own_codecs:172", 'hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) )', {|| hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) ) }, "82", .F., NIL )
-   TEST_CALL( "own_codecs:173", "hb_StrToHex( hb_StrToUTF8( cE ) )", {|| hb_StrToHex( hb_StrToUTF8( cE ) ) }, "C3A9", .F., NIL )
-   TEST_CALL( "own_codecs:174", "hb_StrToHex( hb_UTF8ToStr( cE ) )", {|| hb_StrToHex( hb_UTF8ToStr( cE ) ) }, "C3A9", .F., NIL )
-   TEST_CALL( "own_codecs:175", 'hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) )', {|| hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) ) }, "C3A9", .F., NIL )
-   TEST_CALL( "own_codecs:176", 'hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) )', {|| hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) ) }, "82", .F., NIL )
-   TEST_CALL( "own_codecs:177", 'hb_StrToUTF8( "plain" )', {|| hb_StrToUTF8( "plain" ) }, "plain", .F., NIL )
-   TEST_CALL( "own_codecs:178", 'hb_UTF8ToStr( "plain" )', {|| hb_UTF8ToStr( "plain" ) }, "plain", .F., NIL )
+
+   TEST_CALL( "own_codecs:169", '"a" < "A"', {|| "a" < "A" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:170", '"A" < "b"', {|| "A" < "b" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:171", '"B" < "a"', {|| "B" < "a" }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:172", '"Z" < "a"', {|| "Z" < "a" }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:173", '"9" < "A"', {|| "9" < "A" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:174", '"-" < "0"', {|| "-" < "0" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:175", '" " < "-"', {|| " " < "-" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:176", 'cE < "f"', {|| cE < "f" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:177", 'cE > "e"', {|| cE > "e" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:178", 'cE > "z"', {|| cE > "z" }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:179", 'cEuro < "0"', {|| cEuro < "0" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:180", 'cByte < "A"', {|| cByte < "A" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:181", 'cByte > "9"', {|| cByte > "9" }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:182", '"abc" < "abd"', {|| "abc" < "abd" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:183", '"abc" < "ABD"', {|| "abc" < "ABD" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:184", '"Lisbon" > "Lis"', {|| "Lisbon" > "Lis" }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:185", 'ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 1 ]', {|| ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 1 ] }, " ", .F., NIL )
+   TEST_CALL( "own_codecs:186", 'ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 3 ]', {|| ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 3 ] }, "a", .F., NIL )
+   TEST_CALL( "own_codecs:187", 'ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 4 ]', {|| ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 4 ] }, "A", .F., NIL )
+   TEST_CALL( "own_codecs:188", 'hb_StrToHex( ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 8 ] )', {|| hb_StrToHex( ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 8 ] ) }, "C3A9", .F., NIL )
 
 
-   TEST_CALL( "own_codecs:181", 'Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) ) }, 2, .F., NIL )
-   TEST_CALL( "own_codecs:182", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ] }, "12.5%", .F., NIL )
-   TEST_CALL( "own_codecs:183", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ] }, "12.5", .F., NIL )
-   TEST_CALL( "own_codecs:184", 'Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "nothing here" ) ) }, 0, .F., NIL )
-   TEST_CALL( "own_codecs:185", 'Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )', {|| Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) ) }, 1, .F., NIL )
-   TEST_CALL( "own_codecs:186", 'hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]', {|| hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ] }, "DEF", .F., NIL )
+
+   TEST_CALL( "own_codecs:192", 'hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) ) }, "82", .F., NIL )
+   TEST_CALL( "own_codecs:193", 'hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) ) }, "3F", .F., NIL )
+   TEST_CALL( "own_codecs:194", 'hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) ) }, "61823F7A", .F., NIL )
+   TEST_CALL( "own_codecs:195", 'hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) )', {|| hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:196", 'hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) )', {|| hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) ) }, "82", .F., NIL )
+   TEST_CALL( "own_codecs:197", "hb_StrToHex( hb_StrToUTF8( cE ) )", {|| hb_StrToHex( hb_StrToUTF8( cE ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:198", "hb_StrToHex( hb_UTF8ToStr( cE ) )", {|| hb_StrToHex( hb_UTF8ToStr( cE ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:199", 'hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) )', {|| hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:200", 'hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) )', {|| hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) ) }, "82", .F., NIL )
+   TEST_CALL( "own_codecs:201", 'hb_StrToUTF8( "plain" )', {|| hb_StrToUTF8( "plain" ) }, "plain", .F., NIL )
+   TEST_CALL( "own_codecs:202", 'hb_UTF8ToStr( "plain" )', {|| hb_UTF8ToStr( "plain" ) }, "plain", .F., NIL )
+
+
+   TEST_CALL( "own_codecs:205", 'Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) ) }, 2, .F., NIL )
+   TEST_CALL( "own_codecs:206", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ] }, "12.5%", .F., NIL )
+   TEST_CALL( "own_codecs:207", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ] }, "12.5", .F., NIL )
+   TEST_CALL( "own_codecs:208", 'Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "nothing here" ) ) }, 0, .F., NIL )
+   TEST_CALL( "own_codecs:209", 'Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )', {|| Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:210", 'hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]', {|| hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ] }, "DEF", .F., NIL )
 
 
 
-   TEST_CALL( "own_codecs:190", 'GrowDecoded( "[]" )', {|| GrowDecoded( "[]" ) }, 1, .F., NIL )
-   TEST_CALL( "own_codecs:191", 'GrowDecoded( "[7]" )', {|| GrowDecoded( "[7]" ) }, 2, .F., NIL )
+   TEST_CALL( "own_codecs:214", 'GrowDecoded( "[]" )', {|| GrowDecoded( "[]" ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:215", 'GrowDecoded( "[7]" )', {|| GrowDecoded( "[7]" ) }, 2, .F., NIL )
 
    RETURN
 

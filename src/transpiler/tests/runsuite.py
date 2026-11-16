@@ -336,7 +336,7 @@ def build_prg(name):
                          for p in srcs) else []
     r = subprocess.run(["hbmk2"] + srcs +
                        [os.path.join("-oprgexe", name),
-                        "-w", "-es2", "-gtcgi", "-q"] + mt,
+                        "-w", "-es2", "-ku", "-gtcgi", "-q"] + mt,
                        cwd=TESTS, capture_output=True, text=True)
     if r.returncode == 0 and os.path.isfile(exe):
         return name, None, True

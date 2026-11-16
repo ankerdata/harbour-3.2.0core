@@ -163,6 +163,30 @@ PROCEDURE Main_CODECS()
    HBTEST hb_StrToHex( hb_jsonEncode( cE ) )         IS "22C3A922"
    HBTEST hb_StrToHex( hb_jsonDecode( '"\u00e9"' ) ) IS "C3A9"
 
+   /* --- order: UTF8EX's sort table, not the bytes. Space, punctuation,
+          digits, then the letters as aAbB..., an accented letter beside
+          its plain one; a byte that is not text below the letters. --- */
+   HBTEST "a" < "A"                                  IS .T.
+   HBTEST "A" < "b"                                  IS .T.
+   HBTEST "B" < "a"                                  IS .F.
+   HBTEST "Z" < "a"                                  IS .F.
+   HBTEST "9" < "A"                                  IS .T.
+   HBTEST "-" < "0"                                  IS .T.
+   HBTEST " " < "-"                                  IS .T.
+   HBTEST cE < "f"                                   IS .T.
+   HBTEST cE > "e"                                   IS .T.
+   HBTEST cE > "z"                                   IS .F.
+   HBTEST cEuro < "0"                                IS .T.
+   HBTEST cByte < "A"                                IS .T.
+   HBTEST cByte > "9"                                IS .F.
+   HBTEST "abc" < "abd"                              IS .T.
+   HBTEST "abc" < "ABD"                              IS .T.
+   HBTEST "Lisbon" > "Lis"                           IS .T.
+   HBTEST ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 1 ] IS " "
+   HBTEST ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 3 ] IS "a"
+   HBTEST ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 4 ] IS "A"
+   HBTEST hb_StrToHex( ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 8 ] ) IS "C3A9"
+
    /* --- another code page: what a character is there, '?' for one it has
           not and for a byte that was not text --- */
    HBTEST hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )    IS "82"

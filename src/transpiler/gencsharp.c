@@ -5292,14 +5292,21 @@ static HB_BOOL hb_csConstBytes( PHB_EXPR pExpr, char * szBuf, HB_SIZE * pnLen,
               hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "HB_BCHAR" ) == 0 ) )
    {
       PHB_EXPR pArg = hb_csFunCallArgHead( pExpr );
+      int iValue;
       while( pArg && ! pArg->pNext && pArg->ExprType == HB_ET_LIST &&
              pArg->value.asList.pExprList && ! pArg->value.asList.pExprList->pNext )
          pArg = pArg->value.asList.pExprList;
       if( ! pArg || pArg->pNext || pArg->ExprType != HB_ET_NUMERIC ||
           *pnLen + 1 > HB_CS_MAXCONSTBYTES )
          return HB_FALSE;
-      szBuf[ ( *pnLen )++ ] = ( char ) ( ( pArg->value.asNum.NumType == HB_ET_LONG
-         ? ( int ) pArg->value.asNum.val.l : ( int ) pArg->value.asNum.val.d ) & 0xFF );
+      iValue = pArg->value.asNum.NumType == HB_ET_LONG
+         ? ( int ) pArg->value.asNum.val.l : ( int ) pArg->value.asNum.val.d;
+      /* Chr() is a byte only where it is ASCII: above that it is the
+         character, which is not a constant byte */
+      if( ( iValue < 0 || iValue > 127 ) &&
+          hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "CHR" ) == 0 )
+         return HB_FALSE;
+      szBuf[ ( *pnLen )++ ] = ( char ) ( iValue & 0xFF );
    }
    else
       return HB_FALSE;
@@ -5307,16 +5314,14 @@ static HB_BOOL hb_csConstBytes( PHB_EXPR pExpr, char * szBuf, HB_SIZE * pnLen,
    return HB_TRUE;
 }
 
-/* Harbour's compiler folds Chr() and hb_BChar() of a constant into a
-   byte, and joins constant strings: `Chr( 250 )` is one byte where
-   Chr() of a variable is the character, and
-   `hb_BChar( 0xEF ) + hb_BChar( 0xBB ) + hb_BChar( 0xBF )` is the three
-   bytes of a byte order mark, whose Len() is 3. The C# keeps the calls
-   it can, for the
-   reader: a constant Chr() above 127 is written hb_BChar(), and a run of
-   constant bytes is written as one literal only where bytes of different
-   pieces spell a character together, which the pieces joined at run time
-   would not be. */
+/* Harbour's compiler folds hb_BChar() of a constant into a byte and joins
+   constant strings: `hb_BChar( 0xEF ) + hb_BChar( 0xBB ) + hb_BChar( 0xBF )`
+   is the three bytes of a byte order mark, one character. (Chr(), Len(),
+   Asc() and At() of constants it leaves to run time: EasiPOS compiles with
+   -ku, so that a constant means what a variable does.) The C# keeps the
+   calls, for the reader, and writes a run of constant bytes as one
+   literal only where bytes of different pieces spell a character
+   together, which the pieces joined at run time would not be. */
 static HB_BOOL hb_csEmitConstBytes( PHB_EXPR pExpr, FILE * yyc )
 {
    char szBuf[ HB_CS_MAXCONSTBYTES ];
@@ -5324,52 +5329,10 @@ static HB_BOOL hb_csEmitConstBytes( PHB_EXPR pExpr, FILE * yyc )
    HB_SIZE nLen = 0, n;
    int nLeaf = 0, iLeaf = 0;
 
-   if( pExpr->ExprType != HB_EO_PLUS && pExpr->ExprType != HB_ET_FUNCALL )
+   if( pExpr->ExprType != HB_EO_PLUS )
       return HB_FALSE;
-
-   /* Len() of constant bytes is folded too, to the number of bytes, where
-      Len() at run time counts characters: only told apart, and only
-      written as the number, when a byte is above 127 */
-   if( pExpr->ExprType == HB_ET_FUNCALL &&
-       pExpr->value.asFunCall.pFunName &&
-       pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
-       hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "LEN" ) == 0 )
-   {
-      PHB_EXPR pArg = hb_csFunCallArgHead( pExpr );
-      if( pArg && ! pArg->pNext &&
-          hb_csConstBytes( pArg, szBuf, &nLen, aEnd, &nLeaf ) )
-      {
-         for( n = 0; n < nLen; n++ )
-         {
-            if( ( unsigned char ) szBuf[ n ] >= 0x80 )
-            {
-               fprintf( yyc, "%lu", ( unsigned long ) nLen );
-               return HB_TRUE;
-            }
-         }
-      }
-      return HB_FALSE;
-   }
-
    if( ! hb_csConstBytes( pExpr, szBuf, &nLen, aEnd, &nLeaf ) )
       return HB_FALSE;
-
-   if( pExpr->ExprType == HB_ET_FUNCALL )
-   {
-      /* Chr() of a constant that is not ASCII: the byte of its low eight
-         bits, where Chr() at run time would give the character */
-      PHB_EXPR pArg = hb_csFunCallArgHead( pExpr );
-      double dValue;
-      while( pArg->ExprType == HB_ET_LIST )
-         pArg = pArg->value.asList.pExprList;
-      dValue = pArg->value.asNum.NumType == HB_ET_LONG
-         ? ( double ) pArg->value.asNum.val.l : pArg->value.asNum.val.d;
-      if( ( dValue >= 0 && dValue < 128 ) ||
-          hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "CHR" ) != 0 )
-         return HB_FALSE;
-      fprintf( yyc, "hb_BChar(%u)", ( unsigned int ) ( unsigned char ) szBuf[ 0 ] );
-      return HB_TRUE;
-   }
 
    for( n = 0; n < nLen; n++ )
    {

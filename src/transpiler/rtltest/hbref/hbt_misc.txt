@@ -152,8 +152,8 @@ rt_misc:599 PASS
 rt_misc:732 PASS
 rt_misc:734 PASS
 rt_misc:735 PASS
-rt_misc:736 PASS
-rt_misc:737 PASS
+rt_misc:736 FAIL 49091 | 255
+rt_misc:737 FAIL 49091 | 65535
 rt_misc:738 PASS
 rt_misc:739 PASS
 rt_misc:740 PASS
@@ -161,9 +161,9 @@ rt_misc:741 PASS
 rt_misc:750 PASS
 rt_misc:752 PASS
 rt_misc:753 PASS
-rt_misc:755 PASS
-rt_misc:757 PASS
-rt_misc:758 PASS
+rt_misc:755 FAIL 49091 | 255
+rt_misc:757 FAIL -1077690429 | 16777215
+rt_misc:758 FAIL -1077690429 | -1
 rt_misc:759 PASS
 rt_misc:760 PASS
 rt_misc:761 PASS
@@ -171,9 +171,9 @@ rt_misc:762 PASS
 rt_misc:786 PASS
 rt_misc:787 PASS
 rt_misc:788 PASS
-rt_misc:789 PASS
-rt_misc:790 PASS
-rt_misc:791 PASS
+rt_misc:789 FAIL "ÿ" + Chr( 0 ) + "" + Chr( 0 ) + "" + Chr( 0 ) + "" | "Ã¿" + Chr( 0 ) + "" + Chr( 0 ) + "" + Chr( 0 ) + ""
+rt_misc:790 FAIL "ÿÿÿ" + Chr( 0 ) + "" | "Ã¿Ã¿Ã¿" + Chr( 0 ) + ""
+rt_misc:791 FAIL "ÿÿÿÿ" | "Ã¿Ã¿Ã¿Ã¿"
 rt_misc:792 PASS
 rt_misc:793 PASS
 rt_misc:794 PASS
@@ -188,4 +188,4 @@ rt_misc:886 PASS
 rt_misc:887 PASS
 rt_misc:888 PASS
 rt_misc:892 PASS
-passed        118 failed          0 errors         71
+passed        110 failed          8 errors         71

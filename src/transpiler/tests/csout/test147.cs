@@ -26,8 +26,8 @@ public static partial class Program
         QOut("umlaut:", Len(cUmlaut147), Asc(SubStr(cUmlaut147, 2)));
         QOut("escape:", Len(cEsc147), Asc(cEsc147));
         QOut("bytes:", hb_BLen(cEuro147), hb_BLen(cUmlaut147), hb_BCode(hb_BSubStr(cEuro147, 2, 1)), hb_BCode(hb_BSubStr(cUmlaut147, 2, 1)));
-        QOut("chr:", hb_BLen(hb_BChar(250)), hb_BLen(Chr(n147)), hb_BLen(hb_BChar(n147)), Asc(Chr(n147)));
-        QOut("joined:", "€" == Left(cEuro147, 1), 3);
+        QOut("chr:", hb_BLen(Chr(250)), hb_BLen(Chr(n147)), hb_BLen(hb_BChar(n147)), Asc(Chr(n147)));
+        QOut("joined:", "€" == Left(cEuro147, 1), Len("€"));
         QOut("cut:", hb_BLen(hb_BLeft(cEuro147, 2)), hb_BCode(hb_BLeft(cEuro147, 2)), hb_BLeft(cEuro147, 3) == Left(cEuro147, 1));
         QOut("upper:", Asc(Upper(SubStr("z" + hb_utf8Chr(228), 2))), hb_StrIsUTF8(cEuro147), hb_StrIsUTF8(cUmlaut147), hb_StrIsUTF8("abc"));
     }

@@ -36,7 +36,7 @@ own_codecs:77 PASS
 own_codecs:78 PASS
 own_codecs:79 PASS
 own_codecs:80 PASS
-own_codecs:81 PASS
+own_codecs:81 FAIL "AMO/" | "AP8="
 own_codecs:84 PASS
 own_codecs:85 PASS
 own_codecs:88 PASS
@@ -112,7 +112,6 @@ own_codecs:161 PASS
 own_codecs:162 PASS
 own_codecs:163 PASS
 own_codecs:164 PASS
-own_codecs:168 PASS
 own_codecs:169 PASS
 own_codecs:170 PASS
 own_codecs:171 PASS
@@ -123,12 +122,33 @@ own_codecs:175 PASS
 own_codecs:176 PASS
 own_codecs:177 PASS
 own_codecs:178 PASS
+own_codecs:179 PASS
+own_codecs:180 PASS
 own_codecs:181 PASS
 own_codecs:182 PASS
 own_codecs:183 PASS
-own_codecs:184 PASS
+own_codecs:184 FAIL .F. | .T.
 own_codecs:185 PASS
 own_codecs:186 PASS
-own_codecs:190 PASS
-own_codecs:191 PASS
-passed        132 failed          0 errors          0
+own_codecs:187 PASS
+own_codecs:188 PASS
+own_codecs:192 PASS
+own_codecs:193 PASS
+own_codecs:194 PASS
+own_codecs:195 PASS
+own_codecs:196 PASS
+own_codecs:197 PASS
+own_codecs:198 PASS
+own_codecs:199 PASS
+own_codecs:200 PASS
+own_codecs:201 PASS
+own_codecs:202 PASS
+own_codecs:205 PASS
+own_codecs:206 PASS
+own_codecs:207 PASS
+own_codecs:208 PASS
+own_codecs:209 PASS
+own_codecs:210 PASS
+own_codecs:214 PASS
+own_codecs:215 PASS
+passed        150 failed          2 errors          0

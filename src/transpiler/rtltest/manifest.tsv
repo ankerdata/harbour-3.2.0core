@@ -169,25 +169,45 @@ own_codecs:161	run-fn	BIN2L	BIN2L,L2BIN	Bin2L( L2Bin( 250 ) )
 own_codecs:162	run-fn	BIN2L	BIN2L,HB_BCHAR	Bin2L( cByte + hb_BChar( 0 ) + hb_BChar( 0 ) + hb_BChar( 0 ) )
 own_codecs:163	run-fn	HB_STRTOHEX	HB_JSONENCODE,HB_STRTOHEX	hb_StrToHex( hb_jsonEncode( cE ) )
 own_codecs:164	run-fn	HB_STRTOHEX	HB_JSONDECODE,HB_STRTOHEX	hb_StrToHex( hb_jsonDecode( '"\u00e9"' ) )
-own_codecs:168	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )
-own_codecs:169	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) )
-own_codecs:170	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )
-own_codecs:171	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) )
-own_codecs:172	run-fn	HB_STRTOHEX	HB_CDPSELECT,HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) )
-own_codecs:173	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_STRTOUTF8	hb_StrToHex( hb_StrToUTF8( cE ) )
-own_codecs:174	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8TOSTR	hb_StrToHex( hb_UTF8ToStr( cE ) )
-own_codecs:175	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX,HB_STRTOUTF8	hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) )
-own_codecs:176	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8TOSTR	hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) )
-own_codecs:177	run-fn	HB_STRTOUTF8	HB_STRTOUTF8	hb_StrToUTF8( "plain" )
-own_codecs:178	run-fn	HB_UTF8TOSTR	HB_UTF8TOSTR	hb_UTF8ToStr( "plain" )
-own_codecs:181	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )
-own_codecs:182	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]
-own_codecs:183	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]
-own_codecs:184	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )
-own_codecs:185	run-fn	LEN	HB_REGEX,HB_REGEXCOMP,LEN	Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )
-own_codecs:186	run-fn	HB_REGEX	HB_REGEX,HB_REGEXCOMP	hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]
-own_codecs:190	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[]" )
-own_codecs:191	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[7]" )
+own_codecs:169	run-op			"a" < "A"
+own_codecs:170	run-op			"A" < "b"
+own_codecs:171	run-op			"B" < "a"
+own_codecs:172	run-op			"Z" < "a"
+own_codecs:173	run-op			"9" < "A"
+own_codecs:174	run-op			"-" < "0"
+own_codecs:175	run-op			" " < "-"
+own_codecs:176	run-op			cE < "f"
+own_codecs:177	run-op			cE > "e"
+own_codecs:178	run-op			cE > "z"
+own_codecs:179	run-op			cEuro < "0"
+own_codecs:180	run-op			cByte < "A"
+own_codecs:181	run-op			cByte > "9"
+own_codecs:182	run-op			"abc" < "abd"
+own_codecs:183	run-op			"abc" < "ABD"
+own_codecs:184	run-op			"Lisbon" > "Lis"
+own_codecs:185	run-fn	ASORT	ASORT	ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 1 ]
+own_codecs:186	run-fn	ASORT	ASORT	ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 3 ]
+own_codecs:187	run-fn	ASORT	ASORT	ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 4 ]
+own_codecs:188	run-fn	HB_STRTOHEX	ASORT,HB_STRTOHEX	hb_StrToHex( ASort( { "b", "B", "a", "A", cE, "e", "1", " " } )[ 8 ] )
+own_codecs:192	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )
+own_codecs:193	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) )
+own_codecs:194	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )
+own_codecs:195	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) )
+own_codecs:196	run-fn	HB_STRTOHEX	HB_CDPSELECT,HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) )
+own_codecs:197	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_STRTOUTF8	hb_StrToHex( hb_StrToUTF8( cE ) )
+own_codecs:198	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8TOSTR	hb_StrToHex( hb_UTF8ToStr( cE ) )
+own_codecs:199	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX,HB_STRTOUTF8	hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) )
+own_codecs:200	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8TOSTR	hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) )
+own_codecs:201	run-fn	HB_STRTOUTF8	HB_STRTOUTF8	hb_StrToUTF8( "plain" )
+own_codecs:202	run-fn	HB_UTF8TOSTR	HB_UTF8TOSTR	hb_UTF8ToStr( "plain" )
+own_codecs:205	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )
+own_codecs:206	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]
+own_codecs:207	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]
+own_codecs:208	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )
+own_codecs:209	run-fn	LEN	HB_REGEX,HB_REGEXCOMP,LEN	Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )
+own_codecs:210	run-fn	HB_REGEX	HB_REGEX,HB_REGEXCOMP	hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]
+own_codecs:214	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[]" )
+own_codecs:215	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[7]" )
 own_dates:14	run-fn	DTOS	DTOS,STOD	DToS( SToD( "19840325" ) )
 own_dates:15	run-fn	STOD	HB_STOD,STOD	SToD( "19840325" ) == hb_SToD( "19840325" )
 own_dates:16	run-fn	EMPTY	EMPTY,STOD	Empty( SToD( "" ) )
@@ -2244,7 +2264,7 @@ rt_hvm:266	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) <= hb_SToD( "" )
 rt_hvm:267	run-op			""                    <= "AAA"
 rt_hvm:268	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 <= ""
 rt_hvm:269	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 <= "AA"
-rt_hvm:270	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 <= Chr( 255 )
+rt_hvm:270	run-fn	CHR	CHR	"AAA"                 <= Chr( 255 )
 rt_hvm:271	run-fn	CHR	CHR	Chr( 150 )            <= Chr( 255 )
 rt_hvm:272	run-op			"A"                   <= "a"
 rt_hvm:273	run-op			"A"                   <= "Z"
@@ -2274,8 +2294,8 @@ rt_hvm:299	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) <  hb_SToD( "" )
 rt_hvm:300	run-op			""                    <  "AAA"
 rt_hvm:301	run-op			"AAA"                 <  ""
 rt_hvm:302	run-op			"AAA"                 <  "AA"
-rt_hvm:303	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 <  Chr( 255 )
-rt_hvm:304	divergent:UTF8EX orders by its sort table, in which two bytes that are not text are equal; C# compares ordinally	CHR	CHR	Chr( 150 )            <  Chr( 255 )
+rt_hvm:303	run-fn	CHR	CHR	"AAA"                 <  Chr( 255 )
+rt_hvm:304	run-fn	CHR	CHR	Chr( 150 )            <  Chr( 255 )
 rt_hvm:305	run-op			"A"                   <  "a"
 rt_hvm:306	run-op			"A"                   <  "Z"
 rt_hvm:307	run-op			"Z"                   <  "A"
@@ -2304,8 +2324,8 @@ rt_hvm:332	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) >= hb_SToD( "" )
 rt_hvm:333	run-op			""                    >= "AAA"
 rt_hvm:334	run-op			"AAA"                 >= ""
 rt_hvm:335	run-op			"AAA"                 >= "AA"
-rt_hvm:336	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 >= Chr( 255 )
-rt_hvm:337	divergent:UTF8EX orders by its sort table, in which two bytes that are not text are equal; C# compares ordinally	CHR	CHR	Chr( 150 )            >= Chr( 255 )
+rt_hvm:336	run-fn	CHR	CHR	"AAA"                 >= Chr( 255 )
+rt_hvm:337	run-fn	CHR	CHR	Chr( 150 )            >= Chr( 255 )
 rt_hvm:338	run-op			"A"                   >= "a"
 rt_hvm:339	run-op			"A"                   >= "Z"
 rt_hvm:340	run-op			"Z"                   >= "A"
@@ -2334,7 +2354,7 @@ rt_hvm:365	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) >  hb_SToD( "" )
 rt_hvm:366	run-op			""                    >  "AAA"
 rt_hvm:367	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 >  ""
 rt_hvm:368	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 >  "AA"
-rt_hvm:369	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 >  Chr( 255 )
+rt_hvm:369	run-fn	CHR	CHR	"AAA"                 >  Chr( 255 )
 rt_hvm:370	run-fn	CHR	CHR	Chr( 150 )            >  Chr( 255 )
 rt_hvm:371	run-op			"A"                   >  "a"
 rt_hvm:372	run-op			"A"                   >  "Z"

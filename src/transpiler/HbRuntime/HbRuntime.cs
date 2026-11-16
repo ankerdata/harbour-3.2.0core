@@ -225,13 +225,33 @@ public static partial class HbRuntime
 
     // String ordering: the emitter turns `<`, `<=`, `>`, `>=` on strings
     // into `StrCmp(a, b) <op> 0` (`==` stays C# `==`; the transpiler
-    // refuses `=`, E0100). Exact and ordinal, by decision (Alex,
-    // 2026-09-19): Harbour's SET EXACT semantics — an equal prefix
-    // compares equal when EXACT is OFF, trailing blanks are ignored when
-    // it is ON — are not reproduced; EasiPOS writes `==` and runs with
-    // SET EXACT ON. "Lisbon" > "Lis".
-    public static int StrCmp(string a, string b) =>
-        Math.Sign(string.CompareOrdinal(a ?? "", b ?? ""));
+    // refuses `=`, E0100). The order is the UTF8EX code page's
+    // (codepage/cp_utf8.c, UTF8_cmp): character by character by the
+    // weights of its sort table, in which space comes first, then
+    // punctuation, digits and the letters as aAbB..., an accented letter
+    // beside its plain one. Two characters of one weight are equal and the
+    // comparison goes on. A byte that is not text is U+FFFD, as Harbour
+    // reads it. Exact, by decision (Alex, 2026-09-19): Harbour's SET EXACT
+    // semantics — an equal prefix compares equal when EXACT is OFF,
+    // trailing blanks are ignored when it is ON — are not reproduced;
+    // EasiPOS writes `==` and runs with SET EXACT ON. "Lisbon" > "Lis".
+    public static int StrCmp(string a, string b)
+    {
+        a ??= "";
+        b ??= "";
+        int n = Math.Min(a.Length, b.Length);
+        for (int i = 0; i < n; i++)
+        {
+            char x = a[i], y = b[i];
+            if (x != y)
+            {
+                ushort wx = s_aUniSort[HbBytes.IsByte(x) ? 0xFFFD : x], wy = s_aUniSort[HbBytes.IsByte(y) ? 0xFFFD : y];
+                if (wx != wy)
+                    return wx < wy ? -1 : 1;
+            }
+        }
+        return a.Length == b.Length ? 0 : a.Length < b.Length ? -1 : 1;
+    }
 
     // FOR ... STEP <n> whose step is not a constant: the emitter's loop
     // condition, which counts down when the step is below zero and up

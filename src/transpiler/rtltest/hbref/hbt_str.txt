@@ -68,9 +68,9 @@ rt_str:174 PASS
 rt_str:175 PASS
 rt_str:176 PASS
 rt_str:177 PASS
-rt_str:184 PASS
-rt_str:185 PASS
-rt_str:186 PASS
+rt_str:184 FAIL "æ¦€" | "Â€"
+rt_str:185 FAIL "ç¥ " | "`"
+rt_str:186 FAIL "ï¾¿" | "Â¿"
 rt_str:187 PASS
 rt_str:196 PASS
 rt_str:197 PASS
@@ -80,18 +80,18 @@ rt_str:200 PASS
 rt_str:201 PASS
 rt_str:202 PASS
 rt_str:203 PASS
-rt_str:204 FAIL "" + Chr( 0 ) + "" | ""
-rt_str:205 PASS
-rt_str:206 PASS
-rt_str:207 PASS
-rt_str:208 PASS
-rt_str:209 PASS
-rt_str:210 PASS
-rt_str:211 PASS
-rt_str:212 PASS
-rt_str:213 PASS
-rt_str:214 PASS
-rt_str:215 PASS
+rt_str:204 FAIL "Ä€" | ""
+rt_str:205 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:206 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:207 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:208 FAIL "Ä�" | ""
+rt_str:209 FAIL "È€" | "" + Chr( 0 ) + ""
+rt_str:210 FAIL "Ï¿" | "Ã¿"
+rt_str:211 FAIL "Ð€" | "" + Chr( 0 ) + ""
+rt_str:212 FAIL "Ð�" | ""
+rt_str:213 FAIL "Ï¨" | "Ã¨"
+rt_str:214 FAIL "èš " | "Â "
+rt_str:215 FAIL "èš " | "Â "
 rt_str:219 PASS
 rt_str:220 PASS
 rt_str:221 PASS
@@ -100,18 +100,18 @@ rt_str:223 PASS
 rt_str:224 PASS
 rt_str:225 PASS
 rt_str:226 PASS
-rt_str:227 PASS
-rt_str:228 PASS
-rt_str:229 PASS
-rt_str:230 PASS
-rt_str:231 PASS
-rt_str:232 PASS
-rt_str:233 PASS
-rt_str:234 PASS
-rt_str:235 PASS
-rt_str:236 PASS
-rt_str:237 PASS
-rt_str:238 PASS
+rt_str:227 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:228 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:229 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:230 FAIL "Ä€" | "" + Chr( 0 ) + ""
+rt_str:231 FAIL "Ä�" | ""
+rt_str:232 FAIL "È€" | "" + Chr( 0 ) + ""
+rt_str:233 FAIL "Ï¿" | "Ã¿"
+rt_str:234 FAIL "Ð€" | "" + Chr( 0 ) + ""
+rt_str:235 FAIL "Ð�" | ""
+rt_str:236 FAIL "Ï¨" | "Ã¨"
+rt_str:237 FAIL "èš " | "Â "
+rt_str:238 FAIL "èš " | "Â "
 rt_str:246 PASS
 rt_str:247 PASS
 rt_str:248 PASS
@@ -189,8 +189,8 @@ rt_str:471 PASS
 rt_str:472 PASS
 rt_str:473 PASS
 rt_str:474 PASS
-rt_str:475 FAIL "ï¿½ï¿½" | " µ"
-rt_str:476 FAIL "Hï¿½RBOR 8-) ï¿½" | "H RBOR 8-) µ"
+rt_str:475 FAIL "Â Îœ" | "Â Âµ"
+rt_str:476 FAIL "HÂ RBOR 8-) Îœ" | "HÂ RBOR 8-) Âµ"
 rt_str:480 PASS
 rt_str:485 PASS
 rt_str:486 PASS
@@ -201,8 +201,8 @@ rt_str:490 PASS
 rt_str:491 PASS
 rt_str:492 PASS
 rt_str:493 PASS
-rt_str:494 FAIL "ï¿½ï¿½" | " µ"
-rt_str:495 FAIL "hï¿½rbor 8-) ï¿½" | "h rbor 8-) µ"
+rt_str:494 PASS
+rt_str:495 PASS
 rt_str:506 FAIL 0 | 1
 rt_str:507 FAIL 0 | 1
 rt_str:511 PASS
@@ -364,4 +364,4 @@ rt_str:804 PASS
 rt_str:807 PASS
 rt_str:808 PASS
 rt_str:809 PASS
-passed        358 failed          7 errors          0
+passed        334 failed         31 errors          0

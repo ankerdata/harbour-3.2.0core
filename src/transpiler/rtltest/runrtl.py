@@ -154,7 +154,7 @@ def build_prg(name):
     exe = os.path.join(PRGEXE, name + ".exe")
     if os.path.isfile(exe):
         os.remove(exe)
-    opts = ["-w3", "-es0", "-gtcgi", "-q"] + (["-mt"] if name.endswith("_mt") else [])
+    opts = ["-w3", "-es0", "-ku", "-gtcgi", "-q"] + (["-mt"] if name.endswith("_mt") else [])
     r = subprocess.run(["hbmk2", os.path.join(GENERATED, name + ".prg"), HARNESS,
                         "-o" + os.path.join(PRGEXE, name)] + opts,
                        cwd=PRGEXE, capture_output=True, text=True)

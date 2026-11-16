@@ -49,9 +49,9 @@ own_strings:67 PASS
 own_strings:68 PASS
 own_strings:69 PASS
 own_strings:70 PASS
-own_strings:73 PASS
+own_strings:73 FAIL "414200C3BF" | "414200FF"
 own_strings:74 PASS
-own_strings:75 PASS
+own_strings:75 FAIL "AB" + Chr( 0 ) + "ÿ" | "AB" + Chr( 0 ) + "Ã¿"
 own_strings:76 PASS
 own_strings:77 PASS
 own_strings:78 PASS
@@ -89,4 +89,4 @@ own_strings:119 PASS
 own_strings:120 PASS
 own_strings:121 PASS
 own_strings:122 PASS
-passed         90 failed          0 errors          0
+passed         88 failed          2 errors          0

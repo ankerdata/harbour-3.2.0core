@@ -12,7 +12,7 @@ own_sockets_mt:46 PASS
 own_sockets_mt:50 PASS
 own_sockets_mt:51 PASS
 own_sockets_mt:55 PASS
-own_sockets_mt:58 PASS
+own_sockets_mt:58 FAIL .F. | .T.
 own_sockets_mt:62 PASS
 own_sockets_mt:65 PASS
 own_sockets_mt:69 PASS
@@ -25,4 +25,4 @@ own_sockets_mt:85 PASS
 own_sockets_mt:86 PASS
 own_sockets_mt:87 PASS
 own_sockets_mt:89 PASS
-passed         26 failed          0 errors          0
+passed         25 failed          1 errors          0

@@ -515,7 +515,7 @@ public static partial class HbRuntime
     static bool SortLess(object x, object y)
     {
         if (x is string sx && y is string sy)
-            return string.CompareOrdinal(sx, sy) < 0;
+            return StrCmp(sx, sy) < 0;
         if (IsNumeric(x) && IsNumeric(y))
             return Convert.ToDecimal(x, INV) < Convert.ToDecimal(y, INV);
         if (x is DateTime tx && y is DateTime ty)

@@ -89,7 +89,7 @@ MACRO_RE = re.compile(r'^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\(')
 NUM_RE      = re.compile(r'^-?(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)$')
 STR_RE      = re.compile(r'^"(.*)"$')
 EXPR_RE     = re.compile(r'^[\s\d.()+\-*/%xA-Fa-f]+$')
-CHR_CALL_RE = re.compile(r'^\s*(?:chr|hb_bchar)\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
+CHR_CALL_RE = re.compile(r'^\s*(chr|hb_bchar)\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
 SPACE_RE    = re.compile(r'^\s*space\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
 REPL_RE     = re.compile(
     r'^\s*replicate\s*\(\s*(?:"(.)"|chr\s*\(\s*(\d+)\s*\))\s*,\s*(\d+)\s*\)\s*$',
@@ -128,14 +128,20 @@ def strip_trailing_comment(v: str) -> str:
 
 
 def try_chr_expr(v: str) -> Optional[str]:
-    """`chr(N) [+ chr(N)]...` → concatenated string, a char to a byte."""
+    """`chr(N) [+ chr(N)]...` → concatenated string, a char to a byte.
+    hb_BChar( N ) is the byte N; chr( N ) is the character N, whose bytes
+    are its UTF-8 (the sources are compiled with -ku)."""
     parts = [p.strip() for p in v.split('+')]
     chars = []
     for p in parts:
         m = CHR_CALL_RE.match(p)
         if not m:
             return None
-        chars.append(chr(int(m.group(1)) & 0xFF))
+        n = int(m.group(2))
+        if m.group(1).lower() == 'chr':
+            chars.append(chr(n & 0xFFFF).encode('utf-8').decode('latin-1'))
+        else:
+            chars.append(chr(n & 0xFF))
     return ''.join(chars) if chars else None
 
 
