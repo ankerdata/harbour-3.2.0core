@@ -56,9 +56,9 @@ rt_hvm:266 PASS
 rt_hvm:267 PASS
 rt_hvm:268 PASS
 rt_hvm:269 PASS
-rt_hvm:270 PASS
+rt_hvm:270 FAIL .F. | .T.
 rt_hvm:271 PASS
-rt_hvm:272 PASS
+rt_hvm:272 FAIL .F. | .T.
 rt_hvm:273 PASS
 rt_hvm:274 PASS
 rt_hvm:275 PASS
@@ -86,9 +86,9 @@ rt_hvm:299 PASS
 rt_hvm:300 PASS
 rt_hvm:301 PASS
 rt_hvm:302 PASS
-rt_hvm:303 PASS
-rt_hvm:304 PASS
-rt_hvm:305 PASS
+rt_hvm:303 FAIL .F. | .T.
+rt_hvm:304 FAIL .F. | .T.
+rt_hvm:305 FAIL .F. | .T.
 rt_hvm:306 PASS
 rt_hvm:307 PASS
 rt_hvm:308 PASS
@@ -116,9 +116,9 @@ rt_hvm:332 PASS
 rt_hvm:333 PASS
 rt_hvm:334 PASS
 rt_hvm:335 PASS
-rt_hvm:336 PASS
-rt_hvm:337 PASS
-rt_hvm:338 PASS
+rt_hvm:336 FAIL .T. | .F.
+rt_hvm:337 FAIL .T. | .F.
+rt_hvm:338 FAIL .T. | .F.
 rt_hvm:339 PASS
 rt_hvm:340 PASS
 rt_hvm:341 PASS
@@ -146,9 +146,9 @@ rt_hvm:365 PASS
 rt_hvm:366 PASS
 rt_hvm:367 PASS
 rt_hvm:368 PASS
-rt_hvm:369 PASS
+rt_hvm:369 FAIL .T. | .F.
 rt_hvm:370 PASS
-rt_hvm:371 PASS
+rt_hvm:371 FAIL .T. | .F.
 rt_hvm:372 PASS
 rt_hvm:373 PASS
 rt_hvm:374 PASS
@@ -232,4 +232,4 @@ rt_hvm:495 PASS
 rt_hvm:496 PASS
 rt_hvm:516 PASS
 rt_hvm:517 PASS
-passed        233 failed          0 errors          0
+passed        223 failed         10 errors          0

@@ -189,8 +189,8 @@ rt_str:471 PASS
 rt_str:472 PASS
 rt_str:473 PASS
 rt_str:474 PASS
-rt_str:475 PASS
-rt_str:476 PASS
+rt_str:475 FAIL "ï¿½ï¿½" | " µ"
+rt_str:476 FAIL "Hï¿½RBOR 8-) ï¿½" | "H RBOR 8-) µ"
 rt_str:480 PASS
 rt_str:485 PASS
 rt_str:486 PASS
@@ -201,8 +201,8 @@ rt_str:490 PASS
 rt_str:491 PASS
 rt_str:492 PASS
 rt_str:493 PASS
-rt_str:494 PASS
-rt_str:495 PASS
+rt_str:494 FAIL "ï¿½ï¿½" | " µ"
+rt_str:495 FAIL "hï¿½rbor 8-) ï¿½" | "h rbor 8-) µ"
 rt_str:506 FAIL 0 | 1
 rt_str:507 FAIL 0 | 1
 rt_str:511 PASS
@@ -364,4 +364,4 @@ rt_str:804 PASS
 rt_str:807 PASS
 rt_str:808 PASS
 rt_str:809 PASS
-passed        362 failed          3 errors          0
+passed        358 failed          7 errors          0

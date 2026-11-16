@@ -10,7 +10,6 @@ public static partial class HbWin
 {
     public static dynamic __axRegisterHandler(params dynamic[] args) => throw new NotImplementedException(nameof(__axRegisterHandler));
     public static dynamic __oleVariantNew(params dynamic[] args) => throw new NotImplementedException(nameof(__oleVariantNew));
-    public static dynamic win_ANSIToOEM(params dynamic[] args) => throw new NotImplementedException(nameof(win_ANSIToOEM));
     public static dynamic win_oleCreateObject(params dynamic[] args) => throw new NotImplementedException(nameof(win_oleCreateObject));
     public static dynamic win_oleErrorText(params dynamic[] args) => throw new NotImplementedException(nameof(win_oleErrorText));
 }

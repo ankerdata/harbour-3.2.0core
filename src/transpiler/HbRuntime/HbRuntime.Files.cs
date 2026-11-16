@@ -18,11 +18,8 @@ public static partial class HbRuntime
     // hbfile.c, fstemp.c, vfile.c, diskspac.c, dirdrive.c, and the .prg
     // level of hbfilehi.prg and dirscan.prg.
     //
-    // A Harbour string is bytes, so what crosses into or out of a file is
-    // Latin-1 — one char per byte (Alex, 2026-09-19). Only hb_StrToUTF8 /
-    // hb_UTF8ToStr convert.
-
-    static readonly System.Text.Encoding s_byteCP = System.Text.Encoding.Latin1;
+    // What crosses into or out of a file is the string's bytes, as
+    // HbBytes has them: UTF-8 for its text, each other byte as it is.
 
     // Open handles. Harbour hands out the OS handle; these are numbers
     // from 3 up, 0-2 being the console's there. The streams are unbuffered
@@ -213,7 +210,9 @@ public static partial class HbRuntime
         int nError = 0;
         int nRead = 0;
 
-        if (cBuf != null && nBytes >= 0 && nBytes <= cBuf.Length + 1)
+        int nSize = HbBytes.Count(cBuf);
+
+        if (cBuf != null && nBytes >= 0 && nBytes <= nSize + 1)
         {
             if (TryGetFile(nHandle, out var fs))
             {
@@ -222,12 +221,7 @@ public static partial class HbRuntime
                     byte[] b = new byte[(int) nBytes];
                     nRead = fs.Read(b, 0, b.Length);
                     if (nRead > 0)
-                    {
-                        char[] a = cBuf.ToCharArray();
-                        for (int i = 0; i < nRead && i < a.Length; i++)
-                            a[i] = (char) b[i];
-                        cBuf = new string(a);
-                    }
+                        cBuf = HbBytes.Text(b, 0, Math.Min(nRead, nSize)) + HbBytes.Slice(cBuf, nRead, nSize);
                 }
                 catch (Exception e) when (IsFsFailure(e))
                 {
@@ -253,7 +247,8 @@ public static partial class HbRuntime
 
         if (cBuf != null)
         {
-            int nLen = cBuf.Length;
+            byte[] aBuf = HbBytes.Of(cBuf);
+            int nLen = aBuf.Length;
             if (nBytes >= 0 && nBytes < nLen)
                 nLen = (int) nBytes;
 
@@ -265,7 +260,7 @@ public static partial class HbRuntime
                         fs.SetLength(fs.Position);
                     else
                     {
-                        fs.Write(s_byteCP.GetBytes(cBuf.Substring(0, nLen)), 0, nLen);
+                        fs.Write(aBuf, 0, nLen);
                         nWritten = nLen;
                     }
                 }
@@ -415,7 +410,7 @@ public static partial class HbRuntime
             using var fs = new FileStream(cFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var ms = new MemoryStream();
             fs.CopyTo(ms);
-            return s_byteCP.GetString(ms.GetBuffer(), 0, (int) ms.Length);
+            return HbBytes.Text(ms.GetBuffer(), 0, (int) ms.Length);
         }
         catch (Exception e) when (IsFsFailure(e)) { return ""; }
     }
@@ -439,7 +434,7 @@ public static partial class HbRuntime
         try
         {
             using var fs = new FileStream(cFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            fs.Write(s_byteCP.GetBytes(cData), 0, cData.Length);
+            fs.Write(HbBytes.Of(cData));
             if (lWriteEof)
                 fs.WriteByte(26);
             return true;

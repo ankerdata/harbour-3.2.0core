@@ -428,8 +428,19 @@ rt_stra:528	quarantine	string minus: C# has no - for strings (CS0019); EasiPOS n
 # a sequence — each wraps one ADO or OLE call (Alex, 2026-09-22): divergent by design
 own_errors:87	divergent	a runtime error in a plain sequence inside a WITH one reaches the WITH sequence in C#, the inner one in Harbour; no WITH body in EasiPOS enters a sequence (Alex, 2026-09-22)
 
-# Family 13: hb_StrToUTF8() converts from the codepage in Harbour, and the
-# process codepage makes Chr( 200 ) three bytes there. HbRuntime has no
-# codepage (deferred) and a char is a byte, so it is Latin-1: two bytes. The
-# round trip through hb_UTF8ToStr() holds on both sides (Alex, 2026-09-23)
-own_codecs:91	divergent	Harbour maps the high half through the process codepage, HbRuntime through Latin-1: three bytes against two
+# String ordering in UTF8EX. Harbour orders by its code page's sort table
+# (utf8sort.c: space, punctuation, digits, then aAbB...), and a byte that is
+# not text sorts as U+FFFD, below every letter. C# compares ordinally, by the
+# ruling above (rt_hvm:268). Whether HbRuntime takes the sort table is an open
+# question in easipos-transpiled's plan.
+rt_hvm:270	divergent	UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally
+rt_hvm:303	divergent	UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally
+rt_hvm:304	divergent	UTF8EX orders by its sort table, in which two bytes that are not text are equal; C# compares ordinally
+rt_hvm:336	divergent	UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally
+rt_hvm:337	divergent	UTF8EX orders by its sort table, in which two bytes that are not text are equal; C# compares ordinally
+rt_hvm:369	divergent	UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally
+
+# The reference Harbour reads the digits of "COM1" now and answers port 1;
+# HbRuntime's port table still has a name match only a port that was given it.
+# To be brought into line (easipos-transpiled's plan).
+own_serial:34	divergent	Harbour answers 1 for "COM1"; HbRuntime 0, a name matching only a port given that name

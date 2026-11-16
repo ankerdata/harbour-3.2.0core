@@ -5183,6 +5183,216 @@ static void hb_csEmitBlockStmt( PHB_EXPR pExpr, FILE * yyc )
 
 /* ---- Expression emitter ---- */
 
+/* A Harbour string is bytes and the program's code page is
+   UTF8EX, so a literal's bytes are text where they are UTF-8,
+   and are written as that text: "Signaturzähler", "€/kg".
+   A byte that is not UTF-8 (a printer's control byte, a
+   source still in Windows-1252) is the char HbRuntime
+   carries a byte in, U+F780 to U+F7FF (HbBytes), so the
+   string's bytes are the literal's whatever they are. A
+   sequence that would decode to one of those chars is kept
+   as bytes too. */
+static void hb_csEmitStringLiteral( const char * s, HB_SIZE nLen, FILE * yyc )
+{
+   HB_SIZE n;
+
+   fputc( '"', yyc );
+   for( n = 0; n < nLen; n++ )
+   {
+      unsigned char c = ( unsigned char ) s[ n ];
+      switch( c )
+      {
+         case '"':  fprintf( yyc, "\\\"" ); break;
+         case '\\': fprintf( yyc, "\\\\" ); break;
+         case '\n': fprintf( yyc, "\\n" ); break;
+         case '\r': fprintf( yyc, "\\r" ); break;
+         case '\t': fprintf( yyc, "\\t" ); break;
+         default:
+            if( c >= 0x20 && c <= 0x7E )
+               fputc( c, yyc );
+            else if( c < 0x80 )
+               fprintf( yyc, "\\u%04X", ( unsigned int ) c );
+            else
+            {
+               /* the UTF-8 sequence that starts here, if one does */
+               int iMore = c >= 0xC2 && c <= 0xDF ? 1 :
+                           c >= 0xE0 && c <= 0xEF ? 2 :
+                           c >= 0xF0 && c <= 0xF4 ? 3 : 0;
+               unsigned long ulCode = iMore == 1 ? ( c & 0x1F ) :
+                                      iMore == 2 ? ( c & 0x0F ) : ( c & 0x07 );
+               HB_BOOL fText = iMore > 0 && n + iMore < nLen;
+               int j;
+               for( j = 1; fText && j <= iMore; j++ )
+               {
+                  unsigned char cNext = ( unsigned char ) s[ n + j ];
+                  if( ( cNext & 0xC0 ) != 0x80 )
+                     fText = HB_FALSE;
+                  else
+                     ulCode = ( ulCode << 6 ) | ( cNext & 0x3F );
+               }
+               if( fText &&
+                   ( ( iMore == 2 && ulCode < 0x800 ) ||
+                     ( iMore == 3 && ulCode < 0x10000 ) ||
+                     ulCode > 0x10FFFF ||
+                     ( ulCode >= 0xD800 && ulCode <= 0xDFFF ) ||
+                     ( ulCode >= 0xF780 && ulCode <= 0xF7FF ) ) )
+                  fText = HB_FALSE;
+               if( ! fText )
+                  fprintf( yyc, "\\uF7%02X", ( unsigned int ) c );
+               else if( ulCode < 0xA0 )
+               {
+                  /* a C1 control: not to be read as a character */
+                  fprintf( yyc, "\\u%04lX", ulCode );
+                  n += iMore;
+               }
+               else
+               {
+                  for( j = 0; j <= iMore; j++ )
+                     fputc( ( unsigned char ) s[ n + j ], yyc );
+                  n += iMore;
+               }
+            }
+            break;
+      }
+   }
+   fputc( '"', yyc );
+}
+
+/* The bytes of an expression that is constant bytes: a string literal,
+   Chr() or hb_BChar() of a numeric literal, or those joined with `+`.
+   pnLeaf counts the pieces, aEnd[ i ] is where piece i ends. */
+#define HB_CS_MAXCONSTBYTES   1024
+#define HB_CS_MAXCONSTLEAVES  64
+
+static HB_BOOL hb_csConstBytes( PHB_EXPR pExpr, char * szBuf, HB_SIZE * pnLen,
+                                HB_SIZE * aEnd, int * pnLeaf )
+{
+   if( ! pExpr )
+      return HB_FALSE;
+   /* ( x ) */
+   while( pExpr->ExprType == HB_ET_LIST && pExpr->value.asList.pExprList &&
+          ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( pExpr->ExprType == HB_EO_PLUS )
+      return hb_csConstBytes( pExpr->value.asOperator.pLeft, szBuf, pnLen, aEnd, pnLeaf ) &&
+             hb_csConstBytes( pExpr->value.asOperator.pRight, szBuf, pnLen, aEnd, pnLeaf );
+   if( *pnLeaf >= HB_CS_MAXCONSTLEAVES )
+      return HB_FALSE;
+   if( pExpr->ExprType == HB_ET_STRING )
+   {
+      if( *pnLen + pExpr->nLength > HB_CS_MAXCONSTBYTES )
+         return HB_FALSE;
+      memcpy( szBuf + *pnLen, pExpr->value.asString.string, pExpr->nLength );
+      *pnLen += pExpr->nLength;
+   }
+   else if( pExpr->ExprType == HB_ET_FUNCALL &&
+            pExpr->value.asFunCall.pFunName &&
+            pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+            ( hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "CHR" ) == 0 ||
+              hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "HB_BCHAR" ) == 0 ) )
+   {
+      PHB_EXPR pArg = hb_csFunCallArgHead( pExpr );
+      while( pArg && ! pArg->pNext && pArg->ExprType == HB_ET_LIST &&
+             pArg->value.asList.pExprList && ! pArg->value.asList.pExprList->pNext )
+         pArg = pArg->value.asList.pExprList;
+      if( ! pArg || pArg->pNext || pArg->ExprType != HB_ET_NUMERIC ||
+          *pnLen + 1 > HB_CS_MAXCONSTBYTES )
+         return HB_FALSE;
+      szBuf[ ( *pnLen )++ ] = ( char ) ( ( pArg->value.asNum.NumType == HB_ET_LONG
+         ? ( int ) pArg->value.asNum.val.l : ( int ) pArg->value.asNum.val.d ) & 0xFF );
+   }
+   else
+      return HB_FALSE;
+   aEnd[ ( *pnLeaf )++ ] = *pnLen;
+   return HB_TRUE;
+}
+
+/* Harbour's compiler folds Chr() and hb_BChar() of a constant into a
+   byte, and joins constant strings: `Chr( 250 )` is one byte where
+   Chr() of a variable is the character, and
+   `hb_BChar( 0xEF ) + hb_BChar( 0xBB ) + hb_BChar( 0xBF )` is the three
+   bytes of a byte order mark, whose Len() is 3. The C# keeps the calls
+   it can, for the
+   reader: a constant Chr() above 127 is written hb_BChar(), and a run of
+   constant bytes is written as one literal only where bytes of different
+   pieces spell a character together, which the pieces joined at run time
+   would not be. */
+static HB_BOOL hb_csEmitConstBytes( PHB_EXPR pExpr, FILE * yyc )
+{
+   char szBuf[ HB_CS_MAXCONSTBYTES ];
+   HB_SIZE aEnd[ HB_CS_MAXCONSTLEAVES ];
+   HB_SIZE nLen = 0, n;
+   int nLeaf = 0, iLeaf = 0;
+
+   if( pExpr->ExprType != HB_EO_PLUS && pExpr->ExprType != HB_ET_FUNCALL )
+      return HB_FALSE;
+
+   /* Len() of constant bytes is folded too, to the number of bytes, where
+      Len() at run time counts characters: only told apart, and only
+      written as the number, when a byte is above 127 */
+   if( pExpr->ExprType == HB_ET_FUNCALL &&
+       pExpr->value.asFunCall.pFunName &&
+       pExpr->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME &&
+       hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "LEN" ) == 0 )
+   {
+      PHB_EXPR pArg = hb_csFunCallArgHead( pExpr );
+      if( pArg && ! pArg->pNext &&
+          hb_csConstBytes( pArg, szBuf, &nLen, aEnd, &nLeaf ) )
+      {
+         for( n = 0; n < nLen; n++ )
+         {
+            if( ( unsigned char ) szBuf[ n ] >= 0x80 )
+            {
+               fprintf( yyc, "%lu", ( unsigned long ) nLen );
+               return HB_TRUE;
+            }
+         }
+      }
+      return HB_FALSE;
+   }
+
+   if( ! hb_csConstBytes( pExpr, szBuf, &nLen, aEnd, &nLeaf ) )
+      return HB_FALSE;
+
+   if( pExpr->ExprType == HB_ET_FUNCALL )
+   {
+      /* Chr() of a constant that is not ASCII: the byte of its low eight
+         bits, where Chr() at run time would give the character */
+      PHB_EXPR pArg = hb_csFunCallArgHead( pExpr );
+      double dValue;
+      while( pArg->ExprType == HB_ET_LIST )
+         pArg = pArg->value.asList.pExprList;
+      dValue = pArg->value.asNum.NumType == HB_ET_LONG
+         ? ( double ) pArg->value.asNum.val.l : pArg->value.asNum.val.d;
+      if( ( dValue >= 0 && dValue < 128 ) ||
+          hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "CHR" ) != 0 )
+         return HB_FALSE;
+      fprintf( yyc, "hb_BChar(%u)", ( unsigned int ) ( unsigned char ) szBuf[ 0 ] );
+      return HB_TRUE;
+   }
+
+   for( n = 0; n < nLen; n++ )
+   {
+      unsigned char c = ( unsigned char ) szBuf[ n ];
+      int iMore = c >= 0xC2 && c <= 0xDF ? 1 : c >= 0xE0 && c <= 0xEF ? 2 :
+                  c >= 0xF0 && c <= 0xF4 ? 3 : 0;
+      int j;
+      while( iLeaf < nLeaf && aEnd[ iLeaf ] <= n )
+         iLeaf++;
+      if( iMore == 0 || n + iMore >= nLen || n + iMore < aEnd[ iLeaf ] )
+         continue;
+      for( j = 1; j <= iMore; j++ )
+         if( ( ( unsigned char ) szBuf[ n + j ] & 0xC0 ) != 0x80 )
+            break;
+      if( j > iMore )
+      {
+         hb_csEmitStringLiteral( szBuf, nLen, yyc );
+         return HB_TRUE;
+      }
+   }
+   return HB_FALSE;
+}
+
 static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
 {
    /* A SEND parks the ref-shim map armed for it here while its receiver
@@ -5215,6 +5425,9 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
       return;
    }
 
+   if( hb_csEmitConstBytes( pExpr, yyc ) )
+      return;
+
    switch( pExpr->ExprType )
    {
       case HB_ET_NONE:
@@ -5233,41 +5446,7 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
          break;
 
       case HB_ET_STRING:
-         {
-            const char * s = pExpr->value.asString.string;
-            HB_SIZE nLen = pExpr->nLength;
-            HB_SIZE n;
-
-            /* A Harbour string is bytes, and EasiPOS's sources are not all
-               one encoding: prtinit.prg's printer tables and fmde.prg's
-               "Signaturz\xE4hler" are Windows-1252, testsetup.prg's "\u20AC" is
-               UTF-8's three bytes. Copied raw, the bytes were read back by
-               the C# compiler as UTF-8: a single high byte became U+FFFD,
-               three became one char, and lengths, truncation and padding
-               moved. Each byte is its own char instead, \u00XX, as file,
-               socket and serial I/O carry one char per byte (Latin-1), so
-               what Harbour writes the C# writes too. */
-            fputc( '"', yyc );
-            for( n = 0; n < nLen; n++ )
-            {
-               unsigned char c = ( unsigned char ) s[ n ];
-               switch( c )
-               {
-                  case '"':  fprintf( yyc, "\\\"" ); break;
-                  case '\\': fprintf( yyc, "\\\\" ); break;
-                  case '\n': fprintf( yyc, "\\n" ); break;
-                  case '\r': fprintf( yyc, "\\r" ); break;
-                  case '\t': fprintf( yyc, "\\t" ); break;
-                  default:
-                     if( c < 0x20 || c > 0x7E )
-                        fprintf( yyc, "\\u%04X", ( unsigned int ) c );
-                     else
-                        fputc( c, yyc );
-                     break;
-               }
-            }
-            fputc( '"', yyc );
-         }
+         hb_csEmitStringLiteral( pExpr->value.asString.string, pExpr->nLength, yyc );
          break;
 
       case HB_ET_LOGICAL:

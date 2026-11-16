@@ -2,98 +2,183 @@
 // by Harbour harbour-3.2.0dev. Do not edit: change extract.py or rulings.tsv.
 
 
+EXTERNAL HB_CODEPAGE_DE850
+
 PROCEDURE Main_CODECS()
 
+
+
+   LOCAL nE := 233
+   LOCAL cE := hb_utf8Chr( nE )
+   LOCAL cEuro := hb_utf8Chr( 0x20AC )
+   LOCAL cByte := hb_BChar( nE - 1 + 18 )
+   LOCAL cMix := "a" + cE + cByte + "z"
    LOCAL hOrder := { "Type" => "SALE", "Qty" => 2, "Price" => 19.95, "Paid" => .F. }
    LOCAL cBytes := Chr( 0 ) + Chr( 9 ) + Chr( 10 ) + Chr( 13 ) + Chr( 34 ) + Chr( 92 ) + Chr( 200 )
 
 
-   TEST_CALL( "own_codecs:21", 'hb_jsonEncode( "plain" )', {|| hb_jsonEncode( "plain" ) }, '"plain"', .F., NIL )
-   TEST_CALL( "own_codecs:22", 'hb_jsonEncode( "" )', {|| hb_jsonEncode( "" ) }, '""', .F., NIL )
-   TEST_CALL( "own_codecs:23", "hb_jsonEncode( 42 )", {|| hb_jsonEncode( 42 ) }, "42", .F., NIL )
-   TEST_CALL( "own_codecs:24", "hb_jsonEncode( -7 )", {|| hb_jsonEncode( -7 ) }, "-7", .F., NIL )
-   TEST_CALL( "own_codecs:25", "hb_jsonEncode( 19.95 )", {|| hb_jsonEncode( 19.95 ) }, "19.95", .F., NIL )
-   TEST_CALL( "own_codecs:26", "hb_jsonEncode( 2.50 )", {|| hb_jsonEncode( 2.50 ) }, "2.50", .F., NIL )
-   TEST_CALL( "own_codecs:27", "hb_jsonEncode( .T. )", {|| hb_jsonEncode( .T. ) }, "true", .F., NIL )
-   TEST_CALL( "own_codecs:28", "hb_jsonEncode( .F. )", {|| hb_jsonEncode( .F. ) }, "false", .F., NIL )
-   TEST_CALL( "own_codecs:29", "hb_jsonEncode( NIL )", {|| hb_jsonEncode( NIL ) }, "null", .F., NIL )
-   TEST_CALL( "own_codecs:30", 'hb_jsonEncode( hb_SToD( "20260922" ) )', {|| hb_jsonEncode( hb_SToD( "20260922" ) ) }, '"20260922"', .F., NIL )
+   TEST_CALL( "own_codecs:30", 'hb_jsonEncode( "plain" )', {|| hb_jsonEncode( "plain" ) }, '"plain"', .F., NIL )
+   TEST_CALL( "own_codecs:31", 'hb_jsonEncode( "" )', {|| hb_jsonEncode( "" ) }, '""', .F., NIL )
+   TEST_CALL( "own_codecs:32", "hb_jsonEncode( 42 )", {|| hb_jsonEncode( 42 ) }, "42", .F., NIL )
+   TEST_CALL( "own_codecs:33", "hb_jsonEncode( -7 )", {|| hb_jsonEncode( -7 ) }, "-7", .F., NIL )
+   TEST_CALL( "own_codecs:34", "hb_jsonEncode( 19.95 )", {|| hb_jsonEncode( 19.95 ) }, "19.95", .F., NIL )
+   TEST_CALL( "own_codecs:35", "hb_jsonEncode( 2.50 )", {|| hb_jsonEncode( 2.50 ) }, "2.50", .F., NIL )
+   TEST_CALL( "own_codecs:36", "hb_jsonEncode( .T. )", {|| hb_jsonEncode( .T. ) }, "true", .F., NIL )
+   TEST_CALL( "own_codecs:37", "hb_jsonEncode( .F. )", {|| hb_jsonEncode( .F. ) }, "false", .F., NIL )
+   TEST_CALL( "own_codecs:38", "hb_jsonEncode( NIL )", {|| hb_jsonEncode( NIL ) }, "null", .F., NIL )
+   TEST_CALL( "own_codecs:39", 'hb_jsonEncode( hb_SToD( "20260922" ) )', {|| hb_jsonEncode( hb_SToD( "20260922" ) ) }, '"20260922"', .F., NIL )
 
 
 
-   TEST_CALL( "own_codecs:34", "hb_jsonEncode( cBytes )", {|| hb_jsonEncode( cBytes ) }, '"\u0000\t\n\r\"\\' + Chr( 200 ) + '"', .F., NIL )
+   TEST_CALL( "own_codecs:43", "hb_jsonEncode( cBytes )", {|| hb_jsonEncode( cBytes ) }, '"\u0000\t\n\r\"\\' + Chr( 200 ) + '"', .F., NIL )
 
 
-   TEST_CALL( "own_codecs:37", "hb_jsonEncode( {} )", {|| hb_jsonEncode( {} ) }, "[]", .F., NIL )
-   TEST_CALL( "own_codecs:38", 'hb_jsonEncode( { 1, "two", .T., NIL } )', {|| hb_jsonEncode( { 1, "two", .T., NIL } ) }, '[1,"two",true,null]', .F., NIL )
-   TEST_CALL( "own_codecs:39", "hb_jsonEncode( { => } )", {|| hb_jsonEncode( { => } ) }, "{}", .F., NIL )
-   TEST_CALL( "own_codecs:40", "hb_jsonEncode( hOrder )", {|| hb_jsonEncode( hOrder ) }, '{"Type":"SALE","Qty":2,"Price":19.95,"Paid":false}', .F., NIL )
-   TEST_CALL( "own_codecs:41", 'hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } )', {|| hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } ) }, '{"a":[1,2],"b":{"c":null}}', .F., NIL )
-
-
-
-   TEST_CALL( "own_codecs:45", "hb_jsonEncode( { 1, 2 }, .T. )", {|| hb_jsonEncode( { 1, 2 }, .T. ) }, "[" + hb_eol() + "  1," + hb_eol() + "  2" + hb_eol() + "]" + hb_eol(), .F., NIL )
-
-
-   TEST_CALL( "own_codecs:48", [hb_jsonDecode( '"plain"' )], {|| hb_jsonDecode( '"plain"' ) }, "plain", .F., NIL )
-   TEST_CALL( "own_codecs:49", 'hb_jsonDecode( "42" )', {|| hb_jsonDecode( "42" ) }, 42, .F., NIL )
-   TEST_CALL( "own_codecs:50", 'hb_jsonDecode( "19.95" )', {|| hb_jsonDecode( "19.95" ) }, 19.95, .F., NIL )
-   TEST_CALL( "own_codecs:51", 'hb_jsonDecode( "true" )', {|| hb_jsonDecode( "true" ) }, .T., .F., NIL )
-   TEST_CALL( "own_codecs:52", 'hb_jsonDecode( "null" )', {|| hb_jsonDecode( "null" ) }, NIL, .F., NIL )
-   TEST_CALL( "own_codecs:53", 'ValType( hb_jsonDecode( "[1,2,3]" ) )', {|| ValType( hb_jsonDecode( "[1,2,3]" ) ) }, "A", .F., NIL )
-   TEST_CALL( "own_codecs:54", 'Len( hb_jsonDecode( "[1,2,3]" ) )', {|| Len( hb_jsonDecode( "[1,2,3]" ) ) }, 3, .F., NIL )
-   TEST_CALL( "own_codecs:55", 'hb_jsonDecode( "[1,2,3]" )[ 2 ]', {|| hb_jsonDecode( "[1,2,3]" )[ 2 ] }, 2, .F., NIL )
-   TEST_CALL( "own_codecs:56", [ValType( hb_jsonDecode( '{"a":1}' ) )], {|| ValType( hb_jsonDecode( '{"a":1}' ) ) }, "H", .F., NIL )
-   TEST_CALL( "own_codecs:57", e"hb_jsonDecode( '{\"a\":1}' )[ \"a\" ]", {|| hb_jsonDecode( '{"a":1}' )[ "a" ] }, 1, .F., NIL )
-   TEST_CALL( "own_codecs:58", [hb_jsonDecode( '"A\n"' )], {|| hb_jsonDecode( '"A\n"' ) }, "A" + Chr( 10 ), .F., NIL )
-   TEST_CALL( "own_codecs:59", 'hb_jsonDecode( "not json" )', {|| hb_jsonDecode( "not json" ) }, NIL, .F., NIL )
-   TEST_CALL( "own_codecs:60", 'hb_jsonDecode( "" )', {|| hb_jsonDecode( "" ) }, NIL, .F., NIL )
-
-
-   TEST_CALL( "own_codecs:63", "RoundTrip( hOrder )", {|| RoundTrip( hOrder ) }, "SALE 2 19.95 .F.", .F., NIL )
-   TEST_CALL( "own_codecs:64", "DecodeLen( hb_jsonEncode( hOrder ) )", {|| DecodeLen( hb_jsonEncode( hOrder ) ) }, 4, .F., NIL )
-
-
-   TEST_CALL( "own_codecs:67", 'hb_base64Encode( "" )', {|| hb_base64Encode( "" ) }, "", .F., NIL )
-   TEST_CALL( "own_codecs:68", 'hb_base64Encode( "f" )', {|| hb_base64Encode( "f" ) }, "Zg==", .F., NIL )
-   TEST_CALL( "own_codecs:69", 'hb_base64Encode( "fo" )', {|| hb_base64Encode( "fo" ) }, "Zm8=", .F., NIL )
-   TEST_CALL( "own_codecs:70", 'hb_base64Encode( "foo" )', {|| hb_base64Encode( "foo" ) }, "Zm9v", .F., NIL )
-   TEST_CALL( "own_codecs:71", 'hb_base64Encode( "EasiPOS" )', {|| hb_base64Encode( "EasiPOS" ) }, "RWFzaVBPUw==", .F., NIL )
-   TEST_CALL( "own_codecs:72", "hb_base64Encode( Chr( 0 ) + Chr( 255 ) )", {|| hb_base64Encode( Chr( 0 ) + Chr( 255 ) ) }, "AP8=", .F., NIL )
-
-
-   TEST_CALL( "own_codecs:75", 'hb_MD5( "" )', {|| hb_MD5( "" ) }, "d41d8cd98f00b204e9800998ecf8427e", .F., NIL )
-   TEST_CALL( "own_codecs:76", 'hb_MD5( "abc" )', {|| hb_MD5( "abc" ) }, "900150983cd24fb0d6963f7d28e17f72", .F., NIL )
-
-
-   TEST_CALL( "own_codecs:79", 'ZRoundTrip( "the quick brown fox" )', {|| ZRoundTrip( "the quick brown fox" ) }, .T., .F., NIL )
-   TEST_CALL( "own_codecs:80", 'ZRoundTrip( Replicate( "AB", 5000 ) )', {|| ZRoundTrip( Replicate( "AB", 5000 ) ) }, .T., .F., NIL )
-   TEST_CALL( "own_codecs:81", "ZRoundTrip( cBytes )", {|| ZRoundTrip( cBytes ) }, .T., .F., NIL )
-   TEST_CALL( "own_codecs:82", 'ZSmaller( Replicate( "AB", 5000 ) )', {|| ZSmaller( Replicate( "AB", 5000 ) ) }, .T., .F., NIL )
-   TEST_CALL( "own_codecs:83", 'hb_ZUncompress( hb_ZCompress( "" ) )', {|| hb_ZUncompress( hb_ZCompress( "" ) ) }, "", .F., NIL )
-   TEST_CALL( "own_codecs:84", "ValType( hb_ZLibVersion() )", {|| ValType( hb_ZLibVersion() ) }, "C", .F., NIL )
-
-
-   TEST_CALL( "own_codecs:87", 'hb_StrToUTF8( "plain" )', {|| hb_StrToUTF8( "plain" ) }, "plain", .F., NIL )
+   TEST_CALL( "own_codecs:46", "hb_jsonEncode( {} )", {|| hb_jsonEncode( {} ) }, "[]", .F., NIL )
+   TEST_CALL( "own_codecs:47", 'hb_jsonEncode( { 1, "two", .T., NIL } )', {|| hb_jsonEncode( { 1, "two", .T., NIL } ) }, '[1,"two",true,null]', .F., NIL )
+   TEST_CALL( "own_codecs:48", "hb_jsonEncode( { => } )", {|| hb_jsonEncode( { => } ) }, "{}", .F., NIL )
+   TEST_CALL( "own_codecs:49", "hb_jsonEncode( hOrder )", {|| hb_jsonEncode( hOrder ) }, '{"Type":"SALE","Qty":2,"Price":19.95,"Paid":false}', .F., NIL )
+   TEST_CALL( "own_codecs:50", 'hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } )', {|| hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } ) }, '{"a":[1,2],"b":{"c":null}}', .F., NIL )
 
 
 
-   TEST_CALL( "own_codecs:91", "hb_BLen( hb_StrToUTF8( Chr( 200 ) ) )", {|| hb_BLen( hb_StrToUTF8( Chr( 200 ) ) ) }, 2, .F., NIL )
-   TEST_CALL( "own_codecs:92", "hb_UTF8ToStr( hb_StrToUTF8( Chr( 200 ) ) )", {|| hb_UTF8ToStr( hb_StrToUTF8( Chr( 200 ) ) ) }, Chr( 200 ), .F., NIL )
-   TEST_CALL( "own_codecs:93", 'hb_UTF8ToStr( "plain" )', {|| hb_UTF8ToStr( "plain" ) }, "plain", .F., NIL )
+   TEST_CALL( "own_codecs:54", "hb_jsonEncode( { 1, 2 }, .T. )", {|| hb_jsonEncode( { 1, 2 }, .T. ) }, "[" + hb_eol() + "  1," + hb_eol() + "  2" + hb_eol() + "]" + hb_eol(), .F., NIL )
 
 
-   TEST_CALL( "own_codecs:96", 'Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) ) }, 2, .F., NIL )
-   TEST_CALL( "own_codecs:97", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ] }, "12.5%", .F., NIL )
-   TEST_CALL( "own_codecs:98", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ] }, "12.5", .F., NIL )
-   TEST_CALL( "own_codecs:99", 'Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "nothing here" ) ) }, 0, .F., NIL )
-   TEST_CALL( "own_codecs:100", 'Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )', {|| Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) ) }, 1, .F., NIL )
-   TEST_CALL( "own_codecs:101", 'hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]', {|| hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ] }, "DEF", .F., NIL )
+   TEST_CALL( "own_codecs:57", [hb_jsonDecode( '"plain"' )], {|| hb_jsonDecode( '"plain"' ) }, "plain", .F., NIL )
+   TEST_CALL( "own_codecs:58", 'hb_jsonDecode( "42" )', {|| hb_jsonDecode( "42" ) }, 42, .F., NIL )
+   TEST_CALL( "own_codecs:59", 'hb_jsonDecode( "19.95" )', {|| hb_jsonDecode( "19.95" ) }, 19.95, .F., NIL )
+   TEST_CALL( "own_codecs:60", 'hb_jsonDecode( "true" )', {|| hb_jsonDecode( "true" ) }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:61", 'hb_jsonDecode( "null" )', {|| hb_jsonDecode( "null" ) }, NIL, .F., NIL )
+   TEST_CALL( "own_codecs:62", 'ValType( hb_jsonDecode( "[1,2,3]" ) )', {|| ValType( hb_jsonDecode( "[1,2,3]" ) ) }, "A", .F., NIL )
+   TEST_CALL( "own_codecs:63", 'Len( hb_jsonDecode( "[1,2,3]" ) )', {|| Len( hb_jsonDecode( "[1,2,3]" ) ) }, 3, .F., NIL )
+   TEST_CALL( "own_codecs:64", 'hb_jsonDecode( "[1,2,3]" )[ 2 ]', {|| hb_jsonDecode( "[1,2,3]" )[ 2 ] }, 2, .F., NIL )
+   TEST_CALL( "own_codecs:65", [ValType( hb_jsonDecode( '{"a":1}' ) )], {|| ValType( hb_jsonDecode( '{"a":1}' ) ) }, "H", .F., NIL )
+   TEST_CALL( "own_codecs:66", e"hb_jsonDecode( '{\"a\":1}' )[ \"a\" ]", {|| hb_jsonDecode( '{"a":1}' )[ "a" ] }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:67", [hb_jsonDecode( '"A\n"' )], {|| hb_jsonDecode( '"A\n"' ) }, "A" + Chr( 10 ), .F., NIL )
+   TEST_CALL( "own_codecs:68", 'hb_jsonDecode( "not json" )', {|| hb_jsonDecode( "not json" ) }, NIL, .F., NIL )
+   TEST_CALL( "own_codecs:69", 'hb_jsonDecode( "" )', {|| hb_jsonDecode( "" ) }, NIL, .F., NIL )
+
+
+   TEST_CALL( "own_codecs:72", "RoundTrip( hOrder )", {|| RoundTrip( hOrder ) }, "SALE 2 19.95 .F.", .F., NIL )
+   TEST_CALL( "own_codecs:73", "DecodeLen( hb_jsonEncode( hOrder ) )", {|| DecodeLen( hb_jsonEncode( hOrder ) ) }, 4, .F., NIL )
+
+
+   TEST_CALL( "own_codecs:76", 'hb_base64Encode( "" )', {|| hb_base64Encode( "" ) }, "", .F., NIL )
+   TEST_CALL( "own_codecs:77", 'hb_base64Encode( "f" )', {|| hb_base64Encode( "f" ) }, "Zg==", .F., NIL )
+   TEST_CALL( "own_codecs:78", 'hb_base64Encode( "fo" )', {|| hb_base64Encode( "fo" ) }, "Zm8=", .F., NIL )
+   TEST_CALL( "own_codecs:79", 'hb_base64Encode( "foo" )', {|| hb_base64Encode( "foo" ) }, "Zm9v", .F., NIL )
+   TEST_CALL( "own_codecs:80", 'hb_base64Encode( "EasiPOS" )', {|| hb_base64Encode( "EasiPOS" ) }, "RWFzaVBPUw==", .F., NIL )
+   TEST_CALL( "own_codecs:81", "hb_base64Encode( Chr( 0 ) + Chr( 255 ) )", {|| hb_base64Encode( Chr( 0 ) + Chr( 255 ) ) }, "AP8=", .F., NIL )
+
+
+   TEST_CALL( "own_codecs:84", 'hb_MD5( "" )', {|| hb_MD5( "" ) }, "d41d8cd98f00b204e9800998ecf8427e", .F., NIL )
+   TEST_CALL( "own_codecs:85", 'hb_MD5( "abc" )', {|| hb_MD5( "abc" ) }, "900150983cd24fb0d6963f7d28e17f72", .F., NIL )
+
+
+   TEST_CALL( "own_codecs:88", 'ZRoundTrip( "the quick brown fox" )', {|| ZRoundTrip( "the quick brown fox" ) }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:89", 'ZRoundTrip( Replicate( "AB", 5000 ) )', {|| ZRoundTrip( Replicate( "AB", 5000 ) ) }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:90", "ZRoundTrip( cBytes )", {|| ZRoundTrip( cBytes ) }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:91", 'ZSmaller( Replicate( "AB", 5000 ) )', {|| ZSmaller( Replicate( "AB", 5000 ) ) }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:92", 'hb_ZUncompress( hb_ZCompress( "" ) )', {|| hb_ZUncompress( hb_ZCompress( "" ) ) }, "", .F., NIL )
+   TEST_CALL( "own_codecs:93", "ValType( hb_ZLibVersion() )", {|| ValType( hb_ZLibVersion() ) }, "C", .F., NIL )
 
 
 
-   TEST_CALL( "own_codecs:105", 'GrowDecoded( "[]" )', {|| GrowDecoded( "[]" ) }, 1, .F., NIL )
-   TEST_CALL( "own_codecs:106", 'GrowDecoded( "[7]" )', {|| GrowDecoded( "[7]" ) }, 2, .F., NIL )
+
+   TEST_CALL( "own_codecs:98", "hb_cdpSelect()", {|| hb_cdpSelect() }, "UTF8EX", .F., NIL )
+   TEST_CALL( "own_codecs:99", "hb_cdpIsUTF8()", {|| hb_cdpIsUTF8() }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:100", 'hb_cdpIsUTF8( "DE850" )', {|| hb_cdpIsUTF8( "DE850" ) }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:101", "Len( cE )", {|| Len( cE ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:102", "hb_BLen( cE )", {|| hb_BLen( cE ) }, 2, .F., NIL )
+   TEST_CALL( "own_codecs:103", "Len( cEuro )", {|| Len( cEuro ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:104", "hb_BLen( cEuro )", {|| hb_BLen( cEuro ) }, 3, .F., NIL )
+   TEST_CALL( "own_codecs:105", "Len( cByte )", {|| Len( cByte ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:106", "hb_BLen( cByte )", {|| hb_BLen( cByte ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:107", "Len( cMix )", {|| Len( cMix ) }, 4, .F., NIL )
+   TEST_CALL( "own_codecs:108", "hb_BLen( cMix )", {|| hb_BLen( cMix ) }, 5, .F., NIL )
+   TEST_CALL( "own_codecs:109", "hb_StrToHex( cMix )", {|| hb_StrToHex( cMix ) }, "61C3A9FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:110", "hb_StrToHex( SubStr( cMix, 2, 1 ) )", {|| hb_StrToHex( SubStr( cMix, 2, 1 ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:111", "hb_StrToHex( SubStr( cMix, 3, 1 ) )", {|| hb_StrToHex( SubStr( cMix, 3, 1 ) ) }, "FA", .F., NIL )
+   TEST_CALL( "own_codecs:112", "hb_StrToHex( Left( cMix, 2 ) )", {|| hb_StrToHex( Left( cMix, 2 ) ) }, "61C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:113", "hb_StrToHex( Right( cMix, 2 ) )", {|| hb_StrToHex( Right( cMix, 2 ) ) }, "FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:114", "hb_StrToHex( hb_BSubStr( cMix, 2, 1 ) )", {|| hb_StrToHex( hb_BSubStr( cMix, 2, 1 ) ) }, "C3", .F., NIL )
+   TEST_CALL( "own_codecs:115", "hb_StrToHex( hb_BSubStr( cMix, 3 ) )", {|| hb_StrToHex( hb_BSubStr( cMix, 3 ) ) }, "A9FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:116", "hb_StrToHex( hb_BSubStr( cMix, -2 ) )", {|| hb_StrToHex( hb_BSubStr( cMix, -2 ) ) }, "FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:117", "hb_StrToHex( hb_BLeft( cMix, 2 ) )", {|| hb_StrToHex( hb_BLeft( cMix, 2 ) ) }, "61C3", .F., NIL )
+   TEST_CALL( "own_codecs:118", "hb_StrToHex( hb_BLeft( cMix, 99 ) )", {|| hb_StrToHex( hb_BLeft( cMix, 99 ) ) }, "61C3A9FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:119", "hb_StrToHex( hb_BRight( cMix, 2 ) )", {|| hb_StrToHex( hb_BRight( cMix, 2 ) ) }, "FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:120", "hb_BRight( cMix, 0 )", {|| hb_BRight( cMix, 0 ) }, "", .F., NIL )
+   TEST_CALL( "own_codecs:121", 'hb_BLeft( cMix, 3 ) == "a" + cE', {|| hb_BLeft( cMix, 3 ) == "a" + cE }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:122", "At( cByte, cMix )", {|| At( cByte, cMix ) }, 3, .F., NIL )
+   TEST_CALL( "own_codecs:123", "hb_BAt( cByte, cMix )", {|| hb_BAt( cByte, cMix ) }, 4, .F., NIL )
+   TEST_CALL( "own_codecs:124", 'At( "z", cMix )', {|| At( "z", cMix ) }, 4, .F., NIL )
+   TEST_CALL( "own_codecs:125", 'hb_BAt( "z", cMix )', {|| hb_BAt( "z", cMix ) }, 5, .F., NIL )
+   TEST_CALL( "own_codecs:126", 'hb_BAt( "a", "banana", 3 )', {|| hb_BAt( "a", "banana", 3 ) }, 4, .F., NIL )
+   TEST_CALL( "own_codecs:127", 'hb_BAt( "a", "banana", 3, 3 )', {|| hb_BAt( "a", "banana", 3, 3 ) }, 0, .F., NIL )
+   TEST_CALL( "own_codecs:128", 'hb_BAt( "a", "banana", 3, 4 )', {|| hb_BAt( "a", "banana", 3, 4 ) }, 4, .F., NIL )
+   TEST_CALL( "own_codecs:129", 'hb_BAt( "", cMix )', {|| hb_BAt( "", cMix ) }, 0, .F., NIL )
+   TEST_CALL( "own_codecs:130", "hb_BCode( cE )", {|| hb_BCode( cE ) }, 195, .F., NIL )
+   TEST_CALL( "own_codecs:131", 'hb_BCode( "" )', {|| hb_BCode( "" ) }, 0, .F., NIL )
+   TEST_CALL( "own_codecs:132", "Asc( cE )", {|| Asc( cE ) }, 233, .F., NIL )
+   TEST_CALL( "own_codecs:133", "Asc( cEuro )", {|| Asc( cEuro ) }, 8364, .F., NIL )
+   TEST_CALL( "own_codecs:134", "Asc( cByte )", {|| Asc( cByte ) }, 65533, .F., NIL )
+   TEST_CALL( "own_codecs:135", "hb_StrToHex( Chr( nE ) )", {|| hb_StrToHex( Chr( nE ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:136", "hb_StrToHex( Chr( nE + 23 ) )", {|| hb_StrToHex( Chr( nE + 23 ) ) }, "C480", .F., NIL )
+   TEST_CALL( "own_codecs:137", "hb_StrToHex( hb_BChar( nE ) )", {|| hb_StrToHex( hb_BChar( nE ) ) }, "E9", .F., NIL )
+   TEST_CALL( "own_codecs:138", "hb_StrToHex( hb_BChar( nE + 23 ) )", {|| hb_StrToHex( hb_BChar( nE + 23 ) ) }, "00", .F., NIL )
+   TEST_CALL( "own_codecs:139", "hb_StrToHex( hb_utf8Chr( 65 ) )", {|| hb_StrToHex( hb_utf8Chr( 65 ) ) }, "41", .F., NIL )
+   TEST_CALL( "own_codecs:140", "hb_StrToHex( PadR( cE, 3 ) )", {|| hb_StrToHex( PadR( cE, 3 ) ) }, "C3A92020", .F., NIL )
+   TEST_CALL( "own_codecs:141", "hb_StrToHex( PadR( cByte, 3 ) )", {|| hb_StrToHex( PadR( cByte, 3 ) ) }, "FA2020", .F., NIL )
+   TEST_CALL( "own_codecs:142", "hb_StrToHex( Replicate( cE, 2 ) )", {|| hb_StrToHex( Replicate( cE, 2 ) ) }, "C3A9C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:143", 'hb_StrToHex( Stuff( cMix, 2, 1, "X" ) )', {|| hb_StrToHex( Stuff( cMix, 2, 1, "X" ) ) }, "6158FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:144", 'hb_StrToHex( StrTran( cMix, cE, "X" ) )', {|| hb_StrToHex( StrTran( cMix, cE, "X" ) ) }, "6158FA7A", .F., NIL )
+   TEST_CALL( "own_codecs:145", "hb_StrToHex( Upper( cE ) )", {|| hb_StrToHex( Upper( cE ) ) }, "C389", .F., NIL )
+   TEST_CALL( "own_codecs:146", "hb_StrToHex( Lower( Upper( cE ) ) )", {|| hb_StrToHex( Lower( Upper( cE ) ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:147", "hb_StrToHex( Upper( hb_utf8Chr( 0xDF ) ) )", {|| hb_StrToHex( Upper( hb_utf8Chr( 0xDF ) ) ) }, "C39F", .F., NIL )
+   TEST_CALL( "own_codecs:148", "hb_StrToHex( Upper( hb_utf8Chr( 0xFF ) ) )", {|| hb_StrToHex( Upper( hb_utf8Chr( 0xFF ) ) ) }, "C5B8", .F., NIL )
+   TEST_CALL( "own_codecs:149", "hb_StrToHex( Lower( hb_utf8Chr( 0x130 ) ) )", {|| hb_StrToHex( Lower( hb_utf8Chr( 0x130 ) ) ) }, "69", .F., NIL )
+   TEST_CALL( "own_codecs:150", "hb_StrToHex( Upper( hb_utf8Chr( 0x131 ) ) )", {|| hb_StrToHex( Upper( hb_utf8Chr( 0x131 ) ) ) }, "49", .F., NIL )
+   TEST_CALL( "own_codecs:151", 'hb_StrToHex( AllTrim( " " + cE + " " ) )', {|| hb_StrToHex( AllTrim( " " + cE + " " ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:152", "hb_StrIsUTF8( cE )", {|| hb_StrIsUTF8( cE ) }, .T., .F., NIL )
+   TEST_CALL( "own_codecs:153", "hb_StrIsUTF8( cByte )", {|| hb_StrIsUTF8( cByte ) }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:154", "hb_StrIsUTF8( cMix )", {|| hb_StrIsUTF8( cMix ) }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:155", 'hb_StrIsUTF8( "abc" )', {|| hb_StrIsUTF8( "abc" ) }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:156", 'hb_StrIsUTF8( "" )', {|| hb_StrIsUTF8( "" ) }, .F., .F., NIL )
+   TEST_CALL( "own_codecs:157", 'hb_StrToHex( hb_HexToStr( "C3A9FA" ) )', {|| hb_StrToHex( hb_HexToStr( "C3A9FA" ) ) }, "C3A9FA", .F., NIL )
+   TEST_CALL( "own_codecs:158", 'Len( hb_HexToStr( "C3A9FA" ) )', {|| Len( hb_HexToStr( "C3A9FA" ) ) }, 2, .F., NIL )
+   TEST_CALL( "own_codecs:159", "hb_base64Encode( cE )", {|| hb_base64Encode( cE ) }, "w6k=", .F., NIL )
+   TEST_CALL( "own_codecs:160", "hb_StrToHex( L2Bin( 250 ) )", {|| hb_StrToHex( L2Bin( 250 ) ) }, "FA000000", .F., NIL )
+   TEST_CALL( "own_codecs:161", "Bin2L( L2Bin( 250 ) )", {|| Bin2L( L2Bin( 250 ) ) }, 250, .F., NIL )
+   TEST_CALL( "own_codecs:162", "Bin2L( cByte + hb_BChar( 0 ) + hb_BChar( 0 ) + hb_BChar( 0 ) )", {|| Bin2L( cByte + hb_BChar( 0 ) + hb_BChar( 0 ) + hb_BChar( 0 ) ) }, 250, .F., NIL )
+   TEST_CALL( "own_codecs:163", "hb_StrToHex( hb_jsonEncode( cE ) )", {|| hb_StrToHex( hb_jsonEncode( cE ) ) }, "22C3A922", .F., NIL )
+   TEST_CALL( "own_codecs:164", [hb_StrToHex( hb_jsonDecode( '"\u00e9"' ) )], {|| hb_StrToHex( hb_jsonDecode( '"\u00e9"' ) ) }, "C3A9", .F., NIL )
+
+
+
+   TEST_CALL( "own_codecs:168", 'hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) ) }, "82", .F., NIL )
+   TEST_CALL( "own_codecs:169", 'hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) ) }, "3F", .F., NIL )
+   TEST_CALL( "own_codecs:170", 'hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )', {|| hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) ) }, "61823F7A", .F., NIL )
+   TEST_CALL( "own_codecs:171", 'hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) )', {|| hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:172", 'hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) )', {|| hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) ) }, "82", .F., NIL )
+   TEST_CALL( "own_codecs:173", "hb_StrToHex( hb_StrToUTF8( cE ) )", {|| hb_StrToHex( hb_StrToUTF8( cE ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:174", "hb_StrToHex( hb_UTF8ToStr( cE ) )", {|| hb_StrToHex( hb_UTF8ToStr( cE ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:175", 'hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) )', {|| hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) ) }, "C3A9", .F., NIL )
+   TEST_CALL( "own_codecs:176", 'hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) )', {|| hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) ) }, "82", .F., NIL )
+   TEST_CALL( "own_codecs:177", 'hb_StrToUTF8( "plain" )', {|| hb_StrToUTF8( "plain" ) }, "plain", .F., NIL )
+   TEST_CALL( "own_codecs:178", 'hb_UTF8ToStr( "plain" )', {|| hb_UTF8ToStr( "plain" ) }, "plain", .F., NIL )
+
+
+   TEST_CALL( "own_codecs:181", 'Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) ) }, 2, .F., NIL )
+   TEST_CALL( "own_codecs:182", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ] }, "12.5%", .F., NIL )
+   TEST_CALL( "own_codecs:183", 'hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]', {|| hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ] }, "12.5", .F., NIL )
+   TEST_CALL( "own_codecs:184", 'Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )', {|| Len( hb_regex( "([0-9\.]+)%", "nothing here" ) ) }, 0, .F., NIL )
+   TEST_CALL( "own_codecs:185", 'Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )', {|| Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:186", 'hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]', {|| hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ] }, "DEF", .F., NIL )
+
+
+
+   TEST_CALL( "own_codecs:190", 'GrowDecoded( "[]" )', {|| GrowDecoded( "[]" ) }, 1, .F., NIL )
+   TEST_CALL( "own_codecs:191", 'GrowDecoded( "[7]" )', {|| GrowDecoded( "[7]" ) }, 2, .F., NIL )
 
    RETURN
 

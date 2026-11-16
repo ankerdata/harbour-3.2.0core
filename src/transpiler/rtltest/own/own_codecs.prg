@@ -12,8 +12,17 @@
 
 #include "rt_main.ch"
 
+REQUEST HB_CODEPAGE_DE850
+
 PROCEDURE Main_CODECS()
 
+   /* built at run time: the compiler folds Chr() and hb_BChar() of a
+      constant, and Len() of what it folded, to bytes */
+   LOCAL nE := 233
+   LOCAL cE := hb_utf8Chr( nE )
+   LOCAL cEuro := hb_utf8Chr( 0x20AC )
+   LOCAL cByte := hb_BChar( nE - 1 + 18 )
+   LOCAL cMix := "a" + cE + cByte + "z"
    LOCAL hOrder := { "Type" => "SALE", "Qty" => 2, "Price" => 19.95, "Paid" => .F. }
    LOCAL cBytes := Chr( 0 ) + Chr( 9 ) + Chr( 10 ) + Chr( 13 ) + Chr( 34 ) + Chr( 92 ) + Chr( 200 )
 
@@ -83,13 +92,89 @@ PROCEDURE Main_CODECS()
    HBTEST hb_ZUncompress( hb_ZCompress( "" ) )       IS ""
    HBTEST ValType( hb_ZLibVersion() )                IS "C"
 
-   /* --- UTF-8, the only conversion (a char is a byte) --- */
+   /* --- text and bytes: the program runs in UTF8EX, where text is UTF-8,
+          Len() counts characters and the hb_B* functions bytes. A byte
+          that is not UTF-8 is one character. --- */
+   HBTEST hb_cdpSelect()                             IS "UTF8EX"
+   HBTEST hb_cdpIsUTF8()                             IS .T.
+   HBTEST hb_cdpIsUTF8( "DE850" )                    IS .F.
+   HBTEST Len( cE )                                  IS 1
+   HBTEST hb_BLen( cE )                              IS 2
+   HBTEST Len( cEuro )                               IS 1
+   HBTEST hb_BLen( cEuro )                           IS 3
+   HBTEST Len( cByte )                               IS 1
+   HBTEST hb_BLen( cByte )                           IS 1
+   HBTEST Len( cMix )                                IS 4
+   HBTEST hb_BLen( cMix )                            IS 5
+   HBTEST hb_StrToHex( cMix )                        IS "61C3A9FA7A"
+   HBTEST hb_StrToHex( SubStr( cMix, 2, 1 ) )        IS "C3A9"
+   HBTEST hb_StrToHex( SubStr( cMix, 3, 1 ) )        IS "FA"
+   HBTEST hb_StrToHex( Left( cMix, 2 ) )             IS "61C3A9"
+   HBTEST hb_StrToHex( Right( cMix, 2 ) )            IS "FA7A"
+   HBTEST hb_StrToHex( hb_BSubStr( cMix, 2, 1 ) )    IS "C3"
+   HBTEST hb_StrToHex( hb_BSubStr( cMix, 3 ) )       IS "A9FA7A"
+   HBTEST hb_StrToHex( hb_BSubStr( cMix, -2 ) )      IS "FA7A"
+   HBTEST hb_StrToHex( hb_BLeft( cMix, 2 ) )         IS "61C3"
+   HBTEST hb_StrToHex( hb_BLeft( cMix, 99 ) )        IS "61C3A9FA7A"
+   HBTEST hb_StrToHex( hb_BRight( cMix, 2 ) )        IS "FA7A"
+   HBTEST hb_BRight( cMix, 0 )                       IS ""
+   HBTEST hb_BLeft( cMix, 3 ) == "a" + cE            IS .T.
+   HBTEST At( cByte, cMix )                          IS 3
+   HBTEST hb_BAt( cByte, cMix )                      IS 4
+   HBTEST At( "z", cMix )                            IS 4
+   HBTEST hb_BAt( "z", cMix )                        IS 5
+   HBTEST hb_BAt( "a", "banana", 3 )                 IS 4
+   HBTEST hb_BAt( "a", "banana", 3, 3 )              IS 0
+   HBTEST hb_BAt( "a", "banana", 3, 4 )              IS 4
+   HBTEST hb_BAt( "", cMix )                         IS 0
+   HBTEST hb_BCode( cE )                             IS 195
+   HBTEST hb_BCode( "" )                             IS 0
+   HBTEST Asc( cE )                                  IS 233
+   HBTEST Asc( cEuro )                               IS 8364
+   HBTEST Asc( cByte )                               IS 65533
+   HBTEST hb_StrToHex( Chr( nE ) )                   IS "C3A9"
+   HBTEST hb_StrToHex( Chr( nE + 23 ) )              IS "C480"
+   HBTEST hb_StrToHex( hb_BChar( nE ) )              IS "E9"
+   HBTEST hb_StrToHex( hb_BChar( nE + 23 ) )         IS "00"
+   HBTEST hb_StrToHex( hb_utf8Chr( 65 ) )            IS "41"
+   HBTEST hb_StrToHex( PadR( cE, 3 ) )               IS "C3A92020"
+   HBTEST hb_StrToHex( PadR( cByte, 3 ) )            IS "FA2020"
+   HBTEST hb_StrToHex( Replicate( cE, 2 ) )          IS "C3A9C3A9"
+   HBTEST hb_StrToHex( Stuff( cMix, 2, 1, "X" ) )    IS "6158FA7A"
+   HBTEST hb_StrToHex( StrTran( cMix, cE, "X" ) )    IS "6158FA7A"
+   HBTEST hb_StrToHex( Upper( cE ) )                 IS "C389"
+   HBTEST hb_StrToHex( Lower( Upper( cE ) ) )        IS "C3A9"
+   HBTEST hb_StrToHex( Upper( hb_utf8Chr( 0xDF ) ) ) IS "C39F"
+   HBTEST hb_StrToHex( Upper( hb_utf8Chr( 0xFF ) ) ) IS "C5B8"
+   HBTEST hb_StrToHex( Lower( hb_utf8Chr( 0x130 ) ) ) IS "69"
+   HBTEST hb_StrToHex( Upper( hb_utf8Chr( 0x131 ) ) ) IS "49"
+   HBTEST hb_StrToHex( AllTrim( " " + cE + " " ) )   IS "C3A9"
+   HBTEST hb_StrIsUTF8( cE )                         IS .T.
+   HBTEST hb_StrIsUTF8( cByte )                      IS .F.
+   HBTEST hb_StrIsUTF8( cMix )                       IS .F.
+   HBTEST hb_StrIsUTF8( "abc" )                      IS .F.
+   HBTEST hb_StrIsUTF8( "" )                         IS .F.
+   HBTEST hb_StrToHex( hb_HexToStr( "C3A9FA" ) )     IS "C3A9FA"
+   HBTEST Len( hb_HexToStr( "C3A9FA" ) )             IS 2
+   HBTEST hb_base64Encode( cE )                      IS "w6k="
+   HBTEST hb_StrToHex( L2Bin( 250 ) )                IS "FA000000"
+   HBTEST Bin2L( L2Bin( 250 ) )                      IS 250
+   HBTEST Bin2L( cByte + hb_BChar( 0 ) + hb_BChar( 0 ) + hb_BChar( 0 ) ) IS 250
+   HBTEST hb_StrToHex( hb_jsonEncode( cE ) )         IS "22C3A922"
+   HBTEST hb_StrToHex( hb_jsonDecode( '"\u00e9"' ) ) IS "C3A9"
+
+   /* --- another code page: what a character is there, '?' for one it has
+          not and for a byte that was not text --- */
+   HBTEST hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )    IS "82"
+   HBTEST hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) ) IS "3F"
+   HBTEST hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )  IS "61823F7A"
+   HBTEST hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) ) IS "C3A9"
+   HBTEST hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) ) IS "82"
+   HBTEST hb_StrToHex( hb_StrToUTF8( cE ) )          IS "C3A9"
+   HBTEST hb_StrToHex( hb_UTF8ToStr( cE ) )          IS "C3A9"
+   HBTEST hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) ) IS "C3A9"
+   HBTEST hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) ) IS "82"
    HBTEST hb_StrToUTF8( "plain" )                    IS "plain"
-   /* A byte of the high half is Latin-1 here — two bytes — where Harbour
-      maps it through the process codepage, which is three (ruled
-      divergent: HbRuntime has no codepage, and a char is a byte) */
-   HBTEST hb_BLen( hb_StrToUTF8( Chr( 200 ) ) )      IS 2
-   HBTEST hb_UTF8ToStr( hb_StrToUTF8( Chr( 200 ) ) ) IS Chr( 200 )
    HBTEST hb_UTF8ToStr( "plain" )                    IS "plain"
 
    /* --- the two regular expressions the product runs --- */

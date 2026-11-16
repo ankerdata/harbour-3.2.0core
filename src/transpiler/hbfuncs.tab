@@ -346,7 +346,7 @@ FuncPtr	-	HbRuntime
 FV	NUMERIC	-
 FWrite	INTEGER	HbRuntime
 GETE	STRING	-
-GETENV	STRING	-
+GetEnv	STRING	HbRuntime
 GETMEMBER	-	HbRuntime
 GETPREC	NUMERIC	-
 GT_ASCIISUM	NUMERIC	-
@@ -387,10 +387,15 @@ hb_bitNot	INTEGER	HbRuntime
 hb_bitOr	INTEGER	HbRuntime
 hb_bitShift	INTEGER	HbRuntime
 hb_bitXor	INTEGER	HbRuntime
+hb_BAt	INTEGER	HbRuntime
+hb_BChar	STRING	HbRuntime
+hb_BCode	INTEGER	HbRuntime
 hb_BLeft	STRING	HbRuntime
 hb_BLen	INTEGER	HbRuntime
+hb_BRight	STRING	HbRuntime
 hb_BSubStr	STRING	HbRuntime
-HB_CDPSELECT	STRING	-
+hb_cdpIsUTF8	LOGICAL	HbRuntime
+hb_cdpSelect	STRING	HbRuntime
 HB_COLORINDEX	STRING	-
 hb_comClose	LOGICAL	HbRuntime
 hb_comFindPort	INTEGER	HbRuntime
@@ -489,6 +494,7 @@ HB_INETSETSNDBUFSIZE	NUMERIC	-
 HB_INETSTATUS	NUMERIC	-
 HB_INETTIMEOUT	NUMERIC	-
 HB_ISARRAY	LOGICAL	HbRuntime
+HB_ISNUMERIC	LOGICAL	HbRuntime
 hb_IsFunction	LOGICAL	HbRuntime
 hb_jsonDecode	-	HbRuntime
 hb_jsonEncode	STRING	HbRuntime
@@ -539,6 +545,7 @@ hb_SToT	TIMESTAMP	HbRuntime
 hb_StrFormat	STRING	HbRuntime
 hb_StrReplace	STRING	HbRuntime
 hb_StrShrink	STRING	HbRuntime
+hb_StrIsUTF8	LOGICAL	HbRuntime
 hb_StrToHex	STRING	HbRuntime
 hb_StrToTS	TIMESTAMP	HbRuntime
 hb_threadID	INTEGER	HbRuntime
@@ -546,7 +553,10 @@ hb_threadQuitRequest	LOGICAL	HbRuntime
 hb_threadSelf	-	HbRuntime
 hb_threadStart	-	HbRuntime
 hb_threadWait	INTEGER	HbRuntime
-HB_TRANSLATE	STRING	-
+hb_utf8Chr	STRING	HbRuntime
+hb_UTF8ToStr	STRING	HbRuntime
+hb_StrToUTF8	STRING	HbRuntime
+hb_Translate	STRING	HbRuntime
 hb_TSToUTC	TIMESTAMP	HbRuntime
 hb_TToC	STRING	HbRuntime
 hb_TToD	DATE	HbRuntime

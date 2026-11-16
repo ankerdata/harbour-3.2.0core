@@ -288,16 +288,16 @@ public static partial class HbRuntime
     }
 
     // ---- Binary conversions (rtl/binnum.c) ----
-    // A Harbour string is bytes, one char per byte here. Little-endian.
+    // The string's bytes, as HbBytes has them. Little-endian.
     // A string shorter than the value reads as zero-padded (Harbour reads
     // on into the string's terminating NUL); anything but a string is 0.
 
     static long BinLE(string s, int nBytes)
     {
         long v = 0;
-        if (s != null)
-            for (int i = Math.Min(s.Length, nBytes) - 1; i >= 0; i--)
-                v = (v << 8) | (byte)s[i];
+        byte[] b = HbBytes.Of(s);
+        for (int i = Math.Min(b.Length, nBytes) - 1; i >= 0; i--)
+            v = (v << 8) | b[i];
         return v;
     }
 
@@ -312,10 +312,10 @@ public static partial class HbRuntime
 
     static string LEBytes(long v, int nBytes)
     {
-        var b = new char[nBytes];
+        var b = new byte[nBytes];
         for (int i = 0; i < nBytes; i++, v >>= 8)
-            b[i] = (char)(v & 0xFF);
-        return new string(b);
+            b[i] = (byte)(v & 0xFF);
+        return HbBytes.Text(b);
     }
 
     // I2Bin( <n> ) / L2Bin( <n> ): n truncated to 16 / 32 bits

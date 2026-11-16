@@ -16,10 +16,9 @@ using System.Text.RegularExpressions;
 // bitmaps and card payloads travel base64. So the texts matter to the
 // byte, and own_codecs.prg pins them against Harbour's own output.
 //
-// A Harbour string is bytes, held here one byte per char (Latin-1), so
-// the encoder passes the high half through as it stands and the caller
-// converts the finished message with hb_StrToUTF8(), exactly as
-// socketloop.prg does.
+// A string here is text (HbRuntime.Bytes.cs), so the encoder writes a
+// character as it stands, as Harbour's does in UTF8EX, and the codecs
+// that work on bytes take them from HbBytes.
 public static partial class HbRuntime
 {
     // ---- JSON ----------------------------------------------------------
@@ -275,6 +274,14 @@ public static partial class HbRuntime
     {
         if (cJson == null)
             return null;
+        // A message that came in pieces may hold a character as the bytes
+        // of its two halves: read as bytes again, they are the character
+        foreach (char c in cJson)
+            if (HbBytes.IsByte(c))
+            {
+                cJson = HbBytes.Text(HbBytes.Of(cJson));
+                break;
+            }
         int i = 0;
         object? xValue = JsonParse(cJson, ref i);
         return xValue is JsonFailure ? null : xValue;
@@ -391,11 +398,9 @@ public static partial class HbRuntime
                                 return JsonFailure.Value;
                             nCode = (nCode << 4) + nDigit;
                         }
-                        // Harbour hands the code point to the VM codepage,
-                        // one byte out of a single-byte one. A byte string
-                        // here is Latin-1, so a code point it cannot hold
-                        // is '?', as a codepage translation gives.
-                        sb.Append(nCode <= 0xFF ? (char) nCode : '?');
+                        // The character of the code point, as Harbour's
+                        // UTF8EX code page writes it
+                        sb.Append((char) nCode);
                         break;
                     }
                     default:
@@ -502,12 +507,12 @@ public static partial class HbRuntime
 
     // hb_base64Encode( <cData> ): the bytes of cData in base64 (rtl/base64.c)
     public static string hb_base64Encode(string? cData) =>
-        cData == null ? "" : Convert.ToBase64String(s_byteCP.GetBytes(cData));
+        cData == null ? "" : Convert.ToBase64String(HbBytes.Of(cData));
 
     // hb_MD5( <cData> ): the digest as 32 lower-case hex digits (rtl/hbmd5.c)
     public static string hb_MD5(string? cData) =>
         Convert.ToHexString(System.Security.Cryptography.MD5.HashData(
-            s_byteCP.GetBytes(cData ?? ""))).ToLowerInvariant();
+            HbBytes.Of(cData))).ToLowerInvariant();
 
     // ---- zlib ----------------------------------------------------------
     //
@@ -527,10 +532,10 @@ public static partial class HbRuntime
         using var msOut = new MemoryStream();
         using (var zs = new ZLibStream(msOut, CompressionLevel.Optimal, true))
         {
-            byte[] aData = s_byteCP.GetBytes(cData);
+            byte[] aData = HbBytes.Of(cData);
             zs.Write(aData, 0, aData.Length);
         }
-        return s_byteCP.GetString(msOut.GetBuffer(), 0, (int) msOut.Length);
+        return HbBytes.Text(msOut.GetBuffer(), 0, (int) msOut.Length);
     }
 
     // hb_ZUncompress( <cCompressed> ): Harbour takes the length of the
@@ -540,11 +545,11 @@ public static partial class HbRuntime
     {
         if (string.IsNullOrEmpty(cData))
             return "";
-        using var msIn = new MemoryStream(s_byteCP.GetBytes(cData));
+        using var msIn = new MemoryStream(HbBytes.Of(cData));
         using var zs = new ZLibStream(msIn, CompressionMode.Decompress);
         using var msOut = new MemoryStream();
         zs.CopyTo(msOut);
-        return s_byteCP.GetString(msOut.GetBuffer(), 0, (int) msOut.Length);
+        return HbBytes.Text(msOut.GetBuffer(), 0, (int) msOut.Length);
     }
 
     // hb_ZLibVersion(): Harbour answers zlib's own version string. .NET
@@ -552,20 +557,6 @@ public static partial class HbRuntime
     // runtime — so this names that instead of inventing a number. Ruled
     // divergent; EasiPOS only writes it to the trace.
     public static string hb_ZLibVersion() => "System.IO.Compression";
-
-    // ---- UTF-8 ---------------------------------------------------------
-    //
-    // The only two conversions in the byte-string convention: a char is a
-    // byte everywhere else, and these two turn that into UTF-8 and back.
-
-    // hb_StrToUTF8( <cString> )
-    public static string hb_StrToUTF8(string? cText) =>
-        cText == null ? "" : s_byteCP.GetString(Encoding.UTF8.GetBytes(cText));
-
-    // hb_UTF8ToStr( <cUTF8> ): a character the byte string cannot hold
-    // becomes '?', as a codepage translation does.
-    public static string hb_UTF8ToStr(string? cText) =>
-        cText == null ? "" : HbText.FromUnicode(Encoding.UTF8.GetString(s_byteCP.GetBytes(cText)));
 
     // ---- regular expressions -------------------------------------------
     //
@@ -613,17 +604,4 @@ public static partial class HbRuntime
             aResult.Add(m.Groups[i].Success ? m.Groups[i].Value : "");
         return aResult;
     }
-}
-
-/// <summary>
-/// Text as a Harbour string holds it, a byte per character (Latin-1), for
-/// HbRuntime and the libraries that meet Unicode text: hbsqlit3's strings
-/// from SQLite.
-/// </summary>
-public static class HbText
-{
-    // A Unicode string as a Harbour string: a character a byte cannot hold
-    // becomes '?', as a codepage translation does
-    public static string FromUnicode(string cText) =>
-        Encoding.Latin1.GetString(Encoding.Latin1.GetBytes(cText));
 }

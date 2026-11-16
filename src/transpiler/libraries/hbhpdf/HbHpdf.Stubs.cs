@@ -10,6 +10,7 @@ public static partial class HbHpdf
 {
     public static dynamic HPDF_AddPage(params dynamic[] args) => throw new NotImplementedException(nameof(HPDF_AddPage));
     public static dynamic HPDF_GetFont(params dynamic[] args) => throw new NotImplementedException(nameof(HPDF_GetFont));
+    public static dynamic HPDF_LoadTTFontFromFile(params dynamic[] args) => throw new NotImplementedException(nameof(HPDF_LoadTTFontFromFile));
     public static dynamic HPDF_Page_BeginText(params dynamic[] args) => throw new NotImplementedException(nameof(HPDF_Page_BeginText));
     public static dynamic HPDF_Page_EndText(params dynamic[] args) => throw new NotImplementedException(nameof(HPDF_Page_EndText));
     public static dynamic HPDF_Page_GetRGBFill(params dynamic[] args) => throw new NotImplementedException(nameof(HPDF_Page_GetRGBFill));

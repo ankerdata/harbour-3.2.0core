@@ -1,23 +1,34 @@
-// Test 147: a string literal is its bytes.
+// Test 147: a string literal is text, and a byte that is not text its byte.
 //
-// A Harbour string is bytes, and a source may hold them in any encoding:
-// EasiPOS has Windows-1252 (fmde.prg's TSE label, prtinit.prg's printer
-// tables) beside UTF-8 (testsetup.prg's receipt layout). The emitter copied
-// a literal's bytes into the .cs, which the C# compiler reads as UTF-8: a
-// lone high byte became U+FFFD and UTF-8's three bytes one char, so lengths,
-// truncation and what was written moved. Each byte is its own char now,
-// \u00XX. The output is byte values, which no console encoding can change.
+// A Harbour string is bytes, and EasiPOS runs in the UTF8EX code page: its
+// text is UTF-8, Len() and SubStr() count characters and the hb_B*
+// functions bytes. A transpiled string is text, a char to a character, so
+// a literal's UTF-8 is written as that text. A byte that is not UTF-8 (a
+// source still in Windows-1252, a printer's control byte) is the char
+// HbRuntime carries a byte in, and is written back as that byte. Chr() of
+// a constant is a byte, as Harbour's compiler folds it, where Chr() of a
+// variable is the character; and constant bytes that spell a character
+// together are that character, whose Len() the compiler folds to its
+// bytes. The output is numbers, which no console encoding can change.
 public static partial class Program
 {
     public static void Main(string[] args)
     {
-        string cEuro147 = "\u00E2\u0082\u00AC/kg = \u00E2\u0082\u00AC";
-        string cUmlaut147 = "z\u00E4hler";
+        string cEuro147 = "€/kg = €";
+        string cUmlaut147 = "z\uF7E4hler";
+        decimal n147 = 250;
         string cEsc147 = "\u001B@";
+
+        hb_cdpSelect("UTF8EX");
 
         QOut("euro:", Len(cEuro147), Asc(cEuro147), Asc(SubStr(cEuro147, 2)), Asc(SubStr(cEuro147, 3)));
         QOut("cut to 9:", Len(Left(cEuro147, 9)), Asc(Right(Left(cEuro147, 9), 1)));
         QOut("umlaut:", Len(cUmlaut147), Asc(SubStr(cUmlaut147, 2)));
         QOut("escape:", Len(cEsc147), Asc(cEsc147));
+        QOut("bytes:", hb_BLen(cEuro147), hb_BLen(cUmlaut147), hb_BCode(hb_BSubStr(cEuro147, 2, 1)), hb_BCode(hb_BSubStr(cUmlaut147, 2, 1)));
+        QOut("chr:", hb_BLen(hb_BChar(250)), hb_BLen(Chr(n147)), hb_BLen(hb_BChar(n147)), Asc(Chr(n147)));
+        QOut("joined:", "€" == Left(cEuro147, 1), 3);
+        QOut("cut:", hb_BLen(hb_BLeft(cEuro147, 2)), hb_BCode(hb_BLeft(cEuro147, 2)), hb_BLeft(cEuro147, 3) == Left(cEuro147, 1));
+        QOut("upper:", Asc(Upper(SubStr("z" + hb_utf8Chr(228), 2))), hb_StrIsUTF8(cEuro147), hb_StrIsUTF8(cUmlaut147), hb_StrIsUTF8("abc"));
     }
 }

@@ -17,8 +17,8 @@ using System.Text.RegularExpressions;
 // milliseconds, and none waits for ever; a wait with a timeout is made in
 // slices, so a quit request ends the thread, as Harbour's select loop gives
 // up on hb_vmRequestQuery(). A handle that is not a live socket — never one,
-// or closed — is an argument error, as hb_socketParam() raises. Bytes cross
-// as Latin-1, as a file's do.
+// or closed — is an argument error, as hb_socketParam() raises. What crosses
+// is the string's bytes (HbBytes), as into a file.
 
 // A socket's handle: what hb_socketOpen() and hb_socketAccept() return.
 public sealed class HbSocket
@@ -559,7 +559,7 @@ public static partial class HbRuntime
                                      decimal? nFlags = null, decimal? nTimeout = null)
     {
         Socket sd = SockParam(pSocket, "HB_SOCKETSEND").sd!;
-        byte[] aData = s_byteCP.GetBytes(cBuffer);
+        byte[] aData = HbBytes.Of(cBuffer);
         int nSend = aData.Length;
         if (nLen is decimal n && n >= 0 && n < nSend)
             nSend = (int) n;
@@ -622,12 +622,7 @@ public static partial class HbRuntime
             return SockFailed;
         }
         if (nGot > 0)
-        {
-            char[] aBuffer = cBuffer.ToCharArray();
-            for (int i = 0; i < nGot; i++)
-                aBuffer[i] = (char) aData[i];
-            cBuffer = new string(aBuffer);
-        }
+            cBuffer = HbBytes.Text(aData, 0, nGot) + HbBytes.Slice(cBuffer, nGot, int.MaxValue);
         return nGot;
     }
 

@@ -19,11 +19,17 @@
 #include "error.ch"
 #endif
 
+REQUEST HB_CODEPAGE_UTF8EX
+
 STATIC s_nPass := 0
 STATIC s_nFail := 0
 STATIC s_nError := 0
 
 PROCEDURE TEST_BEGIN()
+
+   /* The code page EasiPOS runs in, which is the one a transpiled
+      program has: text is UTF-8, and Len() counts characters */
+   hb_cdpSelect( "UTF8EX" )
 
    /* hbtest's TEST_BEGIN: the date format the expected results use,
       and SET EXACT OFF */

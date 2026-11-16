@@ -93,26 +93,24 @@ public static partial class HbRuntime
         return 0;
     }
 
-    // Upper()/Lower() as a single-byte Windows codepage has them: ASCII,
-    // and a letter above 127 only when its other case is a single-byte
-    // character too (ä ↔ Ä; µ and ÿ have none there and stay). Invariant,
-    // so no culture's rules (Turkish i) apply. EasiPOS selects ENWIN,
-    // DEWIN, CSWIN or PLWIN; how its strings carry those codepages is the
-    // deferred codepage question.
+    // Upper()/Lower() as the UTF8EX code page has them: a character's
+    // other case where Unicode gives it one character (ä ↔ Ä; ß stays).
+    // Invariant, so no culture's rules (Turkish i) apply. A byte that is
+    // not text comes out as U+FFFD, as Harbour reads it to change its case.
     static char UpperChar(char c)
     {
         if (c < 128)
             return c >= 'a' && c <= 'z' ? (char)(c - 32) : c;
-        char u = char.ToUpperInvariant(c);
-        return c > 'ÿ' || u <= 'ÿ' ? u : c;
+        // the dotless i, which .NET's invariant mapping leaves alone
+        return c == '\u0131' ? 'I' : HbBytes.IsByte(c) ? '\ufffd' : char.ToUpperInvariant(c);
     }
 
     static char LowerChar(char c)
     {
         if (c < 128)
             return c >= 'A' && c <= 'Z' ? (char)(c + 32) : c;
-        char l = char.ToLowerInvariant(c);
-        return c > 'ÿ' || l <= 'ÿ' ? l : c;
+        // the dotted capital I, likewise
+        return c == '\u0130' ? 'i' : HbBytes.IsByte(c) ? '\ufffd' : char.ToLowerInvariant(c);
     }
 
     public static string Upper(string s) => string.Create(s.Length, s, (span, src) =>
@@ -140,12 +138,17 @@ public static partial class HbRuntime
     public static string Replicate(string s, decimal n) =>
         n >= 1 && s.Length > 0 ? string.Concat(System.Linq.Enumerable.Repeat(s, (int)n)) : "";
 
-    // Chr(): the character of the number's low byte (rtl/chrasc.c):
-    // Chr( 256 ) is Chr( 0 ), Chr( -65 ) is Chr( 191 )
-    public static string Chr(decimal n) =>
-        ((char)((long)Math.Truncate(n % 65536) & 0xFF)).ToString();
+    // Chr(): the character of the code point n, its low sixteen bits, as
+    // the UTF8EX code page gives it at run time: Chr( 250 ) is ú, two
+    // bytes. (The compiler folds Chr() of a constant into one byte, which
+    // the transpiler writes as that byte; hb_BChar() is a byte always.)
+    public static string Chr(decimal n) => ((char)((long)Math.Truncate(n % 65536) & 0xFFFF)).ToString();
 
-    public static long Asc(string s) => s.Length > 0 ? s[0] : 0;
+    // Asc(): the code point of the first character; U+FFFD for a byte
+    // that is not text
+    public static long Asc(string s) =>
+        s.Length == 0 ? 0 : HbBytes.IsByte(s[0]) ? 0xFFFD
+        : char.IsHighSurrogate(s[0]) && s.Length > 1 && char.IsLowSurrogate(s[1]) ? char.ConvertToUtf32(s[0], s[1]) : s[0];
 
     // SubStr( <c>, <nStart>[, <nCount>] ) (rtl/substr.c): a start of 0 is
     // 1; a negative start counts from the end (SubStr( "abcdef", -2 ) is
@@ -307,23 +310,17 @@ public static partial class HbRuntime
     // hb_eol(): the platform's end of line
     public static string hb_eol() => "\r\n";
 
-    // hb_BLen()/hb_BLeft()/hb_BSubStr(): the byte versions of Len(),
-    // Left() and SubStr(). A Harbour string is bytes and a transpiled one
-    // holds a byte per char, so they are the same functions.
-    public static long hb_BLen(string s) => s.Length;
-    public static string hb_BLeft(string s, decimal n) => Left(s, n);
-    public static string hb_BSubStr(string s, decimal nStart, decimal? nCount = null) => SubStr(s, nStart, nCount);
-
     // hb_StrToHex( <c>[, <cSeparator>] ): each byte as two upper-case hex
     // digits, separated by cSeparator (rtl/hbhex.c)
     public static string hb_StrToHex(string s, string cSeparator = "")
     {
-        var sb = new System.Text.StringBuilder(s.Length * (2 + cSeparator.Length));
-        for (int i = 0; i < s.Length; i++)
+        byte[] b = HbBytes.Of(s);
+        var sb = new System.Text.StringBuilder(b.Length * (2 + cSeparator.Length));
+        for (int i = 0; i < b.Length; i++)
         {
             if (i > 0)
                 sb.Append(cSeparator);
-            sb.Append(((int)s[i] & 0xFF).ToString("X2", INV));
+            sb.Append(b[i].ToString("X2", INV));
         }
         return sb.ToString();
     }
@@ -332,7 +329,7 @@ public static partial class HbRuntime
     // byte; any other character is skipped, as is an odd last digit
     public static string hb_HexToStr(string cHex)
     {
-        var sb = new System.Text.StringBuilder(cHex.Length / 2);
+        var b = new List<byte>(cHex.Length / 2);
         int iHigh = -1;
         foreach (char c in cHex)
         {
@@ -345,11 +342,11 @@ public static partial class HbRuntime
                 iHigh = d;
             else
             {
-                sb.Append((char)(iHigh * 16 + d));
+                b.Add((byte)(iHigh * 16 + d));
                 iHigh = -1;
             }
         }
-        return sb.ToString();
+        return HbBytes.Text(b.ToArray());
     }
 
     // hb_ATokens( <c>[, <cDelim> | <lEOL>[, <lSkipStrings>[, <lDoubleQuoteOnly>]]] )
@@ -562,7 +559,7 @@ public static partial class HbRuntime
             {
                 case 'c':
                 {
-                    char c = (char)(IsNumeric(xItem) ? (int)Math.Truncate(Convert.ToDecimal(xItem, INV)) & 0xFF : 0);
+                    char c = HbBytes.Char(IsNumeric(xItem) ? (int)Math.Truncate(Convert.ToDecimal(xItem, INV)) & 0xFF : 0);
                     if (fLeft)
                         sb.Append(c);
                     if (iWidth > 1)
@@ -688,7 +685,7 @@ public static partial class HbRuntime
         public int TabSize => nTabSize;
         public int LineLength => nLineLength;
 
-        public bool IsSoftCR(int i) => i + 1 < s.Length && s[i] == (char)141 && s[i + 1] == '\n';
+        public bool IsSoftCR(int i) => i + 1 < s.Length && s[i] == HbBytes.Char(141) && s[i + 1] == '\n';
 
         // hb_mlGetLine: advance past the next line, leaving its width in nCol
         public bool GetLine()

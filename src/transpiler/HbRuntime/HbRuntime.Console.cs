@@ -21,23 +21,37 @@ public static partial class HbRuntime
     // codeblock around one, {|| QOut( x ) }, is an expression lambda.
     public static object? QOut(params dynamic[] args)
     {
-        Console.WriteLine();
-        for (int i = 0; i < args.Length; i++)
-        {
-            if (i > 0) Console.Write(' ');
-            Console.Write(Fmt(args[i]));
-        }
+        ConWrite(false, Environment.NewLine);
+        WriteValues(false, args);
         return null;
     }
 
     public static object? QQOut(params dynamic[] args)
     {
-        for (int i = 0; i < args.Length; i++)
-        {
-            if (i > 0) Console.Write(' ');
-            Console.Write(Fmt(args[i]));
-        }
+        WriteValues(false, args);
         return null;
+    }
+
+    // What is written to a file or a pipe is the string's bytes (HbBytes),
+    // as Harbour writes them; a console window is given the text, in
+    // whatever encoding it shows.
+    static readonly Stream s_stdOut = Console.OpenStandardOutput();
+    static readonly Stream s_stdErr = Console.OpenStandardError();
+
+    static void ConWrite(bool fError, string cText)
+    {
+        if (fError ? Console.IsErrorRedirected : Console.IsOutputRedirected)
+        {
+            Stream oStream = fError ? s_stdErr : s_stdOut;
+            lock (oStream)
+            {
+                (fError ? Console.Error : Console.Out).Flush();
+                oStream.Write(HbBytes.Of(cText));
+                oStream.Flush();
+            }
+        }
+        else
+            (fError ? Console.Error : Console.Out).Write(cText);
     }
 
     static string Fmt(dynamic a) =>
@@ -73,19 +87,20 @@ public static partial class HbRuntime
 
     // OutStd( ... ) / OutErr( ... ): each value as ? would write it,
     // separated by single spaces, with no newline, to stdout / stderr.
-    public static object? OutStd(params dynamic[] aValues) { WriteValues(Console.Out, aValues); return null; }
+    public static object? OutStd(params dynamic[] aValues) { WriteValues(false, aValues); return null; }
 
-    public static object? OutErr(params dynamic[] aValues) { WriteValues(Console.Error, aValues); return null; }
+    public static object? OutErr(params dynamic[] aValues) { WriteValues(true, aValues); return null; }
 
-    static void WriteValues(TextWriter w, dynamic[] aValues)
+    static void WriteValues(bool fError, dynamic[] aValues)
     {
+        var sb = new System.Text.StringBuilder();
         for (int i = 0; i < aValues.Length; i++)
         {
             if (i > 0)
-                w.Write(' ');
-            w.Write(Fmt(aValues[i]));
+                sb.Append(' ');
+            sb.Append(Fmt(aValues[i]));
         }
-        w.Flush();
+        ConWrite(fError, sb.ToString());
     }
 
     // Inkey( [<nSeconds>] ): the next key's code, 0 when there is none.

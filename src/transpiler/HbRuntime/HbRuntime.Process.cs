@@ -40,6 +40,9 @@ public static partial class HbRuntime
         return cValue ?? cDefault ?? "";
     }
 
+    // GetEnv( <cName> ): hb_GetEnv() without the default
+    public static string GetEnv(string cName) => hb_GetEnv(cName);
+
     // hb_run( <cCommand> ): what the C runtime's system() does — the
     // command through %COMSPEC% /c, in this console — and its exit code;
     // -1 when it could not be started.

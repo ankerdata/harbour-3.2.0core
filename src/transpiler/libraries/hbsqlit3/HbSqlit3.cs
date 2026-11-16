@@ -17,9 +17,8 @@
 //     that must see the file closed drops the connection in a routine it
 //     calls (the transpiler README, DESTRUCTOR)
 //   - an index is 1-based, as Harbour counts columns
-//   - text crosses as UTF-8 through the Harbour string, a byte per char
-//     (HbRuntime's HbText, as hb_StrToUTF8() / hb_UTF8ToStr() have it): a
-//     character the string cannot hold comes back as '?'
+//   - text crosses as the string's bytes (HbRuntime's HbBytes): UTF-8, and
+//     what Harbour stored that is not UTF-8 as the bytes it was
 //   - a dead or missing handle is the argument error (EG_ARG, subCode 0)
 //   - a failed open or prepare is NIL, where core.c returns an empty
 //     pointer: the ruling HbRuntime's sockets follow (EasiPOS asks Empty()
@@ -254,23 +253,27 @@ public static partial class HbSqlit3
 
     // ---- text ------------------------------------------------------------
 
-    // A Harbour string (a byte per char) as UTF-8, NUL-terminated for the C side
+    // A Harbour string's bytes, UTF-8 for its text, NUL-terminated for the C side
     static byte[] ToUtf8(string cText)
     {
-        byte[] aUtf8 = Encoding.UTF8.GetBytes(cText);
+        byte[] aUtf8 = HbBytes.Of(cText);
         Array.Resize(ref aUtf8, aUtf8.Length + 1);
         return aUtf8;
     }
 
-    // UTF-8 from the C side as a Harbour string; nBytes < 0: NUL-terminated.
-    // A character the string cannot hold is '?', as hb_UTF8ToStr() gives.
+    // Bytes from the C side as a Harbour string; nBytes < 0: NUL-terminated.
+    // What Harbour stored that is not UTF-8 comes back as the bytes it was.
     static string FromUtf8(IntPtr pText, int nBytes)
     {
         if (pText == IntPtr.Zero)
             return "";
-        string cUtf16 = nBytes < 0 ? Marshal.PtrToStringUTF8(pText) ?? ""
-                                   : Marshal.PtrToStringUTF8(pText, nBytes);
-        return HbText.FromUnicode(cUtf16);
+        if (nBytes < 0)
+            for (nBytes = 0; Marshal.ReadByte(pText, nBytes) != 0; nBytes++)
+            {
+            }
+        var aBytes = new byte[nBytes];
+        Marshal.Copy(pText, aBytes, 0, nBytes);
+        return HbBytes.Text(aBytes);
     }
 
     // ---- the native library ------------------------------------------------

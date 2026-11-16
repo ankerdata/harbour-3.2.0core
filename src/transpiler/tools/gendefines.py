@@ -42,7 +42,8 @@ map and for the file it is compiling:
   - String literals: `"foo"`
   - Harbour boolean literals: `.T.` / `.F.`
   - Pure numeric expressions of literals: `(256 * 8) - 1`
-  - `chr(N) [+ chr(N)]...` sequences — common for binary magic values
+  - `chr(N) [+ chr(N)]...` sequences, and `hb_BChar(N)` as `chr(N)` — common
+    for binary magic values
   - Trailing `//` / `&&` Harbour-style comments are stripped
 
 ## Skipped
@@ -88,7 +89,7 @@ MACRO_RE = re.compile(r'^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\(')
 NUM_RE      = re.compile(r'^-?(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)$')
 STR_RE      = re.compile(r'^"(.*)"$')
 EXPR_RE     = re.compile(r'^[\s\d.()+\-*/%xA-Fa-f]+$')
-CHR_CALL_RE = re.compile(r'^\s*chr\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
+CHR_CALL_RE = re.compile(r'^\s*(?:chr|hb_bchar)\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
 SPACE_RE    = re.compile(r'^\s*space\s*\(\s*(\d+)\s*\)\s*$', re.IGNORECASE)
 REPL_RE     = re.compile(
     r'^\s*replicate\s*\(\s*(?:"(.)"|chr\s*\(\s*(\d+)\s*\))\s*,\s*(\d+)\s*\)\s*$',
@@ -127,14 +128,14 @@ def strip_trailing_comment(v: str) -> str:
 
 
 def try_chr_expr(v: str) -> Optional[str]:
-    """`chr(N) [+ chr(N)]...` → concatenated string."""
+    """`chr(N) [+ chr(N)]...` → concatenated string, a char to a byte."""
     parts = [p.strip() for p in v.split('+')]
     chars = []
     for p in parts:
         m = CHR_CALL_RE.match(p)
         if not m:
             return None
-        chars.append(chr(int(m.group(1))))
+        chars.append(chr(int(m.group(1)) & 0xFF))
     return ''.join(chars) if chars else None
 
 
@@ -379,10 +380,10 @@ def scan_all(include_dirs: Iterable[str], src_dirs: Iterable[str],
     def scan(path: str) -> None:
         try:
             # Latin-1, a char per byte: a Harbour string is bytes, and the
-            # sources are not all one encoding (a Windows-1252 byte read as
-            # UTF-8 became U+FFFD, UTF-8's three bytes for a euro sign one
-            # char). cs_escape_string() then writes each byte as \u00XX, as
-            # gencsharp.c does a string literal.
+            # sources are not all one encoding. cs_escape_string() then
+            # writes the bytes as gencsharp.c does a string literal's: text
+            # where they are UTF-8, and each other byte as the char that
+            # carries it.
             with open(path, encoding='latin-1') as fh:
                 content = fh.read()
         except Exception as e:
@@ -461,24 +462,59 @@ CS_CHAR_ESCAPES = {'\0': '\\0', '\a': '\\a', '\b': '\\b', '\f': '\\f', '\n': '\\
                    '\r': '\\r', '\t': '\\t', '\v': '\\v', '"': '\\"', '\\': '\\\\'}
 
 
+def bytes_as_text(data: bytes) -> str:
+    """Bytes as the transpiled program holds them (HbRuntime's HbBytes.Text):
+    UTF-8 where they are UTF-8, and each other byte as the char that carries
+    it, U+F780 to U+F7FF. A sequence that would decode to one of those chars
+    is kept as bytes."""
+    out = []
+    i = 0
+    while i < len(data):
+        c = data[i]
+        if c < 0x80:
+            out.append(chr(c))
+            i += 1
+            continue
+        more = 1 if 0xC2 <= c <= 0xDF else 2 if 0xE0 <= c <= 0xEF else 3 if 0xF0 <= c <= 0xF4 else 0
+        code = c & (0x1F if more == 1 else 0x0F if more == 2 else 0x07)
+        text = more > 0 and i + more < len(data)
+        if text:
+            for j in range(1, more + 1):
+                if data[i + j] & 0xC0 != 0x80:
+                    text = False
+                    break
+                code = (code << 6) | (data[i + j] & 0x3F)
+        if text and ((more == 2 and code < 0x800) or (more == 3 and code < 0x10000) or code > 0x10FFFF
+                     or 0xD800 <= code <= 0xDFFF or 0xF780 <= code <= 0xF7FF):
+            text = False
+        if text:
+            out.append(chr(code))
+            i += more + 1
+        else:
+            out.append(chr(0xF700 + c))
+            i += 1
+    return ''.join(out)
+
+
 def cs_escape_string(s: str) -> str:
-    """A C# literal for a Harbour string define. Verbatim strings preserve
-    Harbour's no-escape semantics (double any `"`), so printable ASCII stays
-    `@"..."`. Anything else (`chr(13) + chr(10)`, a control character, a byte
-    above 127) is a regular literal with escapes: written raw, a line break in
-    the literal took the line ending the file was written with (CRLF became
-    CR CR LF, LF became CR LF), and a high byte the code page it was written
-    in, where the C# compiler reads the source as UTF-8."""
+    """A C# literal for a Harbour string define, whose value is here a char
+    to a byte. Verbatim strings preserve Harbour's no-escape semantics (double
+    any `"`), so printable ASCII stays `\"..."`. Anything else is a regular
+    literal: the bytes' text where they are UTF-8, and an escape for a control
+    character (written raw, a line break took the line ending the file was
+    written with) and for a byte that is not text."""
     if all(' ' <= ch <= '~' for ch in s):
         return '@"' + s.replace('"', '""') + '"'
     out = []
-    for ch in s:
+    for ch in bytes_as_text(s.encode('latin-1')):
         if ch in CS_CHAR_ESCAPES:
             out.append(CS_CHAR_ESCAPES[ch])
-        elif ' ' <= ch <= '~':
+        elif ' ' <= ch <= '~' or (ch >= '\u00A0' and not '\uF780' <= ch <= '\uF7FF' and ord(ch) < 0x10000):
             out.append(ch)
-        else:
+        elif ord(ch) < 0x10000:
             out.append('\\u%04X' % ord(ch))
+        else:
+            out.append('\\U%08X' % ord(ch))
     return '"' + ''.join(out) + '"'
 
 
@@ -556,7 +592,7 @@ def write_class_files(per_file: Dict[str, Dict[str, Tuple[str, object]]],
             continue
         class_name = class_name_for(basename, class_suffix)
         out_path = os.path.join(output_dir, class_name + '.cs')
-        with open(out_path, 'w') as f:
+        with open(out_path, 'w', encoding='utf-8') as f:
             f.write(emit_cs(used_defs, class_name, basename))
         files_written += 1
         defines_emitted += len(used_defs)
@@ -595,7 +631,7 @@ def write_map(header_first: Dict[str, Tuple[str, Tuple[str, object]]],
                 f'{name}\t{cls}\t{prg_basename}\t{cs_type_token(t, val)}'
                 f'\t{value_token(t, val)}')
 
-    with open(map_path, 'w') as f:
+    with open(map_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(global_lines + local_lines))
         if global_lines or local_lines:
             f.write('\n')

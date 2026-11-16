@@ -5,7 +5,7 @@
  * functions' EOF character, the name and path helpers, or the error codes
  * EasiPOS reads (FError() is called 172 times, and adtio.prg retries on 5
  * and 32). Byte fidelity matters as much: a Harbour string is bytes, and
- * what a file carries is Latin-1 here.
+ * what a file carries is those bytes.
  *
  * Written as hbtest writes its assertions; Harbour runs them first, so
  * every expected value here is Harbour's own. The program runs in a

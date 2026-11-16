@@ -1,5 +1,5 @@
 
-own_serial:34 PASS
+own_serial:34 FAIL 1 | 0
 own_serial:35 PASS
 own_serial:36 PASS
 own_serial:37 PASS
@@ -26,4 +26,4 @@ own_serial:63 PASS
 own_serial:66 PASS
 own_serial:69 PASS
 own_serial:70 PASS
-passed         27 failed          0 errors          0
+passed         26 failed          1 errors          0

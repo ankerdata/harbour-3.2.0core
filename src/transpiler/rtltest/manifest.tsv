@@ -56,64 +56,138 @@ own_bits:38	run-fn	HB_BITSHIFT	HB_BITSHIFT	hb_bitShift( 256, -4 )
 own_bits:39	run-fn	HB_BITSHIFT	HB_BITSHIFT	hb_bitShift( 5, 0 )
 own_bits:40	run-fn	HB_BITSHIFT	HB_BITSHIFT	hb_bitShift( -16, -2 )
 own_bits:41	run-fn	HB_BITSHIFT	HB_BITSHIFT	hb_bitShift( 1, 31 )
-own_codecs:21	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( "plain" )
-own_codecs:22	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( "" )
-own_codecs:23	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( 42 )
-own_codecs:24	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( -7 )
-own_codecs:25	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( 19.95 )
-own_codecs:26	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( 2.50 )
-own_codecs:27	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( .T. )
-own_codecs:28	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( .F. )
-own_codecs:29	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( NIL )
-own_codecs:30	run-fn	HB_JSONENCODE	HB_JSONENCODE,HB_STOD	hb_jsonEncode( hb_SToD( "20260922" ) )
-own_codecs:34	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( cBytes )
-own_codecs:37	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( {} )
-own_codecs:38	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { 1, "two", .T., NIL } )
-own_codecs:39	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { => } )
-own_codecs:40	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( hOrder )
-own_codecs:41	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } )
-own_codecs:45	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { 1, 2 }, .T. )
-own_codecs:48	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( '"plain"' )
-own_codecs:49	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "42" )
-own_codecs:50	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "19.95" )
-own_codecs:51	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "true" )
-own_codecs:52	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "null" )
-own_codecs:53	run-fn	VALTYPE	HB_JSONDECODE,VALTYPE	ValType( hb_jsonDecode( "[1,2,3]" ) )
-own_codecs:54	run-fn	LEN	HB_JSONDECODE,LEN	Len( hb_jsonDecode( "[1,2,3]" ) )
-own_codecs:55	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "[1,2,3]" )[ 2 ]
-own_codecs:56	run-fn	VALTYPE	HB_JSONDECODE,VALTYPE	ValType( hb_jsonDecode( '{"a":1}' ) )
-own_codecs:57	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( '{"a":1}' )[ "a" ]
-own_codecs:58	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( '"A\n"' )
-own_codecs:59	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "not json" )
-own_codecs:60	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "" )
-own_codecs:63	run-fn	HB_JSONDECODE	HB_JSONDECODE,HB_JSONENCODE,HB_NTOS,HB_VALTOEXP	RoundTrip( hOrder )
-own_codecs:64	run-fn	LEN	HB_JSONDECODE,HB_JSONENCODE,LEN	DecodeLen( hb_jsonEncode( hOrder ) )
-own_codecs:67	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "" )
-own_codecs:68	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "f" )
-own_codecs:69	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "fo" )
-own_codecs:70	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "foo" )
-own_codecs:71	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "EasiPOS" )
-own_codecs:72	run-fn	HB_BASE64ENCODE	CHR,HB_BASE64ENCODE	hb_base64Encode( Chr( 0 ) + Chr( 255 ) )
-own_codecs:75	run-fn	HB_MD5	HB_MD5	hb_MD5( "" )
-own_codecs:76	run-fn	HB_MD5	HB_MD5	hb_MD5( "abc" )
-own_codecs:79	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS	ZRoundTrip( "the quick brown fox" )
-own_codecs:80	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS,REPLICATE	ZRoundTrip( Replicate( "AB", 5000 ) )
-own_codecs:81	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS	ZRoundTrip( cBytes )
-own_codecs:82	run-fn	HB_BLEN	HB_BLEN,HB_ZCOMPRESS,REPLICATE	ZSmaller( Replicate( "AB", 5000 ) )
-own_codecs:83	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS	hb_ZUncompress( hb_ZCompress( "" ) )
-own_codecs:84	run-fn	VALTYPE	HB_ZLIBVERSION,VALTYPE	ValType( hb_ZLibVersion() )
-own_codecs:87	run-fn	HB_STRTOUTF8	HB_STRTOUTF8	hb_StrToUTF8( "plain" )
-own_codecs:91	divergent:Harbour maps the high half through the process codepage, HbRuntime through Latin-1: three bytes against two	HB_BLEN	CHR,HB_BLEN,HB_STRTOUTF8	hb_BLen( hb_StrToUTF8( Chr( 200 ) ) )
-own_codecs:92	run-fn	HB_UTF8TOSTR	CHR,HB_STRTOUTF8,HB_UTF8TOSTR	hb_UTF8ToStr( hb_StrToUTF8( Chr( 200 ) ) )
-own_codecs:93	run-fn	HB_UTF8TOSTR	HB_UTF8TOSTR	hb_UTF8ToStr( "plain" )
-own_codecs:96	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )
-own_codecs:97	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]
-own_codecs:98	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]
-own_codecs:99	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )
-own_codecs:100	run-fn	LEN	HB_REGEX,HB_REGEXCOMP,LEN	Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )
-own_codecs:101	run-fn	HB_REGEX	HB_REGEX,HB_REGEXCOMP	hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]
-own_codecs:105	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[]" )
-own_codecs:106	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[7]" )
+own_codecs:30	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( "plain" )
+own_codecs:31	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( "" )
+own_codecs:32	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( 42 )
+own_codecs:33	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( -7 )
+own_codecs:34	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( 19.95 )
+own_codecs:35	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( 2.50 )
+own_codecs:36	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( .T. )
+own_codecs:37	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( .F. )
+own_codecs:38	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( NIL )
+own_codecs:39	run-fn	HB_JSONENCODE	HB_JSONENCODE,HB_STOD	hb_jsonEncode( hb_SToD( "20260922" ) )
+own_codecs:43	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( cBytes )
+own_codecs:46	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( {} )
+own_codecs:47	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { 1, "two", .T., NIL } )
+own_codecs:48	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { => } )
+own_codecs:49	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( hOrder )
+own_codecs:50	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } )
+own_codecs:54	run-fn	HB_JSONENCODE	HB_JSONENCODE	hb_jsonEncode( { 1, 2 }, .T. )
+own_codecs:57	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( '"plain"' )
+own_codecs:58	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "42" )
+own_codecs:59	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "19.95" )
+own_codecs:60	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "true" )
+own_codecs:61	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "null" )
+own_codecs:62	run-fn	VALTYPE	HB_JSONDECODE,VALTYPE	ValType( hb_jsonDecode( "[1,2,3]" ) )
+own_codecs:63	run-fn	LEN	HB_JSONDECODE,LEN	Len( hb_jsonDecode( "[1,2,3]" ) )
+own_codecs:64	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "[1,2,3]" )[ 2 ]
+own_codecs:65	run-fn	VALTYPE	HB_JSONDECODE,VALTYPE	ValType( hb_jsonDecode( '{"a":1}' ) )
+own_codecs:66	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( '{"a":1}' )[ "a" ]
+own_codecs:67	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( '"A\n"' )
+own_codecs:68	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "not json" )
+own_codecs:69	run-fn	HB_JSONDECODE	HB_JSONDECODE	hb_jsonDecode( "" )
+own_codecs:72	run-fn	HB_JSONDECODE	HB_JSONDECODE,HB_JSONENCODE,HB_NTOS,HB_VALTOEXP	RoundTrip( hOrder )
+own_codecs:73	run-fn	LEN	HB_JSONDECODE,HB_JSONENCODE,LEN	DecodeLen( hb_jsonEncode( hOrder ) )
+own_codecs:76	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "" )
+own_codecs:77	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "f" )
+own_codecs:78	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "fo" )
+own_codecs:79	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "foo" )
+own_codecs:80	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( "EasiPOS" )
+own_codecs:81	run-fn	HB_BASE64ENCODE	CHR,HB_BASE64ENCODE	hb_base64Encode( Chr( 0 ) + Chr( 255 ) )
+own_codecs:84	run-fn	HB_MD5	HB_MD5	hb_MD5( "" )
+own_codecs:85	run-fn	HB_MD5	HB_MD5	hb_MD5( "abc" )
+own_codecs:88	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS	ZRoundTrip( "the quick brown fox" )
+own_codecs:89	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS,REPLICATE	ZRoundTrip( Replicate( "AB", 5000 ) )
+own_codecs:90	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS	ZRoundTrip( cBytes )
+own_codecs:91	run-fn	HB_BLEN	HB_BLEN,HB_ZCOMPRESS,REPLICATE	ZSmaller( Replicate( "AB", 5000 ) )
+own_codecs:92	run-fn	HB_ZUNCOMPRESS	HB_ZCOMPRESS,HB_ZUNCOMPRESS	hb_ZUncompress( hb_ZCompress( "" ) )
+own_codecs:93	run-fn	VALTYPE	HB_ZLIBVERSION,VALTYPE	ValType( hb_ZLibVersion() )
+own_codecs:98	run-fn	HB_CDPSELECT	HB_CDPSELECT	hb_cdpSelect()
+own_codecs:99	run-fn	HB_CDPISUTF8	HB_CDPISUTF8	hb_cdpIsUTF8()
+own_codecs:100	run-fn	HB_CDPISUTF8	HB_CDPISUTF8	hb_cdpIsUTF8( "DE850" )
+own_codecs:101	run-fn	LEN	LEN	Len( cE )
+own_codecs:102	run-fn	HB_BLEN	HB_BLEN	hb_BLen( cE )
+own_codecs:103	run-fn	LEN	LEN	Len( cEuro )
+own_codecs:104	run-fn	HB_BLEN	HB_BLEN	hb_BLen( cEuro )
+own_codecs:105	run-fn	LEN	LEN	Len( cByte )
+own_codecs:106	run-fn	HB_BLEN	HB_BLEN	hb_BLen( cByte )
+own_codecs:107	run-fn	LEN	LEN	Len( cMix )
+own_codecs:108	run-fn	HB_BLEN	HB_BLEN	hb_BLen( cMix )
+own_codecs:109	run-fn	HB_STRTOHEX	HB_STRTOHEX	hb_StrToHex( cMix )
+own_codecs:110	run-fn	HB_STRTOHEX	HB_STRTOHEX,SUBSTR	hb_StrToHex( SubStr( cMix, 2, 1 ) )
+own_codecs:111	run-fn	HB_STRTOHEX	HB_STRTOHEX,SUBSTR	hb_StrToHex( SubStr( cMix, 3, 1 ) )
+own_codecs:112	run-fn	HB_STRTOHEX	HB_STRTOHEX,LEFT	hb_StrToHex( Left( cMix, 2 ) )
+own_codecs:113	run-fn	HB_STRTOHEX	HB_STRTOHEX,RIGHT	hb_StrToHex( Right( cMix, 2 ) )
+own_codecs:114	run-fn	HB_STRTOHEX	HB_BSUBSTR,HB_STRTOHEX	hb_StrToHex( hb_BSubStr( cMix, 2, 1 ) )
+own_codecs:115	run-fn	HB_STRTOHEX	HB_BSUBSTR,HB_STRTOHEX	hb_StrToHex( hb_BSubStr( cMix, 3 ) )
+own_codecs:116	run-fn	HB_STRTOHEX	HB_BSUBSTR,HB_STRTOHEX	hb_StrToHex( hb_BSubStr( cMix, -2 ) )
+own_codecs:117	run-fn	HB_STRTOHEX	HB_BLEFT,HB_STRTOHEX	hb_StrToHex( hb_BLeft( cMix, 2 ) )
+own_codecs:118	run-fn	HB_STRTOHEX	HB_BLEFT,HB_STRTOHEX	hb_StrToHex( hb_BLeft( cMix, 99 ) )
+own_codecs:119	run-fn	HB_STRTOHEX	HB_BRIGHT,HB_STRTOHEX	hb_StrToHex( hb_BRight( cMix, 2 ) )
+own_codecs:120	run-fn	HB_BRIGHT	HB_BRIGHT	hb_BRight( cMix, 0 )
+own_codecs:121	run-fn	HB_BLEFT	HB_BLEFT	hb_BLeft( cMix, 3 ) == "a" + cE
+own_codecs:122	run-fn	AT	AT	At( cByte, cMix )
+own_codecs:123	run-fn	HB_BAT	HB_BAT	hb_BAt( cByte, cMix )
+own_codecs:124	run-fn	AT	AT	At( "z", cMix )
+own_codecs:125	run-fn	HB_BAT	HB_BAT	hb_BAt( "z", cMix )
+own_codecs:126	run-fn	HB_BAT	HB_BAT	hb_BAt( "a", "banana", 3 )
+own_codecs:127	run-fn	HB_BAT	HB_BAT	hb_BAt( "a", "banana", 3, 3 )
+own_codecs:128	run-fn	HB_BAT	HB_BAT	hb_BAt( "a", "banana", 3, 4 )
+own_codecs:129	run-fn	HB_BAT	HB_BAT	hb_BAt( "", cMix )
+own_codecs:130	run-fn	HB_BCODE	HB_BCODE	hb_BCode( cE )
+own_codecs:131	run-fn	HB_BCODE	HB_BCODE	hb_BCode( "" )
+own_codecs:132	run-fn	ASC	ASC	Asc( cE )
+own_codecs:133	run-fn	ASC	ASC	Asc( cEuro )
+own_codecs:134	run-fn	ASC	ASC	Asc( cByte )
+own_codecs:135	run-fn	HB_STRTOHEX	CHR,HB_STRTOHEX	hb_StrToHex( Chr( nE ) )
+own_codecs:136	run-fn	HB_STRTOHEX	CHR,HB_STRTOHEX	hb_StrToHex( Chr( nE + 23 ) )
+own_codecs:137	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX	hb_StrToHex( hb_BChar( nE ) )
+own_codecs:138	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX	hb_StrToHex( hb_BChar( nE + 23 ) )
+own_codecs:139	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8CHR	hb_StrToHex( hb_utf8Chr( 65 ) )
+own_codecs:140	run-fn	HB_STRTOHEX	HB_STRTOHEX,PADR	hb_StrToHex( PadR( cE, 3 ) )
+own_codecs:141	run-fn	HB_STRTOHEX	HB_STRTOHEX,PADR	hb_StrToHex( PadR( cByte, 3 ) )
+own_codecs:142	run-fn	HB_STRTOHEX	HB_STRTOHEX,REPLICATE	hb_StrToHex( Replicate( cE, 2 ) )
+own_codecs:143	run-fn	HB_STRTOHEX	HB_STRTOHEX,STUFF	hb_StrToHex( Stuff( cMix, 2, 1, "X" ) )
+own_codecs:144	run-fn	HB_STRTOHEX	HB_STRTOHEX,STRTRAN	hb_StrToHex( StrTran( cMix, cE, "X" ) )
+own_codecs:145	run-fn	HB_STRTOHEX	HB_STRTOHEX,UPPER	hb_StrToHex( Upper( cE ) )
+own_codecs:146	run-fn	HB_STRTOHEX	HB_STRTOHEX,LOWER,UPPER	hb_StrToHex( Lower( Upper( cE ) ) )
+own_codecs:147	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8CHR,UPPER	hb_StrToHex( Upper( hb_utf8Chr( 0xDF ) ) )
+own_codecs:148	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8CHR,UPPER	hb_StrToHex( Upper( hb_utf8Chr( 0xFF ) ) )
+own_codecs:149	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8CHR,LOWER	hb_StrToHex( Lower( hb_utf8Chr( 0x130 ) ) )
+own_codecs:150	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8CHR,UPPER	hb_StrToHex( Upper( hb_utf8Chr( 0x131 ) ) )
+own_codecs:151	run-fn	HB_STRTOHEX	ALLTRIM,HB_STRTOHEX	hb_StrToHex( AllTrim( " " + cE + " " ) )
+own_codecs:152	run-fn	HB_STRISUTF8	HB_STRISUTF8	hb_StrIsUTF8( cE )
+own_codecs:153	run-fn	HB_STRISUTF8	HB_STRISUTF8	hb_StrIsUTF8( cByte )
+own_codecs:154	run-fn	HB_STRISUTF8	HB_STRISUTF8	hb_StrIsUTF8( cMix )
+own_codecs:155	run-fn	HB_STRISUTF8	HB_STRISUTF8	hb_StrIsUTF8( "abc" )
+own_codecs:156	run-fn	HB_STRISUTF8	HB_STRISUTF8	hb_StrIsUTF8( "" )
+own_codecs:157	run-fn	HB_STRTOHEX	HB_HEXTOSTR,HB_STRTOHEX	hb_StrToHex( hb_HexToStr( "C3A9FA" ) )
+own_codecs:158	run-fn	LEN	HB_HEXTOSTR,LEN	Len( hb_HexToStr( "C3A9FA" ) )
+own_codecs:159	run-fn	HB_BASE64ENCODE	HB_BASE64ENCODE	hb_base64Encode( cE )
+own_codecs:160	run-fn	HB_STRTOHEX	HB_STRTOHEX,L2BIN	hb_StrToHex( L2Bin( 250 ) )
+own_codecs:161	run-fn	BIN2L	BIN2L,L2BIN	Bin2L( L2Bin( 250 ) )
+own_codecs:162	run-fn	BIN2L	BIN2L,HB_BCHAR	Bin2L( cByte + hb_BChar( 0 ) + hb_BChar( 0 ) + hb_BChar( 0 ) )
+own_codecs:163	run-fn	HB_STRTOHEX	HB_JSONENCODE,HB_STRTOHEX	hb_StrToHex( hb_jsonEncode( cE ) )
+own_codecs:164	run-fn	HB_STRTOHEX	HB_JSONDECODE,HB_STRTOHEX	hb_StrToHex( hb_jsonDecode( '"\u00e9"' ) )
+own_codecs:168	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cE, "UTF8EX", "DE850" ) )
+own_codecs:169	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cEuro, "UTF8EX", "DE850" ) )
+own_codecs:170	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cMix, "UTF8EX", "DE850" ) )
+own_codecs:171	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( hb_BChar( 130 ), "DE850", "UTF8EX" ) )
+own_codecs:172	run-fn	HB_STRTOHEX	HB_CDPSELECT,HB_STRTOHEX,HB_TRANSLATE	hb_StrToHex( hb_Translate( cE, hb_cdpSelect(), "DE850" ) )
+own_codecs:173	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_STRTOUTF8	hb_StrToHex( hb_StrToUTF8( cE ) )
+own_codecs:174	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8TOSTR	hb_StrToHex( hb_UTF8ToStr( cE ) )
+own_codecs:175	run-fn	HB_STRTOHEX	HB_BCHAR,HB_STRTOHEX,HB_STRTOUTF8	hb_StrToHex( hb_StrToUTF8( hb_BChar( 130 ), "DE850" ) )
+own_codecs:176	run-fn	HB_STRTOHEX	HB_STRTOHEX,HB_UTF8TOSTR	hb_StrToHex( hb_UTF8ToStr( cE, "DE850" ) )
+own_codecs:177	run-fn	HB_STRTOUTF8	HB_STRTOUTF8	hb_StrToUTF8( "plain" )
+own_codecs:178	run-fn	HB_UTF8TOSTR	HB_UTF8TOSTR	hb_UTF8ToStr( "plain" )
+own_codecs:181	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" ) )
+own_codecs:182	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 1 ]
+own_codecs:183	run-fn	HB_REGEX	HB_REGEX	hb_regex( "([0-9\.]+)%", "Discount 12.5% applied" )[ 2 ]
+own_codecs:184	run-fn	LEN	HB_REGEX,LEN	Len( hb_regex( "([0-9\.]+)%", "nothing here" ) )
+own_codecs:185	run-fn	LEN	HB_REGEX,HB_REGEXCOMP,LEN	Len( hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" ) )
+own_codecs:186	run-fn	HB_REGEX	HB_REGEX,HB_REGEXCOMP	hb_regex( hb_regexComp( "[A-Z]+" ), "abc DEF ghi" )[ 1 ]
+own_codecs:190	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[]" )
+own_codecs:191	run-fn	HB_JSONDECODE	AADD,HB_JSONDECODE,LEN	GrowDecoded( "[7]" )
 own_dates:14	run-fn	DTOS	DTOS,STOD	DToS( SToD( "19840325" ) )
 own_dates:15	run-fn	STOD	HB_STOD,STOD	SToD( "19840325" ) == hb_SToD( "19840325" )
 own_dates:16	run-fn	EMPTY	EMPTY,STOD	Empty( SToD( "" ) )
@@ -455,7 +529,7 @@ own_reflect:59	run-fn	HB_DEFAULTVALUE	HB_DEFAULTVALUE	hb_defaultValue( "5", 3000
 own_reflect:60	run-fn	HB_DEFAULTVALUE	HB_DEFAULTVALUE	hb_defaultValue( .T., .F. )
 own_reflect:61	run-fn	HB_DEFAULTVALUE	HB_DEFAULTVALUE	hb_defaultValue( "kept" )
 own_reflect:62	run-fn	HB_DEFAULTVALUE	HB_DEFAULTVALUE	hb_defaultValue( NIL )
-own_serial:34	run-fn	HB_COMFINDPORT	HB_COMFINDPORT	hb_comFindPort( "COM1" )
+own_serial:34	divergent:Harbour answers 1 for "COM1"; HbRuntime 0, a name matching only a port given that name	HB_COMFINDPORT	HB_COMFINDPORT	hb_comFindPort( "COM1" )
 own_serial:35	run-fn	HB_COMFINDPORT	HB_COMFINDPORT	hb_comFindPort( "" )
 own_serial:36	run-fn	HB_COMFINDPORT	HB_COMFINDPORT	hb_comFindPort( "NOTAPORT" )
 own_serial:37	run-fn	HB_COMFINDPORT	HB_COMFINDPORT	hb_comFindPort( "NOTAPORT", .T. ) > 16
@@ -2170,7 +2244,7 @@ rt_hvm:266	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) <= hb_SToD( "" )
 rt_hvm:267	run-op			""                    <= "AAA"
 rt_hvm:268	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 <= ""
 rt_hvm:269	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 <= "AA"
-rt_hvm:270	run-fn	CHR	CHR	"AAA"                 <= Chr( 255 )
+rt_hvm:270	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 <= Chr( 255 )
 rt_hvm:271	run-fn	CHR	CHR	Chr( 150 )            <= Chr( 255 )
 rt_hvm:272	run-op			"A"                   <= "a"
 rt_hvm:273	run-op			"A"                   <= "Z"
@@ -2200,8 +2274,8 @@ rt_hvm:299	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) <  hb_SToD( "" )
 rt_hvm:300	run-op			""                    <  "AAA"
 rt_hvm:301	run-op			"AAA"                 <  ""
 rt_hvm:302	run-op			"AAA"                 <  "AA"
-rt_hvm:303	run-fn	CHR	CHR	"AAA"                 <  Chr( 255 )
-rt_hvm:304	run-fn	CHR	CHR	Chr( 150 )            <  Chr( 255 )
+rt_hvm:303	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 <  Chr( 255 )
+rt_hvm:304	divergent:UTF8EX orders by its sort table, in which two bytes that are not text are equal; C# compares ordinally	CHR	CHR	Chr( 150 )            <  Chr( 255 )
 rt_hvm:305	run-op			"A"                   <  "a"
 rt_hvm:306	run-op			"A"                   <  "Z"
 rt_hvm:307	run-op			"Z"                   <  "A"
@@ -2230,8 +2304,8 @@ rt_hvm:332	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) >= hb_SToD( "" )
 rt_hvm:333	run-op			""                    >= "AAA"
 rt_hvm:334	run-op			"AAA"                 >= ""
 rt_hvm:335	run-op			"AAA"                 >= "AA"
-rt_hvm:336	run-fn	CHR	CHR	"AAA"                 >= Chr( 255 )
-rt_hvm:337	run-fn	CHR	CHR	Chr( 150 )            >= Chr( 255 )
+rt_hvm:336	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 >= Chr( 255 )
+rt_hvm:337	divergent:UTF8EX orders by its sort table, in which two bytes that are not text are equal; C# compares ordinally	CHR	CHR	Chr( 150 )            >= Chr( 255 )
 rt_hvm:338	run-op			"A"                   >= "a"
 rt_hvm:339	run-op			"A"                   >= "Z"
 rt_hvm:340	run-op			"Z"                   >= "A"
@@ -2260,7 +2334,7 @@ rt_hvm:365	run-fn	HB_STOD	HB_STOD	hb_SToD( "19800101" ) >  hb_SToD( "" )
 rt_hvm:366	run-op			""                    >  "AAA"
 rt_hvm:367	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 >  ""
 rt_hvm:368	divergent:SET EXACT OFF: Harbour's string comparisons (=, <>, <, <=, >, >=, AScan) look only as far as the right operand's length; C# compares strings exactly and ordinally everywhere (Alex, 2026-09-19: "Harbour is really weird in that respect and I don't want that behaviour")			"AAA"                 >  "AA"
-rt_hvm:369	run-fn	CHR	CHR	"AAA"                 >  Chr( 255 )
+rt_hvm:369	divergent:UTF8EX orders by its sort table, in which a byte that is not text is below "AAA"; C# compares ordinally	CHR	CHR	"AAA"                 >  Chr( 255 )
 rt_hvm:370	run-fn	CHR	CHR	Chr( 150 )            >  Chr( 255 )
 rt_hvm:371	run-op			"A"                   >  "a"
 rt_hvm:372	run-op			"A"                   >  "Z"
@@ -3177,13 +3251,13 @@ rt_math:400	out-of-scope	STR	MOD,STR	Str( Mod(  0, -3 ) )
 rt_math:401	out-of-scope	STR	MOD,STR	Str( Mod( -1, -3 ) )
 rt_math:402	out-of-scope	STR	MOD,STR	Str( Mod( -2, -3 ) )
 rt_math:403	out-of-scope	STR	MOD,STR	Str( Mod( -3, -3 ) )
-rt_math:408	run-op			o:oscode
-rt_math:410	run-op			o:oscode
-rt_math:411	run-op			o:oscode++
-rt_math:413	run-op			o:oscode
-rt_math:414	run-op			++o:oscode
-rt_math:416	run-op			o:oscode
-rt_math:417	run-op			o:oscode += 200
+rt_math:408	run-op			o:osCode
+rt_math:410	run-op			o:osCode
+rt_math:411	run-op			o:osCode++
+rt_math:413	run-op			o:osCode
+rt_math:414	run-op			++o:osCode
+rt_math:416	run-op			o:osCode
+rt_math:417	run-op			o:osCode += 200
 rt_math:420	run-op			l
 rt_math:422	run-op			l
 rt_math:423	run-op			l++
@@ -3249,20 +3323,20 @@ rt_math:501	unsupported:macro			:os&s1.de
 rt_math:502	unsupported:macro			:os&s1.de += 49
 rt_math:503	unsupported:macro			--:os&s1.de
 rt_math:504	unsupported:macro			++:os&s1.de
-rt_math:509	run-op			:oscode
-rt_math:511	run-op			:oscode
-rt_math:512	run-op			:oscode++
-rt_math:513	run-op			:oscode++
-rt_math:515	run-op			:oscode
-rt_math:516	run-op			++:oscode
-rt_math:517	run-op			++:oscode
-rt_math:519	run-op			:oscode
-rt_math:520	run-op			:oscode += 200
-rt_math:521	run-op			:oscode += 100
-rt_math:523	run-op			:oscode
-rt_math:524	run-op			:oscode += 49
-rt_math:525	run-op			--:oscode
-rt_math:526	run-op			++:oscode
+rt_math:509	run-op			:osCode
+rt_math:511	run-op			:osCode
+rt_math:512	run-op			:osCode++
+rt_math:513	run-op			:osCode++
+rt_math:515	run-op			:osCode
+rt_math:516	run-op			++:osCode
+rt_math:517	run-op			++:osCode
+rt_math:519	run-op			:osCode
+rt_math:520	run-op			:osCode += 200
+rt_math:521	run-op			:osCode += 100
+rt_math:523	run-op			:osCode
+rt_math:524	run-op			:osCode += 49
+rt_math:525	run-op			--:osCode
+rt_math:526	run-op			++:osCode
 rt_math:531	statement:unsupported:macro			&s0 := 1
 rt_math:532	unsupported:macro			&s0
 rt_math:533	statement:unsupported:macro			&s0++
@@ -3328,20 +3402,20 @@ rt_math:601	unsupported:macro			:os&s1.de
 rt_math:602	unsupported:macro			:os&s1.de += 49
 rt_math:603	unsupported:macro			--:os&s1.de
 rt_math:604	unsupported:macro			++:os&s1.de
-rt_math:609	run-op			:oscode
-rt_math:611	run-op			:oscode
-rt_math:612	run-op			:oscode++
-rt_math:613	run-op			:oscode++
-rt_math:615	run-op			:oscode
-rt_math:616	run-op			++:oscode
-rt_math:617	run-op			++:oscode
-rt_math:619	run-op			:oscode
-rt_math:620	run-op			:oscode += 200
-rt_math:621	run-op			:oscode += 100
-rt_math:623	run-op			:oscode
-rt_math:624	run-op			:oscode += 49
-rt_math:625	run-op			--:oscode
-rt_math:626	run-op			++:oscode
+rt_math:609	run-op			:osCode
+rt_math:611	run-op			:osCode
+rt_math:612	run-op			:osCode++
+rt_math:613	run-op			:osCode++
+rt_math:615	run-op			:osCode
+rt_math:616	run-op			++:osCode
+rt_math:617	run-op			++:osCode
+rt_math:619	run-op			:osCode
+rt_math:620	run-op			:osCode += 200
+rt_math:621	run-op			:osCode += 100
+rt_math:623	run-op			:osCode
+rt_math:624	run-op			:osCode += 49
+rt_math:625	run-op			--:osCode
+rt_math:626	run-op			++:osCode
 rt_math:631	statement:unsupported:macro			&s0 := 1
 rt_math:632	unsupported:macro			&s0
 rt_math:633	statement:unsupported:macro			&s0++

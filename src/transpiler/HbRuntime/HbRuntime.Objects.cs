@@ -386,6 +386,9 @@ public static partial class HbRuntime
     // classes, so the question is only whether it is an array.
     public static bool HB_ISARRAY(object? x) => IsHbArray(x);
 
+    // HB_ISNUMERIC( <x> ): a number
+    public static bool HB_ISNUMERIC(object? x) => IsNumeric(x);
+
     // hb_defaultValue( <xValue>, <xDefault> ): the value, or the default
     // when the two are not of the same type (rtl/hbdef.c compares the
     // basic types, so NIL takes the default, and so does a value of

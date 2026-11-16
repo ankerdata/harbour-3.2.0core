@@ -260,7 +260,7 @@ public static partial class HbRuntime
         HbComPort? pCom = ComPort(xPort, true);
         if (pCom == null)
             return ComFailed;
-        byte[] aData = s_byteCP.GetBytes(cBuffer ?? "");
+        byte[] aData = HbBytes.Of(cBuffer);
         int nSend = nLen is decimal n && n >= 0 && (int) n < aData.Length ? (int) n : aData.Length;
         if (!ComSetTimeouts(pCom, nTimeout, false))
             return ComFailed;
@@ -284,7 +284,8 @@ public static partial class HbRuntime
         if (pCom == null)
             return ComFailed;
         cBuffer ??= "";
-        int nWant = nLen is decimal n && n >= 0 && (int) n < cBuffer.Length ? (int) n : cBuffer.Length;
+        int nSize = HbBytes.Count(cBuffer);
+        int nWant = nLen is decimal n && n >= 0 && (int) n < nSize ? (int) n : nSize;
         if (nWant == 0)
             return 0;
         if (!ComSetTimeouts(pCom, nTimeout, true))
@@ -297,7 +298,7 @@ public static partial class HbRuntime
         if (nRead == 0)
             pCom.nError = (int) HB_COM_ERR_TIMEOUT;
         else
-            cBuffer = s_byteCP.GetString(aData, 0, (int) nRead) + cBuffer.Substring((int) nRead);
+            cBuffer = HbBytes.Text(aData, 0, (int) nRead) + HbBytes.Slice(cBuffer, (int) nRead, nSize);
         return nRead;
     }
 
