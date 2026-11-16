@@ -5,11 +5,11 @@
 // functions bytes. A transpiled string is text, a char to a character, so
 // a literal's UTF-8 is written as that text. A byte that is not UTF-8 (a
 // source still in Windows-1252, a printer's control byte) is the char
-// HbRuntime carries a byte in, and is written back as that byte. Chr() of
-// a constant is a byte, as Harbour's compiler folds it, where Chr() of a
-// variable is the character; and constant bytes that spell a character
-// together are that character, whose Len() the compiler folds to its
-// bytes. The output is numbers, which no console encoding can change.
+// HbRuntime carries a byte in, and is written back as that byte. Chr() is
+// the character, of a constant as of a variable (the suite compiles with
+// -ku, as EasiPOS does), hb_BChar() the byte; and constant bytes that
+// spell a character together are that character. The output is numbers,
+// which no console encoding can change.
 public static partial class Program
 {
     public static void Main(string[] args)
