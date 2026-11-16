@@ -106,21 +106,26 @@ public static partial class HbRuntime
     // device name, or 0 — and, asked to create, a port number given the
     // name.
     //
-    // A name never becomes its own number on Windows, so "COM1" is not
-    // port 1: hb_comGetPortNum() reads the digits with
-    // `iPort = iPort * ( 10 + *pszName++ - '0' )`, which multiplies zero by
-    // something for ever and answers 0 (an upstream slip in rtl/hbcom.c —
-    // upstream takes no patches, and 9.0 runs on that behaviour, so this
-    // keeps it). What is left is the table scan: a name matches a port that
-    // was given it, and hb_comFindPort( ..., .T. ) takes the highest free
-    // port above 16, counting down. EasiPOS hands the number straight back
-    // to hb_comOpen(), so only the name matters.
+    // "COM<n>", with or without the `\\.\` in front, is port n while that
+    // port still carries its own name (rtl/hbcom.c, hb_comGetPortNum()).
+    // Any other name matches a port that was given it, and
+    // hb_comFindPort( ..., .T. ) takes the highest free port above 16,
+    // counting down. EasiPOS hands the number straight back to
+    // hb_comOpen().
     public static long hb_comFindPort(string? cDevice, bool lCreate = false)
     {
         if (string.IsNullOrEmpty(cDevice))
             return 0;
         lock (s_comLock)
         {
+            string cName = cDevice.StartsWith(@"\\.\", StringComparison.Ordinal) ? cDevice.Substring(4) : cDevice;
+            if (cName.Length > 3 && cName.StartsWith("COM", StringComparison.OrdinalIgnoreCase) &&
+                cName[3] >= '1' && cName[3] <= '9' && cName.Length <= 6 &&
+                int.TryParse(cName.AsSpan(3), System.Globalization.NumberStyles.None, INV, out int nNumber) &&
+                nNumber <= ComPortMax &&
+                (!s_com.TryGetValue(nNumber, out HbComPort? pNumbered) ||
+                 string.Equals(pNumbered.cDevice, cName, StringComparison.OrdinalIgnoreCase)))
+                return nNumber;
             foreach (var kv in s_com)
                 if (kv.Value.fNamed &&
                     string.Equals(kv.Value.cDevice, cDevice, StringComparison.OrdinalIgnoreCase))
