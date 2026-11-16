@@ -299,7 +299,7 @@ static int hb_comGetPortNum( const char * pszName )
    {
       pszName += 3;
       while( HB_ISDIGIT( *pszName ) )
-         iPort = iPort * ( 10 + *pszName++ - '0' );
+         iPort = iPort * 10 + ( *pszName++ - '0' );
       if( *pszName != '\0' )
          iPort = 0;
    }
