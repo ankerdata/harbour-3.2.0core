@@ -1423,12 +1423,21 @@ fraction" so anything fractional flowing into one needs `Int()` or
   (`==` is exact in both). Each operand is trimmed (a literal with no
   trailing blank, AllTrim(), RTrim(), Trim(), hb_ntos(), Str(), StrZero(),
   DToS(), Time(), ValType(), Type(), Upper() or Lower() of a trimmed one,
-  an ORM field, which the ORM AllTrim()s as it reads), padded (PadR(),
-  PadC(), Space(), a literal ending in a blank) or unknown; a comparison
-  with a side that is not trimmed is a row, its detail starting with the
-  worse kind. A test for NIL is no row, nor is AScan() with a block or
-  hb_AScan()'s lExact .T.; the fix is RTrim() on the side that may carry
-  blanks, or `!Empty( x )` for `x != ""`.
+  an ORM field, which the ORM AllTrim()s as it reads, EasiPOS's
+  GetFlagC(), which returns its text right-trimmed, a part of a value
+  with no blank in it at all (`Left( Time(), 5 )`: Time(), DToS(),
+  StrZero(), hb_ntos(), ValType(), a literal without one, and such
+  values joined), two trimmed values joined, an IIF() of two trimmed
+  ones, or a LOCAL every assignment of which is trimmed (the observe
+  walk notes what each LOCAL is given; one passed by `@` or added to
+  with `+=` is unknown, as a parameter and a static are)), padded
+  (PadR(), PadC(), Space(), a literal ending in a blank) or unknown; a
+  comparison with a side that is not trimmed is a row, its detail
+  starting with the worse kind. A test for NIL is no row, nor is AScan()
+  with a block or hb_AScan()'s lExact .T.; the fix is `!Empty( x )` for
+  `x != ""`, `!( a == b )` where two codes or names are meant to differ
+  exactly, RTrim() on the side that may carry blanks where an order is
+  compared.
 - **The scan log**: W0026 names the site that demoted an index-used
   variable, W0022 the caller that conflicted with the others, W0024 a
   name whose prefix disagrees with what it holds.

@@ -3611,6 +3611,13 @@ static void hb_astRecordAsArrayCheck( PHB_EXPR pCall, HB_TYPEENV * pEnv )
    }
 }
 
+/* EXACT-BLANKS follows a routine's locals: what each is given, noted as
+   the observe walk meets the writes (the notes are defined with the
+   audit, below) */
+static void hb_astBlankNoteLocal( const char * szName );
+static void hb_astBlankNoteAssign( const char * szName, PHB_EXPR pRhs, HB_TYPEENV * pEnv );
+static void hb_astBlankNoteUnknown( const char * szName );
+
 static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                                HB_BOOL * pfChanged )
 {
@@ -3859,6 +3866,7 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
             int local here would CS1620. Soft-disqualify. */
          hb_auditIntMark( pExpr->value.asSymbol.name,
                           s_iObserveLine, HB_INT_MARK_SOFT );
+         hb_astBlankNoteUnknown( pExpr->value.asSymbol.name );   /* the callee writes it */
          break;
 
       case HB_ET_REFERENCE:
@@ -3897,6 +3905,18 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       }
 
       default:
+         if( ( pExpr->ExprType == HB_EO_ASSIGN || pExpr->ExprType == HB_EO_PLUSEQ ||
+               pExpr->ExprType == HB_EO_MINUSEQ ) &&
+             pExpr->value.asOperator.pLeft &&
+             pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
+         {
+            /* what a local is given (EXACT-BLANKS); `+=` adds to it */
+            if( pExpr->ExprType == HB_EO_ASSIGN )
+               hb_astBlankNoteAssign( pExpr->value.asOperator.pLeft->value.asSymbol.name,
+                                      pExpr->value.asOperator.pRight, pEnv );
+            else
+               hb_astBlankNoteUnknown( pExpr->value.asOperator.pLeft->value.asSymbol.name );
+         }
          if( pExpr->ExprType == HB_EO_ASSIGN &&
              pExpr->value.asOperator.pLeft && pExpr->value.asOperator.pRight )
          {
@@ -4005,6 +4025,16 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
          case HB_AST_STATIC:
          case HB_AST_PUBLIC:
          case HB_AST_PRIVATE:
+            /* a LOCAL is followed for EXACT-BLANKS: its initializer is
+               its first assignment */
+            if( pStmt->type == HB_AST_LOCAL && pStmt->value.asVar.szName &&
+                ! pStmt->value.asVar.fArrayDim )
+            {
+               hb_astBlankNoteLocal( pStmt->value.asVar.szName );
+               if( pStmt->value.asVar.pInit )
+                  hb_astBlankNoteAssign( pStmt->value.asVar.szName,
+                                         pStmt->value.asVar.pInit, pEnv );
+            }
             /* A declaration initializer is an assignment for
                int-candidacy purposes: fractional literal / division
                result = hard disqualifier, other non-integral = soft. */
@@ -6559,8 +6589,10 @@ static void hb_astListEmit( PHB_AST_NODE pBody, HB_TYPEENV * pEnv )
    comparison can come out differently when a side may carry trailing
    blanks. Each operand is trimmed (a literal with no trailing blank,
    AllTrim(), RTrim(), Trim(), hb_ntos(), Str(), StrZero(), DToS(), Time(),
-   ValType(), Type(), Upper() or Lower() of a trimmed one, or an ORM field,
-   which both of the ORM's readers AllTrim()), padded (PadR(), PadC(),
+   ValType(), Type(), Upper() or Lower() of a trimmed one, an ORM field,
+   which both of the ORM's readers AllTrim(), a part of a value with no
+   blank in it (`Left( Time(), 5 )`), two trimmed values joined, or a
+   local every assignment of which is trimmed), padded (PadR(), PadC(),
    Space(), a literal ending in a blank) or unknown. Both sides trimmed
    cannot differ and make no row, nor does a test for NIL; otherwise the
    row's detail starts with the worse kind, padded or unknown. An AScan()'s
@@ -6588,10 +6620,110 @@ static PHB_EXPR hb_astFirstArg( PHB_EXPR pCall )
           pParms->value.asList.pExprList : pParms;
 }
 
+/* A routine's locals, each with what its assignments give it: trimmed
+   when every one is, solid when every one has no blank in it at all. A
+   local passed by reference or added to (`+=`) is unknown, as is a
+   parameter, a static and anything else not declared LOCAL here. */
+#define HB_BLANKVAR_MAX 256
+static struct
+{
+   const char * szName;
+   HB_BOOL      fAssigned;
+   HB_BOOL      fUnknown;
+   HB_BOOL      fUntrimmed;
+   HB_BOOL      fUnsolid;
+} s_aBlankVar[ HB_BLANKVAR_MAX ];
+static int s_iBlankVar = 0;
+
+static int hb_astBlankVarFind( const char * szName )
+{
+   int i;
+   if( szName )
+      for( i = 0; i < s_iBlankVar; i++ )
+         if( hb_stricmp( s_aBlankVar[ i ].szName, szName ) == 0 )
+            return i;
+   return -1;
+}
+
+static int hb_astBlankKind( PHB_EXPR p, HB_TYPEENV * pEnv );
+
+/* A value with no blank in it, so that any part of it has none either:
+   Time(), DToS(), StrZero(), hb_ntos(), ValType(), a literal without one;
+   Left(), Right(), SubStr(), Upper() and Lower() of such a value, such
+   values joined, a local given only such values */
+static HB_BOOL hb_astIsSolid( PHB_EXPR p, HB_TYPEENV * pEnv )
+{
+   static const char * s_aSolid[] = { "TIME", "DTOS", "STRZERO", "HB_NTOS", "VALTYPE", "TYPE" };
+   static const char * s_aPart[] = { "LEFT", "RIGHT", "SUBSTR", "UPPER", "LOWER" };
+   const char * szFn;
+   int i;
+
+   p = hb_astUnparen( p );
+   if( ! p )
+      return HB_FALSE;
+   if( p->ExprType == HB_ET_STRING )
+      return memchr( p->value.asString.string, ' ', p->nLength ) == NULL;
+   if( p->ExprType == HB_EO_PLUS )
+      return hb_astIsSolid( p->value.asOperator.pLeft, pEnv ) &&
+             hb_astIsSolid( p->value.asOperator.pRight, pEnv );
+   if( p->ExprType == HB_ET_IIF && p->value.asList.pExprList &&
+       p->value.asList.pExprList->pNext && p->value.asList.pExprList->pNext->pNext )
+      return hb_astIsSolid( p->value.asList.pExprList->pNext, pEnv ) &&
+             hb_astIsSolid( p->value.asList.pExprList->pNext->pNext, pEnv );
+   if( p->ExprType == HB_ET_VARIABLE )
+   {
+      i = hb_astBlankVarFind( p->value.asSymbol.name );
+      return i >= 0 && s_aBlankVar[ i ].fAssigned && ! s_aBlankVar[ i ].fUnknown &&
+             ! s_aBlankVar[ i ].fUnsolid;
+   }
+   if( p->ExprType != HB_ET_FUNCALL || ! p->value.asFunCall.pFunName ||
+       p->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+       ! ( szFn = p->value.asFunCall.pFunName->value.asSymbol.name ) )
+      return HB_FALSE;
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aSolid ); i++ )
+      if( hb_stricmp( szFn, s_aSolid[ i ] ) == 0 )
+         return HB_TRUE;
+   for( i = 0; i < ( int ) HB_SIZEOFARRAY( s_aPart ); i++ )
+      if( hb_stricmp( szFn, s_aPart[ i ] ) == 0 )
+         return hb_astIsSolid( hb_astFirstArg( p ), pEnv );
+   return HB_FALSE;
+}
+
+static void hb_astBlankNoteLocal( const char * szName )
+{
+   if( ! szName || hb_astBlankVarFind( szName ) >= 0 || s_iBlankVar >= HB_BLANKVAR_MAX )
+      return;
+   memset( &s_aBlankVar[ s_iBlankVar ], 0, sizeof( s_aBlankVar[ 0 ] ) );
+   s_aBlankVar[ s_iBlankVar++ ].szName = szName;
+}
+
+static void hb_astBlankNoteUnknown( const char * szName )
+{
+   int i = hb_astBlankVarFind( szName );
+   if( i >= 0 )
+      s_aBlankVar[ i ].fUnknown = HB_TRUE;
+}
+
+static void hb_astBlankNoteAssign( const char * szName, PHB_EXPR pRhs, HB_TYPEENV * pEnv )
+{
+   int i = hb_astBlankVarFind( szName );
+   if( i < 0 )
+      return;
+   /* its own value on the right (`c := Left( c, 5 )`) says nothing new */
+   s_aBlankVar[ i ].fAssigned = HB_TRUE;
+   if( ! hb_astIsSolid( pRhs, pEnv ) )
+      s_aBlankVar[ i ].fUnsolid = HB_TRUE;
+   if( hb_astBlankKind( pRhs, pEnv ) != HB_BK_TRIMMED )
+      s_aBlankVar[ i ].fUntrimmed = HB_TRUE;
+}
+
 static int hb_astBlankKind( PHB_EXPR p, HB_TYPEENV * pEnv )
 {
+   /* GetFlagC() is EasiPOS's flag reader, which returns its text
+      right-trimmed (flags.prg) */
    static const char * s_aTrimmed[] = { "ALLTRIM", "RTRIM", "TRIM", "HB_NTOS", "STR",
-                                        "STRZERO", "DTOS", "TIME", "VALTYPE", "TYPE" };
+                                        "STRZERO", "DTOS", "TIME", "VALTYPE", "TYPE",
+                                        "GETFLAGC" };
    static const char * s_aPadded[] = { "PADR", "PADC", "SPACE" };
    const char * szFn;
    int          i;
@@ -6604,6 +6736,25 @@ static int hb_astBlankKind( PHB_EXPR p, HB_TYPEENV * pEnv )
              HB_BK_PADDED : HB_BK_TRIMMED;
    if( hb_astOrmFieldCs( p, pEnv ) )
       return HB_BK_TRIMMED;
+   /* a local every assignment of which is trimmed */
+   if( p->ExprType == HB_ET_VARIABLE )
+   {
+      i = hb_astBlankVarFind( p->value.asSymbol.name );
+      return i >= 0 && s_aBlankVar[ i ].fAssigned && ! s_aBlankVar[ i ].fUnknown &&
+             ! s_aBlankVar[ i ].fUntrimmed ? HB_BK_TRIMMED : HB_BK_UNKNOWN;
+   }
+   /* a part of a value with no blank in it; two trimmed values joined */
+   if( hb_astIsSolid( p, pEnv ) )
+      return HB_BK_TRIMMED;
+   if( p->ExprType == HB_EO_PLUS )
+      return hb_astBlankKind( p->value.asOperator.pLeft, pEnv ) == HB_BK_TRIMMED &&
+             hb_astBlankKind( p->value.asOperator.pRight, pEnv ) == HB_BK_TRIMMED ?
+             HB_BK_TRIMMED : HB_BK_UNKNOWN;
+   /* IIF( l, a, b ): the worse of its two branches */
+   if( p->ExprType == HB_ET_IIF && p->value.asList.pExprList &&
+       p->value.asList.pExprList->pNext && p->value.asList.pExprList->pNext->pNext )
+      return HB_MAX( hb_astBlankKind( p->value.asList.pExprList->pNext, pEnv ),
+                     hb_astBlankKind( p->value.asList.pExprList->pNext->pNext, pEnv ) );
    if( p->ExprType != HB_ET_FUNCALL || ! p->value.asFunCall.pFunName ||
        p->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
        ! ( szFn = p->value.asFunCall.pFunName->value.asSymbol.name ) )
@@ -8587,6 +8738,7 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       hb_astSetFileDecls( pClassList );   /* its #defines: constant subscripts */
 
    s_iIntCand = 0;   /* per-function int-candidate audit tracking */
+   s_iBlankVar = 0;  /* and what its locals are given (EXACT-BLANKS) */
 
    hb_typeEnvInit( &env, ( PHB_REFTAB ) pRefTab, szFile );
    if( szFuncKey )
