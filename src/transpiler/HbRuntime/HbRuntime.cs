@@ -392,15 +392,22 @@ public static partial class HbRuntime
     static System.Type? s_programTypeSet;
     public static void SetProgramType(System.Type program) => s_programTypeSet = program;
 
-    public static Func<dynamic[], dynamic> FuncPtr(string methodName)
+    public static Func<dynamic[], dynamic> FuncPtr(string methodName) => FuncPtr(null, methodName);
+
+    // `@Name()`: the program's function of that name, or, with <owner>, a
+    // function of the runtime or of a library (`@Val()`,
+    // `@sqlite3_bind_text()`), which is a static method of that class. Of
+    // overloads, the one with the most parameters.
+    public static Func<dynamic[], dynamic> FuncPtr(System.Type owner, string methodName)
     {
         if (methodName == null) return _ => null;
-        if (s_funcPtrCache.TryGetValue(methodName, out var cached)) return cached;
+        string cacheKey = owner == null ? methodName : owner.FullName + "." + methodName;
+        if (s_funcPtrCache.TryGetValue(cacheKey, out var cached)) return cached;
 
-        var programType = ProgramType;
+        var programType = owner ?? ProgramType;
 
         System.Reflection.MethodInfo method = null;
-        if (programType != null)
+        if (programType != null && owner == null)
         {
             method = programType.GetMethod(methodName,
                 System.Reflection.BindingFlags.Public |
@@ -408,12 +415,21 @@ public static partial class HbRuntime
                 System.Reflection.BindingFlags.Static |
                 System.Reflection.BindingFlags.IgnoreCase);
         }
+        else if (programType != null)
+        {
+            foreach (var m in programType.GetMethods(System.Reflection.BindingFlags.Public |
+                                                     System.Reflection.BindingFlags.Static))
+                if (string.Equals(m.Name, methodName, StringComparison.OrdinalIgnoreCase) &&
+                    !m.IsGenericMethodDefinition &&
+                    (method == null || m.GetParameters().Length > method.GetParameters().Length))
+                    method = m;
+        }
 
         Func<dynamic[], dynamic> result;
         if (method == null)
         {
             result = _ => throw new MissingMethodException(
-                $"HbRuntime.FuncPtr: no static method '{methodName}' on Program");
+                $"HbRuntime.FuncPtr: no static method '{methodName}' on {(owner == null ? "Program" : owner.Name)}");
         }
         else
         {
@@ -456,7 +472,7 @@ public static partial class HbRuntime
             };
         }
 
-        s_funcPtrCache[methodName] = result;
+        s_funcPtrCache[cacheKey] = result;
         return result;
     }
 }

@@ -723,6 +723,7 @@ SIGN	NUMERIC	-
 SIN	NUMERIC	-
 SINH	NUMERIC	-
 Space	STRING	HbRuntime
+sqlite3_bind_blob	INTEGER	-
 sqlite3_bind_double	INTEGER	-
 sqlite3_bind_int	INTEGER	-
 sqlite3_bind_int64	INTEGER	-

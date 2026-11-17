@@ -47,22 +47,22 @@ public class Widget : IHbObject
 
 public static partial class Program
 {
-    public static dynamic test50_sfPrint = FuncPtr("PrintTag");
+    public static dynamic test50_sfPrint = FuncPtr(nameof(PrintTag));
     public static void Main(string[] args)
     {
-        dynamic fAdd = FuncPtr("AddOne");
+        dynamic fAdd = FuncPtr(nameof(AddOne));
 
-        dynamic fGreet = FuncPtr("SayHello");
+        dynamic fGreet = FuncPtr(nameof(SayHello));
 
         QOut("fAdd(2,3)=" + LTrim(Str(Eval(fAdd, 2, 3))));
         QOut("fGreet=>" + Eval(fGreet, "world"));
         QOut("sfPrint=>" + Eval(test50_sfPrint, "hello"));
-        QOut("Apply=>" + Apply(FuncPtr("AddOne"), 10, 20));
+        QOut("Apply=>" + Apply(FuncPtr(nameof(AddOne)), 10, 20));
 
-        Widget oWidget = new Widget().New("OK", FuncPtr("PrintTag"));
+        Widget oWidget = new Widget().New("OK", FuncPtr(nameof(PrintTag)));
         oWidget.Fire();
 
-        Invoke(FuncPtr("SayHello"), "param-passed");
+        Invoke(FuncPtr(nameof(SayHello)), "param-passed");
     }
 
     public static decimal AddOne(decimal nX = default, decimal nY = default)

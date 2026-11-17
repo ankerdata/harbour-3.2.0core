@@ -5511,13 +5511,40 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             the rest. A STATIC function of this file goes by its mangled
             name, `<FileBase>_<Name>`, as a call to it does — the plain
             name found nothing (family 10: hb_threadStart( @Worker() )
-            on a file-static Worker). */
+            on a file-static Worker). A function the program defines is
+            named through nameof(), in its declared spelling, so the C#
+            compiler refuses a reference to one that is not there, where
+            the name in a string failed only when the line ran. */
          if( pExpr->value.asSymbol.name )
          {
             char szMangled[ 256 ];
-            fprintf( yyc, "%s(\"%s\")", hb_csRuntime( "FuncPtr" ),
-                     hb_csMangleStaticFunc( pExpr->value.asSymbol.name,
-                                            szMangled, sizeof( szMangled ) ) );
+            const char * szName = pExpr->value.asSymbol.name;
+            if( hb_csIsFileStaticFunc( szName ) )
+               fprintf( yyc, "%s(nameof(%s))", hb_csRuntime( "FuncPtr" ),
+                        hb_csMangleStaticFunc( szName, szMangled, sizeof( szMangled ) ) );
+            else if( s_pRefTab && hb_refTabIsDefinedFunc( s_pRefTab, szName ) &&
+                     hb_refTabFuncCanon( s_pRefTab, szName ) )
+               fprintf( yyc, "%s(nameof(%s))", hb_csRuntime( "FuncPtr" ),
+                        hb_refTabFuncCanon( s_pRefTab, szName ) );
+            else if( hb_csHbxCanon( szName ) )
+            {
+               /* a function of the runtime or of a contrib library
+                  (`@Val()`, `@sqlite3_bind_text()`): a static method of
+                  HbRuntime or of the library's class, which FuncPtr()
+                  is told, since it looks in the program otherwise */
+               const char * szCanon = hb_csHbxCanon( szName );
+               const char * szLib = hb_hbxCanonLibrary( szCanon );
+               char szClass[ 64 ];
+               if( szLib )
+                  hb_csLibraryClass( szLib, szClass, sizeof( szClass ) );
+               else
+                  hb_strncpy( szClass, "HbRuntime", sizeof( szClass ) - 1 );
+               fprintf( yyc, "%s(typeof(%s), nameof(%s.%s))", hb_csRuntime( "FuncPtr" ),
+                        szClass, szClass, szCanon );
+            }
+            else
+               fprintf( yyc, "%s(\"%s\")", hb_csRuntime( "FuncPtr" ),
+                        hb_csMangleStaticFunc( szName, szMangled, sizeof( szMangled ) ) );
          }
          else
             fprintf( yyc, "%s(\"\")", hb_csRuntime( "FuncPtr" ) );

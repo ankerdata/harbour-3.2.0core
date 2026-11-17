@@ -11,7 +11,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        HbThread pThread = hb_threadStart(FuncPtr("Thr158Run"));
+        HbThread pThread = hb_threadStart(FuncPtr(nameof(Thr158Run)));
         hb_threadWait(pThread, 5);
         QOut("main goes on");
     }

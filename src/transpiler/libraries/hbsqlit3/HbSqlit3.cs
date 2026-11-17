@@ -177,6 +177,15 @@ public static partial class HbSqlit3
         return Native.sqlite3_bind_text(stmt, Int(nParam), aText, aText.Length - 1, SQLITE_TRANSIENT);
     }
 
+    // sqlite3_bind_blob( <pStmt>, <nParam>, <cBlob> ): the string's bytes, as
+    // they are
+    public static long sqlite3_bind_blob(object? pStmt, object? nParam, object? cBlob)
+    {
+        IntPtr stmt = Stmt(pStmt, "SQLITE3_BIND_BLOB");
+        byte[] aBlob = HbBytes.Of(cBlob as string ?? "");
+        return Native.sqlite3_bind_blob(stmt, Int(nParam), aBlob, aBlob.Length, SQLITE_TRANSIENT);
+    }
+
     // sqlite3_column_*( <pStmt>, <nColumn> ): the current row's value
     public static decimal sqlite3_column_double(object? pStmt, object? nColumn) =>
         (decimal) Native.sqlite3_column_double(Stmt(pStmt, "SQLITE3_COLUMN_DOUBLE"), Int(nColumn) - 1);
@@ -318,6 +327,7 @@ public static partial class HbSqlit3
         [DllImport(Lib)] internal static extern int sqlite3_bind_int(IntPtr stmt, int i, int value);
         [DllImport(Lib)] internal static extern int sqlite3_bind_int64(IntPtr stmt, int i, long value);
         [DllImport(Lib)] internal static extern int sqlite3_bind_text(IntPtr stmt, int i, byte[] value, int nByte, IntPtr destructor);
+        [DllImport(Lib)] internal static extern int sqlite3_bind_blob(IntPtr stmt, int i, byte[] value, int nByte, IntPtr destructor);
         [DllImport(Lib)] internal static extern double sqlite3_column_double(IntPtr stmt, int iCol);
         [DllImport(Lib)] internal static extern int sqlite3_column_int(IntPtr stmt, int iCol);
         [DllImport(Lib)] internal static extern long sqlite3_column_int64(IntPtr stmt, int iCol);

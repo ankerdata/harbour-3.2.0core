@@ -37,7 +37,7 @@ public static partial class Program
 
     public static HbThread Start176(long iValue = default)
     {
-        return hb_threadStart(FuncPtr("Work176"), iValue);
+        return hb_threadStart(FuncPtr(nameof(Work176)), iValue);
     }
 
     public static void Work176(long iValue = default)
