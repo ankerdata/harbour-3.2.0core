@@ -8,6 +8,28 @@ using System.Linq;
 // paths, and the current directory and drive.
 // One part of HbRuntime; HbRuntime.cs says what the whole is.
 
+// One entry of Directory() and hb_DirScan(): Harbour's { name, size, date,
+// "hh:mm:ss", attributes }, read by directry.ch's F_NAME to F_ATTR. A
+// record to the transpiler (hbclasses.tab), so `aDir[ i ][ F_NAME ]` is
+// the field.
+public sealed class DirectoryEntry
+{
+    public string cName;
+    public decimal nSize;
+    public DateOnly dDate;
+    public string cTime;
+    public string cAttr;
+
+    public DirectoryEntry(string cName, decimal nSize, DateOnly dDate, string cTime, string cAttr)
+    {
+        this.cName = cName;
+        this.nSize = nSize;
+        this.dDate = dDate;
+        this.cTime = cTime;
+        this.cAttr = cAttr;
+    }
+}
+
 public static partial class HbRuntime
 {
     // ---- Finding files ----
@@ -205,7 +227,7 @@ public static partial class HbRuntime
     // <cAttr> asks for them, and "D" brings "." and ".." with it. A spec
     // ending in a path or drive separator gets "*.*" added, as Clipper's
     // did.
-    public static List<dynamic> Directory(string cDirSpec = null, string cAttr = null)
+    public static List<DirectoryEntry> Directory(string cDirSpec = null, string cAttr = null)
     {
         int nMask = HB_FA_ARCHIVE | HB_FA_READONLY | AttrEncode(cAttr);
 
@@ -214,18 +236,12 @@ public static partial class HbRuntime
         else if (cDirSpec[^1] is '\\' or '/' or ':')
             cDirSpec += "*.*";
 
-        var aDir = new List<dynamic>();
+        var aDir = new List<DirectoryEntry>();
         foreach (FoundFile f in FindFiles(cDirSpec, nMask))
         {
             DateTime tWrite = f.WriteUtc.ToLocalTime();
-            aDir.Add(new List<dynamic>
-            {
-                f.Name,
-                (decimal) f.Size,
-                DateOnly.FromDateTime(tWrite),
-                tWrite.ToString("HH:mm:ss", INV),
-                AttrDecode(f.Attr),
-            });
+            aDir.Add(new DirectoryEntry(f.Name, (decimal) f.Size, DateOnly.FromDateTime(tWrite),
+                                        tWrite.ToString("HH:mm:ss", INV), AttrDecode(f.Attr)));
         }
         return aDir;
     }
@@ -291,26 +307,26 @@ public static partial class HbRuntime
     // hb_DirScan( [<cPath>], [<cFileMask>], [<cAttr>] ) (rtl/dirscan.prg):
     // Directory()'s entries for the whole tree, each name carrying the path
     // below <cPath> it was found at.
-    public static List<dynamic> hb_DirScan(string cPath = null, string cFileMask = null, string cAttr = null) =>
+    public static List<DirectoryEntry> hb_DirScan(string cPath = null, string cFileMask = null, string cAttr = null) =>
         DirScan(hb_DirSepAdd(cPath ?? ""), cFileMask ?? "*.*", cAttr ?? "");
 
-    static List<dynamic> DirScan(string cPath, string cMask, string cAttr)
+    static List<DirectoryEntry> DirScan(string cPath, string cMask, string cAttr)
     {
-        var aResult = new List<dynamic>();
+        var aResult = new List<DirectoryEntry>();
 
-        foreach (List<dynamic> aFile in Directory(cPath + "*.*", cAttr + "D"))
+        foreach (DirectoryEntry aFile in Directory(cPath + "*.*", cAttr + "D"))
         {
-            string cName = (string) aFile[0];
+            string cName = aFile.cName;
             bool lMatch = FileMatch(cName, cMask);
 
-            if (((string) aFile[4]).Contains('D'))
+            if (aFile.cAttr.Contains('D'))
             {
                 if (lMatch && cAttr.Contains('D'))
                     aResult.Add(aFile);
                 if (cName != "." && cName != ".." && cName != "")
-                    foreach (List<dynamic> aSub in DirScan(cPath + cName + "\\", cMask, cAttr))
+                    foreach (DirectoryEntry aSub in DirScan(cPath + cName + "\\", cMask, cAttr))
                     {
-                        aSub[0] = cName + "\\" + (string) aSub[0];
+                        aSub.cName = cName + "\\" + aSub.cName;
                         aResult.Add(aSub);
                     }
             }

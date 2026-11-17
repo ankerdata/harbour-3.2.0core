@@ -25,8 +25,13 @@ Error::args	-	-	0
 Error::cargo	-	-	0
 Error::Error__classname	-	STRING	0
 #
+# DirectoryEntry (the row above the handles): one entry of Directory() and
+# hb_DirScan(), a record (flags KR, its fields the parameters), HbRuntime's
+# class of that name; hbfuncs.tab gives the two functions ARRAY<DirectoryEntry>.
+#
 # The handles (`AS HANDLE OF SOCKET`, a `p` name ending in the kind):
 # HbRuntime's socket, thread and mutex, hbsqlit3's connection and statement.
+DirectoryEntry	KR	-	5	cName:STRING:-	nSize:NUMERIC:-	dDate:DATE:-	cTime:STRING:-	cAttr:STRING:-
 HbSocket	X	HbSocket	0
 HbThread	X	HbThread	0
 HbMutex	X	HbMutex	0

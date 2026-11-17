@@ -123,7 +123,11 @@ static void hb_funcTabInsert( const char * szName,
    {
       if( e->szRetType )
          hb_xfree( e->szRetType );
-      e->szRetType = hb_funcTabDupUpper( szRetType, strlen( szRetType ) );
+      /* a list of a class or record keeps its name's spelling
+         (ARRAY<DirectoryEntry>); the plain type words are upper case */
+      e->szRetType = strchr( szRetType, '<' )
+         ? hb_funcTabDup( szRetType, strlen( szRetType ) )
+         : hb_funcTabDupUpper( szRetType, strlen( szRetType ) );
    }
    if( szPrefix )
    {

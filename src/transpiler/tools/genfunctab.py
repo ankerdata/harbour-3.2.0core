@@ -191,6 +191,8 @@ def cs_return_to_harbour(cs: str) -> str | None:
         return "DATE"
     if base in ("DateTime", "System.DateTime"):
         return "TIMESTAMP"
+    if base == "List<DirectoryEntry>":
+        return "ARRAY<DirectoryEntry>"   # the runtime's own record (hbclasses.tab)
     if base.endswith("[]") or base.startswith("List<"):
         return "ARRAY"
     if base.startswith("Dictionary"):

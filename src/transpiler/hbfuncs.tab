@@ -160,7 +160,7 @@ DBSKIPPER	NUMERIC	-
 DBSTRUCT	ARRAY	-
 DELETED	LOGICAL	-
 DirChange	INTEGER	HbRuntime
-Directory	ARRAY	HbRuntime
+Directory	ARRAY<DirectoryEntry>	HbRuntime
 DirRemove	INTEGER	HbRuntime
 DiskChange	LOGICAL	HbRuntime
 DiskSpace	INTEGER	HbRuntime
@@ -424,7 +424,7 @@ hb_defaultValue	-	HbRuntime
 hb_DirBase	STRING	HbRuntime
 hb_DirBuild	LOGICAL	HbRuntime
 hb_DirExists	LOGICAL	HbRuntime
-hb_DirScan	ARRAY	HbRuntime
+hb_DirScan	ARRAY<DirectoryEntry>	HbRuntime
 hb_DirSepAdd	STRING	HbRuntime
 hb_DirSepDel	STRING	HbRuntime
 hb_DirTemp	STRING	HbRuntime

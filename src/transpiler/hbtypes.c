@@ -1004,8 +1004,8 @@ static HB_BOOL hb_astFileDefineValue( const char * szName, long * plValue )
 }
 
 /* A constant subscript (plan C12): a whole-number literal above 0, or a
-   `#define` of one (the defines map's, else this file's own); 0 when the
-   subscript is anything else. */
+   `#define` of one (the defines map's, else this file's own, else
+   directry.ch's F_NAME to F_ATTR); 0 when the subscript is anything else. */
 long hb_astConstIndex( PHB_EXPR pIdx )
 {
    while( pIdx && ( pIdx->ExprType == HB_ET_LIST || pIdx->ExprType == HB_ET_ARGLIST ) &&
@@ -1024,7 +1024,17 @@ long hb_astConstIndex( PHB_EXPR pIdx )
       if( szValue && *szValue )
          l = atol( szValue );
       else if( ! hb_astFileDefineValue( szName, &l ) )
+      {
+         /* directry.ch's positions of a Directory() entry: Harbour's own
+            header is in no defines map (HbRuntime.Constants.cs holds its
+            constants), and the runtime's DirectoryEntry is read by them */
+         static const char * s_aDirPos[] = { "F_NAME", "F_SIZE", "F_DATE", "F_TIME", "F_ATTR" };
+         int i;
          l = 0;
+         for( i = 0; i < 5; i++ )
+            if( strcmp( szName, s_aDirPos[ i ] ) == 0 )
+               l = i + 1;
+      }
       return l > 0 ? l : 0;
    }
    return 0;

@@ -571,6 +571,17 @@ refuses `AS CLASS Error`, no such class being declared to its compiler
 (W0025). Until 2026-10-15 the scan knew no such class and every
 `oError` was `dynamic`.
 
+**Directory()'s entries** are a record there, `DirectoryEntry( cName,
+nSize, dDate, cTime, cAttr )` (row flags `KR`, the fields its
+parameters), which HbRuntime declares as a class of that name;
+hbfuncs.tab gives Directory() and hb_DirScan() `ARRAY<DirectoryEntry>`
+(genfunctab.py; a list's class name keeps its spelling in the table).
+So `aDir[ i ][ F_NAME ]` is the entry's `cName`, a string, wherever the
+list goes: an `a` local, a FOR EACH, a codeblock's parameter. The
+positions are directry.ch's `F_NAME` to `F_ATTR`, which the
+constant-subscript test knows by name, Harbour's own header being in no
+defines map. test178.
+
 **Handles** are five more of the runtime's classes there: a socket
 (`HbSocket`), a thread (`HbThread`), a mutex (`HbMutex`), and hbsqlit3's
 connection and statement (`HbSqlit3.Sqlite3Db`, `HbSqlit3.Sqlite3Stmt`). A `p` name
@@ -2000,6 +2011,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 170       | A record written by hb_jsonEncode() is the array of its fields: alone, in a list of records, nested in another record, as a hash's value and as an element of a plain array |
 | 176       | Handles: a `p` name ending in a kind (`pSocket`, `pListenSocket`, `pWorkThread`, `pMemDBConnection`, `pCountDBStatement`, `pQueueMutex`, `pStateLock`) is the runtime's class of it on a local and a parameter, `AS HANDLE OF SOCKET` (`DBCONNECTION`, `DBSTATEMENT`, `THREAD`, `MUTEX`) declares a function's return, and a `p` name of no kind stays opaque |
 | 177       | A whole number earned from another: `FOR j := i + 1`, `FOR k := j + 1` and a local set from a loop variable are `long` once the variable they start from is; one set from a fraction stays `decimal`; a `SWITCH` subject with whole case labels and a local set from a whole file static are `long` |
+| 178       | Directory()'s entries are the runtime's record DirectoryEntry: `aDir[ i ][ F_NAME ]` is the name field in a plain `a` local, a FOR EACH, a codeblock's parameter and an untyped parameter the list is passed to |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
