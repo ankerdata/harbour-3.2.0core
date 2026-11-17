@@ -269,12 +269,9 @@ static const char * hb_astTypeForPrefixChar( char c )
       case 'b': return "BLOCK";
       case 't': return "TIMESTAMP";
       case 'x': return "USUAL";
-      /* `p`/`P` is used for two related concepts in the easipos
-         corpus — function pointers (`@Foo()` return values) and
-         opaque handles (DB/socket/statement pointers). BLOCK is
-         Harbour's callable type; it maps to C# `dynamic` in
-         hb_csTypeMap, which supports both calls (via DLR) and
-         opaque storage. */
+      /* `p<X>`: a handle. One whose name ends in a kind the runtime has
+         a class for is that class (hb_astHandleNameType); any other is
+         opaque, which BLOCK's C# `dynamic` holds. */
       case 'p': return "BLOCK";
       /* `f<X>` — function pointer / `@FuncName()` reference. Same C#
          shape as a code block (`Func<dynamic[], dynamic>` or just
@@ -1083,8 +1080,9 @@ static const char * hb_astClassFromObjectName( const char * szName )
 }
 
 /* The class an o<Class> name names - a program class or an ORM model -
-   or NULL. For the scan's parameter registration (hbreftab.c), which runs
-   outside hb_astPropagate and so has no published reftab of its own. */
+   or a handle's name its kind (`pSocket`), or NULL. For the scan's
+   parameter registration (hbreftab.c), which runs outside hb_astPropagate
+   and so has no published reftab of its own. */
 const char * hb_astObjectNameClass( void * pRefTab, const char * szName )
 {
    PHB_REFTAB pSaved = s_pPropRefTab;
@@ -1092,6 +1090,8 @@ const char * hb_astObjectNameClass( void * pRefTab, const char * szName )
 
    s_pPropRefTab = ( PHB_REFTAB ) pRefTab;
    szClass = hb_astClassFromObjectName( szName );
+   if( ! szClass )
+      szClass = hb_astHandleNameType( szName );
    s_pPropRefTab = pSaved;
    return szClass;
 }
@@ -1210,10 +1210,71 @@ static const char * hb_astTargetName( PHB_EXPR pExpr )
    return NULL;
 }
 
+/* The kinds of handle: what `AS HANDLE OF <kind>` names, the ending of a
+   `p` name that says the same, and the runtime's class (hbclasses.tab). */
+static const struct
+{
+   const char * szKind;
+   const char * szEnding;
+   const char * szClass;
+} s_aHandleKinds[] =
+{
+   { "SOCKET",    "Socket", "HbSocket"    },
+   { "DATABASE",  "DB",     "Sqlite3Db"   },
+   { "STATEMENT", "Stmt",   "Sqlite3Stmt" },
+   { "THREAD",    "Thread", "HbThread"    }
+};
+
+/* `AS HANDLE OF SOCKET`: the class of that kind of handle, NULL for a
+   word that names none. */
+const char * hb_astHandleKindClass( const char * szKind )
+{
+   HB_SIZE i;
+   if( szKind )
+      for( i = 0; i < HB_SIZEOFARRAY( s_aHandleKinds ); i++ )
+         if( hb_stricmp( szKind, s_aHandleKinds[ i ].szKind ) == 0 )
+            return s_aHandleKinds[ i ].szClass;
+   return NULL;
+}
+
+/* The handle a name declares: a `p` name (a static's `sp`) that ends in
+   a kind of handle is one, as `AS HANDLE OF` declares it: `pSocket`,
+   `pPOSDB`, `pInsertStmt`, `spServerThread`. The ending is exact in its
+   case. NULL for any other name. */
+const char * hb_astHandleNameType( const char * szName )
+{
+   const char * szSuffix = NULL;
+   HB_SIZE nLen, i;
+   if( ! szName )
+      return NULL;
+   if( szName[ 0 ] == 'p' && szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' )
+      szSuffix = szName + 1;
+   else if( szName[ 0 ] == 's' && szName[ 1 ] == 'p' &&
+            szName[ 2 ] >= 'A' && szName[ 2 ] <= 'Z' )
+      szSuffix = szName + 2;
+   if( ! szSuffix )
+      return NULL;
+   nLen = strlen( szSuffix );
+   for( i = 0; i < HB_SIZEOFARRAY( s_aHandleKinds ); i++ )
+   {
+      HB_SIZE nEnd = strlen( s_aHandleKinds[ i ].szEnding );
+      if( nLen >= nEnd &&
+          strcmp( szSuffix + nLen - nEnd, s_aHandleKinds[ i ].szEnding ) == 0 )
+         return s_aHandleKinds[ i ].szClass;
+   }
+   return NULL;
+}
+
 static const char * hb_astInferFromPrefix( const char * szName )
 {
    if( ! szName || ! szName[ 0 ] )
       return NULL;
+
+   {
+      const char * szHandle = hb_astHandleNameType( szName );
+      if( szHandle )
+         return szHandle;
+   }
 
    /* `o<ClassName>` / `so<ClassName>` resolves to that specific class
       whenever the suffix matches a registered class — so authors who
@@ -8642,38 +8703,85 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
       toward decimal across callers, and retyping only the env side
       would split the signature from the body. Hard-disqualified
       index users (division / fractional value) get W0026 at the
-      disqualifying site instead of a silent demotion. */
+      disqualifying site instead of a silent demotion. A local that
+      earns INTEGER may be all that kept another from it (`j := i + 1`
+      read while `i` was still a NUMERIC), so the soft marks are taken
+      again with what was earned, until nothing more is. */
    {
       int i;
+      HB_BOOL fEarned;
+      do
+      {
+         fEarned = HB_FALSE;
+         for( i = 0; i < s_iIntCand; i++ )
+         {
+            /* The other direction: a local its initializer typed INTEGER —
+               `LOCAL nMask := hb_bitAnd(...)`, `:= oTrans:nSaleIndex`, `:=
+               GetFlagI(...)` — that later takes a fraction (a division, a
+               literal with decimals) goes back to decimal: every write into
+               a long is cast, and the cast would drop what Harbour keeps
+               (test121). An `i` name stays long; W0024 named the site. */
+            if( s_aIntCand[ i ].fNonIntHard &&
+                ! hb_astIsIntegerName( s_aIntCand[ i ].szName ) )
+            {
+               const char * szCur = hb_typeEnvGet( &env, s_aIntCand[ i ].szName );
+               PHB_AST_NODE pDecl = pBody->value.asBlock.pFirst;
+               for( ; szCur && strcmp( szCur, "INTEGER" ) == 0 && pDecl;
+                    pDecl = pDecl->pNext )
+                  if( ( pDecl->type == HB_AST_LOCAL ||
+                        pDecl->type == HB_AST_STATIC ) &&
+                      pDecl->value.asVar.szName &&
+                      hb_stricmp( pDecl->value.asVar.szName,
+                                  s_aIntCand[ i ].szName ) == 0 )
+                  {
+                     hb_typeEnvSet( &env, s_aIntCand[ i ].szName, "NUMERIC" );
+                     break;
+                  }
+            }
+            /* Two positive signals earn INTEGER: index-shaped use (a
+               subscript MUST be int) and sink flow (the value is written
+               into an INTEGER member/field). Either, absent a
+               disqualifier, upgrades the local. */
+            if( ! s_aIntCand[ i ].fIndexUsed && ! s_aIntCand[ i ].fSinkUsed )
+               continue;
+            if( s_aIntCand[ i ].fNonIntHard )
+               continue;
+            if( ! s_aIntCand[ i ].fNonIntSoft )
+            {
+               PHB_AST_NODE pDecl = pBody->value.asBlock.pFirst;
+               while( pDecl )
+               {
+                  if( ( pDecl->type == HB_AST_LOCAL ||
+                        pDecl->type == HB_AST_STATIC ) &&
+                      pDecl->value.asVar.szName &&
+                      hb_stricmp( pDecl->value.asVar.szName,
+                                  s_aIntCand[ i ].szName ) == 0 )
+                  {
+                     const char * szCur = hb_typeEnvGet(
+                        &env, s_aIntCand[ i ].szName );
+                     if( szCur && strcmp( szCur, "NUMERIC" ) == 0 )
+                     {
+                        hb_typeEnvSet( &env, s_aIntCand[ i ].szName,
+                                       "INTEGER" );
+                        fEarned = HB_TRUE;
+                     }
+                     break;
+                  }
+                  pDecl = pDecl->pNext;
+               }
+            }
+         }
+         if( fEarned )
+         {
+            for( i = 0; i < s_iIntCand; i++ )
+               s_aIntCand[ i ].fNonIntSoft = HB_FALSE;
+            hb_astObserveBlock( pBody, &env, &fChanged );
+         }
+      }
+      while( fEarned );
+
       for( i = 0; i < s_iIntCand; i++ )
       {
-         /* The other direction: a local its initializer typed INTEGER —
-            `LOCAL nMask := hb_bitAnd(...)`, `:= oTrans:nSaleIndex`, `:=
-            GetFlagI(...)` — that later takes a fraction (a division, a
-            literal with decimals) goes back to decimal: every write into
-            a long is cast, and the cast would drop what Harbour keeps
-            (test121). An `i` name stays long; W0024 named the site. */
-         if( s_aIntCand[ i ].fNonIntHard &&
-             ! hb_astIsIntegerName( s_aIntCand[ i ].szName ) )
-         {
-            const char * szCur = hb_typeEnvGet( &env, s_aIntCand[ i ].szName );
-            PHB_AST_NODE pDecl = pBody->value.asBlock.pFirst;
-            for( ; szCur && strcmp( szCur, "INTEGER" ) == 0 && pDecl;
-                 pDecl = pDecl->pNext )
-               if( ( pDecl->type == HB_AST_LOCAL ||
-                     pDecl->type == HB_AST_STATIC ) &&
-                   pDecl->value.asVar.szName &&
-                   hb_stricmp( pDecl->value.asVar.szName,
-                               s_aIntCand[ i ].szName ) == 0 )
-               {
-                  hb_typeEnvSet( &env, s_aIntCand[ i ].szName, "NUMERIC" );
-                  break;
-               }
-         }
-         /* Two positive signals earn INTEGER: index-shaped use (a
-            subscript MUST be int) and sink flow (the value is written
-            into an INTEGER member/field). Either, absent a
-            disqualifier, upgrades the local. */
          if( ! s_aIntCand[ i ].fIndexUsed && ! s_aIntCand[ i ].fSinkUsed )
             continue;
          if( s_aIntCand[ i ].fNonIntHard )
@@ -8696,27 +8804,6 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                   hb_strCollapsePath( szFile ? szFile : "?" ),
                   s_aIntCand[ i ].iNonIntLine,
                   s_aIntCand[ i ].szName );
-         }
-         else if( ! s_aIntCand[ i ].fNonIntSoft )
-         {
-            PHB_AST_NODE pDecl = pBody->value.asBlock.pFirst;
-            while( pDecl )
-            {
-               if( ( pDecl->type == HB_AST_LOCAL ||
-                     pDecl->type == HB_AST_STATIC ) &&
-                   pDecl->value.asVar.szName &&
-                   hb_stricmp( pDecl->value.asVar.szName,
-                               s_aIntCand[ i ].szName ) == 0 )
-               {
-                  const char * szCur = hb_typeEnvGet(
-                     &env, s_aIntCand[ i ].szName );
-                  if( szCur && strcmp( szCur, "NUMERIC" ) == 0 )
-                     hb_typeEnvSet( &env, s_aIntCand[ i ].szName,
-                                    "INTEGER" );
-                  break;
-               }
-               pDecl = pDecl->pNext;
-            }
          }
       }
    }

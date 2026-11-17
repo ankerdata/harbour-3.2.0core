@@ -571,6 +571,19 @@ refuses `AS CLASS Error`, no such class being declared to its compiler
 (W0025). Until 2026-10-15 the scan knew no such class and every
 `oError` was `dynamic`.
 
+**Handles** are four more of the runtime's classes there: a socket
+(`HbSocket`), a thread (`HbThread`), and hbsqlit3's connection and
+statement (`HbSqlit3.Sqlite3Db`, `HbSqlit3.Sqlite3Stmt`). A `p` name
+that ends in the kind is one, and that is a declaration, as an array
+name is: `pSocket` and `pListenSocket`, `pDB` and `pPOSDB`, `pStmt`,
+`pThread`, a static's `spServerThread`, on a local, a static, a
+parameter and a member. The ending is exact in its case; a `p` name
+with no such ending stays opaque (`dynamic`). A function says what it
+returns with `AS HANDLE OF SOCKET` (`DATABASE`, `STATEMENT`, `THREAD`),
+which astype.ch removes for Harbour. The kinds are one table in
+hbtypes.c (`s_aHandleKinds`): the word, the ending and the class.
+test176.
+
 #### Scan pipeline
 
 `-GF` invokes [`hb_refTabCollect`](hbreftab.c) which runs three
@@ -787,7 +800,10 @@ implicitly so every consumer boundary is free). Fractional writes and
 compound `/=` `%=` `^=` disqualify; an index-used variable that a
 disqualifier forces back to decimal gets **W0026** rather than a
 silent demotion. Parameters are not candidates — their type is the
-reftab slot, which merges across callers. See
+reftab slot, which merges across callers. A candidate set from another
+(`j := i + 1`, `FOR k := j + 1 TO …`) is whole only once that one is,
+so the pass repeats, reading the writes again with what was earned,
+until nothing more is (test177). See
 [test78.prg](tests/test78.prg).
 
 **Receivers.** For `a:b:c` the class of the receiver is resolved by
@@ -1980,6 +1996,8 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 168       | A list of records: `AS ARRAY OF RECORD X` is a `List<X>` on a local, a parameter and a caller-typed one; its literal, AAdd(), FOR EACH, `Array( n )`, and an AScan() block whose `a` parameter is the record |
 | 169       | A list of a class that stands alone: `AS ARRAY OF CLASS X`, X with no parent and no subclass, is a `List<X>` on a local, a member, a parameter and a function's result, its literal and AAdd() the objects; a list of a class with a subclass stays a `List<dynamic>` |
 | 170       | A record written by hb_jsonEncode() is the array of its fields: alone, in a list of records, nested in another record, as a hash's value and as an element of a plain array |
+| 176       | Handles: a `p` name ending in a kind (`pSocket`, `pListenSocket`, `pWorkThread`, `pMemDB`, `pCountStmt`) is the runtime's class of it on a local and a parameter, `AS HANDLE OF SOCKET` (`DATABASE`, `STATEMENT`, `THREAD`) declares a function's return, and a `p` name of no kind stays opaque |
+| 177       | A whole number earned from another: `FOR j := i + 1`, `FOR k := j + 1` and a local set from a loop variable are `long` once the variable they start from is; one set from a fraction stays `decimal` |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

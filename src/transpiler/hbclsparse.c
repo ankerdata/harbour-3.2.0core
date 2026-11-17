@@ -82,6 +82,20 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
       *piUsed = 2;
       return hb_compIdentifierNew( HB_COMP_PARAM, pTok->pNext->value, HB_IDENT_COPY );
    }
+   /* `HANDLE OF SOCKET` (DATABASE, STATEMENT, THREAD): the runtime's
+      class of that kind of handle */
+   if( hb_clsTokenIs( pTok, "HANDLE" ) && hb_clsTokenIs( pTok->pNext, "OF" ) &&
+       pTok->pNext->pNext &&
+       HB_PP_TOKEN_TYPE( pTok->pNext->pNext->type ) == HB_PP_TOKEN_KEYWORD )
+   {
+      const char * szClass = hb_astHandleKindClass( pTok->pNext->pNext->value );
+      if( szClass )
+      {
+         *piUsed = 3;
+         return szClass;
+      }
+      return NULL;
+   }
    /* `[INTEGER|STRING|CHARACTER] HASH [OF <type>]`: a hash keyed by whole
       numbers or strings (HASHN, HASHC), its values typed when OF says
       (HASHN<T>, HASHC<T>); a bare HASH stays the weak HASH of before */
@@ -684,6 +698,12 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                 hb_astArrayNameType( szDataName ) )
             {
                szType = hb_astArrayNameType( szDataName );
+               fDeclType = HB_TRUE;
+            }
+            /* and a handle's name its kind (`VAR pDB`) */
+            if( ! fDeclType && ! szType && hb_astHandleNameType( szDataName ) )
+            {
+               szType = hb_astHandleNameType( szDataName );
                fDeclType = HB_TRUE;
             }
             pData = hb_astNew( HB_AST_CLASSDATA, hb_clsCurrLine( HB_COMP_PARAM ) );

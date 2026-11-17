@@ -17,7 +17,7 @@ public static partial class Program
         // each thread its own THREAD STATIC, starting from its declared value
         dynamic xGot = "none";
         test115_snSeen = 7;
-        dynamic pThread = hb_threadStart(FuncPtr("test115_Thr115Bump"), pMtx);
+        HbThread pThread = hb_threadStart(FuncPtr("test115_Thr115Bump"), pMtx);
         hb_threadWait(pThread, 5);
         hb_mutexSubscribe(pMtx, 5, ref xGot);
         QOut("thread static:", xGot, test115_snSeen);

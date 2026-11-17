@@ -1592,7 +1592,10 @@ hb_comp_yylex_restart:
                   HB_BOOL fArray = szElem && ( hb_stricmp( szElem, "INTEGER" ) == 0 ||
                                                hb_astArrayElemType( szElem ) != NULL ||
                                                hb_astIsTypeParam( szElem ) );
-                  if( szHash && iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray ) )
+                  /* and a handle (`AS HANDLE OF SOCKET`), a class the
+                     words name */
+                  HB_BOOL fHandle = pTypeTok && hb_stricmp( pTypeTok->value, "HANDLE" ) == 0;
+                  if( szHash && iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray || fHandle ) )
                   {
                      int i;
                      pLex->iState = DECLARE_TYPE;

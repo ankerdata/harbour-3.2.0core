@@ -363,6 +363,8 @@ extern HB_BOOL      hb_astIsArrayOfCall( PHB_EXPR pExpr, const char * szType );
    `sac`) before a capital is ARRAY<NUMERIC>, ARRAY<INTEGER>, ARRAY<STRING>,
    a declaration as AS ARRAY OF … is; NULL for any other name */
 extern const char * hb_astArrayNameType( const char * szName );
+extern const char * hb_astHandleKindClass( const char * szKind );
+extern const char * hb_astHandleNameType( const char * szName );
 /* Generic functions (plan C12): `AS ARRAY OF T`, T one capital letter, on
    a function's parameters, return and locals is a type parameter, ARRAY<T>,
    a C# List<T> in a generic method. A call binds T from the arguments
