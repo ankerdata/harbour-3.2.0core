@@ -8895,12 +8895,19 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                   "it decimal (W0026 fired)",
                   "wrap the expression with int() or keep decimal" );
             else if( s_aIntCand[ i ].fNonIntSoft )
+            {
+               /* a name whose prefix says whole number is one whatever
+                  is assigned to it: nothing is left to earn */
+               const char * szByName = hb_astInferFromPrefix( s_aIntCand[ i ].szName );
+               if( szByName && strcmp( szByName, "INTEGER" ) == 0 )
+                  continue;
                hb_auditEmit( "INT-CONFLICT", szFile,
                   s_aIntCand[ i ].iNonIntLine, szSym,
                   "index-used but a non-integral assignment or @pass "
                   "keeps it decimal (soft, no warning)",
                   "make the assignment provably integral (int(), "
                   "Len(), literals) to earn C# int" );
+            }
             /* Clean candidates now EMIT as C# int — working as
                intended, so no audit row: the report is for
                insufficiencies, and hundreds of success stories would
