@@ -1594,7 +1594,9 @@ hb_comp_yylex_restart:
                                                hb_astIsTypeParam( szElem ) );
                   /* and a handle (`AS HANDLE OF SOCKET`), a class the
                      words name */
-                  HB_BOOL fHandle = pTypeTok && hb_stricmp( pTypeTok->value, "HANDLE" ) == 0;
+                  HB_BOOL fHandle = pTypeTok && ( hb_stricmp( pTypeTok->value, "HANDLE" ) == 0 ||
+                                                  /* and a function pointer (`AS FUNCTION Name`) */
+                                                  hb_stricmp( pTypeTok->value, "FUNCTION" ) == 0 );
                   if( szHash && iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray || fHandle ) )
                   {
                      int i;

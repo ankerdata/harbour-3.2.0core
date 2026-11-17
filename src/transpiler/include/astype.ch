@@ -57,3 +57,7 @@
 /* Handles: `AS HANDLE OF SOCKET` (DBCONNECTION, DBSTATEMENT, THREAD, MUTEX) names the
    kind for the transpiler; a pointer to Harbour. */
 #xtranslate AS HANDLE OF <!kind!> =>
+
+/* Function pointers: `AS FUNCTION Name` says the pointer has Name's
+   signature, a delegate to the transpiler; a pointer to Harbour. */
+#xtranslate AS FUNCTION <!name!> =>

@@ -910,6 +910,18 @@ static HB_BOOL hb_astDeclKnownAt( void * pRefTab, const char * szDecl, HB_BOOL f
    const char * szElem = hb_astArrayElemType( szDecl );
    const char * szClass;
    char c = hb_astTypeParamOf( szDecl );
+   /* `AS FUNCTION Name` (FUNC<Name>): known when Name is a function the
+      program defines */
+   if( szDecl && strncmp( szDecl, "FUNC<", 5 ) == 0 )
+   {
+      char szModel[ 160 ];
+      HB_SIZE n = strlen( szDecl + 5 );
+      if( n < 2 || n > sizeof( szModel ) )
+         return HB_FALSE;
+      memcpy( szModel, szDecl + 5, n - 1 );
+      szModel[ n - 1 ] = 0;
+      return hb_refTabIsDefinedFunc( ( PHB_REFTAB ) pRefTab, szModel );
+   }
    if( c )
       return fTop && strchr( s_szTypeParams, c ) != NULL;
    if( hb_astHashValueType( szDecl ) )
@@ -2060,6 +2072,29 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
          }
 
       case HB_ET_SEND:
+         /* `f:exec( ... )`, f declared `AS FUNCTION Model`: what the
+            model returns */
+         if( pExpr->value.asMessage.szMessage && pEnv && pEnv->pRefTab &&
+             hb_stricmp( pExpr->value.asMessage.szMessage, "exec" ) == 0 &&
+             pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE )
+         {
+            const char * szF = hb_typeEnvGet( pEnv,
+               pExpr->value.asMessage.pObject->value.asSymbol.name );
+            if( szF && strncmp( szF, "FUNC<", 5 ) == 0 )
+            {
+               char szModel[ 160 ];
+               HB_SIZE n = strlen( szF + 5 );
+               if( n > 1 && n <= sizeof( szModel ) )
+               {
+                  memcpy( szModel, szF + 5, n - 1 );
+                  szModel[ n - 1 ] = 0;
+                  if( hb_refTabIsDefinedFunc( pEnv->pRefTab, szModel ) )
+                     return hb_refTabReturnType( pEnv->pRefTab, szModel );
+               }
+               return NULL;
+            }
+         }
          /* Constructor pattern: ClassName():New() / ClassName():Init() →
             return the class name as the inferred type so subsequent
             uses of the resulting variable can be method-resolved
@@ -2417,6 +2452,7 @@ static HB_BOOL hb_astIsClassType( const char * sz )
       hb_stricmp( sz, "NIL"       ) != 0 && hb_stricmp( sz, "SYMBOL"    ) != 0 &&
       hb_stricmp( sz, "POINTER"   ) != 0 && hb_stricmp( sz, "OBJECT"    ) != 0 &&
       hb_stricmp( sz, "USUAL"     ) != 0 && hb_stricmp( sz, "FUNREF"    ) != 0 &&
+      strncmp( sz, "FUNC<", 5 ) != 0 &&   /* a declared function pointer */
       ! hb_astIsArrayType( sz );     /* ARRAY<T>: an array, not a class */
 }
 
@@ -2434,6 +2470,14 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
        hb_stricmp( szActual, "OBJECT" ) == 0 || hb_stricmp( szActual, "NIL" ) == 0 ||
        hb_stricmp( szDecl, szActual ) == 0 )
       return HB_TRUE;
+   /* a declared function pointer (`AS FUNCTION Name`, FUNC<Name>) takes
+      a function reference (`@Other()`, which the inference calls a BLOCK,
+      as it does an `f` name) or another such pointer; whether the
+      function has the signature is the C# compiler's to say, at the
+      reference */
+   if( strncmp( szDecl, "FUNC<", 5 ) == 0 )
+      return hb_stricmp( szActual, "FUNREF" ) == 0 || hb_stricmp( szActual, "BLOCK" ) == 0 ||
+             strncmp( szActual, "FUNC<", 5 ) == 0;
    /* a FIXED array is a C# array, a typed list a List<string>, any other
       array a List<dynamic>: none takes another (a literal is checked
       element by element before this) */

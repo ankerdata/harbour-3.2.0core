@@ -61,6 +61,9 @@ static void hb_csEmitArrayNew( PHB_EXPR pDim, FILE * yyc )
 }
 static const char * hb_csTypeMap( const char * szHbType );
 static const char * hb_csHbxCanon( const char * szName );
+static const char * hb_csFuncModel( const char * szType );
+static void hb_csEmitFunRefAs( const char * szModel, const char * szName, FILE * yyc );
+static const char * hb_csLibraryClass( const char * szLib, char * szBuf, HB_SIZE nBuf );
 static const char * hb_csFuncTabPrefix( const char * szName );
 static const char * hb_csShimSlotType( const HB_REFPARAM * pP, char * szBuf,
                                        HB_SIZE nBuf );
@@ -2789,6 +2792,19 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
             continue;
          }
 
+         if( pArg->ExprType == HB_ET_FUNREF && pArg->value.asSymbol.name )
+         {
+            /* `@Name()` for a parameter declared `AS FUNCTION Model` */
+            const HB_REFPARAM * pP = szFunc ? hb_csCallParam( szFunc, iPos ) : NULL;
+            const char * szModel = pP ? hb_csFuncModel( pP->szType ) : NULL;
+            if( szModel )
+            {
+               hb_csEmitFunRefAs( szModel, pArg->value.asSymbol.name, yyc );
+               pItem = pItem->pNext;
+               continue;
+            }
+         }
+
          if( pArg->ExprType == HB_ET_VARREF )
          {
             /* `@aArr` to a non-reassigned array param: emit plain (no
@@ -2993,6 +3009,113 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    }
 }
 
+/* ---- Function pointers declared `AS FUNCTION <Name>` (FUNC<Name>) ---- */
+
+/* The model function of a FUNC<Name> type, in its declared spelling, when
+   it can be a delegate: a function the program defines, none of whose
+   parameters is passed by reference (a Func<> has none). NULL otherwise,
+   and the pointer is the untyped one it was. */
+static const char * hb_csFuncModel( const char * szType )
+{
+   static char s_szModel[ 160 ];
+   const char * szCanon;
+   HB_SIZE n;
+   int i, nParams;
+
+   if( ! szType || strncmp( szType, "FUNC<", 5 ) != 0 || ! s_pRefTab )
+      return NULL;
+   n = strlen( szType + 5 );
+   if( n < 2 || n > sizeof( s_szModel ) )
+      return NULL;
+   memcpy( s_szModel, szType + 5, n - 1 );
+   s_szModel[ n - 1 ] = '\0';
+   if( ! hb_refTabIsDefinedFunc( s_pRefTab, s_szModel ) )
+      return NULL;
+   szCanon = hb_refTabFuncCanon( s_pRefTab, s_szModel );
+   if( szCanon )
+      hb_strncpy( s_szModel, szCanon, sizeof( s_szModel ) - 1 );
+   nParams = hb_refTabParamCount( s_pRefTab, s_szModel );
+   for( i = 0; i < nParams; i++ )
+      if( hb_refTabIsRef( s_pRefTab, s_szModel, i ) &&
+          ! hb_csParamElidesArrayRef( s_szModel, i ) )
+         return NULL;
+   return s_szModel;
+}
+
+/* The C# type of parameter iPos of the model, as its declaration has it */
+static const char * hb_csFuncModelParamType( const char * szModel, int iPos )
+{
+   const HB_REFPARAM * pP = hb_refTabParam( s_pRefTab, szModel, iPos );
+   const char * szSlot = ( pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 )
+                         ? pP->szType : NULL;
+   if( ! szSlot && pP && pP->szName )
+      szSlot = hb_astInferType( pP->szName, NULL );
+   return hb_csTypeMap( szSlot );
+}
+
+/* The delegate a FUNC<Name> is: Func<P1, ..., R> of the model's parameter
+   and return types, Action<P1, ...> for a procedure */
+static const char * hb_csDelegateType( const char * szModel )
+{
+   static char s_aBuf[ 4 ][ 512 ];
+   static int  s_iBuf = 0;
+   char * szBuf = s_aBuf[ s_iBuf++ & 3 ];
+   HB_BOOL fProc = hb_refTabIsProcedure( s_pRefTab, szModel );
+   int nParams = hb_refTabParamCount( s_pRefTab, szModel );
+   int i;
+   HB_SIZE n;
+
+   if( fProc && nParams == 0 )
+      return "Action";
+   n = hb_snprintf( szBuf, 512, fProc ? "Action<" : "Func<" );
+   for( i = 0; i < nParams; i++ )
+      n += hb_snprintf( szBuf + n, 512 - n, "%s%s", i ? ", " : "",
+                        hb_csFuncModelParamType( szModel, i ) );
+   if( ! fProc )
+   {
+      const char * szRet = hb_refTabReturnType( s_pRefTab, szModel );
+      n += hb_snprintf( szBuf + n, 512 - n, "%s%s", nParams ? ", " : "",
+                        szRet ? hb_csTypeMap( szRet ) : "dynamic" );
+   }
+   hb_snprintf( szBuf + n, 512 - n, ">" );
+   return szBuf;
+}
+
+/* `@Name()` given to a pointer declared FUNC<Model>: a lambda of the
+   model's parameters that calls Name, which C# converts to the delegate
+   and refuses when Name does not take them or return what the model does */
+static void hb_csEmitFunRefAs( const char * szModel, const char * szName, FILE * yyc )
+{
+   char szMangled[ 256 ];
+   const char * szCanon;
+   int nParams = hb_refTabParamCount( s_pRefTab, szModel );
+   int i;
+
+   fprintf( yyc, "(" );
+   for( i = 0; i < nParams; i++ )
+      fprintf( yyc, "%sa%d", i ? ", " : "", i + 1 );
+   fprintf( yyc, ") => " );
+   if( hb_csIsFileStaticFunc( szName ) )
+      fprintf( yyc, "%s", hb_csMangleStaticFunc( szName, szMangled, sizeof( szMangled ) ) );
+   else if( hb_refTabIsDefinedFunc( s_pRefTab, szName ) && hb_refTabFuncCanon( s_pRefTab, szName ) )
+      fprintf( yyc, "Program.%s", hb_refTabFuncCanon( s_pRefTab, szName ) );
+   else if( ( szCanon = hb_csHbxCanon( szName ) ) != NULL )
+   {
+      const char * szLib = hb_hbxCanonLibrary( szCanon );
+      char szClass[ 64 ];
+      if( szLib )
+         fprintf( yyc, "%s.%s", hb_csLibraryClass( szLib, szClass, sizeof( szClass ) ), szCanon );
+      else
+         fprintf( yyc, "HbRuntime.%s", szCanon );
+   }
+   else
+      fprintf( yyc, "%s", szName );
+   fprintf( yyc, "(" );
+   for( i = 0; i < nParams; i++ )
+      fprintf( yyc, "%sa%d", i ? ", " : "", i + 1 );
+   fprintf( yyc, ")" );
+}
+
 /* ---- Type mapping ---- */
 
 static const char * hb_csTypeMap( const char * szHbType )
@@ -3031,6 +3154,13 @@ static const char * hb_csTypeMap( const char * szHbType )
          `oX` parameters work without the reftab having to refine
          every slot to a concrete class. */
       return "dynamic";
+   if( strncmp( szHbType, "FUNC<", 5 ) == 0 )
+   {
+      /* a function pointer declared `AS FUNCTION Name`: the delegate of
+         Name's signature, or the untyped pointer when it cannot be one */
+      const char * szModel = hb_csFuncModel( szHbType );
+      return szModel ? hb_csDelegateType( szModel ) : "dynamic";
+   }
    if( hb_astIsFixedType( szHbType ) )
    {
       /* FIXED<T> (plan C12): an array that never grows or shrinks, so a C#
@@ -5366,6 +5496,24 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
    if( ! pExpr )
       return;
 
+   /* `fX := @Name()`, fX declared `AS FUNCTION Model` */
+   if( pExpr->ExprType == HB_EO_ASSIGN && pExpr->value.asOperator.pLeft &&
+       pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE &&
+       pExpr->value.asOperator.pRight &&
+       pExpr->value.asOperator.pRight->ExprType == HB_ET_FUNREF &&
+       pExpr->value.asOperator.pRight->value.asSymbol.name )
+   {
+      const char * szModel = hb_csFuncModel(
+         hb_csArgVarType( pExpr->value.asOperator.pLeft->value.asSymbol.name ) );
+      if( szModel )
+      {
+         hb_csEmitExpr( pExpr->value.asOperator.pLeft, yyc, HB_FALSE );
+         fprintf( yyc, " = " );
+         hb_csEmitFunRefAs( szModel, pExpr->value.asOperator.pRight->value.asSymbol.name, yyc );
+         return;
+      }
+   }
+
    /* `Array( n )` for a typed list: that list, n blanks of its element
       type (HbRuntime's ArrayOf<T>()) */
    {
@@ -5981,6 +6129,39 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             (via DynamicInvoke), and codeblocks. Symbol:exec lives in
             Harbour's runtime stdlib and is never user-overridden in
             our codebase. */
+         if( pExpr->value.asMessage.szMessage &&
+             hb_stricmp( pExpr->value.asMessage.szMessage, "exec" ) == 0 &&
+             pExpr->value.asMessage.pObject &&
+             pExpr->value.asMessage.pObject->ExprType == HB_ET_VARIABLE &&
+             hb_csFuncModel( hb_csArgVarType(
+                pExpr->value.asMessage.pObject->value.asSymbol.name ) ) )
+         {
+            /* a pointer declared `AS FUNCTION Model` is a delegate: called
+               as the model is, its arguments as a call to the model takes
+               them, and every parameter given (a delegate has no
+               optional ones) */
+            const char * szModel = hb_csFuncModel( hb_csArgVarType(
+               pExpr->value.asMessage.pObject->value.asSymbol.name ) );
+            char szModelBuf[ 160 ];
+            int nParams, nGiven = 0, iPos = 0;
+            PHB_EXPR pArgs = pExpr->value.asMessage.pParms;
+            PHB_EXPR pItem = ( pArgs && ( pArgs->ExprType == HB_ET_ARGLIST ||
+                                          pArgs->ExprType == HB_ET_LIST ) )
+                             ? pArgs->value.asList.pExprList : pArgs;
+            hb_strncpy( szModelBuf, szModel, sizeof( szModelBuf ) - 1 );
+            nParams = hb_refTabParamCount( s_pRefTab, szModelBuf );
+            for( ; pItem; pItem = pItem->pNext, iPos++ )
+               if( pItem->ExprType != HB_ET_NONE )
+                  nGiven = iPos + 1;
+            hb_csEmitExpr( pExpr->value.asMessage.pObject, yyc, HB_FALSE );
+            fprintf( yyc, "(" );
+            if( nGiven )
+               hb_csEmitCallArgs( szModelBuf, pArgs, yyc );
+            for( iPos = nGiven; iPos < nParams; iPos++ )
+               fprintf( yyc, "%sdefault", iPos ? ", " : "" );
+            fprintf( yyc, ")" );
+            break;
+         }
          if( pExpr->value.asMessage.szMessage &&
              hb_stricmp( pExpr->value.asMessage.szMessage, "exec" ) == 0 )
          {

@@ -82,6 +82,16 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
       *piUsed = 2;
       return hb_compIdentifierNew( HB_COMP_PARAM, pTok->pNext->value, HB_IDENT_COPY );
    }
+   /* `FUNCTION <Name>`: a function pointer with the signature of the
+      function named, FUNC<Name> */
+   if( hb_clsTokenIs( pTok, "FUNCTION" ) && pTok->pNext &&
+       HB_PP_TOKEN_TYPE( pTok->pNext->type ) == HB_PP_TOKEN_KEYWORD )
+   {
+      char szFunc[ 160 ];
+      *piUsed = 2;
+      hb_snprintf( szFunc, sizeof( szFunc ), "FUNC<%s>", pTok->pNext->value );
+      return hb_compIdentifierNew( HB_COMP_PARAM, szFunc, HB_IDENT_COPY );
+   }
    /* `HANDLE OF SOCKET` (DBCONNECTION, DBSTATEMENT, THREAD, MUTEX): the runtime's
       class of that kind of handle */
    if( hb_clsTokenIs( pTok, "HANDLE" ) && hb_clsTokenIs( pTok->pNext, "OF" ) &&

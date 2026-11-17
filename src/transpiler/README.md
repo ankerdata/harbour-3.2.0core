@@ -582,6 +582,22 @@ positions are directry.ch's `F_NAME` to `F_ATTR`, which the
 constant-subscript test knows by name, Harbour's own header being in no
 defines map. test178.
 
+**Function pointers.** An `f` parameter or local holds a function
+taken with `@Name()` and called with `:exec()`; untyped, it is a
+`dynamic` called through `Eval()`. `AS FUNCTION Model` declares that it
+has Model's signature (FUNC<Model> to the scan), and it is then a C#
+delegate, `Func<P1, …, R>` of Model's parameter and return types as
+their declarations have them, `Action<…>` for a procedure
+(hb_csDelegateType()). `@Other()` given to it, as an argument or in an
+assignment, is a lambda of Model's parameters that calls Other
+(hb_csEmitFunRefAs()), so the C# compiler says whether Other takes
+them; `f:exec( … )` is a direct call with its arguments emitted as a
+call to Model takes them, and a parameter the call leaves out is passed
+`default`, a delegate having no optional ones; the scan types the call
+with Model's return. A Model with a by-reference parameter cannot be a
+`Func<>`, and the pointer stays as it was. astype.ch removes the
+declaration for Harbour. test180.
+
 **Handles** are five more of the runtime's classes there: a socket
 (`HbSocket`), a thread (`HbThread`), a mutex (`HbMutex`), and hbsqlit3's
 connection and statement (`HbSqlit3.Sqlite3Db`, `HbSqlit3.Sqlite3Stmt`). A `p` name
@@ -2013,6 +2029,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 177       | A whole number earned from another: `FOR j := i + 1`, `FOR k := j + 1` and a local set from a loop variable are `long` once the variable they start from is; one set from a fraction stays `decimal`; a `SWITCH` subject with whole case labels and a local set from a whole file static are `long` |
 | 178       | Directory()'s entries are the runtime's record DirectoryEntry: `aDir[ i ][ F_NAME ]` is the name field in a plain `a` local, a FOR EACH, a codeblock's parameter and an untyped parameter the list is passed to |
 | 179       | `@Name()` names its function to the C# compiler: `nameof()` for the program's own, the class and `nameof()` for a runtime function (`@Upper()`), called through `:exec()` from a local and a parameter |
+| 180       | A function pointer declared `AS FUNCTION Name` is a delegate of Name's signature, a parameter and a local: `@Other()` given to it is a lambda, `f:exec()` a direct call with a left-out parameter passed as its blank, a procedure an `Action<>`; an undeclared pointer is the untyped one |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
