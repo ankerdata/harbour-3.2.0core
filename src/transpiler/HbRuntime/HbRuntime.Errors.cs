@@ -288,6 +288,7 @@ public static partial class HbRuntime
         catch (Exception ex)
         {
             Console.Error.WriteLine("Error in a destructor: " + ex);
+            HbOutLog("Error in a destructor: " + ex);
         }
     }
 
@@ -309,6 +310,7 @@ public static partial class HbRuntime
             if (!lThread)
                 return false;
             Console.Error.WriteLine("Error in thread " + Self.nId + ": " + ex);
+            HbOutLog("Error in thread " + Self.nId + ": " + ex);
             return true;
         }
         try
@@ -325,6 +327,7 @@ public static partial class HbRuntime
         catch (Exception exBlock)
         {
             Console.Error.WriteLine("The error block failed: " + exBlock);
+            HbOutLog("The error block failed: " + exBlock);
             return false;
         }
         return true;

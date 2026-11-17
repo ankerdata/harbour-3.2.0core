@@ -89,6 +89,29 @@ def scan_twice(tab, prg):
     return out
 
 
+def audit_case(prg, category):
+    """The audit (--type-audit) of the file's scan lists `category` on the lines the
+    file marks `// row`, and on no other."""
+    name = os.path.splitext(prg)[0]
+    tab, tsv = name + ".tab", name + ".tsv"
+    remove(tab, tsv)
+    trans("--reftab=" + here(tab), here(prg), "-GF")
+    remove(tsv)
+    trans("--reftab=" + here(tab), "--type-audit=" + here(tsv), here(prg), "-GF")
+    got = set()
+    if os.path.isfile(here(tsv)):
+        with open(here(tsv), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                cols = line.rstrip("\r\n").split("\t")
+                if len(cols) >= 3 and cols[0] == category:
+                    got.add(int(cols[2]))
+    remove(tab, tsv)
+    with open(here(prg), encoding="utf-8") as f:
+        want = {i for i, line in enumerate(f, 1) if "// row" in line}
+    result(got == want, "%s (%s on its %d marked lines, no other)" % (name, category, len(want)),
+           "%s (%s expected on lines %s, got %s)" % (name, category, sorted(want), sorted(got)))
+
+
 CASES_A = [
     ('alias_stmt.prg', 'W0016', 'ALIAS (expression|reference)'),
     ('alias_expr.prg', 'W0016', 'ALIAS (expression|reference)'),
@@ -347,6 +370,10 @@ def main():
              "@ into a ref int, seeded checked"),
             (saved == 0, "the scan saves none of the table's rows")):
         result(bool(ok), "extern (%s)" % what, "extern (%s)" % what, cs)
+
+    # the audit's categories: each on the lines its file marks, no other
+    audit_case("audit_exact_blanks.prg", "EXACT-BLANKS")
+    audit_case("audit_int_conflict.prg", "INT-CONFLICT")
 
     print("")
     print("Results: %d passed, %d failed" % (passed, failed))

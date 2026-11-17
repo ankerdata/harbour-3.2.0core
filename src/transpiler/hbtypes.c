@@ -3267,7 +3267,14 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
          if( hb_astIsIntegerName( pExpr->value.asSymbol.name ) )
             return HB_TRUE;
          szT = hb_astInferExprType( pExpr, pEnv );
-         return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+         if( szT && hb_stricmp( szT, "INTEGER" ) == 0 )
+            return HB_TRUE;
+         /* a `#define` of a whole number in this file, which is in no
+            defines map when none is given (a SWITCH's case labels) */
+         {
+            long l = 0;
+            return hb_astFileDefineValue( pExpr->value.asSymbol.name, &l );
+         }
       }
       case HB_ET_FUNCALL:
          if( pExpr->value.asFunCall.pFunName &&

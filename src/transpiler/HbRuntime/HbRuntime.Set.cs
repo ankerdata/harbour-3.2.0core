@@ -106,6 +106,10 @@ public static partial class HbRuntime
         int key = (int)nSet;
         if (!s_sets.TryGetValue(key, out dynamic prev))
             return null;                        // not a SET Harbour has
+        // The program's code page is hb_cdpSelect()'s: UTF8EX, and no other
+        // can be selected (HbRuntime.Bytes.cs)
+        if (key == (int)_SET_CODEPAGE)
+            return newVal is string cCdp ? hb_cdpSelect(cCdp) : hb_cdpSelect();
         if (newVal is not null)
         {
             object xNew = newVal;
@@ -127,6 +131,25 @@ public static partial class HbRuntime
             }
         }
         return prev;
+    }
+
+    // SET HBOUTLOG's file, where Harbour writes an error nothing handled
+    // (hb_errInternal()): the same text HbRuntime sends to the console's
+    // error stream is appended to it, with the time. Nothing when the SET
+    // is empty or the file cannot be written.
+    internal static void HbOutLog(string cText)
+    {
+        try
+        {
+            string cFile = s_sets.TryGetValue((int)_SET_HBOUTLOG, out dynamic v) && v is string s ? s : "";
+            if (cFile != "")
+                System.IO.File.AppendAllText(cFile,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", INV) + " " + cText + "\r\n");
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or
+                                   ArgumentException or NotSupportedException)
+        {
+        }
     }
 
     // set_logical() (vm/set.c): a logical as it is; a string starting "ON"
