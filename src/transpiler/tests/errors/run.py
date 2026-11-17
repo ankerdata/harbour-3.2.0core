@@ -121,6 +121,7 @@ CASES_B = [
     ('fixed_record.prg', 'W0041', 'an array of 3 elements .*, declared FieldRow41, a record of 4 fields'),
     ('fixed_record.prg', 'W0041', "putting STRING into 'iLen' of 'FieldRow41'"),
     ('fixed_record.prg', 'W0041', "putting STRING into 'iLen' of 'aRow'"),
+    ('fixed_record.prg', 'W0041', "putting NUMERIC, a decimal, into 'iLen' of 'FieldRow41', a whole number"),
     ('fixed_record.prg', 'W0041', "assigning ARRAY to 'aRow', declared FieldRow41"),
     ('fixed_record.prg', 'W0041', "assigning ARRAY to 'aRows', declared FIXED<FieldRow41>"),
     ('fixed_record.prg', 'W0041', "AAdd\\(\\) changes the length of 'aRows', declared FIXED"),
@@ -184,7 +185,7 @@ def main():
     # typed hashes: values by type, keys by kind
     count_of("typed_hash.prg", "warning W00[34][15]", 7)
     # records and fixed arrays, and no more
-    count_of("fixed_record.prg", "warning W004[16]", 13)
+    count_of("fixed_record.prg", "warning W004[16]", 14)
     # typed lists: no plain array, no value of another type; a List<long> no
     # decimal and no NIL; no plain array for a parameter its callers made one
     count_of("typed_list.prg", "warning W", 13)

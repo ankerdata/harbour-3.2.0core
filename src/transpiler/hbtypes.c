@@ -2587,6 +2587,12 @@ static HB_BOOL hb_astIsWholeValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
              hb_astIsWholeValue( pExpr->value.asOperator.pRight, pEnv );
    if( hb_astIsWholeCall( pExpr, pEnv ) )
       return HB_TRUE;
+   /* IIF( l, a, b ): as whole as its two branches, as C# types it */
+   if( pExpr->ExprType == HB_ET_IIF && pExpr->value.asList.pExprList &&
+       pExpr->value.asList.pExprList->pNext &&
+       pExpr->value.asList.pExprList->pNext->pNext )
+      return hb_astIsWholeValue( pExpr->value.asList.pExprList->pNext, pEnv ) &&
+             hb_astIsWholeValue( pExpr->value.asList.pExprList->pNext->pNext, pEnv );
    szT = hb_astInferExprType( pExpr, pEnv );
    return szT && hb_stricmp( szT, "INTEGER" ) == 0;
 }
@@ -2629,6 +2635,22 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
          char szInto[ 192 ];
          if( ! szType )
             continue;
+         /* a whole-number field takes no decimal, as a List<long> takes
+            none: the record's constructor wants a long, and C# refuses
+            the decimal where the scan said nothing */
+         if( hb_stricmp( szType, "INTEGER" ) == 0 && ! hb_astIsWholeValue( pItem, pEnv ) )
+         {
+            const char * szT = hb_astInferExprType( pItem, pEnv );
+            if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )
+            {
+               char szMsg[ 256 ];
+               hb_snprintf( szMsg, sizeof( szMsg ),
+                            "putting NUMERIC, a decimal, into '%s' of '%s', a whole number",
+                            szField ? szField : "?", szDecl );
+               hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+               continue;
+            }
+         }
          hb_snprintf( szInto, sizeof( szInto ), "putting %%s into '%s' of '%s'",
                       szField ? szField : "?", szDecl );
          hb_astDeclCheckExpr( szType, pItem, pEnv, szFile, iLine, szName, szInto );

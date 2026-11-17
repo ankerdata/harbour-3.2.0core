@@ -18,6 +18,9 @@ FUNCTION Use41( xAnything, aPlain, nPos )
    LOCAL aRow AS RECORD FieldRow41 := { "PRICE1", "N", "12", 3 }   // fires W0041: a string into iLen
    LOCAL aRows AS FIXED ARRAY OF RECORD FieldRow41
    aRow := { "PRICE2", "N", 12, 3 }                 // quiet
+   aRow := { "PRICE5", "N", nPos, 3 }               // fires W0041: a decimal into iLen, a whole number
+   aRow := { "PRICE6", "N", Len( aPlain ) + 1, 3 }  // quiet: whole
+   aRow := { "PRICE7", "N", 2 + iif( Empty( aPlain ), 0, 4 ), 3 }   // quiet: an IIF() of whole numbers
    aRow := xAnything                                // quiet: its type is unknown
    aRow := aPlain                                   // fires W0041: an array is not a FieldRow41
    aRow[ FR_LEN ] := "wide"                         // fires W0041: a string into iLen
