@@ -206,6 +206,8 @@ static void hb_funcTabRead( FILE * fp )
 
 /* ---- public API ---- */
 
+static void hb_funcTabReadExtra( void );
+
 /* A file that lives beside hbfuncs.tab (hbclasses.tab, the runtime's own
    classes): the same two places, the binary's bin/../src/transpiler/ and
    then the current directory's. The path in szBuf when one opens, else
@@ -278,7 +280,36 @@ HB_BOOL hb_funcTabInit( const char * szExePath )
    hb_funcTabRead( fp );
    fclose( fp );
    s_fLoaded = HB_TRUE;
+   hb_funcTabReadExtra();
    return HB_TRUE;
+}
+
+/* --funcs=<path>: more rows of the table's format, the program's own
+   native functions (easipos-transpiled's native/*.cs), read after
+   hbfuncs.tab so that a call to one is typed as a runtime call is. */
+static char s_szExtraPath[ HB_PATH_MAX ] = "";
+
+static void hb_funcTabReadExtra( void )
+{
+   FILE * fp = s_szExtraPath[ 0 ] ? hb_fopen( s_szExtraPath, "r" ) : NULL;
+
+   if( fp )
+   {
+      hb_funcTabRead( fp );
+      fclose( fp );
+   }
+   else if( s_szExtraPath[ 0 ] )
+      fprintf( stderr, "hbtranspiler: cannot open --funcs=%s\n", s_szExtraPath );
+   s_szExtraPath[ 0 ] = '\0';
+}
+
+void hb_funcTabSetExtraPath( const char * szPath )
+{
+   if( ! szPath || ! *szPath )
+      return;
+   hb_strncpy( s_szExtraPath, szPath, sizeof( s_szExtraPath ) - 1 );
+   if( s_fLoaded )
+      hb_funcTabReadExtra();
 }
 
 const char * hb_funcTabPrefix( const char * szName )

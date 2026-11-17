@@ -26,8 +26,9 @@ Error::cargo	-	-	0
 Error::Error__classname	-	STRING	0
 #
 # The handles (`AS HANDLE OF SOCKET`, a `p` name ending in the kind):
-# HbRuntime's socket and thread, hbsqlit3's connection and statement.
+# HbRuntime's socket, thread and mutex, hbsqlit3's connection and statement.
 HbSocket	X	HbSocket	0
 HbThread	X	HbThread	0
+HbMutex	X	HbMutex	0
 Sqlite3Db	X	HbSqlit3.Sqlite3Db	0
 Sqlite3Stmt	X	HbSqlit3.Sqlite3Stmt	0

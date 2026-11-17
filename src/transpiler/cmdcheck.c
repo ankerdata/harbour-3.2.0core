@@ -48,6 +48,7 @@
 #include "hbset.h"
 #ifdef HB_TRANSPILER
 #include "hbreftab.h"
+#include "hbfunctab.h"
 #include "hbdefinemap.h"
 #include "hbfieldtypes.h"
 #include "hbhbxcanon.h"
@@ -236,6 +237,13 @@ static const char * hb_compChkParseSwitch( HB_COMP_DECL, const char * szSwitch,
             COM connectors' .NET builds), in the reftab's row format; the scan
             and the C# emitter load it beside the reftab. hbreftab.c. */
          hb_refTabSetExternPath( szSwPtr + 9 );
+         szSwPtr += strlen( szSwPtr );
+      }
+      else if( strncmp( szSwPtr + 2, "funcs=", 6 ) == 0 )
+      {
+         /* --funcs=<path>: return types of the program's own native
+            functions, in hbfuncs.tab's row format. hbfunctab.c. */
+         hb_funcTabSetExtraPath( szSwPtr + 8 );
          szSwPtr += strlen( szSwPtr );
       }
       else if( strncmp( szSwPtr + 2, "defines-map=", 12 ) == 0 )

@@ -27,6 +27,7 @@ HB_EXTERN_BEGIN
    path tried on stderr, when neither opens: the transpiler must then
    stop, since an empty table would emit every core call unrouted. */
 extern HB_BOOL      hb_funcTabInit( const char * szExePath );
+extern void         hb_funcTabSetExtraPath( const char * szPath );
 
 /* The path of a file beside hbfuncs.tab (hbclasses.tab), found the same
    way, in szBuf; NULL when it is in neither place. */

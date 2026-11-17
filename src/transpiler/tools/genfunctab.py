@@ -13,6 +13,12 @@ Three sources of truth:
      The $SYNTAX$ line carries a `--> token` whose Hungarian prefix
      reveals the return type. This is the *return type* source.
 
+  1b. libraries/<lib>/*.cs — the contrib libraries' C#, a class each
+     (HbSqlit3, HbWin, ...). The emitter routes a call there by the
+     library's .hbx, so a library function has no prefix here; its C#
+     return type is read as HbRuntime's is, so that
+     `sqlite3_column_int64()` is known to give a whole number.
+
   3. src/rtl, src/rdd, contrib/, ... — every HB_FUNC() in C and every
      FUNCTION/PROCEDURE in .prg. Used only as a sanity check that the
      names we type from doc blocks really do correspond to runtime
@@ -39,6 +45,7 @@ from pathlib import Path
 REPO_ROOT     = Path(__file__).resolve().parents[3]
 OUTPUT_PATH   = REPO_ROOT / "src" / "transpiler" / "hbfuncs.tab"
 HBRUNTIME_DIR = REPO_ROOT / "src" / "transpiler" / "HbRuntime"
+LIBRARIES_DIR = REPO_ROOT / "src" / "transpiler" / "libraries"
 
 # Where to look for HB_FUNC declarations and PRG functions.
 SOURCE_ROOTS = [
@@ -190,6 +197,22 @@ def cs_return_to_harbour(cs: str) -> str | None:
         return "HASH"
     return None  # dynamic / void / Func<...> / class types — leave unknown
 
+# A library's list keeps what it holds: sqlite3_get_table()'s
+# List<List<string>> is ARRAY<ARRAY<STRING>>, rows of text, which a
+# declaration can then be checked against. (HbRuntime's lists stay ARRAY.)
+CS_ELEMENT = {"string": "STRING", "long": "INTEGER", "int": "INTEGER",
+              "decimal": "NUMERIC", "bool": "LOGICAL"}
+
+def cs_library_return(cs: str) -> str | None:
+    base = cs.strip().rstrip("?").strip()
+    m = re.fullmatch(r"List<(.+)>", base)
+    if m:
+        inner = m.group(1).strip().rstrip("?")
+        elem = CS_ELEMENT.get(inner) or (
+            cs_library_return(inner) if inner.startswith("List<") else None)
+        return f"ARRAY<{elem}>" if elem else "ARRAY"
+    return cs_return_to_harbour(cs)
+
 # ---- collection -----------------------------------------------------------
 
 def iter_files(roots, suffixes):
@@ -247,6 +270,23 @@ def harvest_hbruntime_methods() -> dict[str, tuple[str, str]]:
                 if name in NOT_FUNCTIONS:
                     continue
                 methods.setdefault(name.upper(), (name, rettype))
+    return methods
+
+def harvest_library_methods() -> dict[str, tuple[str, str]]:
+    """The public static methods the contrib libraries implement, keyed by
+    upper-case name: (name as written, C# return type). The generated
+    stubs (*.Stubs.cs) say nothing: a stub returns dynamic."""
+    methods: dict[str, tuple[str, str]] = {}
+    for path in sorted(LIBRARIES_DIR.glob("*/*.cs")):
+        if path.name.endswith(".Stubs.cs"):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for m in RE_HBRUNTIME_METHOD.finditer(text):
+            rettype = m.group(1).strip()
+            name = m.group(2)
+            if rettype in ("class", "partial class"):
+                continue
+            methods.setdefault(name.upper(), (name, rettype))
     return methods
 
 # HbRuntime methods that are not Harbour functions and must not get a row:
@@ -346,7 +386,8 @@ HEADER = """\
 
 def write_table(path: Path,
                 hbruntime: dict[str, tuple[str, str]],
-                types: dict[str, str]):
+                types: dict[str, str],
+                libraries: dict[str, tuple[str, str]]):
     """Emit a row whenever a function has at least one piece of
     information attached: either a prefix (HbRuntime implements it) or
     a return type (parsed from a doc block).
@@ -358,16 +399,21 @@ def write_table(path: Path,
     in HbRuntime we use that casing (so the emitter produces calls
     that match the actual C# method); otherwise we fall back to the
     uppercase key (the only thing doc blocks give us)."""
-    all_names = set(hbruntime) | set(types.keys())
+    # A library's function gets a row only for a return type its C# gives:
+    # its prefix is the .hbx's business.
+    typed_libs = {k: v for k, v in libraries.items()
+                  if k not in hbruntime and cs_library_return(v[1])}
+    all_names = set(hbruntime) | set(types.keys()) | set(typed_libs)
     rows = []
     for key in sorted(all_names):
-        entry   = hbruntime.get(key)        # (canon, cs_rettype) or None
-        canon   = entry[0] if entry else key
+        entry   = hbruntime.get(key) or typed_libs.get(key)   # (canon, cs_rettype) or None
+        canon   = entry[0] if entry and (key in hbruntime or key not in types) else key
         # Docs win, except that an HbRuntime method's C# return type
         # (authoritative for what the call yields) fills a RETTYPE they
         # leave out and narrows their NUMERIC to INTEGER.
         rettype = types.get(key)
-        cs_type = cs_return_to_harbour(entry[1]) if entry else None
+        cs_type = ((cs_return_to_harbour if key in hbruntime else cs_library_return)(entry[1])
+                   if entry else None)
         if not rettype or (rettype == "NUMERIC" and cs_type == "INTEGER"):
             rettype = cs_type or rettype
         rettype = rettype or "-"
@@ -404,9 +450,12 @@ def main() -> int:
         print(f"  note: {len(typed_no_runtime)} typed names have no "
               f"matching HB_FUNC (probably PRG-only or alias)")
 
-    rows = len(set(hbruntime) | set(types))
-    print(f"writing {rows} rows...")
-    write_table(OUTPUT_PATH, hbruntime, types)
+    print("parsing libraries/*/*.cs for return types...")
+    libraries = harvest_library_methods()
+    print(f"  {len(libraries)} public static methods found")
+
+    print("writing rows...")
+    write_table(OUTPUT_PATH, hbruntime, types, libraries)
     print("done.")
     return 0
 

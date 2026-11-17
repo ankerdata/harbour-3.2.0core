@@ -1220,9 +1220,11 @@ static const struct
 } s_aHandleKinds[] =
 {
    { "SOCKET",    "Socket", "HbSocket"    },
-   { "DATABASE",  "DB",     "Sqlite3Db"   },
-   { "STATEMENT", "Stmt",   "Sqlite3Stmt" },
-   { "THREAD",    "Thread", "HbThread"    }
+   { "DBCONNECTION", "DBConnection", "Sqlite3Db"   },
+   { "DBSTATEMENT",  "DBStatement",  "Sqlite3Stmt" },
+   { "THREAD",    "Thread", "HbThread"    },
+   { "MUTEX",     "Mutex",  "HbMutex"     },
+   { "MUTEX",     "Lock",   "HbMutex"     }
 };
 
 /* `AS HANDLE OF SOCKET`: the class of that kind of handle, NULL for a
@@ -1239,8 +1241,8 @@ const char * hb_astHandleKindClass( const char * szKind )
 
 /* The handle a name declares: a `p` name (a static's `sp`) that ends in
    a kind of handle is one, as `AS HANDLE OF` declares it: `pSocket`,
-   `pPOSDB`, `pInsertStmt`, `spServerThread`. The ending is exact in its
-   case. NULL for any other name. */
+   `pPOSDBConnection`, `pInsertDBStatement`, `spServerThread`,
+   `spTraceLock`. The ending is exact in its case. NULL for any other name. */
 const char * hb_astHandleNameType( const char * szName )
 {
    const char * szSuffix = NULL;
@@ -3182,6 +3184,12 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
          if( szSelf && hb_stricmp( pExpr->value.asSymbol.name,
                                    szSelf ) == 0 )
             return HB_TRUE;
+         /* an `i` name (a file static's `si`) is a long whatever the
+            routine's writes made of it so far: `siPos := i` read while
+            `i` was still NUMERIC must not keep `i := siPos + 1` from
+            proving `i` whole */
+         if( hb_astIsIntegerName( pExpr->value.asSymbol.name ) )
+            return HB_TRUE;
          szT = hb_astInferExprType( pExpr, pEnv );
          return szT && hb_stricmp( szT, "INTEGER" ) == 0;
       }
@@ -3221,6 +3229,14 @@ static HB_BOOL hb_astExprIsIntegral( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       case HB_EO_POSTDEC:
          return hb_astExprIsIntegral( pExpr->value.asOperator.pLeft,
                                       pEnv, szSelf );
+      case HB_ET_ALIASVAR:
+         /* a file static, parsed as MEMVAR->name (`siLinePos + 1`): whole
+            by its name, or by what it was given */
+         if( pExpr->value.asAlias.pVar &&
+             pExpr->value.asAlias.pVar->ExprType == HB_ET_VARIABLE &&
+             hb_astIsIntegerName( pExpr->value.asAlias.pVar->value.asSymbol.name ) )
+            return HB_TRUE;
+         /* fallthrough */
       case HB_ET_SEND:
          /* A member/field read that resolves to INTEGER — an ORM
             int/long field (fieldtypes map) or an AS INTEGER member
@@ -4009,16 +4025,25 @@ static void hb_astObserveBlock( PHB_AST_NODE pNode, HB_TYPEENV * pEnv,
          case HB_AST_SWITCH:
          {
             PHB_AST_NODE p = pStmt->value.asSwitch.pCases;
-            /* A SWITCH subject is a soft int-disqualifier: C# demands
-               case-label/subject type identity, and case labels here
-               are routinely `const decimal` defines — switch(int) on
-               them is CS0266 per label. A variable compared against
-               constants isn't index-shaped anyway. */
+            /* A SWITCH subject is a soft int-disqualifier when a case
+               label is not a whole number: C# demands case-label/subject
+               type identity, and switch(long) on a `const decimal`
+               define is CS0266 per label. With every label whole (a
+               literal, a `const long` define) the subject may be. */
             if( pStmt->value.asSwitch.pSwitch &&
                 pStmt->value.asSwitch.pSwitch->ExprType == HB_ET_VARIABLE )
-               hb_auditIntMark(
-                  pStmt->value.asSwitch.pSwitch->value.asSymbol.name,
-                  pStmt->iLine, HB_INT_MARK_SOFT );
+            {
+               PHB_AST_NODE pCase = p;
+               HB_BOOL fWholeLabels = HB_TRUE;
+               for( ; pCase && fWholeLabels; pCase = pCase->pNext )
+                  if( pCase->value.asCase.pCondition &&
+                      ! hb_astExprIsIntegral( pCase->value.asCase.pCondition, pEnv, NULL ) )
+                     fWholeLabels = HB_FALSE;
+               if( ! fWholeLabels )
+                  hb_auditIntMark(
+                     pStmt->value.asSwitch.pSwitch->value.asSymbol.name,
+                     pStmt->iLine, HB_INT_MARK_SOFT );
+            }
             hb_astObserveExpr( pStmt->value.asSwitch.pSwitch, pEnv, pfChanged );
             while( p )
             {
@@ -8986,7 +9011,12 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                /* a name whose prefix says whole number is one whatever
                   is assigned to it: nothing is left to earn */
                const char * szByName = hb_astInferFromPrefix( s_aIntCand[ i ].szName );
+               const char * szNow = hb_typeEnvGet( &env, s_aIntCand[ i ].szName );
                if( szByName && strcmp( szByName, "INTEGER" ) == 0 )
+                  continue;
+               /* nor one its initializer made whole, which a pass by
+                  reference to a whole-number parameter leaves so */
+               if( szNow && strcmp( szNow, "INTEGER" ) == 0 )
                   continue;
                hb_auditEmit( "INT-CONFLICT", szFile,
                   s_aIntCand[ i ].iNonIntLine, szSym,

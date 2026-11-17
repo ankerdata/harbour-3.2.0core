@@ -54,6 +54,6 @@
 #xtranslate AS HASH OF FIXED ARRAY OF <!type!>                   =>
 #xtranslate AS HASH OF FIXED ARRAY OF <c: CLASS, RECORD> <!name!> =>
 
-/* Handles: `AS HANDLE OF SOCKET` (DATABASE, STATEMENT, THREAD) names the
+/* Handles: `AS HANDLE OF SOCKET` (DBCONNECTION, DBSTATEMENT, THREAD, MUTEX) names the
    kind for the transpiler; a pointer to Harbour. */
 #xtranslate AS HANDLE OF <!kind!> =>

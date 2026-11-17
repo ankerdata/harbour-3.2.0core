@@ -570,7 +570,7 @@ void hb_compVariableAdd( HB_COMP_DECL, const char * szVarName, PHB_VARTYPE pVarT
          HB_COMP_PARAM->iVarScope == HB_VSCOMP_PARAMETER ||
          ( HB_COMP_PARAM->iVarScope & ~HB_VSCOMP_THREAD ) == HB_VSCOMP_STATIC ) )
       pVar->szDeclType = hb_astArrayNameType( szVarName );
-   /* and a handle's name its kind (`pSocket`, `pPOSDB`) */
+   /* and a handle's name its kind (`pSocket`, `pPOSDBConnection`) */
    if( ! pVar->szDeclType &&
        ( HB_COMP_PARAM->iVarScope == HB_VSCOMP_LOCAL ||
          HB_COMP_PARAM->iVarScope == HB_VSCOMP_PARAMETER ||

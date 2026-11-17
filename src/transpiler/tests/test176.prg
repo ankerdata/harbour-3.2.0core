@@ -1,9 +1,10 @@
 // Test 176: handles. A `p` name that ends in a kind of handle is the
 // runtime's class of it (`pSocket`, `pListenSocket` an HbSocket,
-// `pWorkThread` an HbThread, `pMemDB` and `pCountStmt` hbsqlit3's
-// connection and statement), and a function says what it returns with
-// `AS HANDLE OF SOCKET` (DATABASE, STATEMENT, THREAD). A `p` name of no
-// kind stays opaque.
+// `pWorkThread` an HbThread, `pMemDBConnection` and `pCountDBStatement`
+// hbsqlit3's connection and statement), and a function says what it returns with
+// `AS HANDLE OF SOCKET` (DBCONNECTION, DBSTATEMENT, THREAD, MUTEX). A mutex's
+// name ends in Mutex or Lock (`pQueueMutex`, `pStateLock`). A `p` name of
+// no kind stays opaque.
 
 #include "../include/astype.ch"
 
@@ -12,15 +13,18 @@ PROCEDURE Main()
    LOCAL pSocket := Open176()
    LOCAL pListenSocket
    LOCAL pWorkThread := Start176( 7 )
-   LOCAL pMemDB := NoDB176()
-   LOCAL pCountStmt := NoStmt176()
+   LOCAL pMemDBConnection := NoDB176()
+   LOCAL pCountDBStatement := NoStmt176()
    LOCAL pOther := 3
+   LOCAL pQueueMutex := Mutex176()
+   LOCAL pStateLock := hb_mutexCreate()
 
    hb_threadWait( pWorkThread, 5 )
    ? "open:", pSocket != NIL, Closed176( pSocket )
    pListenSocket := Open176()
    ? "listen:", hb_socketClose( pListenSocket )
-   ? "none:", pMemDB == NIL, pCountStmt == NIL, pOther
+   ? "none:", pMemDBConnection == NIL, pCountDBStatement == NIL, pOther
+   ? "mutex:", Locked176( pQueueMutex ), Locked176( pStateLock )
 
    RETURN
 
@@ -42,10 +46,24 @@ PROCEDURE Work176( iValue )
 
    RETURN
 
-FUNCTION NoDB176() AS HANDLE OF DATABASE
+FUNCTION Mutex176() AS HANDLE OF MUTEX
+
+RETURN hb_mutexCreate()
+
+FUNCTION Locked176( pLock ) AS LOGICAL
+
+   LOCAL lLocked := hb_mutexLock( pLock )
+
+   IF lLocked
+      hb_mutexUnlock( pLock )
+   ENDIF
+
+RETURN lLocked
+
+FUNCTION NoDB176() AS HANDLE OF DBCONNECTION
 
 RETURN NIL
 
-FUNCTION NoStmt176() AS HANDLE OF STATEMENT
+FUNCTION NoStmt176() AS HANDLE OF DBSTATEMENT
 
 RETURN NIL
