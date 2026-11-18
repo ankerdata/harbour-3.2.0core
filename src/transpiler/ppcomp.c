@@ -770,7 +770,10 @@ static HB_BOOL hb_pp_CompilerSwitch( void * cargo, const char * szSwitch,
       if( fSet )
       {
          if( iValue >= 0 && iValue <= 1 )
+         {
             HB_COMP_PARAM->iHidden = iValue;
+            hb_astSetHidden( iValue != 0 );
+         }
       }
       else
          iValue = HB_COMP_PARAM->iHidden;

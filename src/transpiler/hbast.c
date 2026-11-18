@@ -12,6 +12,15 @@
 #include "hbcomp.h"
 #include "hbast.h"
 
+/* `#pragma TEXTHIDDEN`, as the preprocessor last set it: a node made
+   while it is on has its string literals emitted encoded */
+static HB_BOOL s_fAstHidden = HB_FALSE;
+
+void hb_astSetHidden( HB_BOOL fHidden )
+{
+   s_fAstHidden = fHidden;
+}
+
 /* Allocate a new AST node */
 PHB_AST_NODE hb_astNew( HB_AST_TYPE type, int iLine )
 {
@@ -19,6 +28,7 @@ PHB_AST_NODE hb_astNew( HB_AST_TYPE type, int iLine )
 
    pNode->type  = type;
    pNode->iLine = iLine;
+   pNode->fHidden = s_fAstHidden;
    pNode->pNext = NULL;
 
    return pNode;

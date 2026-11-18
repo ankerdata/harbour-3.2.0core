@@ -2529,6 +2529,21 @@ block placed inside a function to show it is hoisted.
 
 ---
 
+## Hidden text — `#pragma TEXTHIDDEN`
+
+Harbour keeps the string literals written between `#pragma
+TEXTHIDDEN=1` and `#pragma TEXTHIDDEN=0` out of the executable's
+readable text. The C# does the same: a literal of a statement made
+while the pragma is on is emitted as its bytes, each XORed with a value
+that changes along the string, in a call that turns them back
+(`HbHiddenText(new byte[] { … })`, HbRuntime.Bytes.cs), so the text is
+in no string table of the assembly. A string `#define` that a .prg
+names inside such a region is hidden too: gendefines.py writes it into
+its const class as `public static readonly string` with the same
+encoding in place of `public const string`, and its uses are unchanged.
+This is the obfuscation Harbour's is, against a dump of the strings,
+not against someone reading the code. test181.
+
 ## Defines map
 
 `--defines-map=<path>` tells the emitter to rewrite bare identifier

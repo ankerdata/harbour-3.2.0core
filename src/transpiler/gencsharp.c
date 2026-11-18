@@ -5322,9 +5322,33 @@ static void hb_csEmitBlockStmt( PHB_EXPR pExpr, FILE * yyc )
    string's bytes are the literal's whatever they are. A
    sequence that would decode to one of those chars is kept
    as bytes too. */
+/* Set while a statement made under `#pragma TEXTHIDDEN=1` is emitted */
+static HB_BOOL s_fHidden = HB_FALSE;
+
+/* A string literal of such a statement: its bytes, each XORed with a
+   value that changes along the string, for HbRuntime's HbHiddenText()
+   to turn back. The text is in no string table of the assembly. */
+static void hb_csEmitHiddenString( const char * s, HB_SIZE nLen, FILE * yyc )
+{
+   HB_SIZE n;
+
+   fprintf( yyc, "HbHiddenText(new byte[] { " );
+   for( n = 0; n < nLen; n++ )
+      fprintf( yyc, "%s0x%02X", n ? ", " : "",
+               ( unsigned int ) ( ( unsigned char ) s[ n ] ^
+                                  ( unsigned char ) ( 0xA7 + n * 31 ) ) );
+   fprintf( yyc, " })" );
+}
+
 static void hb_csEmitStringLiteral( const char * s, HB_SIZE nLen, FILE * yyc )
 {
    HB_SIZE n;
+
+   if( s_fHidden && nLen > 0 )
+   {
+      hb_csEmitHiddenString( s, nLen, yyc );
+      return;
+   }
 
    fputc( '"', yyc );
    for( n = 0; n < nLen; n++ )
@@ -8979,11 +9003,22 @@ static void hb_csEmitLocalDecl( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 
 /* ---- Statement emitter ---- */
 
+static void hb_csEmitNodeBody( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
+
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
 {
+   HB_BOOL fHidden = s_fHidden;
+
    if( ! pNode )
       return;
 
+   s_fHidden = pNode->fHidden;
+   hb_csEmitNodeBody( pNode, yyc, iIndent );
+   s_fHidden = fHidden;
+}
+
+static void hb_csEmitNodeBody( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
+{
    /* A LOCAL declared where it is first used (hb_csScopeAnalyse): its type
       is known from here on, its declaration is written there */
    if( pNode->type == HB_AST_LOCAL && hb_csScMoved( pNode ) )

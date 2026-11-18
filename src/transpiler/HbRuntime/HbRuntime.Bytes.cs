@@ -273,6 +273,17 @@ public static partial class HbRuntime
     // ---- The byte functions (rtl/strfunc.c's hb_B*) ----
 
     // hb_BLen( <c> ): the number of bytes
+    // A string literal written under `#pragma TEXTHIDDEN=1`, which the
+    // emitter writes as its bytes XORed along their length so the text is
+    // in no string table: the literal
+    public static string HbHiddenText(byte[] aHidden)
+    {
+        byte[] a = new byte[aHidden.Length];
+        for (int i = 0; i < a.Length; i++)
+            a[i] = (byte)(aHidden[i] ^ (byte)(0xA7 + i * 31));
+        return HbBytes.Text(a);
+    }
+
     public static long hb_BLen(string? s) => HbBytes.Count(s);
 
     // hb_BLeft( <c>, <n> ) / hb_BRight( <c>, <n> ): the first / last n bytes

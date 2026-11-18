@@ -61,6 +61,7 @@ struct _HB_AST_NODE
 {
    HB_AST_TYPE    type;
    int            iLine;           /* source line number */
+   HB_BOOL        fHidden;         /* made under `#pragma TEXTHIDDEN=1` */
    PHB_AST_NODE   pNext;           /* next sibling statement */
 
    union
@@ -293,6 +294,7 @@ struct _HB_AST_NODE
 /* === AST builder functions (hbast.c) === */
 
 extern PHB_AST_NODE hb_astNew( HB_AST_TYPE type, int iLine );
+extern void hb_astSetHidden( HB_BOOL fHidden );
 extern void         hb_astFree( PHB_AST_NODE pNode );
 extern void         hb_astFreeList( PHB_AST_NODE pNode );
 

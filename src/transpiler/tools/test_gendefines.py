@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from gendefines import parse_value, resolve_cross_refs  # type: ignore
+from gendefines import HIDDEN_REGION, emit_cs, parse_value, resolve_cross_refs  # type: ignore
 
 
 CASES = [
@@ -91,6 +91,28 @@ def test_cross_refs():
     return errs
 
 
+def test_hidden():
+    """A string #define a .prg uses under `#pragma TEXTHIDDEN=1` is
+    emitted encoded, as gencsharp.c writes a literal there; one used
+    only outside it stays a const."""
+    prg = '\n'.join(['return PLAIN', '#pragma TEXTHIDDEN=1', '    return SECRET',
+                     '#pragma TEXTHIDDEN=0', 'return OTHER', ''])
+    hidden = set()
+    for m in HIDDEN_REGION.finditer(prg):
+        hidden.update(m.group(1).split())
+    cs = emit_cs({'SECRET': ('string', 'Ab'), 'PLAIN': ('string', 'Ab')},
+                 'KeyConst', 'key.ch', hidden)
+    errs = []
+    if 'SECRET' not in hidden or 'PLAIN' in hidden or 'OTHER' in hidden:
+        errs.append(f"the region's tokens: {sorted(hidden)!r}")
+    if ('public static readonly string SECRET = '
+            'HbRuntime.HbHiddenText(new byte[] { 0xE6, 0xA4 });') not in cs:
+        errs.append("SECRET is not emitted encoded: " + cs)
+    if 'public const string PLAIN = @"Ab";' not in cs:
+        errs.append("PLAIN is not a const: " + cs)
+    return errs
+
+
 def run():
     failures = []
     for raw, exp_kind, exp_val in CASES:
@@ -111,7 +133,10 @@ def run():
     for msg in test_cross_refs():
         failures.append(f"cross_refs: {msg}")
 
-    total = len(CASES) + 3                     # 3 asserts inside test_cross_refs
+    for msg in test_hidden():
+        failures.append(f"hidden: {msg}")
+
+    total = len(CASES) + 3 + 3                 # 3 asserts in each of the two tests
     if failures:
         print(f"FAILED {len(failures)} of {total} cases:", file=sys.stderr)
         for msg in failures:
