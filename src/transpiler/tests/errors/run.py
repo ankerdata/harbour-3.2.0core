@@ -136,6 +136,7 @@ CASES_B = [
     ('hash_key_name.prg', 'W0035', "'hWrong' is given a hash keyed by numbers"),
     ('hash_key_name.prg', 'W0035', "'hByName' takes a number as a key"),
     ('hash_key_name.prg', 'W0035', "'hnById' takes a string as a key"),
+    ('hash_key_name.prg', 'W0035', "'hcByCode' takes a number as a key"),
     ('x_subscript.prg', 'W0036', "'xValue' is subscripted"),
     ('foreach_after.prg', 'W0038', "'cName' is read after its FOR EACH"),
     ('foreach_after.prg', 'W0038', "'cCell' is read after its FOR EACH"),
@@ -203,8 +204,18 @@ def main():
         run_one(*case)
 
     # ...and nothing else: the quiet lines stay quiet
-    for name, want in (("hash_key_name", 3), ("x_subscript", 1), ("foreach_after", 2), ("foreach_integer", 1)):
+    for name, want in (("hash_key_name", 4), ("x_subscript", 1), ("foreach_after", 2), ("foreach_integer", 1)):
         count_of(name + ".prg", "warning W003[5-9]", want)
+    # W0048, the scan's: a bare h name does not say its keys, hc and hn do
+    out = scan_twice("hash_key_name.tab", "hash_key_name.prg")
+    found = lines_matching(out, "warning W0048")
+    result(len(found) == 2 and
+           any("'hByName' does not say what its hash is keyed by: hcByName for strings, "
+               "hnByName for numbers" in l for l in found) and
+           any("'hWrong'" in l for l in found),
+           "hash_key_name (W0048 for the two bare h names, no other)",
+           "hash_key_name (expected W0048 for hByName and hWrong only)", out)
+
     # typed hashes: values by type, keys by kind
     count_of("typed_hash.prg", "warning W00[34][15]", 7)
     # records and fixed arrays, and no more

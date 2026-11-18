@@ -95,10 +95,35 @@ static HB_BOOL hb_csCheckInitGivesType( PHB_EXPR pInit )
    return HB_FALSE;
 }
 
+/* W0048: a hash's name says what its keys are, `hc<X>` strings and
+   `hn<X>` numbers (a static's `shc`, `shn`); a bare `h<X>` says nothing
+   of them (Alex, 2026-11-18). It is still taken as keyed by strings. */
+static void hb_csCheckHashName( HB_COMP_DECL, const char * szName, int iLine,
+                                const char * szKind )
+{
+   const char * sz = szName;
+   char buffer[ 320 ];
+
+   if( ! sz )
+      return;
+   if( sz[ 0 ] == 's' && sz[ 1 ] == 'h' )
+      sz++;
+   if( sz[ 0 ] != 'h' ||
+       ! ( ( sz[ 1 ] >= 'A' && sz[ 1 ] <= 'Z' ) || ( sz[ 1 ] >= '0' && sz[ 1 ] <= '9' ) ) )
+      return;
+   hb_snprintf( buffer, sizeof( buffer ),
+      "hbtranspiler: %s(%d): warning W0048  %s '%s' does not say what its "
+      "hash is keyed by: %sc%s for strings, %sn%s for numbers\n",
+      HB_COMP_PARAM->szFile, iLine, szKind, szName,
+      sz == szName ? "h" : "sh", sz + 1, sz == szName ? "h" : "sh", sz + 1 );
+   hb_compOutErr( HB_COMP_PARAM, buffer );
+}
+
 static void hb_csCheckVar( HB_COMP_DECL, const char * szName,
                            PHB_EXPR pInit, int iLine, const char * szKind )
 {
    char buffer[ 256 ];
+   hb_csCheckHashName( HB_COMP_PARAM, szName, iLine, szKind );
    if( hb_csCheckIsHungarian( szName ) )
       return;
    if( hb_csCheckInitGivesType( pInit ) )
@@ -221,6 +246,8 @@ static void hb_csCheckHungarian( HB_COMP_DECL, PHB_REFTAB pTab )
                      if( szT && hb_stricmp( szT, "USUAL" ) != 0 )
                         fInitTyped = HB_TRUE;
                   }
+                  hb_csCheckHashName( HB_COMP_PARAM, szName, pMember->iLine,
+                                      "Class member" );
                   if( ! hb_csCheckIsHungarian( szName ) && ! fInitTyped )
                   {
                      char buffer[ 256 ];

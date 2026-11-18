@@ -679,6 +679,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0045 | reconcile | Two builds of one program give a parameter of a routine both compile types that do not merge (two classes with no common ancestor, a scalar and a class): one C# signature serves both builds, so the slot falls back to USUAL (dynamic). Reported by `--reconcile` (see [Two builds, one signature](#two-builds-one-signature---reconcile)), which then exits 1. The fix is in the callers, or a declared type on the parameter (tests/errors/reconcile_*.prg) |
 | W0046 | scan  | A record read as an array: a subscript that is not a constant (a whole-number literal or a `#define` of one) or is past the last field; Len(), AScan(), AEval(), ACopy(), AClone(), ASort(), ATail(), AAdd(), ASize(), hb_ADel(), hb_AIns() or AFill() given one; FOR EACH over one. A record is a plain C# class of its fields, so the fix is the position by name, the FIXED array that holds the rows, or a declaration on the holder (tests/errors/fixed_record.prg) |
 | W0047 | scan  | A member read off an element of a list of a class (`aBuffer[i]:iFlags`, aBuffer a `List<TranLine>`) that neither that class nor an ancestor declares: a subclass's member, which the element in C# has not. Give the element to a variable named or declared for the subclass first, which is the cast, or read it through a function that returns it as one (tests/errors/class_list_member.prg) |
+| W0048 | scan  | A local, static, parameter or member named `h<X>` (a static's `sh<X>`): the name does not say what the hash is keyed by. Fix: `hc<X>` for strings, `hn<X>` for numbers (Alex, 2026-11-18). The variable is still taken as keyed by strings. |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
 reads `=` three ways: `x = 5` standing as a statement assigns, `FOR i =
@@ -1060,8 +1061,9 @@ strongest. Later rungs override earlier ones.
 1. **The Hungarian prefix** is the default for every local, parameter
    and member: `n` `decimal`, `i` `long` (a whole number: a count, an
    index, an integer flag), `c` `string`, `l` `bool`, `d` `DateOnly`,
-   `t` `DateTime`, `a` `List<dynamic>`, `h` `OrderedDictionary<string, dynamic>`
-   (a hash keyed by strings), `hn` `OrderedDictionary<long, dynamic>` (keyed
+   `t` `DateTime`, `a` `List<dynamic>`, `hc` `OrderedDictionary<string, dynamic>`
+   (a hash keyed by strings; a bare `h` says nothing of its keys, is
+   taken the same and is W0048), `hn` `OrderedDictionary<long, dynamic>` (keyed
    by numbers; an `hn` name beats an empty `{ => }` initializer, as `i`
    beats a number), `an`, `ai`, `ac` and `al` before a capital (a static's
    `san`, `sai`, `sac`, `sal`) a `List<decimal>`, `List<long>`,

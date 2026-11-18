@@ -247,7 +247,8 @@ static const char * hb_astInferFromExpr( PHB_EXPR pExpr )
  *   a  -> ARRAY
  *   o  -> OBJECT
  *   d  -> DATE
- *   h  -> HASH (keyed by strings; hb_astHashNameKeys)
+ *   hc -> HASH, keyed by strings; a bare h is taken the same
+ *         (hb_astHashNameKeys)
  *   hn -> HASHN (keyed by numbers: a two-letter prefix, see
  *         hb_astInferFromPrefix)
  *   b  -> BLOCK
@@ -1134,10 +1135,11 @@ static HB_BOOL hb_astIsNameSeededClass( const char * szName,
    return szClass != NULL && hb_stricmp( szClass, szType ) == 0;
 }
 
-/* The key type a hash's name declares (Alex, 2026-09-27): 'N' for
-   `hn<X>` / `shn<X>`, a hash keyed by numbers (C# long); 'C' for any other
-   `h<X>` / `sh<X>`, keyed by strings, the default; 0 for a name that is
-   no hash's. The name decides, as `i` decides a whole number: C# has to
+/* The key type a hash's name declares (Alex, 2026-09-27 and 2026-11-18):
+   'N' for `hn<X>` / `shn<X>`, a hash keyed by numbers (C# long); 'C' for
+   `hc<X>` / `shc<X>`, keyed by strings, and for a bare `h<X>` / `sh<X>`,
+   which says nothing of its keys and is taken as keyed by strings; 0 for
+   a name that is no hash's. The name decides, as `i` decides a whole number: C# has to
    commit to a key type, and a guess from the keys the code happens to use
    went wrong wherever the key came from a macro or an `x` value
    (languages.prg's CreateLangHash). */
@@ -1151,6 +1153,8 @@ int hb_astHashNameKeys( const char * szName )
       return 0;
    if( szName[ 1 ] == 'n' && szName[ 2 ] >= 'A' && szName[ 2 ] <= 'Z' )
       return 'N';
+   if( szName[ 1 ] == 'c' && szName[ 2 ] >= 'A' && szName[ 2 ] <= 'Z' )
+      return 'C';
    if( ( szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z' ) ||
        ( szName[ 1 ] >= '0' && szName[ 1 ] <= '9' ) )
       return 'C';
@@ -1316,6 +1320,9 @@ static const char * hb_astInferFromPrefix( const char * szName )
       A plain `h<X>` is keyed by strings, the default. */
    if( hb_astHashNameKeys( szName ) == 'N' )
       return "HASHN";
+   /* `hc<X>` / `shc<X>`: a hash keyed by strings, said so by the name */
+   if( hb_astHashNameKeys( szName ) == 'C' )
+      return "HASH";
 
    /* `an<X>`, `ai<X>`, `ac<X>` (and a static's `san`, `sai`, `sac`): an
       array of numbers, whole numbers or strings */
