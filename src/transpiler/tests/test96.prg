@@ -8,22 +8,22 @@
 // and `__enumKey()` / `__enumValue()` reading the pair. A loop that
 // never asks for the key is emitted as before.
 PROCEDURE Main()
-   LOCAL hAges := { "ann" => 31, "bob" => 42 }
+   LOCAL hcAges := { "ann" => 31, "bob" => 42 }
    LOCAL xItem
    LOCAL cOut := ""
    LOCAL nTotal := 0
 
-   FOR EACH xItem IN hAges
+   FOR EACH xItem IN hcAges
       cOut += xItem:__enumKey() + "=" + LTrim( Str( xItem ) ) + " "
    NEXT
    ? cOut
 
-   FOR EACH xItem IN hAges
+   FOR EACH xItem IN hcAges
       nTotal += xItem:__enumValue()
    NEXT
    ? "total=" + LTrim( Str( nTotal ) )
 
-   FOR EACH xItem IN hAges                        // no message: emitted as before
+   FOR EACH xItem IN hcAges                        // no message: emitted as before
       nTotal += xItem
    NEXT
    ? "twice=" + LTrim( Str( nTotal ) )

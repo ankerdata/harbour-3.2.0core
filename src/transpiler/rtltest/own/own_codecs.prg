@@ -23,7 +23,7 @@ PROCEDURE Main_CODECS()
    LOCAL cEuro := hb_utf8Chr( 0x20AC )
    LOCAL cByte := hb_BChar( nE - 1 + 18 )
    LOCAL cMix := "a" + cE + cByte + "z"
-   LOCAL hOrder := { "Type" => "SALE", "Qty" => 2, "Price" => 19.95, "Paid" => .F. }
+   LOCAL hcOrder := { "Type" => "SALE", "Qty" => 2, "Price" => 19.95, "Paid" => .F. }
    LOCAL cBytes := Chr( 0 ) + Chr( 9 ) + Chr( 10 ) + Chr( 13 ) + Chr( 34 ) + Chr( 92 ) + Chr( 200 )
 
    /* --- JSON: the scalars, exactly as the protocol carries them --- */
@@ -46,7 +46,7 @@ PROCEDURE Main_CODECS()
    HBTEST hb_jsonEncode( {} )                        IS "[]"
    HBTEST hb_jsonEncode( { 1, "two", .T., NIL } )    IS '[1,"two",true,null]'
    HBTEST hb_jsonEncode( { => } )                    IS "{}"
-   HBTEST hb_jsonEncode( hOrder )                    IS '{"Type":"SALE","Qty":2,"Price":19.95,"Paid":false}'
+   HBTEST hb_jsonEncode( hcOrder )                    IS '{"Type":"SALE","Qty":2,"Price":19.95,"Paid":false}'
    HBTEST hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } ) IS '{"a":[1,2],"b":{"c":null}}'
 
    /* --- JSON: the human-readable form the trace writes, which ends in
@@ -69,8 +69,8 @@ PROCEDURE Main_CODECS()
    HBTEST hb_jsonDecode( "" )                        IS NIL
 
    /* what a round trip of a whole message keeps */
-   HBTEST RoundTrip( hOrder )                        IS "SALE 2 19.95 .F."
-   HBTEST DecodeLen( hb_jsonEncode( hOrder ) )       IS 4
+   HBTEST RoundTrip( hcOrder )                        IS "SALE 2 19.95 .F."
+   HBTEST DecodeLen( hb_jsonEncode( hcOrder ) )       IS 4
 
    /* --- base64, the bitmaps and card payloads --- */
    HBTEST hb_base64Encode( "" )                      IS ""
@@ -217,12 +217,12 @@ PROCEDURE Main_CODECS()
    RETURN
 
 /* A message through the wire and back: what the other end reads. */
-STATIC FUNCTION RoundTrip( hValue )
+STATIC FUNCTION RoundTrip( hcValue )
 
-   LOCAL hBack := hb_jsonDecode( hb_jsonEncode( hValue ) )
+   LOCAL hcBack := hb_jsonDecode( hb_jsonEncode( hcValue ) )
 
-   RETURN hBack[ "Type" ] + " " + hb_ntos( hBack[ "Qty" ] ) + " " + ;
-          hb_ntos( hBack[ "Price" ] ) + " " + hb_ValToExp( hBack[ "Paid" ] )
+   RETURN hcBack[ "Type" ] + " " + hb_ntos( hcBack[ "Qty" ] ) + " " + ;
+          hb_ntos( hcBack[ "Price" ] ) + " " + hb_ValToExp( hcBack[ "Paid" ] )
 
 STATIC FUNCTION DecodeLen( cJSON )
    RETURN Len( hb_jsonDecode( cJSON ) )

@@ -809,6 +809,7 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       block for good, and a block of unknown shape changes nothing. */
    {
       HB_BOOL fSigNew  = strncmp( szNewType, "BLOCK<", 6 ) == 0;
+      HB_BOOL fOther   = strcmp( szNewType, "BLOCK<?>" ) == 0;
       HB_BOOL fSigSlot = pParam->szType && strncmp( pParam->szType, "BLOCK<", 6 ) == 0;
       HB_BOOL fPlainSlot = pParam->szType && hb_stricmp( pParam->szType, "BLOCK" ) == 0;
 
@@ -816,12 +817,22 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
       {
          if( fSigSlot && strcmp( pParam->szType, szNewType ) == 0 )
             return HB_REFINE_OK;
+         /* a block of no signature (BLOCK<?>) or of another: a plain
+            block from here on */
+         if( fOther || fSigSlot )
          {
-            char * szDup = hb_refTabDup( fSigSlot ? "BLOCK" : szNewType );
+            if( fSigSlot )
+            {
+               hb_refTabDefer( pTab, pParam->szType );
+               pParam->szType = hb_refTabDup( "BLOCK" );
+            }
+            pParam->fConflict = HB_TRUE;
+            return fSigSlot ? HB_REFINE_REFINED : HB_REFINE_OK;
+         }
+         {
+            char * szDup = hb_refTabDup( szNewType );
             hb_refTabDefer( pTab, pParam->szType );
             pParam->szType = szDup;
-            if( fSigSlot )
-               pParam->fConflict = HB_TRUE;
             return HB_REFINE_REFINED;
          }
       }

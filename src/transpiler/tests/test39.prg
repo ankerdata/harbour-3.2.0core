@@ -25,20 +25,20 @@ STATIC s_cStatic := Chr( 27 ) + "02" + Chr( 1 )
 
 CLASS Bag
    VAR cHello    AS STRING INIT "ab" + "cd"
-   VAR hTable    AS HASH   INIT { => }
+   VAR hcTable    AS HASH   INIT { => }
 ENDCLASS
 
 PROCEDURE Main()
    LOCAL cLocal   := "ab" + "cd"
    LOCAL cPayload := Chr( 16 ) + Chr( 4 )
-   LOCAL hEmpty   := { => }
+   LOCAL hcEmpty   := { => }
    LOCAL oB       := Bag():New()
 
    ? "local:  " + cLocal
    ? "llen:   " + Str( Len( cPayload ), 4 )
    ? "static: " + Str( Len( s_cStatic ), 4 )
    ? "class:  " + oB:cHello
-   ? "hsize:  " + Str( Len( hEmpty ), 4 )
-   ? "hclas:  " + Str( Len( oB:hTable ), 4 )
+   ? "hsize:  " + Str( Len( hcEmpty ), 4 )
+   ? "hclas:  " + Str( Len( oB:hcTable ), 4 )
 
 RETURN

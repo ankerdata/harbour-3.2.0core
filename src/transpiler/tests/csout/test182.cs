@@ -14,25 +14,26 @@ public static partial class Program
 
         // a literal, a local, and NIL
         QOut(CountIf182(new List<dynamic> { 5, 15, 25 }, ((Func<decimal, bool>)((nValue) => nValue > 10))));
-        QOut(CountIf182(new List<dynamic> { 5, 15, 25 }, BlockAs<Func<decimal, bool>>(bBig182)));
+        QOut(CountIf182(new List<dynamic> { 5, 15, 25 }, bBig182));
         QOut(CountIf182(new List<dynamic> { 5, 15, 25 }));
 
         // a parameter passed on
         QOut(CountTwice182(new List<dynamic> { 1, 11, 21, 31 }, BlockAs<Func<decimal, bool>>(bBig182)));
 
         // a block of another shape, through a plain variable
-        QOut(CountIf182(new List<dynamic> { 5, 15, 25 }, BlockAs<Func<decimal, bool>>(xAny182)));
+        QOut(CountIf182(new List<dynamic> { 5, 15, 25 }, xAny182));
 
         // the routine gives itself a block
         QOut(FirstOr182(new List<dynamic> { 3, 4 }));
         QOut(FirstOr182(new List<dynamic> { 3, 4 }, ((Func<decimal, decimal>)((nValue) => nValue * 2))));
 
-        // two callers that disagree
+        // callers that disagree: a logical block first, then two that are not
+        QOut(Describe182(((Func<decimal, bool>)((nValue) => nValue > 1)), 5));
         QOut(Describe182(((Func<string, string>)((cName) => "name " + cName)), "a"));
         QOut(Describe182(((Func<decimal, decimal>)((nValue) => nValue + 1)), 1));
     }
 
-    public static decimal CountIf182(List<dynamic> aValues = default, Func<decimal, bool>? bTest182 = null)
+    public static decimal CountIf182(List<dynamic> aValues = default, dynamic? bTest182 = null)
     {
         decimal nCount = 0;
 
@@ -59,7 +60,7 @@ public static partial class Program
 
     public static decimal CountTwice182(List<dynamic> aValues = default, Func<decimal, bool> bPass182 = default)
     {
-        return CountIf182(aValues, BlockAs<Func<decimal, bool>>(bPass182)) * 2;
+        return CountIf182(aValues, bPass182) * 2;
     }
 
     public static dynamic FirstOr182(List<dynamic> aValues = default, dynamic? bMap182 = null)

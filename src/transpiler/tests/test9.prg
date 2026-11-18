@@ -15,7 +15,7 @@ CLASS Person INHERIT Inherited
    DATA lActive   INIT .T.
    DATA aItems    INIT {}
    DATA oParent
-   DATA hConfig
+   DATA hcConfig
    DATA bCallback
    DATA xUnknown
 
@@ -37,7 +37,7 @@ FUNCTION Main()
    LOCAL cName := "hello"
    LOCAL lFound := .T.
    LOCAL aList := { 1, 2, 3 }
-   LOCAL hMap := { "key" => "value" }
+   LOCAL hcMap := { "key" => "value" }
 
    // Type from Hungarian prefix (no initializer)
    LOCAL nTotal
@@ -46,7 +46,7 @@ FUNCTION Main()
    LOCAL aBuffer
    LOCAL oConnection
    LOCAL dToday
-   LOCAL hSettings
+   LOCAL hcSettings
    LOCAL bAction
 
    // No prefix, no initializer — fallback

@@ -53,15 +53,15 @@ public sealed class TableDef
     public string cAlias;
     public FieldRow[] aFields;
     public IndexRows aIndexes;
-    public OrderedDictionary<string, dynamic> hHash;
+    public OrderedDictionary<string, dynamic> hcHash;
     public string cDatabase;
 
-    public TableDef(string cAlias, FieldRow[] aFields, IndexRows aIndexes, OrderedDictionary<string, dynamic> hHash, string cDatabase)
+    public TableDef(string cAlias, FieldRow[] aFields, IndexRows aIndexes, OrderedDictionary<string, dynamic> hcHash, string cDatabase)
     {
         this.cAlias = cAlias;
         this.aFields = aFields;
         this.aIndexes = aIndexes;
-        this.hHash = hHash;
+        this.hcHash = hcHash;
         this.cDatabase = cDatabase;
     }
 }
@@ -110,7 +110,7 @@ public static partial class Program
         // seen through every holder
         QOut(test155_saFields[I(2)].iLen, aDef.aFields[I(2)].iLen);
         QOut(AScan(aFields, ((Func<FieldRow, bool>)((a) => a.cName == "PRICE1"))));
-        QOut(hb_HGet(aDef.hHash, "PLUNO"), Len(aDef.aIndexes.aNames));
+        QOut(hb_HGet(aDef.hcHash, "PLUNO"), Len(aDef.aIndexes.aNames));
         // the fixed array to code that takes anything
         Dump155(aDef.aFields);
         // a record into a list: the literal is its constructor

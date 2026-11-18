@@ -23,11 +23,11 @@ public static partial class Program
     public static void Main(string[] args)
     {
         // a hash's value is untyped in C#, so every send below is dynamic
-        var hBox128 = new OrderedDictionary<string, dynamic> { { "counter", new Counter128() } };
+        var hcBox128 = new OrderedDictionary<string, dynamic> { { "counter", new Counter128() } };
 
-        QOut(hBox128["counter"].Tally128("a"));
-        QOut(hBox128["counter"].Tally128("b", nStep: 5));
-        QOut(hBox128["counter"].Tally128("c", lShout: true));
-        QOut(hBox128["counter"].Tally128("d", 2, lShout: true));
+        QOut(hcBox128["counter"].Tally128("a"));
+        QOut(hcBox128["counter"].Tally128("b", nStep: 5));
+        QOut(hcBox128["counter"].Tally128("c", lShout: true));
+        QOut(hcBox128["counter"].Tally128("d", 2, lShout: true));
     }
 }

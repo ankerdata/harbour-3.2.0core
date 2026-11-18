@@ -8,14 +8,14 @@
 // and its closing paren to `))`, tracking (/[/{ depth so commas nested
 // in inner calls or subscripts pass through untouched. Laziness is the
 // point of using a real ternary: in ResultValue below, the hash
-// subscript must not evaluate while hResultData is NIL — an eager
+// subscript must not evaluate while hcResultData is NIL — an eager
 // IIF() helper function would throw where Harbour's iif does not.
 public class Test75Dialog : IHbObject
 {
-    public OrderedDictionary<string, dynamic> hResultData;
+    public OrderedDictionary<string, dynamic> hcResultData;
 
-    public dynamic ResultValue(dynamic cKey = default, dynamic xDefault = default) => ((hResultData != null && hb_HHasKey(hResultData, cKey)) ? ( hResultData[cKey]) : ( xDefault));
-    public dynamic GetOrEmpty(dynamic cKey = default) => hb_HGetDef(hResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
+    public dynamic ResultValue(dynamic cKey = default, dynamic xDefault = default) => ((hcResultData != null && hb_HHasKey(hcResultData, cKey)) ? ( hcResultData[cKey]) : ( xDefault));
+    public dynamic GetOrEmpty(dynamic cKey = default) => hb_HGetDef(hcResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
     public dynamic IsEmptyish(dynamic nVal = default) => nVal == 0 || ! (nVal != -1);
 }
 
@@ -25,12 +25,12 @@ public static partial class Program
     {
         var oDlg = new Test75Dialog();
 
-        // hResultData is NIL here: iif's condition must short-circuit at
+        // hcResultData is NIL here: iif's condition must short-circuit at
         // `!= NIL` and take the false branch without touching the hash
         // subscript. Exercises iif + NIL + .AND. + lazy branches.
         QOut("a=", oDlg.ResultValue("result", "fallback"));
 
-        oDlg.hResultData = new OrderedDictionary<string, dynamic>
+        oDlg.hcResultData = new OrderedDictionary<string, dynamic>
         {
             { "result", "done" },
             { "count", 2 }

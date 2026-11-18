@@ -9,7 +9,7 @@
 
 PROCEDURE Main_STRINGS()
 
-   LOCAL hRepl := { "/" => "\", "a" => "A" }
+   LOCAL hcRepl := { "/" => "\", "a" => "A" }
 
    /* hb_ATokens: EasiPOS splits on "," */
    HBTEST Len( hb_ATokens( "a,b,c", "," ) )              IS 3
@@ -27,7 +27,7 @@ PROCEDURE Main_STRINGS()
    HBTEST Len( hb_ATokens( "l1" + Chr( 13 ) + Chr( 10 ) + "l2" + Chr( 10 ) + "l3", .T. ) ) IS 3
 
    /* hb_StrReplace: EasiPOS passes a hash */
-   HBTEST hb_StrReplace( "a/b/c", hRepl )                 IS "A\b\c"
+   HBTEST hb_StrReplace( "a/b/c", hcRepl )                 IS "A\b\c"
    HBTEST hb_StrReplace( "abcabc", "ab", "xy" )           IS "xycxyc"
    HBTEST hb_StrReplace( "abcabc", "ab", "x" )            IS "xcxc"
    HBTEST hb_StrReplace( "abcabc", "ab" )                 IS "cc"

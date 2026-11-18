@@ -2542,10 +2542,15 @@ parameter is one too when every caller passes a block of one shape:
 - **A variable carries** the signature of the one literal it is given;
   a parameter's variable carries its slot's.
 - **The call gives it to the slot** (hb_refTabRefineParamType): a
-  block's slot takes the first caller's signature, a caller with
-  another leaves it a plain block for good, a block of unknown shape
-  changes nothing. A parameter its own routine assigns (a DEFAULT) or
-  takes by reference stays a plain block.
+  block's slot takes the first caller's signature, and a caller whose
+  block has another, or none (a literal of another result, a variable
+  given several blocks, a function's result), leaves it a plain block
+  for good: a `Func<bool>` given a block that answers a number would
+  throw where Harbour runs. The caller's own block parameter that no
+  pass has typed or frozen yet changes nothing, and a value of no known
+  type (an `x` name) is converted at run time, as an untyped argument to
+  a class parameter is. A parameter its own routine assigns (a DEFAULT)
+  or takes by reference stays a plain block.
 - **The emitter** types such a parameter `Func<P…, bool>` and passes a
   literal of that very delegate as it is; any other block goes through
   HbRuntime's `BlockAs<T>()`, which gives the block itself when it is a

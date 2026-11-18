@@ -5,16 +5,16 @@
 
 RECORD Row41h( cName, iLen )
 
-FUNCTION Use41h( xAnything, hPlain, nPos )
-   LOCAL hRows AS HASH OF RECORD Row41h := { "a" => { "a", 1 }, "b" => 5 }   // fires W0041: a number is no Row41h
+FUNCTION Use41h( xAnything, hcPlain, nPos )
+   LOCAL hcRows AS HASH OF RECORD Row41h := { "a" => { "a", 1 }, "b" => 5 }   // fires W0041: a number is no Row41h
    LOCAL hnById AS INTEGER HASH OF CHARACTER := { "k" => "v" }               // fires W0035: a hash keyed by strings
    LOCAL hnWrong AS STRING HASH                                             // fires W0035: the name says numbers
-   hRows := xAnything                               // quiet: its type is unknown
-   hRows := hPlain                                  // fires W0041: a plain hash into a typed one
-   hRows[ "c" ] := "text"                           // fires W0041: a string is no Row41h
-   hRows[ "c" ] := { "c", 3 }                       // quiet
-   hRows[ nPos ] := { "d", 4 }                      // fires W0035: a number as a key
+   hcRows := xAnything                               // quiet: its type is unknown
+   hcRows := hcPlain                                  // fires W0041: a plain hash into a typed one
+   hcRows[ "c" ] := "text"                           // fires W0041: a string is no Row41h
+   hcRows[ "c" ] := { "c", 3 }                       // quiet
+   hcRows[ nPos ] := { "d", 4 }                      // fires W0035: a number as a key
    hnById[ "x" ] := "y"                             // fires W0035: a string as a key
    hnById[ 7 ] := "seven"                           // quiet
-   hnWrong := hPlain
-RETURN Len( hRows ) + Len( hnWrong )
+   hnWrong := hcPlain
+RETURN Len( hcRows ) + Len( hnWrong )

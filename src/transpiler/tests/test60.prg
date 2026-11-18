@@ -9,7 +9,7 @@
 //   Val    — parses the leading numeric run, ignoring trailing text.
 
 PROCEDURE Main()
-   LOCAL hData := { "a" => 1, "b" => 2, "c" => 3 }
+   LOCAL hcData := { "a" => 1, "b" => 2, "c" => 3 }
    LOCAL aNums := { 3, 1, 2, 1 }       // note the duplicate 1
    LOCAL i, cOut
 
@@ -17,7 +17,7 @@ PROCEDURE Main()
    ? "round_0.5=" + LTrim( Str( Round( 0.5, 0 ) ) )
    ? "round_neg=" + LTrim( Str( Round( -2.5, 0 ) ) )
 
-   ? "len_hash=" + LTrim( Str( Len( hData ) ) )
+   ? "len_hash=" + LTrim( Str( Len( hcData ) ) )
 
    ASort( aNums, , , {| x, y | x < y } )
    cOut := ""

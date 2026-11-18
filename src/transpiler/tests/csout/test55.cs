@@ -8,14 +8,14 @@
 // .ContainsKey(). HbRuntime.HbIn dispatches on the runtime type
 // of b: string -> substring, IDictionary -> key.
 //
-// Before HbIn, every `"key" $ hHash` produced CS1929 (24 of them
+// Before HbIn, every `"key" $ hcHash` produced CS1929 (24 of them
 // in jsonupdates.prg alone). This test pins both branches.
 public static partial class Program
 {
     public static void Main(string[] args)
     {
         string cStr = "Hello World";
-        var hData = new OrderedDictionary<string, dynamic>
+        var hcData = new OrderedDictionary<string, dynamic>
         {
             { "Alpha", 1 },
             { "Beta", 2 }
@@ -23,7 +23,7 @@ public static partial class Program
 
         QOut("sub_hit=" + (HbIn("World", cStr) ? "Y" : "N"));
         QOut("sub_miss=" + (HbIn("xyz", cStr) ? "Y" : "N"));
-        QOut("key_hit=" + (HbIn("Alpha", hData) ? "Y" : "N"));
-        QOut("key_miss=" + (HbIn("Gamma", hData) ? "Y" : "N"));
+        QOut("key_hit=" + (HbIn("Alpha", hcData) ? "Y" : "N"));
+        QOut("key_miss=" + (HbIn("Gamma", hcData) ? "Y" : "N"));
     }
 }

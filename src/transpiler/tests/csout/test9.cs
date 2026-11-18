@@ -13,7 +13,7 @@ public class Person : Inherited
     public bool lActive = true;
     public List<dynamic> aItems = new List<dynamic>();
     public dynamic oParent;
-    public OrderedDictionary<string, dynamic> hConfig;
+    public OrderedDictionary<string, dynamic> hcConfig;
     public dynamic bCallback;
     public dynamic xUnknown;
     public static decimal nCount = 0;
@@ -35,7 +35,7 @@ public static partial class Program
         string cName = "hello";
         bool lFound = true;
         var aList = new List<dynamic> { 1, 2, 3 };
-        var hMap = new OrderedDictionary<string, dynamic> { { "key", "value" } };
+        var hcMap = new OrderedDictionary<string, dynamic> { { "key", "value" } };
 
         // Type from Hungarian prefix (no initializer)
         decimal nTotal = 0;
@@ -44,7 +44,7 @@ public static partial class Program
         List<dynamic> aBuffer = null;
         dynamic oConnection = null;
         DateOnly dToday = default;
-        OrderedDictionary<string, dynamic> hSettings = null;
+        OrderedDictionary<string, dynamic> hcSettings = null;
         dynamic bAction = null;
 
         // No prefix, no initializer — fallback

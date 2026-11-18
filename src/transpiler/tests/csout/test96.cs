@@ -11,7 +11,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        var hAges = new OrderedDictionary<string, dynamic>
+        var hcAges = new OrderedDictionary<string, dynamic>
         {
             { "ann", 31 },
             { "bob", 42 }
@@ -20,7 +20,7 @@ public static partial class Program
         string cOut = "";
         decimal nTotal = 0;
 
-        foreach (var __hb_kv_xItem in HbEnumPairs(hAges))
+        foreach (var __hb_kv_xItem in HbEnumPairs(hcAges))
         {
             xItem = __hb_kv_xItem.Value;
             cOut += __hb_kv_xItem.Key + "=" + LTrim(Str(xItem)) + " ";
@@ -28,7 +28,7 @@ public static partial class Program
 
         QOut(cOut);
 
-        foreach (var __hb_kv_xItem in HbEnumPairs(hAges))
+        foreach (var __hb_kv_xItem in HbEnumPairs(hcAges))
         {
             xItem = __hb_kv_xItem.Value;
             nTotal += __hb_kv_xItem.Value;
@@ -37,7 +37,7 @@ public static partial class Program
         QOut("total=" + LTrim(Str(nTotal)));
 
         // no message: emitted as before
-        foreach (dynamic __hb_fe_xItem in HbEnumValues(hAges))
+        foreach (dynamic __hb_fe_xItem in HbEnumValues(hcAges))
         {
             xItem = __hb_fe_xItem;
             nTotal += xItem;

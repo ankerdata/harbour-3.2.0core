@@ -16,37 +16,37 @@
 
 PROCEDURE Main()
 
-   LOCAL hStock := { "tea" => 1, "milk" => 2, "rusk" => 3 }
+   LOCAL hcStock := { "tea" => 1, "milk" => 2, "rusk" => 3 }
    LOCAL hnById := { => }
-   LOCAL hSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
-   LOCAL hCopy
+   LOCAL hcSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
+   LOCAL hcCopy
    LOCAL aSrc := { { "k" => 1 } }
    LOCAL aCopy
    LOCAL nId := 7
    LOCAL cKey
    LOCAL cKeys := ""
 
-   hb_HDel( hStock, "milk" )
-   hStock[ "salt" ] := 4
-   FOR EACH cKey IN hb_HKeys( hStock )
+   hb_HDel( hcStock, "milk" )
+   hcStock[ "salt" ] := 4
+   FOR EACH cKey IN hb_HKeys( hcStock )
       cKeys += cKey + " "
    NEXT
    ? cKeys
-   ? hb_HKeyAt( hStock, 2 ), hb_HPos( hStock, "salt" ), hb_HPos( hStock, "milk" )
-   hb_HSet( hStock, "tea", 9 )
-   ? hb_HGet( hStock, "tea" ), hb_HKeyAt( hStock, 1 ), Len( hStock )
-   ? "tea" $ hStock, "milk" $ hStock, "" $ "abc", "b" $ "abc"
-   ? hb_HKeepOrder( hStock, .T. )
+   ? hb_HKeyAt( hcStock, 2 ), hb_HPos( hcStock, "salt" ), hb_HPos( hcStock, "milk" )
+   hb_HSet( hcStock, "tea", 9 )
+   ? hb_HGet( hcStock, "tea" ), hb_HKeyAt( hcStock, 1 ), Len( hcStock )
+   ? "tea" $ hcStock, "milk" $ hcStock, "" $ "abc", "b" $ "abc"
+   ? hb_HKeepOrder( hcStock, .T. )
 
    hnById[ nId ] := "seven"
    hnById[ 3 ] := "three"
    ? hnById[ nId ], hnById[ 3 ], hb_HHasKey( hnById, 7 ), hb_HHasKey( hnById, 7.0 )
    ? hb_HGetDef( hnById, 4, "none" ), hb_HKeyAt( hnById, 1 ) + 1
 
-   hCopy := hb_HClone( hSrc )
-   hCopy[ "a" ][ 1 ] := 9
-   hCopy[ "b" ][ "x" ] := 5
-   ? hSrc[ "a" ][ 1 ], hSrc[ "b" ][ "x" ], hCopy[ "a" ][ 1 ], hCopy[ "b" ][ "x" ]
+   hcCopy := hb_HClone( hcSrc )
+   hcCopy[ "a" ][ 1 ] := 9
+   hcCopy[ "b" ][ "x" ] := 5
+   ? hcSrc[ "a" ][ 1 ], hcSrc[ "b" ][ "x" ], hcCopy[ "a" ][ 1 ], hcCopy[ "b" ][ "x" ]
 
    aCopy := AClone( aSrc )
    aCopy[ 1 ][ "k" ] := 2

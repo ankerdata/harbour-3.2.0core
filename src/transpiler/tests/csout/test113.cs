@@ -17,14 +17,14 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        var hStock = new OrderedDictionary<string, dynamic>
+        var hcStock = new OrderedDictionary<string, dynamic>
         {
             { "tea", 1 },
             { "milk", 2 },
             { "rusk", 3 }
         };
         var hnById = new OrderedDictionary<long, dynamic>();
-        var hSrc = new OrderedDictionary<string, dynamic>
+        var hcSrc = new OrderedDictionary<string, dynamic>
         {
             { "a", new List<dynamic> { 1, 2 } },
             { "b", new OrderedDictionary<string, dynamic> { { "x", 1 } } }
@@ -36,29 +36,29 @@ public static partial class Program
         long nId = 7;
         string cKeys = "";
 
-        hb_HDel(hStock, "milk");
-        hStock["salt"] = 4;
-        foreach (string cKey in HbEnumValues(hb_HKeys(hStock)))
+        hb_HDel(hcStock, "milk");
+        hcStock["salt"] = 4;
+        foreach (string cKey in HbEnumValues(hb_HKeys(hcStock)))
         {
             cKeys += cKey + " ";
         }
 
         QOut(cKeys);
-        QOut(hb_HKeyAt(hStock, 2), hb_HPos(hStock, "salt"), hb_HPos(hStock, "milk"));
-        hb_HSet(hStock, "tea", 9);
-        QOut(hb_HGet(hStock, "tea"), hb_HKeyAt(hStock, 1), Len(hStock));
-        QOut(HbIn("tea", hStock), HbIn("milk", hStock), HbIn("", "abc"), HbIn("b", "abc"));
-        QOut(hb_HKeepOrder(hStock, true));
+        QOut(hb_HKeyAt(hcStock, 2), hb_HPos(hcStock, "salt"), hb_HPos(hcStock, "milk"));
+        hb_HSet(hcStock, "tea", 9);
+        QOut(hb_HGet(hcStock, "tea"), hb_HKeyAt(hcStock, 1), Len(hcStock));
+        QOut(HbIn("tea", hcStock), HbIn("milk", hcStock), HbIn("", "abc"), HbIn("b", "abc"));
+        QOut(hb_HKeepOrder(hcStock, true));
 
         hnById[nId] = "seven";
         hnById[3] = "three";
         QOut(hnById[nId], hnById[3], hb_HHasKey(hnById, 7), hb_HHasKey(hnById, 7.0m));
         QOut(hb_HGetDef(hnById, 4, "none"), hb_HKeyAt(hnById, 1) + 1);
 
-        OrderedDictionary<string, dynamic> hCopy = hb_HClone(hSrc);
-        hCopy["a"][I(1)] = 9;
-        hCopy["b"]["x"] = 5;
-        QOut(hSrc["a"][I(1)], hSrc["b"]["x"], hCopy["a"][I(1)], hCopy["b"]["x"]);
+        OrderedDictionary<string, dynamic> hcCopy = hb_HClone(hcSrc);
+        hcCopy["a"][I(1)] = 9;
+        hcCopy["b"]["x"] = 5;
+        QOut(hcSrc["a"][I(1)], hcSrc["b"]["x"], hcCopy["a"][I(1)], hcCopy["b"]["x"]);
 
         List<dynamic> aCopy = AClone(aSrc);
         aCopy[I(1)]["k"] = 2;

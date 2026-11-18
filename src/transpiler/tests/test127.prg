@@ -28,7 +28,7 @@ STATIC FUNCTION Count127( hnFrom )
 
 PROCEDURE Main()
    LOCAL hnById := { => }
-   LOCAL hByName := { => }
+   LOCAL hcByName := { => }
    LOCAL oLedger127 := Ledger127():New():Fill127()
    LOCAL nId := 7
    // a key of no known type: Eval() answers whatever its block does
@@ -36,10 +36,10 @@ PROCEDURE Main()
 
    hnById[ nId ] := "seven"
    hnById[ xKey ] := "nine"
-   hByName[ "seven" ] := nId
+   hcByName[ "seven" ] := nId
    shnSeen127[ 3 ] := .T.
 
-   ? hnById[ 7 ], hnById[ 9 ], hByName[ "seven" ], Count127( hnById )
+   ? hnById[ 7 ], hnById[ 9 ], hcByName[ "seven" ], Count127( hnById )
    ? oLedger127:hnRows127[ 12 ], hb_HHasKey( shnSeen127, 3 ), Len( shnSeen127 )
 
    RETURN

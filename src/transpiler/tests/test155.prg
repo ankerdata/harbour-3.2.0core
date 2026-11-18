@@ -28,7 +28,7 @@
 
 RECORD FieldRow( cName, cType, iLen, iDec )
 RECORD IndexRows( aNames AS FIXED ARRAY OF CHARACTER, aExpressions AS FIXED ARRAY OF CHARACTER, aUnique AS FIXED ARRAY OF CHARACTER )
-RECORD TableDef( cAlias, aFields AS FIXED ARRAY OF RECORD FieldRow, aIndexes AS RECORD IndexRows, hHash, cDatabase )
+RECORD TableDef( cAlias, aFields AS FIXED ARRAY OF RECORD FieldRow, aIndexes AS RECORD IndexRows, hcHash, cDatabase )
 
 STATIC saFields AS FIXED ARRAY OF RECORD FieldRow := { ;
    { "PLUNO", "N", 16, 0 }, ;

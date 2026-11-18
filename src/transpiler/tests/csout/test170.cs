@@ -45,7 +45,7 @@ public static partial class Program
             aPlug,
             1.5m,
             new List<string> { "brown", "blue" });
-        var hStock = new OrderedDictionary<string, dynamic>
+        var hcStock = new OrderedDictionary<string, dynamic>
         {
             { "plug", aPlug },
             { "count", 2 }
@@ -54,7 +54,7 @@ public static partial class Program
         QOut(hb_jsonEncode(aPlug));
         QOut(hb_jsonEncode(aPlugs));
         QOut(hb_jsonEncode(aLead));
-        QOut(hb_jsonEncode(hStock));
+        QOut(hb_jsonEncode(hcStock));
         QOut(hb_jsonEncode(new List<dynamic> { aPlug, "spare" }));
     }
 }

@@ -11,7 +11,7 @@ public static partial class Program
 {
     public static void Main(string[] args)
     {
-        var hData = new OrderedDictionary<string, dynamic>
+        var hcData = new OrderedDictionary<string, dynamic>
         {
             { "a", 1 },
             { "b", 2 },
@@ -24,7 +24,7 @@ public static partial class Program
         QOut("round_0.5=" + LTrim(Str(Round(0.5m, 0))));
         QOut("round_neg=" + LTrim(Str(Round(-2.5m, 0))));
 
-        QOut("len_hash=" + LTrim(Str(Len(hData))));
+        QOut("len_hash=" + LTrim(Str(Len(hcData))));
 
         ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((x, y) => x < y)));
         string cOut = "";

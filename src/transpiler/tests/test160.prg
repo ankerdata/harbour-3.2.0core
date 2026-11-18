@@ -27,16 +27,16 @@ FUNCTION Literals160()
 
    LOCAL aNames := { "a", "b" }
    LOCAL aEmpty := {}
-   LOCAL hAges := { "x" => 1, "y" => 2 }
-   LOCAL hNone := { => }
+   LOCAL hcAges := { "x" => 1, "y" => 2 }
+   LOCAL hcNone := { => }
    LOCAL cJoined := ""
    LOCAL aCopy := AClone( aNames )
 
    AAdd( aEmpty, "c" )
-   hNone[ "z" ] := 3
+   hcNone[ "z" ] := 3
    AEval( aNames, {| c | cJoined += c } )
 
-   RETURN cJoined + aEmpty[ 1 ] + Str( hAges[ "y" ] + hNone[ "z" ], 2 ) + ;
+   RETURN cJoined + aEmpty[ 1 ] + Str( hcAges[ "y" ] + hcNone[ "z" ], 2 ) + ;
       Str( Len( aCopy ), 2 )
 
 FUNCTION Objects160()

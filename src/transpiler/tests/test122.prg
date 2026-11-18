@@ -21,7 +21,7 @@
 //
 // A MODULE FRIENDLY class lets the functions of its own file use its
 // PROTECTED and HIDDEN members (ormsql.prg's PreparedSeek() reads SQLtTable's
-// hSeekStmts): `protected internal` / `internal` in C#.
+// hcSeekStmts): `protected internal` / `internal` in C#.
 
 #include "hbclass.ch"
 

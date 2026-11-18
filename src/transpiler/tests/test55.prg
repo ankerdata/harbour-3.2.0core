@@ -8,15 +8,15 @@
 // .ContainsKey(). HbRuntime.HbIn dispatches on the runtime type
 // of b: string -> substring, IDictionary -> key.
 //
-// Before HbIn, every `"key" $ hHash` produced CS1929 (24 of them
+// Before HbIn, every `"key" $ hcHash` produced CS1929 (24 of them
 // in jsonupdates.prg alone). This test pins both branches.
 
 PROCEDURE Main()
    LOCAL cStr  := "Hello World"
-   LOCAL hData := { "Alpha" => 1, "Beta" => 2 }
+   LOCAL hcData := { "Alpha" => 1, "Beta" => 2 }
 
    ? "sub_hit="  + IIF( "World" $ cStr,  "Y", "N" )
    ? "sub_miss=" + IIF( "xyz" $ cStr,    "Y", "N" )
-   ? "key_hit="  + IIF( "Alpha" $ hData, "Y", "N" )
-   ? "key_miss=" + IIF( "Gamma" $ hData, "Y", "N" )
+   ? "key_hit="  + IIF( "Alpha" $ hcData, "Y", "N" )
+   ? "key_miss=" + IIF( "Gamma" $ hcData, "Y", "N" )
 RETURN

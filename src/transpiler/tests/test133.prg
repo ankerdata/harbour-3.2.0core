@@ -46,15 +46,15 @@ RETURN
 
 PROCEDURE Main()
    LOCAL oShelf := ConstructORMTable( TestShelf133Def() )
-   LOCAL hBox := { => }
+   LOCAL hcBox := { => }
 
    oShelf:nNo := 7
    oShelf:cName := "top"
-   hBox[ "shelf" ] := oShelf
-   hBox[ "counter" ] := Counter133():New()
+   hcBox[ "shelf" ] := oShelf
+   hcBox[ "counter" ] := Counter133():New()
 
-   ? ShelfLabel133( hBox[ "shelf" ] )
-   Bump133( hBox[ "counter" ] )
-   Bump133( hBox[ "counter" ] )
-   ? hBox[ "counter" ]:nCount133
+   ? ShelfLabel133( hcBox[ "shelf" ] )
+   Bump133( hcBox[ "counter" ] )
+   Bump133( hcBox[ "counter" ] )
+   ? hcBox[ "counter" ]:nCount133
 RETURN

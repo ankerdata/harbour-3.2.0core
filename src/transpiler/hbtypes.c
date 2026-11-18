@@ -2839,8 +2839,16 @@ static const char * hb_astBlockLiteralSig( PHB_EXPR pBlock )
    return hb_astIntern( szBuf, nOff );
 }
 
-/* The signature of the block an expression gives: a literal's, or the
-   one a variable carries; NULL when it is not known */
+/* A block whose shape is another's or not known: the parameter given it
+   is a plain block for good (hb_refTabRefineParamType) */
+#define HB_BLOCKSIG_OTHER  "BLOCK<?>"
+
+/* The signature of the block an expression gives, for the parameter it
+   is passed to: a literal's, or the one a variable carries;
+   HB_BLOCKSIG_OTHER for a block of no signature (a literal without one,
+   a variable given several, a function's result); NULL where the scan
+   has yet to say, the routine's own block parameter that no caller has
+   typed or frozen, which a later pass settles. */
 static const char * hb_astBlockExprSig( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
 {
    while( pExpr && ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
@@ -2849,14 +2857,29 @@ static const char * hb_astBlockExprSig( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
    if( ! pExpr )
       return NULL;
    if( pExpr->ExprType == HB_ET_CODEBLOCK )
-      return hb_astBlockLiteralSig( pExpr );
+   {
+      const char * szSig = hb_astBlockLiteralSig( pExpr );
+      return szSig ? szSig : HB_BLOCKSIG_OTHER;
+   }
    if( pExpr->ExprType == HB_ET_VARIABLE )
    {
-      HB_TYPEENV_ENTRY * pEntry = hb_typeEnvEntry( pEnv, pExpr->value.asSymbol.name );
+      const char * szName = pExpr->value.asSymbol.name;
+      HB_TYPEENV_ENTRY * pEntry = hb_typeEnvEntry( pEnv, szName );
       if( pEntry && pEntry->szBlockSig && *pEntry->szBlockSig )
          return pEntry->szBlockSig;
+      /* the routine's own parameter, never assigned here */
+      if( pEntry && ! pEntry->szBlockSig && pEnv->pRefTab && pEnv->szFuncKey[ 0 ] )
+      {
+         int n = hb_refTabParamCount( pEnv->pRefTab, pEnv->szFuncKey ), i;
+         for( i = 0; i < n; i++ )
+         {
+            const HB_REFPARAM * p = hb_refTabParam( pEnv->pRefTab, pEnv->szFuncKey, i );
+            if( p && p->szName && hb_stricmp( p->szName, szName ) == 0 )
+               return p->fConflict ? HB_BLOCKSIG_OTHER : NULL;
+         }
+      }
    }
-   return NULL;
+   return HB_BLOCKSIG_OTHER;
 }
 
 /* A variable is given pRHS: the signature it carries from now on */
@@ -2872,7 +2895,7 @@ static void hb_astBlockSigAssign( const char * szVarName, PHB_EXPR pRHS, HB_TYPE
        pEnv->pRefTab && pEnv->szFuncKey[ 0 ] )
       hb_refTabBlockParamAssigned( pEnv->pRefTab, pEnv->szFuncKey, szVarName );
    szSig = hb_astBlockExprSig( pRHS, pEnv );
-   if( ! szSig )
+   if( ! szSig || strcmp( szSig, HB_BLOCKSIG_OTHER ) == 0 )
       szSig = "";
    if( ! pEntry->szBlockSig )
       pEntry->szBlockSig = szSig;

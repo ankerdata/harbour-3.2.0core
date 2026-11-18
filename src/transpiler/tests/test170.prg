@@ -14,12 +14,12 @@ PROCEDURE Main()
    LOCAL aPlug AS RECORD Plug170 := { "Schuko", 2, .T. }
    LOCAL aPlugs AS ARRAY OF RECORD Plug170 := { { "BS 1363", 3, .T. }, { "Europlug", 2, .F. } }
    LOCAL aLead AS RECORD Lead170 := { aPlug, 1.5, { "brown", "blue" } }
-   LOCAL hStock AS STRING HASH := { "plug" => aPlug, "count" => 2 }
+   LOCAL hcStock AS STRING HASH := { "plug" => aPlug, "count" => 2 }
 
    ? hb_jsonEncode( aPlug )
    ? hb_jsonEncode( aPlugs )
    ? hb_jsonEncode( aLead )
-   ? hb_jsonEncode( hStock )
+   ? hb_jsonEncode( hcStock )
    ? hb_jsonEncode( { aPlug, "spare" } )
 
 RETURN

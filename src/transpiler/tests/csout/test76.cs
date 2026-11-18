@@ -18,7 +18,7 @@
 public static partial class Program
 {
     public static OrderedDictionary<long, dynamic> test76_shnPanels;
-    public static OrderedDictionary<string, dynamic> test76_shNames = new OrderedDictionary<string, dynamic>
+    public static OrderedDictionary<string, dynamic> test76_shcNames = new OrderedDictionary<string, dynamic>
     {
         { "alpha", 1 },
         { "beta", 2 }
@@ -43,7 +43,7 @@ public static partial class Program
         QOut("d=", hnById[8]);
         QOut("e=", GetPanel(3));
         QOut("f=", GetPanel(4));
-        QOut("g=", test76_shNames["alpha"] + test76_shNames["beta"]);
+        QOut("g=", test76_shcNames["alpha"] + test76_shcNames["beta"]);
         QOut("h=", Len(test76_shnPanels));
 
         // Factory in the CreateLangHash shape: its own keys flow through a

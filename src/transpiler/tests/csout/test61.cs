@@ -20,7 +20,7 @@ public static partial class Program
             1,
             new List<dynamic> { 2, 3 }
         };
-        var hEmpty = new OrderedDictionary<string, dynamic>();
+        var hcEmpty = new OrderedDictionary<string, dynamic>();
 
         // AScan with a codeblock — 20 is at index 2
         QOut("ascan_blk=" + LTrim(Str(AScan(aData, ((Func<dynamic, bool>)((x) => x == 20))))));
@@ -33,7 +33,7 @@ public static partial class Program
         QOut("aclone=" + LTrim(Str(aNested[I(2)][I(1)])));
 
         // Empty() of an empty hash
-        QOut("empty_hash=" + (Empty(hEmpty) ? "Y" : "N"));
+        QOut("empty_hash=" + (Empty(hcEmpty) ? "Y" : "N"));
 
         // Right() with a negative count
         QOut("right_neg=[" + Right("hello", -2) + "]");

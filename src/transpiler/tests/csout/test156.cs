@@ -29,20 +29,20 @@ public sealed class FieldRow156
 public sealed class Table156
 {
     public string cAlias;
-    public OrderedDictionary<string, FieldRow156> hFields;
+    public OrderedDictionary<string, FieldRow156> hcFields;
     public OrderedDictionary<long, string> hnNames;
 
-    public Table156(string cAlias, OrderedDictionary<string, FieldRow156> hFields, OrderedDictionary<long, string> hnNames)
+    public Table156(string cAlias, OrderedDictionary<string, FieldRow156> hcFields, OrderedDictionary<long, string> hnNames)
     {
         this.cAlias = cAlias;
-        this.hFields = hFields;
+        this.hcFields = hcFields;
         this.hnNames = hnNames;
     }
 }
 
 public static partial class Program
 {
-    public static OrderedDictionary<string, FieldRow156> test156_shByName = new OrderedDictionary<string, FieldRow156>
+    public static OrderedDictionary<string, FieldRow156> test156_shcByName = new OrderedDictionary<string, FieldRow156>
     {
         { "PLUNO", new FieldRow156("PLUNO", "N", 16, 0) },
         { "CAPTION", new FieldRow156("CAPTION", "C", 40, 0) }
@@ -57,25 +57,25 @@ public static partial class Program
         };
 
         // a record into the hash: its constructor
-        hb_HSet(test156_shByName, "PRICE1", new FieldRow156("PRICE1", "N", 12, 3));
+        hb_HSet(test156_shcByName, "PRICE1", new FieldRow156("PRICE1", "N", 12, 3));
         // the value's field, by a define
-        test156_shByName["PRICE1"].iLen = 15;
-        QOut(Len(test156_shByName), test156_shByName["CAPTION"].iLen, test156_shByName["PRICE1"].iLen);
+        test156_shcByName["PRICE1"].iLen = 15;
+        QOut(Len(test156_shcByName), test156_shcByName["CAPTION"].iLen, test156_shcByName["PRICE1"].iLen);
         // the values, typed
-        foreach (FieldRow156 aRow in HbEnumValues(test156_shByName))
+        foreach (FieldRow156 aRow in HbEnumValues(test156_shcByName))
         {
             QOut("  row", aRow.cName, aRow.iLen);
         }
 
-        foreach (string cKey in HbEnumValues(hb_HKeys(test156_shByName)))
+        foreach (string cKey in HbEnumValues(hb_HKeys(test156_shcByName)))
         {
-            QOut("  key", cKey, Width156(test156_shByName[cKey]));
+            QOut("  key", cKey, Width156(test156_shcByName[cKey]));
         }
 
         hnNames[3] = "three";
         QOut(Len(hnNames), hnNames[2], hnNames[3]);
-        QOut(aTable.cAlias, Len(aTable.hFields), aTable.hFields["CAPTION"].cName, aTable.hnNames[2]);
-        QOut(Count156(aTable.hFields), Count156(test156_shByName));
+        QOut(aTable.cAlias, Len(aTable.hcFields), aTable.hcFields["CAPTION"].cName, aTable.hnNames[2]);
+        QOut(Count156(aTable.hcFields), Count156(test156_shcByName));
 
         // a record holding typed hashes, built from one literal
     }
@@ -100,10 +100,10 @@ public static partial class Program
 
         // a typed hash parameter: FOR EACH over its values
     }
-    public static long Count156(OrderedDictionary<string, FieldRow156> hRows = default)
+    public static long Count156(OrderedDictionary<string, FieldRow156> hcRows = default)
     {
         long iTotal = 0;
-        foreach (FieldRow156 aRow in HbEnumValues(hRows))
+        foreach (FieldRow156 aRow in HbEnumValues(hcRows))
         {
             iTotal += aRow.iLen;
         }

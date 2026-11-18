@@ -142,7 +142,7 @@ public static partial class Program
         DateOnly dWhen = default;
         string cName = null;
         List<dynamic> aRows = null;
-        OrderedDictionary<string, dynamic> hMap = null;
+        OrderedDictionary<string, dynamic> hcMap = null;
 
         if (lSet)
         {
@@ -152,9 +152,9 @@ public static partial class Program
             dWhen = Date();
             cName = "set";
             aRows = new List<dynamic> { 1 };
-            hMap = new OrderedDictionary<string, dynamic> { { "k", 1 } };
+            hcMap = new OrderedDictionary<string, dynamic> { { "k", 1 } };
         }
 
-        return (Empty(nCount) ? "e" : "s") + (Empty(iTimes) ? "e" : "s") + (Empty(lSeen) ? "e" : "s") + (Empty(dWhen) ? "e" : "s") + (Empty(cName) ? "e" : "s") + (Empty(aRows) ? "e" : "s") + (Empty(hMap) ? "e" : "s");
+        return (Empty(nCount) ? "e" : "s") + (Empty(iTimes) ? "e" : "s") + (Empty(lSeen) ? "e" : "s") + (Empty(dWhen) ? "e" : "s") + (Empty(cName) ? "e" : "s") + (Empty(aRows) ? "e" : "s") + (Empty(hcMap) ? "e" : "s");
     }
 }

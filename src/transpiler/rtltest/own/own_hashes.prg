@@ -11,30 +11,30 @@
 
 PROCEDURE Main_HASHES()
 
-   LOCAL hAges := { "ann" => 31, "bob" => 42, "cy" => 7 }
-   LOCAL hIds := { 10 => "ten", 20 => "twenty" }
+   LOCAL hcAges := { "ann" => 31, "bob" => 42, "cy" => 7 }
+   LOCAL hcIds := { 10 => "ten", 20 => "twenty" }
 
    /* lookup; string keys compare exactly */
-   HBTEST hb_HHasKey( hAges, "bob" )                 IS .T.
-   HBTEST hb_HHasKey( hAges, "Bob" )                 IS .F.
-   HBTEST hb_HHasKey( hAges, "bo" )                  IS .F.
-   HBTEST hb_HGetDef( hAges, "cy", 0 )               IS 7
-   HBTEST hb_HGetDef( hAges, "dee", 0 )              IS 0
-   HBTEST hb_HGetDef( hAges, "dee" )                 IS NIL
-   HBTEST hb_HGet( hAges, "ann" )                    IS 31
-   HBTEST hb_HPos( hAges, "cy" )                     IS 3
-   HBTEST hb_HPos( hAges, "dee" )                    IS 0
-   HBTEST hb_HKeyAt( hAges, 2 )                      IS "bob"
-   HBTEST Len( hAges )                               IS 3
-   HBTEST "ann" $ hAges                              IS .T.
-   HBTEST "dee" $ hAges                              IS .F.
+   HBTEST hb_HHasKey( hcAges, "bob" )                 IS .T.
+   HBTEST hb_HHasKey( hcAges, "Bob" )                 IS .F.
+   HBTEST hb_HHasKey( hcAges, "bo" )                  IS .F.
+   HBTEST hb_HGetDef( hcAges, "cy", 0 )               IS 7
+   HBTEST hb_HGetDef( hcAges, "dee", 0 )              IS 0
+   HBTEST hb_HGetDef( hcAges, "dee" )                 IS NIL
+   HBTEST hb_HGet( hcAges, "ann" )                    IS 31
+   HBTEST hb_HPos( hcAges, "cy" )                     IS 3
+   HBTEST hb_HPos( hcAges, "dee" )                    IS 0
+   HBTEST hb_HKeyAt( hcAges, 2 )                      IS "bob"
+   HBTEST Len( hcAges )                               IS 3
+   HBTEST "ann" $ hcAges                              IS .T.
+   HBTEST "dee" $ hcAges                              IS .F.
 
    /* numeric keys compare by value */
-   HBTEST hb_HHasKey( hIds, 10 )                     IS .T.
-   HBTEST hb_HHasKey( hIds, 10.0 )                   IS .T.
-   HBTEST hb_HHasKey( hIds, 15 )                     IS .F.
-   HBTEST hb_HGetDef( hIds, 20.0, "" )               IS "twenty"
-   HBTEST hb_HKeyAt( hIds, 1 ) + 5                   IS 15
+   HBTEST hb_HHasKey( hcIds, 10 )                     IS .T.
+   HBTEST hb_HHasKey( hcIds, 10.0 )                   IS .T.
+   HBTEST hb_HHasKey( hcIds, 15 )                     IS .F.
+   HBTEST hb_HGetDef( hcIds, 20.0, "" )               IS "twenty"
+   HBTEST hb_HKeyAt( hcIds, 1 ) + 5                   IS 15
 
    /* order: kept as added, deletes included; a replaced key stays put */
    HBTEST KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) ) IS "a c d"
@@ -50,37 +50,37 @@ PROCEDURE Main_HASHES()
 
    RETURN
 
-STATIC FUNCTION KeyList( hIn )
+STATIC FUNCTION KeyList( hcIn )
 
    LOCAL cOut := ""
    LOCAL cKey
 
-   FOR EACH cKey IN hb_HKeys( hIn )
+   FOR EACH cKey IN hb_HKeys( hcIn )
       cOut += iif( Empty( cOut ), "", " " ) + cKey
    NEXT
 
    RETURN cOut
 
-STATIC FUNCTION DelAdd( hIn, cDel, cAdd )
+STATIC FUNCTION DelAdd( hcIn, cDel, cAdd )
 
-   hb_HDel( hIn, cDel )
-   hIn[ cAdd ] := 0
+   hb_HDel( hcIn, cDel )
+   hcIn[ cAdd ] := 0
 
-   RETURN hIn
+   RETURN hcIn
 
-STATIC FUNCTION SetOf( hIn, cKey, xValue )
+STATIC FUNCTION SetOf( hcIn, cKey, xValue )
 
-   hb_HSet( hIn, cKey, xValue )
+   hb_HSet( hcIn, cKey, xValue )
 
-   RETURN hIn
+   RETURN hcIn
 
 STATIC FUNCTION CloneApart()
 
-   LOCAL hSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
-   LOCAL hCopy := hb_HClone( hSrc )
+   LOCAL hcSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
+   LOCAL hcCopy := hb_HClone( hcSrc )
 
-   hCopy[ "a" ][ 1 ] := 9
-   hCopy[ "b" ][ "x" ] := 5
+   hcCopy[ "a" ][ 1 ] := 9
+   hcCopy[ "b" ][ "x" ] := 5
 
-   RETURN Str( hSrc[ "a" ][ 1 ], 1 ) + " " + Str( hSrc[ "b" ][ "x" ], 1 ) + " " + ;
-          Str( hCopy[ "a" ][ 1 ], 1 ) + " " + Str( hCopy[ "b" ][ "x" ], 1 )
+   RETURN Str( hcSrc[ "a" ][ 1 ], 1 ) + " " + Str( hcSrc[ "b" ][ "x" ], 1 ) + " " + ;
+          Str( hcCopy[ "a" ][ 1 ], 1 ) + " " + Str( hcCopy[ "b" ][ "x" ], 1 )

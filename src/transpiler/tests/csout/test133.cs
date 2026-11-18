@@ -65,16 +65,16 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var oShelf = new TestShelf133Table(TestShelf133Def());
-        var hBox = new OrderedDictionary<string, dynamic>();
+        var hcBox = new OrderedDictionary<string, dynamic>();
 
         oShelf.nNo = 7;
         oShelf.cName = "top";
-        hBox["shelf"] = oShelf;
-        hBox["counter"] = new Counter133();
+        hcBox["shelf"] = oShelf;
+        hcBox["counter"] = new Counter133();
 
-        QOut(ShelfLabel133(hBox["shelf"]));
-        Bump133(hBox["counter"]);
-        Bump133(hBox["counter"]);
-        QOut(hBox["counter"].nCount133);
+        QOut(ShelfLabel133(hcBox["shelf"]));
+        Bump133(hcBox["counter"]);
+        Bump133(hcBox["counter"]);
+        QOut(hcBox["counter"].nCount133);
     }
 }

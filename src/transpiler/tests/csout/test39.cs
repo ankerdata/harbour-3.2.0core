@@ -21,7 +21,7 @@
 public class Bag : IHbObject
 {
     public string cHello = "ab" + "cd";
-    public OrderedDictionary<string, dynamic> hTable = new OrderedDictionary<string, dynamic>();
+    public OrderedDictionary<string, dynamic> hcTable = new OrderedDictionary<string, dynamic>();
 
 }
 
@@ -32,14 +32,14 @@ public static partial class Program
     {
         string cLocal = "ab" + "cd";
         string cPayload = Chr(16) + Chr(4);
-        var hEmpty = new OrderedDictionary<string, dynamic>();
+        var hcEmpty = new OrderedDictionary<string, dynamic>();
         var oB = new Bag();
 
         QOut("local:  " + cLocal);
         QOut("llen:   " + Str(Len(cPayload), 4));
         QOut("static: " + Str(Len(test39_s_cStatic), 4));
         QOut("class:  " + oB.cHello);
-        QOut("hsize:  " + Str(Len(hEmpty), 4));
-        QOut("hclas:  " + Str(Len(oB.hTable), 4));
+        QOut("hsize:  " + Str(Len(hcEmpty), 4));
+        QOut("hclas:  " + Str(Len(oB.hcTable), 4));
     }
 }

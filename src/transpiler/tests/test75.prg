@@ -8,28 +8,28 @@
 // and its closing paren to `))`, tracking (/[/{ depth so commas nested
 // in inner calls or subscripts pass through untouched. Laziness is the
 // point of using a real ternary: in ResultValue below, the hash
-// subscript must not evaluate while hResultData is NIL — an eager
+// subscript must not evaluate while hcResultData is NIL — an eager
 // IIF() helper function would throw where Harbour's iif does not.
 
 #include "hbclass.ch"
 
 CLASS Test75Dialog
-   VAR hResultData
+   VAR hcResultData
 
-   METHOD ResultValue(cKey, xDefault) INLINE (iif(::hResultData != NIL .AND. hb_HHasKey(::hResultData, cKey), ::hResultData[cKey], xDefault))
-   METHOD GetOrEmpty(cKey) INLINE (hb_HGetDef(::hResultData, cKey, { => }))
+   METHOD ResultValue(cKey, xDefault) INLINE (iif(::hcResultData != NIL .AND. hb_HHasKey(::hcResultData, cKey), ::hcResultData[cKey], xDefault))
+   METHOD GetOrEmpty(cKey) INLINE (hb_HGetDef(::hcResultData, cKey, { => }))
    METHOD IsEmptyish(nVal) INLINE (nVal == 0 .OR. .NOT. (nVal <> -1))
 ENDCLASS
 
 PROCEDURE Main()
    LOCAL oDlg := Test75Dialog():New()
 
-   // hResultData is NIL here: iif's condition must short-circuit at
+   // hcResultData is NIL here: iif's condition must short-circuit at
    // `!= NIL` and take the false branch without touching the hash
    // subscript. Exercises iif + NIL + .AND. + lazy branches.
    ? "a=", oDlg:ResultValue("result", "fallback")
 
-   oDlg:hResultData := { "result" => "done", "count" => 2 }
+   oDlg:hcResultData := { "result" => "done", "count" => 2 }
    ? "b=", oDlg:ResultValue("result", "fallback")
    ? "c=", oDlg:ResultValue("missing", 42)
 

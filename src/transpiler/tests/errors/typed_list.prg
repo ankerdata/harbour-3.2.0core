@@ -55,12 +55,12 @@ RETURN Len( aItems )
 // An untyped value passed to such a parameter, or to one its name declares:
 // C# converts it at run time, and throws unless it holds a List<string>,
 // which a plain array, what an untyped one nearly always is, is not
-FUNCTION Use41q( hRows )
+FUNCTION Use41q( hcRows )
    LOCAL aNames AS ARRAY OF CHARACTER := { "b" }
    Count41q( aNames )                               // quiet: makes aItems a List<string>
-   Count41q( hRows[ "x" ] )                         // fires W0041: an untyped value for it
+   Count41q( hcRows[ "x" ] )                         // fires W0041: an untyped value for it
    Count41q( NIL )                                  // quiet: NIL is null
-   Take41q( hRows[ "y" ] )                          // fires W0041: and for a declared one
+   Take41q( hcRows[ "y" ] )                          // fires W0041: and for a declared one
 RETURN NIL
 
 FUNCTION Count41q( aItems )

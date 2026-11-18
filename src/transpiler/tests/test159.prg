@@ -128,7 +128,7 @@ FUNCTION Defaults159( lSet )
    LOCAL dWhen
    LOCAL cName
    LOCAL aRows
-   LOCAL hMap
+   LOCAL hcMap
 
    IF lSet
       nCount := 1
@@ -137,10 +137,10 @@ FUNCTION Defaults159( lSet )
       dWhen := Date()
       cName := "set"
       aRows := { 1 }
-      hMap := { "k" => 1 }
+      hcMap := { "k" => 1 }
    ENDIF
 
    RETURN iif( Empty( nCount ), "e", "s" ) + iif( Empty( iTimes ), "e", "s" ) + ;
       iif( Empty( lSeen ), "e", "s" ) + iif( Empty( dWhen ), "e", "s" ) + ;
       iif( Empty( cName ), "e", "s" ) + iif( Empty( aRows ), "e", "s" ) + ;
-      iif( Empty( hMap ), "e", "s" )
+      iif( Empty( hcMap ), "e", "s" )

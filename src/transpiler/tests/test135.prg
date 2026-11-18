@@ -19,7 +19,7 @@ PROCEDURE Main()
    LOCAL aAmounts135 := { 1.5, 2.25 }
    LOCAL aCounts135 := { 3, 4 }
    LOCAL aWhole135 := { 10 / 2 }
-   LOCAL cName135, aRow135, hField135, nAmount135, iCount135
+   LOCAL cName135, aRow135, hcField135, nAmount135, iCount135
    LOCAL cOut := ""
    LOCAL nSum := 0
    LOCAL iTotal := 0
@@ -30,8 +30,8 @@ PROCEDURE Main()
    FOR EACH aRow135 IN aRows135
       cOut += aRow135[ 1 ] + hb_ntos( aRow135[ 2 ] ) + ";"
    NEXT
-   FOR EACH hField135 IN aHashes135
-      cOut += hField135[ "k" ] + ";"
+   FOR EACH hcField135 IN aHashes135
+      cOut += hcField135[ "k" ] + ";"
    NEXT
    FOR EACH nAmount135 IN aAmounts135
       nSum += nAmount135

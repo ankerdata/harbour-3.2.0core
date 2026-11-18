@@ -4,8 +4,8 @@ FUNCTION Main()
 
    LOCAL aNumbers := { 10, 20, 30, 40, 50 }
    LOCAL aNames := { "Alice", "Bob", "Charlie" }
-   LOCAL hPerson := { "name" => "John", "age" => 30 }
-   LOCAL hConfig := { "debug" => .T., "timeout" => 60 }
+   LOCAL hcPerson := { "name" => "John", "age" => 30 }
+   LOCAL hcConfig := { "debug" => .T., "timeout" => 60 }
    LOCAL aMatrix := { { 1, 2 }, { 3, 4 }, { 5, 6 } }
    LOCAL aEmpty := {}
    LOCAL nTotal := 0
@@ -50,12 +50,12 @@ FUNCTION Main()
    ? "nTotal=" + Str( nTotal )
 
    // Hash access
-   cName := hPerson[ "name" ]
+   cName := hcPerson[ "name" ]
    ? "cName=" + cName
 
    // Hash assignment
-   hPerson[ "age" ] := 31
-   ? "age=" + Str( hPerson[ "age" ] )
+   hcPerson[ "age" ] := 31
+   ? "age=" + Str( hcPerson[ "age" ] )
 
    // String operations via mapped functions
    cUpper := Upper( cText )

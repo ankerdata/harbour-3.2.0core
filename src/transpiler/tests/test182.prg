@@ -28,7 +28,8 @@ PROCEDURE Main()
    ? FirstOr182( { 3, 4 } )
    ? FirstOr182( { 3, 4 }, { |nValue| nValue * 2 } )
 
-   // two callers that disagree
+   // callers that disagree: a logical block first, then two that are not
+   ? Describe182( { |nValue| nValue > 1 }, 5 )
    ? Describe182( { |cName| "name " + cName }, "a" )
    ? Describe182( { |nValue| nValue + 1 }, 1 )
 

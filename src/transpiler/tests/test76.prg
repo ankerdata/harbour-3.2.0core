@@ -17,7 +17,7 @@
 // keyed by numbers here are hn<...> / shn<...>.
 
 static shnPanels
-static shNames := { "alpha" => 1, "beta" => 2 }
+static shcNames := { "alpha" => 1, "beta" => 2 }
 
 PROCEDURE Main()
     LOCAL hnById := { => }
@@ -34,7 +34,7 @@ PROCEDURE Main()
     ? "d=", hnById[8]
     ? "e=", GetPanel(3)
     ? "f=", GetPanel(4)
-    ? "g=", shNames["alpha"] + shNames["beta"]
+    ? "g=", shcNames["alpha"] + shcNames["beta"]
     ? "h=", Len(shnPanels)
 
 RETURN

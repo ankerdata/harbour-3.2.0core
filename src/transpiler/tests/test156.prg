@@ -17,9 +17,9 @@
 #define FLD_LEN  3
 
 RECORD FieldRow156( cName, cType, iLen, iDec )
-RECORD Table156( cAlias, hFields AS HASH OF RECORD FieldRow156, hnNames AS INTEGER HASH OF CHARACTER )
+RECORD Table156( cAlias, hcFields AS HASH OF RECORD FieldRow156, hnNames AS INTEGER HASH OF CHARACTER )
 
-STATIC shByName AS HASH OF RECORD FieldRow156 := { ;
+STATIC shcByName AS HASH OF RECORD FieldRow156 := { ;
    "PLUNO" => { "PLUNO", "N", 16, 0 }, ;
    "CAPTION" => { "CAPTION", "C", 40, 0 } }
 
@@ -29,19 +29,19 @@ PROCEDURE Main()
    LOCAL aRow AS RECORD FieldRow156
    LOCAL cKey
 
-   hb_HSet( shByName, "PRICE1", { "PRICE1", "N", 12, 3 } )   // a record into the hash: its constructor
-   shByName[ "PRICE1" ][ FLD_LEN ] := 15                       // the value's field, by a define
-   ? Len( shByName ), shByName[ "CAPTION" ][ FLD_LEN ], shByName[ "PRICE1" ][ 3 ]
-   FOR EACH aRow IN shByName                                   // the values, typed
+   hb_HSet( shcByName, "PRICE1", { "PRICE1", "N", 12, 3 } )   // a record into the hash: its constructor
+   shcByName[ "PRICE1" ][ FLD_LEN ] := 15                       // the value's field, by a define
+   ? Len( shcByName ), shcByName[ "CAPTION" ][ FLD_LEN ], shcByName[ "PRICE1" ][ 3 ]
+   FOR EACH aRow IN shcByName                                   // the values, typed
       ? "  row", aRow[ FLD_NAME ], aRow[ FLD_LEN ]
    NEXT
-   FOR EACH cKey IN hb_HKeys( shByName )
-      ? "  key", cKey, Width156( shByName[ cKey ] )
+   FOR EACH cKey IN hb_HKeys( shcByName )
+      ? "  key", cKey, Width156( shcByName[ cKey ] )
    NEXT
    hnNames[ 3 ] := "three"
    ? Len( hnNames ), hnNames[ 2 ], hnNames[ 3 ]
    ? aTable[ 1 ], Len( aTable[ 2 ] ), aTable[ 2 ][ "CAPTION" ][ FLD_NAME ], aTable[ 3 ][ 2 ]
-   ? Count156( aTable[ 2 ] ), Count156( shByName )
+   ? Count156( aTable[ 2 ] ), Count156( shcByName )
 RETURN
 
 // a record holding typed hashes, built from one literal
@@ -52,10 +52,10 @@ FUNCTION Width156( aRow AS RECORD FieldRow156 )
 RETURN aRow[ FLD_LEN ] + aRow[ 4 ]
 
 // a typed hash parameter: FOR EACH over its values
-FUNCTION Count156( hRows AS HASH OF RECORD FieldRow156 )
+FUNCTION Count156( hcRows AS HASH OF RECORD FieldRow156 )
    LOCAL iTotal := 0
    LOCAL aRow
-   FOR EACH aRow IN hRows
+   FOR EACH aRow IN hcRows
       iTotal += aRow[ FLD_LEN ]
    NEXT
 RETURN iTotal

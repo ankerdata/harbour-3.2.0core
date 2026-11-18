@@ -24,11 +24,11 @@ METHOD Tally128( cLabel, nStart, nStep, lShout ) CLASS Counter128
 
 PROCEDURE Main()
    // a hash's value is untyped in C#, so every send below is dynamic
-   LOCAL hBox128 := { "counter" => Counter128():New() }
+   LOCAL hcBox128 := { "counter" => Counter128():New() }
 
-   ? hBox128[ "counter" ]:Tally128( "a" )
-   ? hBox128[ "counter" ]:Tally128( "b", , 5 )
-   ? hBox128[ "counter" ]:Tally128( "c", , , .T. )
-   ? hBox128[ "counter" ]:Tally128( "d", 2, , .T. )
+   ? hcBox128[ "counter" ]:Tally128( "a" )
+   ? hcBox128[ "counter" ]:Tally128( "b", , 5 )
+   ? hcBox128[ "counter" ]:Tally128( "c", , , .T. )
+   ? hcBox128[ "counter" ]:Tally128( "d", 2, , .T. )
 
    RETURN

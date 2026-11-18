@@ -5,12 +5,12 @@ public static partial class Program
     {
         var aNumbers = new List<dynamic> { 10, 20, 30, 40, 50 };
         var aNames = new List<dynamic> { "Alice", "Bob", "Charlie" };
-        var hPerson = new OrderedDictionary<string, dynamic>
+        var hcPerson = new OrderedDictionary<string, dynamic>
         {
             { "name", "John" },
             { "age", 30 }
         };
-        var hConfig = new OrderedDictionary<string, dynamic>
+        var hcConfig = new OrderedDictionary<string, dynamic>
         {
             { "debug", true },
             { "timeout", 60 }
@@ -59,12 +59,12 @@ public static partial class Program
         QOut("nTotal=" + Str(nTotal));
 
         // Hash access
-        string cName = hPerson["name"];
+        string cName = hcPerson["name"];
         QOut("cName=" + cName);
 
         // Hash assignment
-        hPerson["age"] = 31;
-        QOut("age=" + Str(hPerson["age"]));
+        hcPerson["age"] = 31;
+        QOut("age=" + Str(hcPerson["age"]));
 
         // String operations via mapped functions
         string cUpper = Upper(cText);

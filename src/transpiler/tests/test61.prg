@@ -17,7 +17,7 @@ PROCEDURE Main()
    LOCAL aData   := { 10, 20, 30 }
    LOCAL aNested := { 1, { 2, 3 } }
    LOCAL aCopy
-   LOCAL hEmpty  := { => }
+   LOCAL hcEmpty  := { => }
 
    // AScan with a codeblock — 20 is at index 2
    ? "ascan_blk=" + LTrim( Str( AScan( aData, {| x | x == 20 } ) ) )
@@ -28,7 +28,7 @@ PROCEDURE Main()
    ? "aclone=" + LTrim( Str( aNested[ 2 ][ 1 ] ) )   // still 2
 
    // Empty() of an empty hash
-   ? "empty_hash=" + IIF( Empty( hEmpty ), "Y", "N" )
+   ? "empty_hash=" + IIF( Empty( hcEmpty ), "Y", "N" )
 
    // Right() with a negative count
    ? "right_neg=[" + Right( "hello", -2 ) + "]"

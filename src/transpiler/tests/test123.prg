@@ -17,7 +17,7 @@
 CLASS Shelf123
    VAR aSlots123
    VAR aGrid123
-   VAR hTags123
+   VAR hcTags123
    VAR nPos123
    METHOD Fill123()
    METHOD First123()          INLINE ::aSlots123[1]
@@ -25,15 +25,15 @@ CLASS Shelf123
    METHOD At123( nAt )        INLINE ::aSlots123[nAt]
    METHOD Current123()        INLINE ::aSlots123[::nPos123]
    METHOD Cell123( nRow, nCol ) INLINE ::aGrid123[nRow][nCol]
-   METHOD Tag123( cKey )      INLINE ::hTags123[cKey]
-   METHOD Red123()            INLINE ::hTags123["red"]
+   METHOD Tag123( cKey )      INLINE ::hcTags123[cKey]
+   METHOD Red123()            INLINE ::hcTags123["red"]
    METHOD Put123( nAt, cVal ) INLINE ::aSlots123[nAt] := cVal
 ENDCLASS
 
 METHOD Fill123() CLASS Shelf123
    ::aSlots123 := { "first", "second", "third" }
    ::aGrid123  := { { "a1", "a2" }, { "b1", "b2" } }
-   ::hTags123  := { "red" => "warm", "blue" => "cold" }
+   ::hcTags123  := { "red" => "warm", "blue" => "cold" }
    ::nPos123   := 2
    RETURN Self
 

@@ -31,7 +31,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         var hnById = new OrderedDictionary<long, dynamic>();
-        var hByName = new OrderedDictionary<string, dynamic>();
+        var hcByName = new OrderedDictionary<string, dynamic>();
         Ledger127 oLedger127 = new Ledger127().Fill127();
         long nId = 7;
         // a key of no known type: Eval() answers whatever its block does
@@ -39,10 +39,10 @@ public static partial class Program
 
         hnById[nId] = "seven";
         hnById[(long)(xKey)] = "nine";
-        hByName["seven"] = nId;
+        hcByName["seven"] = nId;
         test127_shnSeen127[3] = true;
 
-        QOut(hnById[7], hnById[9], hByName["seven"], test127_Count127(hnById));
+        QOut(hnById[7], hnById[9], hcByName["seven"], test127_Count127(hnById));
         QOut(oLedger127.hnRows127[12], hb_HHasKey(test127_shnSeen127, 3), Len(test127_shnSeen127));
     }
 

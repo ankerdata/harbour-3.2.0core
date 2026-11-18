@@ -15,7 +15,7 @@ public class Shelf123 : IHbObject
 {
     public List<dynamic> aSlots123;
     public List<dynamic> aGrid123;
-    public OrderedDictionary<string, dynamic> hTags123;
+    public OrderedDictionary<string, dynamic> hcTags123;
     public decimal nPos123;
 
     public dynamic First123() => aSlots123[I(1)];
@@ -23,8 +23,8 @@ public class Shelf123 : IHbObject
     public dynamic At123(dynamic nAt = default) => aSlots123[I(nAt)];
     public dynamic Current123() => aSlots123[I(nPos123)];
     public dynamic Cell123(dynamic nRow = default, dynamic nCol = default) => aGrid123[I(nRow)][I(nCol)];
-    public dynamic Tag123(dynamic cKey = default) => hTags123[cKey];
-    public dynamic Red123() => hTags123["red"];
+    public dynamic Tag123(dynamic cKey = default) => hcTags123[cKey];
+    public dynamic Red123() => hcTags123["red"];
     public dynamic Put123(dynamic nAt = default, dynamic cVal = default) => aSlots123[I(nAt)] = cVal;
     public virtual Shelf123 Fill123()
     {
@@ -34,7 +34,7 @@ public class Shelf123 : IHbObject
             new List<dynamic> { "a1", "a2" },
             new List<dynamic> { "b1", "b2" }
         };
-        hTags123 = new OrderedDictionary<string, dynamic>
+        hcTags123 = new OrderedDictionary<string, dynamic>
         {
             { "red", "warm" },
             { "blue", "cold" }

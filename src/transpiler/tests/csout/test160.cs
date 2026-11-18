@@ -26,20 +26,20 @@ public static partial class Program
     {
         var aNames = new List<dynamic> { "a", "b" };
         var aEmpty = new List<dynamic>();
-        var hAges = new OrderedDictionary<string, dynamic>
+        var hcAges = new OrderedDictionary<string, dynamic>
         {
             { "x", 1 },
             { "y", 2 }
         };
-        var hNone = new OrderedDictionary<string, dynamic>();
+        var hcNone = new OrderedDictionary<string, dynamic>();
         string cJoined = "";
         List<dynamic> aCopy = AClone(aNames);
 
         AAdd(aEmpty, "c");
-        hNone["z"] = 3;
+        hcNone["z"] = 3;
         AEval(aNames, ((Func<dynamic, dynamic>)((c) => cJoined += c)));
 
-        return cJoined + aEmpty[I(1)] + Str(hAges["y"] + hNone["z"], 2) + Str(Len(aCopy), 2);
+        return cJoined + aEmpty[I(1)] + Str(hcAges["y"] + hcNone["z"], 2) + Str(Len(aCopy), 2);
     }
 
     public static string Objects160()

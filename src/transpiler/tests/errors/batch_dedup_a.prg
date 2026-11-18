@@ -6,10 +6,10 @@
 
 PROCEDURE Main()
 
-   LOCAL hByName := { => }
+   LOCAL hcByName := { => }
    LOCAL nId := 3
 
-   hByName[ nId ] := "three"            // W0035: a number as an h name's key
-   ? hByName
+   hcByName[ nId ] := "three"            // W0035: a number as an h name's key
+   ? hcByName
 
    RETURN

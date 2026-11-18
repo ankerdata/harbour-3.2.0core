@@ -44,9 +44,9 @@ public static partial class Program
             cOut += aRow135[I(1)] + hb_ntos(aRow135[I(2)]) + ";";
         }
 
-        foreach (OrderedDictionary<string, dynamic> hField135 in HbEnumValues(aHashes135))
+        foreach (OrderedDictionary<string, dynamic> hcField135 in HbEnumValues(aHashes135))
         {
-            cOut += hField135["k"] + ";";
+            cOut += hcField135["k"] + ";";
         }
 
         foreach (decimal nAmount135 in HbEnumValues(aAmounts135))

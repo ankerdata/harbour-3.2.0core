@@ -23,7 +23,7 @@ PROCEDURE Main()
    LOCAL aList := { 10, 20, 30, 40 }
    LOCAL aGrid := { { 1, 2 }, { 3, 4 } }
    LOCAL hnByNo := { 1 => "one", 2 => "two" }
-   LOCAL hByName := { "x" => 7 }
+   LOCAL hcByName := { "x" => 7 }
    LOCAL iSlot, nPos := Val( "2" ), oError
    LOCAL oShelf := Shelf151():New()
 
@@ -38,7 +38,7 @@ PROCEDURE Main()
    aList[ nPos ] := 25                            // assignment targets
    aList[ 3 ] += 5
    ? aList[ 2 ], aList[ 3 ]
-   ? hnByNo[ 2 ], hByName[ "x" ]                  // hash keys pass as they are
+   ? hnByNo[ 2 ], hcByName[ "x" ]                  // hash keys pass as they are
    ? oShelf:Slot( 3 ), oShelf:Second()            // INLINE bodies
    ? aList[ AScan( aList, 40 ) ]                  // a 1-based position from the runtime
 

@@ -31,7 +31,7 @@ public static partial class Program
             { 1, "one" },
             { 2, "two" }
         };
-        var hByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
+        var hcByName = new OrderedDictionary<string, dynamic> { { "x", 7 } };
         long iSlot = 0;
         decimal nPos = Val("2");
         HbError oError = null;
@@ -57,7 +57,7 @@ public static partial class Program
         aList[I(3)] += 5;
         QOut(aList[I(2)], aList[I(3)]);
         // hash keys pass as they are
-        QOut(hnByNo[2], hByName["x"]);
+        QOut(hnByNo[2], hcByName["x"]);
         // INLINE bodies
         QOut(oShelf.Slot(3), oShelf.Second());
         // a 1-based position from the runtime
