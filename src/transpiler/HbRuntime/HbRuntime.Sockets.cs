@@ -442,6 +442,25 @@ public static partial class HbRuntime
         }
     }
 
+    // hb_socketGetSockName( <pSocket> ): the address the socket is bound
+    // to, { HB_SOCKET_AF_INET, <cAddress>, <nPort> }, or NIL
+    public static List<dynamic>? hb_socketGetSockName(object? pSocket)
+    {
+        Socket sd = SockParam(pSocket, "HB_SOCKETGETSOCKNAME").sd!;
+        try
+        {
+            if (sd.LocalEndPoint is not IPEndPoint ep)
+                return null;
+            SetSockOsError(0);
+            return new List<dynamic> { (decimal)HB_SOCKET_AF_INET, ep.Address.ToString(), (decimal)ep.Port };
+        }
+        catch (SocketException e)
+        {
+            SetSockOsError(e);
+            return null;
+        }
+    }
+
     public static bool hb_socketBind(object? pSocket, object? aAddr)
     {
         Socket sd = SockParam(pSocket, "HB_SOCKETBIND").sd!;

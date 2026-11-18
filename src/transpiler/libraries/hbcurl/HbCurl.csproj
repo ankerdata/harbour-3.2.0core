@@ -13,4 +13,8 @@
     <AssemblyName>HbCurl</AssemblyName>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\HbRuntime\HbRuntime.csproj" />
+  </ItemGroup>
+
 </Project>

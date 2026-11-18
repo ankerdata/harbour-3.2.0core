@@ -328,6 +328,27 @@ public static partial class HbRuntime
         return lJulian * MilliSecsPerDay + lMSec;
     }
 
+    // hb_UTCOffset( [<tLocalTime>] ): the local zone's offset from UTC in
+    // seconds, at that time or now
+    public static long hb_UTCOffset(DateTime? tLocalTime = null)
+    {
+        DateTime tLocal = tLocalTime is DateTime t && t != default ? t : DateTime.Now;
+        return (long)TimeZoneInfo.Local.GetUtcOffset(DateTime.SpecifyKind(tLocal, DateTimeKind.Local)).TotalSeconds;
+    }
+
+    // hb_TSToStr( <tTimeStamp>, [<lPacked>] ): "YYYY-MM-DD hh:mm:ss.fff";
+    // packed, without the trailing parts that are zero (hb_timeStampStrEx())
+    public static string hb_TSToStr(DateTime tTimeStamp, bool lPacked = false)
+    {
+        if (!lPacked)
+            return tTimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff", INV);
+        if (tTimeStamp.TimeOfDay == TimeSpan.Zero)
+            return tTimeStamp.ToString("yyyy-MM-dd", INV);
+        if (tTimeStamp.Millisecond != 0)
+            return tTimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff", INV);
+        return tTimeStamp.ToString(tTimeStamp.Second != 0 ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd HH:mm", INV);
+    }
+
     // hb_TSToUTC( <tLocalTime> ): the same instant in UTC, by the local
     // zone's offset at that time
     public static DateTime hb_TSToUTC(DateTime tLocalTime)

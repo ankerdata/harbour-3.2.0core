@@ -8,15 +8,6 @@ using System;
 
 public static partial class HbCurl
 {
-    public static dynamic curl_easy_cleanup(params dynamic[] args) => throw new NotImplementedException(nameof(curl_easy_cleanup));
-    public static dynamic curl_easy_getinfo<T2>(dynamic p0, dynamic p1, ref T2 p2) => throw new NotImplementedException(nameof(curl_easy_getinfo));
-    public static dynamic curl_easy_init(params dynamic[] args) => throw new NotImplementedException(nameof(curl_easy_init));
-    public static dynamic curl_easy_perform(params dynamic[] args) => throw new NotImplementedException(nameof(curl_easy_perform));
-    public static dynamic curl_easy_reset(params dynamic[] args) => throw new NotImplementedException(nameof(curl_easy_reset));
-    public static dynamic curl_easy_setopt(params dynamic[] args) => throw new NotImplementedException(nameof(curl_easy_setopt));
-    public static dynamic curl_easy_strerror(params dynamic[] args) => throw new NotImplementedException(nameof(curl_easy_strerror));
-    public static dynamic curl_global_cleanup(params dynamic[] args) => throw new NotImplementedException(nameof(curl_global_cleanup));
-    public static dynamic curl_global_init(params dynamic[] args) => throw new NotImplementedException(nameof(curl_global_init));
     public static dynamic curl_ws_recv<T1, T3, T4>(dynamic p0, ref T1 p1, dynamic p2, ref T3 p3, ref T4 p4) => throw new NotImplementedException(nameof(curl_ws_recv));
     public static dynamic curl_ws_send<T2>(dynamic p0, dynamic p1, ref T2 p2, dynamic p3, dynamic p4) => throw new NotImplementedException(nameof(curl_ws_send));
 }

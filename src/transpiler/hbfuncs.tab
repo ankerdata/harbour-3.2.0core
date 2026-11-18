@@ -145,6 +145,10 @@ CTODOW	NUMERIC	-
 CTOF	NUMERIC	-
 CTOMONTH	NUMERIC	-
 CurDir	STRING	HbRuntime
+curl_easy_perform	INTEGER	-
+curl_easy_setopt	INTEGER	-
+curl_easy_strerror	STRING	-
+curl_global_init	INTEGER	-
 Date	DATE	HbRuntime
 Day	INTEGER	HbRuntime
 DAYS	NUMERIC	-
@@ -536,6 +540,7 @@ hb_socketConnect	LOGICAL	HbRuntime
 hb_socketErrorString	STRING	HbRuntime
 hb_socketGetError	INTEGER	HbRuntime
 hb_socketGetIFaces	ARRAY	HbRuntime
+hb_socketGetSockName	ARRAY	HbRuntime
 hb_socketListen	LOGICAL	HbRuntime
 hb_socketOpen	-	HbRuntime
 hb_socketRecv	INTEGER	HbRuntime
@@ -557,11 +562,13 @@ hb_threadSelf	-	HbRuntime
 hb_threadStart	-	HbRuntime
 hb_threadWait	INTEGER	HbRuntime
 hb_Translate	STRING	HbRuntime
+hb_TSToStr	STRING	HbRuntime
 hb_TSToUTC	TIMESTAMP	HbRuntime
 hb_TToC	STRING	HbRuntime
 hb_TToD	DATE	HbRuntime
 hb_TToMSec	INTEGER	HbRuntime
 HB_UNZIPFILE	LOGICAL	-
+hb_UTCOffset	INTEGER	HbRuntime
 hb_utf8Chr	STRING	HbRuntime
 hb_UTF8ToStr	STRING	HbRuntime
 hb_ValToExp	STRING	HbRuntime
