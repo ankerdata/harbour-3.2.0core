@@ -2529,6 +2529,28 @@ block placed inside a function to show it is hoisted.
 
 ---
 
+## Codeblock parameters — a delegate where the callers agree
+
+A `b` local made from a block literal is a `Func<…>` in C#. A `b`
+parameter is one too when every caller passes a block of one shape:
+- **The signature** of a literal is `BLOCK<P1,…|R>`: each parameter's
+  type by its name, the result LOGICAL for a comparison or a logical
+  operator. A literal with a parameter whose name says nothing, or whose
+  result is not known to be a logical, has none (hb_astBlockLiteralSig).
+- **A variable carries** the signature of the one literal it is given;
+  a parameter's variable carries its slot's.
+- **The call gives it to the slot** (hb_refTabRefineParamType): a
+  block's slot takes the first caller's signature, a caller with
+  another leaves it a plain block for good, a block of unknown shape
+  changes nothing. A parameter its own routine assigns (a DEFAULT) or
+  takes by reference stays a plain block.
+- **The emitter** types such a parameter `Func<P…, bool>` and passes a
+  literal of that very delegate as it is; any other block goes through
+  HbRuntime's `BlockAs<T>()`, which gives the block itself when it is a
+  T, NIL as NIL, and otherwise a delegate of the parameter's shape that
+  calls it as Eval() does.
+Eval() of the parameter is unchanged. test182.
+
 ## Hidden text — `#pragma TEXTHIDDEN`
 
 Harbour keeps the string literals written between `#pragma

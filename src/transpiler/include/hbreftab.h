@@ -207,6 +207,9 @@ extern void hb_refTabSetReturnType( PHB_REFTAB pTab, const char * szFunc,
    The function must already be registered via hb_refTabAddFunc for
    refinement to take effect; call-site-only knowledge of an unregistered
    function is ignored. */
+extern void hb_refTabDemoteBlockSigs( PHB_REFTAB pTab );
+extern void hb_refTabBlockParamAssigned( PHB_REFTAB pTab, const char * szFunc,
+                                         const char * szParam );
 extern HB_REFINE_RESULT hb_refTabRefineParamType(
    PHB_REFTAB pTab, const char * szFunc, int iPos, const char * szNewType );
 

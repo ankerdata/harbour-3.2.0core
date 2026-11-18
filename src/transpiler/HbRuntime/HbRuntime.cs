@@ -36,12 +36,55 @@ public static partial class HbRuntime
     public static dynamic Eval(dynamic block, params dynamic[] args) =>
         block is Delegate d ? InvokeBlock(d, args ?? System.Array.Empty<dynamic>()) : null;
 
+    // A block given to a parameter that is a delegate (the emitter's
+    // BLOCK<…> slots): itself when it is one of that type, NIL as NIL, and
+    // any other block behind a delegate of the parameter's shape that calls
+    // it as Eval() does, so a block that takes fewer arguments, or gives
+    // a value where the parameter's result is a logical, still serves.
+    public static T BlockAs<T>(object? block) where T : Delegate
+    {
+        if (block is null)
+            return null!;
+        if (block is T tBlock)
+            return tBlock;
+        if (block is not Delegate dBlock)
+            throw new InvalidCastException("BlockAs: not a codeblock, " + block.GetType().Name);
+
+        var miInvoke = typeof(T).GetMethod("Invoke")!;
+        var aParams = miInvoke.GetParameters()
+            .Select(p => System.Linq.Expressions.Expression.Parameter(p.ParameterType, p.Name)).ToArray();
+        var xArgs = System.Linq.Expressions.Expression.NewArrayInit(typeof(object),
+            aParams.Select(p => (System.Linq.Expressions.Expression)
+                System.Linq.Expressions.Expression.Convert(p, typeof(object))));
+        System.Linq.Expressions.Expression xCall = System.Linq.Expressions.Expression.Call(
+            typeof(HbRuntime).GetMethod(nameof(BlockAsCall),
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                .MakeGenericMethod(miInvoke.ReturnType == typeof(void) ? typeof(object) : miInvoke.ReturnType),
+            System.Linq.Expressions.Expression.Constant(dBlock, typeof(Delegate)), xArgs);
+        if (miInvoke.ReturnType == typeof(void))
+            xCall = System.Linq.Expressions.Expression.Block(typeof(void), xCall);
+        return System.Linq.Expressions.Expression.Lambda<T>(xCall, aParams).Compile();
+    }
+
+    static TResult BlockAsCall<TResult>(Delegate dBlock, object?[] aArgs)
+    {
+        object? xResult = InvokeBlock(dBlock, aArgs!);
+        if (xResult is TResult tResult)
+            return tResult;
+        return xResult is null ? default! : (TResult)(dynamic)xResult;
+    }
+
     // Eval()'s work, also the error launcher's: hidden from ProcName(),
     // like the compiled call under it.
     [System.Diagnostics.StackTraceHidden]
     internal static dynamic InvokeBlock(Delegate d, dynamic[] args)
     {
-        var ps = d.Method.GetParameters();
+        // A static method closed over its first argument (a delegate compiled
+        // from an expression, BlockAs's among them) is called with the
+        // delegate's parameters, one fewer than the method's.
+        var ps = d.Method.IsStatic && d.Target != null
+            ? d.GetType().GetMethod("Invoke")!.GetParameters()
+            : d.Method.GetParameters();
         object?[] fitted;
         // A varargs codeblock (`{|...|}`) is a single dynamic[] param —
         // hand it the whole args array as that one parameter.

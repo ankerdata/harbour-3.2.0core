@@ -707,7 +707,7 @@ HB_BOOL hb_astIsArrayOfCall( PHB_EXPR pExpr, const char * szType )
 /* One copy of each type string built here, for the life of the run. */
 static const char * hb_astIntern( const char * szText, HB_SIZE nLen )
 {
-   static char * s_aPool[ 512 ];
+   static char * s_aPool[ 2048 ];
    static int    s_nPool = 0;
    int i;
 
@@ -1547,6 +1547,10 @@ typedef struct
    HB_BOOL      fMixed;    /* a record, FIXED array or typed list and another
                               value: frozen USUAL, `dynamic` in C# whatever
                               the name's prefix (hb_typeEnvFreezeMixed) */
+   const char * szBlockSig; /* a variable holding a codeblock: the signature
+                              of the one block it is given (BLOCK<P,…|R>,
+                              hb_astBlockLiteralSig), "" for more than one
+                              or a block of unknown shape, NULL for none */
 } HB_TYPEENV_ENTRY;
 
 typedef struct
@@ -1729,6 +1733,7 @@ static HB_BOOL hb_typeEnvSet( HB_TYPEENV * pEnv, const char * szName,
       pEnv->entries[ pEnv->count ].fFrozen = HB_FALSE;
       pEnv->entries[ pEnv->count ].fDeclared = HB_FALSE;
       pEnv->entries[ pEnv->count ].fMixed = HB_FALSE;
+      pEnv->entries[ pEnv->count ].szBlockSig = NULL;
       pEnv->count++;
       return HB_TRUE;
    }
@@ -2449,6 +2454,7 @@ static HB_BOOL hb_astIsClassType( const char * sz )
       hb_stricmp( sz, "DATE"      ) != 0 && hb_stricmp( sz, "TIMESTAMP" ) != 0 &&
       hb_stricmp( sz, "ARRAY"     ) != 0 && ! hb_astIsHashFamily( sz ) &&
       hb_stricmp( sz, "BLOCK"     ) != 0 && hb_stricmp( sz, "CODEBLOCK" ) != 0 &&
+      strncmp( sz, "BLOCK<", 6 ) != 0 &&  /* a block parameter with its signature */
       hb_stricmp( sz, "NIL"       ) != 0 && hb_stricmp( sz, "SYMBOL"    ) != 0 &&
       hb_stricmp( sz, "POINTER"   ) != 0 && hb_stricmp( sz, "OBJECT"    ) != 0 &&
       hb_stricmp( sz, "USUAL"     ) != 0 && hb_stricmp( sz, "FUNREF"    ) != 0 &&
@@ -2477,7 +2483,7 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
       reference */
    if( strncmp( szDecl, "FUNC<", 5 ) == 0 )
       return hb_stricmp( szActual, "FUNREF" ) == 0 || hb_stricmp( szActual, "BLOCK" ) == 0 ||
-             strncmp( szActual, "FUNC<", 5 ) == 0;
+             strncmp( szActual, "BLOCK<", 6 ) == 0 || strncmp( szActual, "FUNC<", 5 ) == 0;
    /* a FIXED array is a C# array, a typed list a List<string>, any other
       array a List<dynamic>: none takes another (a literal is checked
       element by element before this) */
@@ -2756,6 +2762,117 @@ static const char * hb_astRhsType( PHB_EXPR pRHS, const char * szGiven,
           hb_astUndeclared( hb_astInferExprType( pRHS, pEnv ) );
 }
 
+/* ---- The signature of a codeblock (plan C19) ----
+   A `b` parameter is `dynamic` in C# unless its callers agree on the
+   block they pass. A block literal's signature is BLOCK<P1,…|R>: each
+   parameter's type by its name, the result LOGICAL for a comparison or
+   a logical operator. A block with a parameter whose name says nothing,
+   or whose result is not known to be a logical, has none. A variable carries the signature of the one literal it is
+   given (HB_TYPEENV_ENTRY's szBlockSig); the call that passes the
+   literal or the variable gives it to the parameter's slot
+   (hb_refTabRefineParamType), whose type stays a block's for every
+   other purpose. `{|...|}` has no fixed shape and gives none. */
+static const char * hb_astBlockLiteralSig( PHB_EXPR pBlock )
+{
+   char szBuf[ 512 ];
+   HB_SIZE nOff;
+   PHB_CBVAR pVar;
+   PHB_EXPR pLast;
+   const char * szRes = "USUAL";
+
+   if( ! pBlock || pBlock->ExprType != HB_ET_CODEBLOCK ||
+       ( pBlock->value.asCodeblock.flags & HB_BLOCK_VPARAMS ) != 0 )
+      return NULL;
+
+   nOff = hb_snprintf( szBuf, sizeof( szBuf ), "BLOCK<" );
+   for( pVar = pBlock->value.asCodeblock.pLocals; pVar; pVar = pVar->pNext )
+   {
+      const char * szType = hb_astInferType( pVar->szName, NULL );
+      /* a parameter whose name says nothing: no delegate worth having */
+      if( ! szType || ! *szType || strchr( szType, '|' ) || strchr( szType, ',' ) ||
+          hb_stricmp( szType, "USUAL" ) == 0 )
+         return NULL;
+      if( nOff + strlen( szType ) + 4 >= sizeof( szBuf ) )
+         return NULL;
+      nOff += hb_snprintf( szBuf + nOff, sizeof( szBuf ) - nOff, "%s%s",
+                           pVar == pBlock->value.asCodeblock.pLocals ? "" : ",", szType );
+   }
+
+   pLast = pBlock->value.asCodeblock.pExprList;
+   while( pLast && pLast->pNext )
+      pLast = pLast->pNext;
+   while( pLast && ( pLast->ExprType == HB_ET_LIST || pLast->ExprType == HB_ET_ARGLIST ) &&
+          pLast->value.asList.pExprList && ! pLast->value.asList.pExprList->pNext )
+      pLast = pLast->value.asList.pExprList;
+   if( pLast )
+      switch( pLast->ExprType )
+      {
+         case HB_ET_LOGICAL:
+         case HB_EO_OR:
+         case HB_EO_AND:
+         case HB_EO_NOT:
+         case HB_EO_EQUAL:
+         case HB_EO_EQ:
+         case HB_EO_NE:
+         case HB_EO_IN:
+         case HB_EO_LT:
+         case HB_EO_GT:
+         case HB_EO_LE:
+         case HB_EO_GE:
+            szRes = "LOGICAL";
+            break;
+         default:
+            break;
+      }
+   /* nor one whose result is not known: Func<…, dynamic> says little
+      and every caller would repeat it */
+   if( strcmp( szRes, "LOGICAL" ) != 0 || nOff + strlen( szRes ) + 3 >= sizeof( szBuf ) )
+      return NULL;
+   nOff += hb_snprintf( szBuf + nOff, sizeof( szBuf ) - nOff, "|%s>", szRes );
+   return hb_astIntern( szBuf, nOff );
+}
+
+/* The signature of the block an expression gives: a literal's, or the
+   one a variable carries; NULL when it is not known */
+static const char * hb_astBlockExprSig( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
+{
+   while( pExpr && ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( ! pExpr )
+      return NULL;
+   if( pExpr->ExprType == HB_ET_CODEBLOCK )
+      return hb_astBlockLiteralSig( pExpr );
+   if( pExpr->ExprType == HB_ET_VARIABLE )
+   {
+      HB_TYPEENV_ENTRY * pEntry = hb_typeEnvEntry( pEnv, pExpr->value.asSymbol.name );
+      if( pEntry && pEntry->szBlockSig && *pEntry->szBlockSig )
+         return pEntry->szBlockSig;
+   }
+   return NULL;
+}
+
+/* A variable is given pRHS: the signature it carries from now on */
+static void hb_astBlockSigAssign( const char * szVarName, PHB_EXPR pRHS, HB_TYPEENV * pEnv )
+{
+   HB_TYPEENV_ENTRY * pEntry = hb_typeEnvEntry( pEnv, szVarName );
+   const char * szSig;
+
+   if( ! pEntry || ! pRHS )
+      return;
+   /* a parameter given a block by its own routine */
+   if( pEntry->szType && hb_stricmp( pEntry->szType, "BLOCK" ) == 0 &&
+       pEnv->pRefTab && pEnv->szFuncKey[ 0 ] )
+      hb_refTabBlockParamAssigned( pEnv->pRefTab, pEnv->szFuncKey, szVarName );
+   szSig = hb_astBlockExprSig( pRHS, pEnv );
+   if( ! szSig )
+      szSig = "";
+   if( ! pEntry->szBlockSig )
+      pEntry->szBlockSig = szSig;
+   else if( strcmp( pEntry->szBlockSig, szSig ) != 0 )
+      pEntry->szBlockSig = "";
+}
+
 /* Try to propagate type for a variable assignment: of pRHS, or of a
    value of type szGiven */
 static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
@@ -2764,6 +2881,8 @@ static void hb_astPropagateVarAs( const char * szVarName, PHB_EXPR pRHS,
 {
    HB_TYPEENV_ENTRY * pEntry = hb_typeEnvEntry( pEnv, szVarName );
    const char * szCurType = pEntry ? pEntry->szType : NULL;
+
+   hb_astBlockSigAssign( szVarName, pRHS, pEnv );
 
    /* a declared variable is what its declaration says (W0041 checks
       what is assigned to it) */
@@ -4912,8 +5031,16 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                       pEffective, pEnv, iLine, szWhere );
             }
             /* an ARRAY<T> refines an undeclared slot as a plain ARRAY */
-            r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos,
-                                          hb_astUndeclared( szArgType ) );
+            {
+               const char * szRefine = hb_astUndeclared( szArgType );
+               if( szArgType && hb_stricmp( szArgType, "BLOCK" ) == 0 )
+               {
+                  const char * szSig = hb_astBlockExprSig( pEffective, pEnv );
+                  if( szSig )
+                     szRefine = szSig;
+               }
+               r = hb_refTabRefineParamType( pEnv->pRefTab, szCallee, iPos, szRefine );
+            }
 
             /* ARG-DYNAMIC (audit only; Alex, 2026-09-29, plan C10): an
                untyped argument into a parameter its typed callers made a
@@ -7370,6 +7497,7 @@ static void hb_astRefineExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv, int iLine )
                 ! hb_astIsHashFamily( szRecvType )       &&
                 hb_stricmp( szRecvType, "ARRAY"   ) != 0 &&
                 hb_stricmp( szRecvType, "BLOCK"   ) != 0 &&
+                strncmp( szRecvType, "BLOCK<", 6 ) != 0 &&
                 hb_stricmp( szRecvType, "OBJECT"  ) != 0 )
             {
                /* Canonical method key `<Class>::<Class>__<Method>` —
@@ -8798,7 +8926,16 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
                if( szName && hb_astIsClassType( szName ) )
                   szSeed = szName;
             }
-            hb_typeEnvSet( &env, p->szName, szSeed );
+            if( strncmp( szSeed, "BLOCK<", 6 ) == 0 )
+            {
+               HB_TYPEENV_ENTRY * pEntry;
+               hb_typeEnvSet( &env, p->szName, "BLOCK" );
+               pEntry = hb_typeEnvEntry( &env, p->szName );
+               if( pEntry )
+                  pEntry->szBlockSig = hb_astIntern( szSeed, strlen( szSeed ) );
+            }
+            else
+               hb_typeEnvSet( &env, p->szName, szSeed );
          }
       }
    }
@@ -8928,6 +9065,8 @@ const char * hb_astPropagate( PHB_AST_NODE pFunc, PHB_AST_NODE pClassList,
             szType = hb_astInferType( pStmt->value.asVar.szName,
                                       pStmt->value.asVar.pInit );
          hb_typeEnvSet( &env, pStmt->value.asVar.szName, szType );
+         if( pStmt->value.asVar.pInit )
+            hb_astBlockSigAssign( pStmt->value.asVar.szName, pStmt->value.asVar.pInit, &env );
       }
       pStmt = pStmt->pNext;
    }

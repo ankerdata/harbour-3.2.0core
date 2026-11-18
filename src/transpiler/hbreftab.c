@@ -208,6 +208,7 @@ static HB_BOOL hb_refTabIsScalarType( const char * sz )
       hb_astIsArrayType( sz ) ||               /* ARRAY, ARRAY<T>, FIXED<T> */
       hb_astIsHashFamily( sz ) ||              /* HASH, HASHC, HASHN, HASHC<T>, HASHN<T> */
       hb_stricmp( sz, "BLOCK"     ) == 0 ||
+      strncmp( sz, "BLOCK<", 6 ) == 0 ||       /* a block with its signature */
       hb_stricmp( sz, "CODEBLOCK" ) == 0 ||
       hb_stricmp( sz, "CHARACTER" ) == 0 ||
       hb_stricmp( sz, "INTEGER"   ) == 0 ||
@@ -462,7 +463,10 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
             ( ( hb_stricmp( szPType, "ARRAY" ) == 0 &&
                 ( hb_astArrayElemType( szOldType ) || hb_refTabIsRecord( pTab, szOldType ) ) ) ||
               ( hb_stricmp( szPType, "HASH" ) == 0 && hb_astIsHashFamily( szOldType ) &&
-                hb_stricmp( szOldType, "HASH" ) != 0 ) );
+                hb_stricmp( szOldType, "HASH" ) != 0 ) ||
+              /* a `b` name's BLOCK the signature its callers' blocks have */
+              ( hb_stricmp( szPType, "BLOCK" ) == 0 &&
+                strncmp( szOldType, "BLOCK<", 6 ) == 0 ) );
          if( ( ( ! szPType || ! *szPType ||
                  hb_stricmp( szPType, "USUAL" ) == 0 ||
                  hb_stricmp( szPType, "OBJECT" ) == 0 ) &&
@@ -799,6 +803,36 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    if( pParam->fDeclType )
       return HB_REFINE_OK;
 
+   /* A block with its signature (BLOCK<P,…|R>, plan C19) is a block to
+      every slot but a block's own: there the first caller's signature is
+      taken, a caller whose block has another leaves the slot a plain
+      block for good, and a block of unknown shape changes nothing. */
+   {
+      HB_BOOL fSigNew  = strncmp( szNewType, "BLOCK<", 6 ) == 0;
+      HB_BOOL fSigSlot = pParam->szType && strncmp( pParam->szType, "BLOCK<", 6 ) == 0;
+      HB_BOOL fPlainSlot = pParam->szType && hb_stricmp( pParam->szType, "BLOCK" ) == 0;
+
+      if( fSigNew && ( fPlainSlot || fSigSlot ) )
+      {
+         if( fSigSlot && strcmp( pParam->szType, szNewType ) == 0 )
+            return HB_REFINE_OK;
+         {
+            char * szDup = hb_refTabDup( fSigSlot ? "BLOCK" : szNewType );
+            hb_refTabDefer( pTab, pParam->szType );
+            pParam->szType = szDup;
+            if( fSigSlot )
+               pParam->fConflict = HB_TRUE;
+            return HB_REFINE_REFINED;
+         }
+      }
+      if( fSigNew )
+         szNewType = "BLOCK";
+      else if( fSigSlot &&
+               ( hb_stricmp( szNewType, "BLOCK" ) == 0 || hb_stricmp( szNewType, "FUNREF" ) == 0 ||
+                 hb_stricmp( szNewType, "NIL" ) == 0 ) )
+         return HB_REFINE_OK;
+   }
+
    /* A parameter named for a class (`oItemTranLine`) is that class when a
       caller passes one of its ancestors: the name claims the subclass, as
       a local's does, and the call casts (plan C11's downcasts; an
@@ -1035,6 +1069,69 @@ HB_REFINE_RESULT hb_refTabRefineParamType( PHB_REFTAB pTab,
    }
    pParam->fConflict = HB_TRUE;
    return HB_REFINE_CONFLICT;
+}
+
+/* The routine assigns its block parameter szParam (a DEFAULT, a plain
+   assignment): the block it gives itself may have another shape than its
+   callers', so the slot is a plain block and stays one. */
+void hb_refTabBlockParamAssigned( PHB_REFTAB pTab, const char * szFunc, const char * szParam )
+{
+   PHB_REFENTRY e;
+   int i;
+
+   if( ! pTab || ! szFunc || ! szParam )
+      return;
+   e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   if( ! e || ! e->pParams )
+      return;
+   for( i = 0; i < e->nParams; i++ )
+   {
+      HB_REFPARAM * p = &e->pParams[ i ];
+      if( p->szName && hb_stricmp( p->szName, szParam ) == 0 && p->szType && ! p->fDeclType &&
+          ( hb_stricmp( p->szType, "BLOCK" ) == 0 || strncmp( p->szType, "BLOCK<", 6 ) == 0 ) )
+      {
+         if( hb_stricmp( p->szType, "BLOCK" ) != 0 )
+         {
+            hb_refTabDefer( pTab, p->szType );
+            p->szType = hb_refTabDup( "BLOCK" );
+         }
+         p->fConflict = HB_TRUE;
+         return;
+      }
+   }
+}
+
+/* A block parameter the routine itself assigns (a DEFAULT, a plain
+   assignment) or takes by reference cannot be the delegate its callers'
+   signature names: the block it gives itself may have another shape. Such
+   a slot is a plain block for the emitter; called once the file's own
+   routines are collected. */
+void hb_refTabDemoteBlockSigs( PHB_REFTAB pTab )
+{
+   HB_SIZE n;
+
+   if( ! pTab )
+      return;
+   for( n = 0; n < HB_REFTAB_BUCKETS; n++ )
+   {
+      PHB_REFENTRY e;
+      for( e = pTab->buckets[ n ]; e; e = e->pNext )
+      {
+         int i;
+         if( ! e->pParams )
+            continue;
+         for( i = 0; i < e->nParams; i++ )
+         {
+            HB_REFPARAM * p = &e->pParams[ i ];
+            if( p->szType && strncmp( p->szType, "BLOCK<", 6 ) == 0 &&
+                ( p->fReassigned || p->fDeclDefault || p->fByRef ) )
+            {
+               hb_refTabDefer( pTab, p->szType );
+               p->szType = hb_refTabDup( "BLOCK" );
+            }
+         }
+      }
+   }
 }
 
 HB_BOOL hb_refTabIsRef( PHB_REFTAB pTab, const char * szFunc, int iPos )

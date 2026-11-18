@@ -24,6 +24,8 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen );
 static void hb_csEmitNode( PHB_AST_NODE pNode, FILE * yyc, int iIndent );
 static void hb_csEmitBlock( PHB_AST_NODE pBlock, FILE * yyc, int iIndent );
 static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc );
+static void hb_csBlockSig( PHB_EXPR pBlock, const char * szElem, int nElem,
+                           const char ** aszHb, char * szFunc, HB_SIZE nSize );
 static const char * hb_csRuntime( const char * szName );
 static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
                                      char * szBuf, HB_SIZE nBuf );
@@ -2949,6 +2951,33 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                pItem = pItem->pNext;
                continue;
             }
+            /* a block parameter that is a delegate (BLOCK<…>, plan C19):
+               the block as that delegate. One made by the same literal is
+               passed as it is; any other block is called through one of
+               the parameter's shape (HbRuntime's BlockAs) */
+            if( pCast && ! pCast->fByRef && pCast->szType &&
+                strncmp( pCast->szType, "BLOCK<", 6 ) == 0 &&
+                pArg->ExprType != HB_ET_NIL )
+            {
+               const char * szSlot = hb_csTypeMap( pCast->szType );
+               HB_BOOL fSame = HB_FALSE;
+               /* a literal the emitter makes that very delegate */
+               if( pArg->ExprType == HB_ET_CODEBLOCK &&
+                   ( pArg->value.asCodeblock.flags & HB_BLOCK_VPARAMS ) == 0 )
+               {
+                  const char * aszHb[ HB_CS_MAXCBPARAMS ];
+                  char szOwn[ 512 ];
+                  hb_csBlockSig( pArg, NULL, 0, aszHb, szOwn, sizeof( szOwn ) );
+                  fSame = strcmp( szOwn, szSlot ) == 0;
+               }
+               if( ! fSame )
+                  fprintf( yyc, "BlockAs<%s>(", szSlot );
+               hb_csEmitExpr( pArg, yyc, HB_FALSE );
+               if( ! fSame )
+                  fprintf( yyc, ")" );
+               pItem = pItem->pNext;
+               continue;
+            }
             /* a parameter named or declared a subclass given its parent
                (by value only: a `ref` slot cannot take a cast) */
             if( pP && ! pP->fByRef )
@@ -3154,6 +3183,47 @@ static const char * hb_csTypeMap( const char * szHbType )
          `oX` parameters work without the reftab having to refine
          every slot to a concrete class. */
       return "dynamic";
+   if( strncmp( szHbType, "BLOCK<", 6 ) == 0 )
+   {
+      /* a block parameter with the signature its callers' blocks have
+         (BLOCK<P1,…|R>, hb_astBlockLiteralSig): Func<P1, …, R>, a result
+         that is not a logical `dynamic` */
+      static char s_aBlock[ 4 ][ 512 ];
+      static int  s_iBlock = 0;
+      char * szBuf = s_aBlock[ s_iBlock++ & 3 ];
+      const char * p = szHbType + 6;
+      const char * pBar = strrchr( szHbType, '|' );
+      HB_SIZE nOff = hb_snprintf( szBuf, sizeof( s_aBlock[ 0 ] ), "Func<" );
+
+      if( ! pBar )
+         return "dynamic";
+      while( p < pBar )
+      {
+         char szOne[ 160 ];
+         const char * q = p;
+         int iDepth = 0;
+         HB_SIZE nLen;
+         while( q < pBar && ( *q != ',' || iDepth > 0 ) )
+         {
+            if( *q == '<' )
+               iDepth++;
+            else if( *q == '>' )
+               iDepth--;
+            q++;
+         }
+         nLen = ( HB_SIZE ) ( q - p );
+         if( nLen >= sizeof( szOne ) )
+            return "dynamic";
+         memcpy( szOne, p, nLen );
+         szOne[ nLen ] = '\0';
+         nOff += hb_snprintf( szBuf + nOff, sizeof( s_aBlock[ 0 ] ) - nOff, "%s, ",
+                              hb_csTypeMap( szOne ) );
+         p = q < pBar ? q + 1 : q;
+      }
+      hb_snprintf( szBuf + nOff, sizeof( s_aBlock[ 0 ] ) - nOff, "%s>",
+                   strncmp( pBar + 1, "LOGICAL", 7 ) == 0 ? "bool" : "dynamic" );
+      return szBuf;
+   }
    if( strncmp( szHbType, "FUNC<", 5 ) == 0 )
    {
       /* a function pointer declared `AS FUNCTION Name`: the delegate of
@@ -12766,6 +12836,7 @@ void hb_compGenCSharp( HB_COMP_DECL, PHB_FNAME pFileName )
    if( hb_refTabGetExternPath() )
       hb_refTabLoadExtern( s_pRefTab, hb_refTabGetExternPath() );
    hb_refTabCollect( s_pRefTab, HB_COMP_PARAM );
+   hb_refTabDemoteBlockSigs( s_pRefTab );
 
    /* Publish the reftab to hb_astInferFromPrefix so `o<ClassName>` /
       `so<ClassName>` variable names resolve to the specific class
