@@ -35,7 +35,16 @@ An assertion's outcome:
 Exit status 1 when any run-fn assertion is not a pass and carries no
 ruling. run-op (operators and the VM) is reported only.
 
-Usage: runrtl.py [all|prg|cs|run|report] [name ...]
+A module is built again only when what it is built from changed (each
+keeps a stamp of its inputs under work/): the Harbour program when its
+source, the harness or hbmk2 did; the C# one when its source, the
+harness, the transpiler or HbRuntime's public surface did, the surface
+being HbRuntime's reference assembly, which a change inside a function
+leaves as it was. Such a change costs one build of HbRuntime and a copy
+of it into each module, whose quarantine stands. Every C# program is run
+every time. --full builds everything from nothing.
+
+Usage: runrtl.py [all|prg|cs|run|report] [--full] [name ...]
 A name is a generated module (own_codecs, hbt_str) or hbtest's name for
 one (rt_str, str); one that matches nothing stops the run. Naming
 modules is a partial run: it reports them and leaves status.tsv, which
@@ -43,6 +52,8 @@ only a full run writes, as it was.
 Run it from runrtl.bat, which sets up MSVC and Harbour as the
 transpiler suite's runtests.bat does.
 """
+import glob
+import hashlib
 import os
 import re
 import shutil
@@ -120,6 +131,35 @@ def names_from(args):
     return names
 
 
+FULL = False                    # --full: build every module from nothing
+
+
+def digest(*parts):
+    """One hash of the parts: a path is its file's bytes (or its absence),
+    anything else its text."""
+    h = hashlib.md5()
+    for part in parts:
+        if isinstance(part, str) and os.path.isabs(part):
+            h.update(open(part, "rb").read() if os.path.isfile(part) else b"<none>")
+        else:
+            h.update(repr(part).encode())
+        h.update(b"|")
+    return h.hexdigest()
+
+
+def stamp_is(path, value):
+    try:
+        with open(path) as fh:
+            return fh.read() == value
+    except OSError:
+        return False
+
+
+def write_stamp(path, value):
+    with open(path, "w") as fh:
+        fh.write(value)
+
+
 RUN_TIMEOUT = 120               # seconds; a whole module runs in a few
 TIMEOUT_MARK = "rtltest: TIMEOUT"
 
@@ -151,23 +191,33 @@ def run_limited(args, cwd):
 
 # --------------------------------------------------------------- prg ----
 def build_prg(name):
+    """(name, error or None, built). The reference is tracked, so one that
+    was edited or restored since is written again."""
     exe = os.path.join(PRGEXE, name + ".exe")
+    ref = os.path.join(HBREF, name + ".txt")
+    stamp = os.path.join(PRGEXE, name + ".stamp")
+    opts = ["-w3", "-es0", "-ku", "-gtcgi", "-q"] + (["-mt"] if name.endswith("_mt") else [])
+    hbmk2 = shutil.which("hbmk2")
+    inputs = digest(os.path.join(GENERATED, name + ".prg"), HARNESS, opts, hbmk2,
+                    os.path.getmtime(hbmk2), os.path.getsize(hbmk2))
+    if not FULL and os.path.isfile(exe) and stamp_is(stamp, inputs + digest(ref)):
+        return name, None, False
     if os.path.isfile(exe):
         os.remove(exe)
-    opts = ["-w3", "-es0", "-ku", "-gtcgi", "-q"] + (["-mt"] if name.endswith("_mt") else [])
     r = subprocess.run(["hbmk2", os.path.join(GENERATED, name + ".prg"), HARNESS,
                         "-o" + os.path.join(PRGEXE, name)] + opts,
                        cwd=PRGEXE, capture_output=True, text=True)
     if r.returncode or not os.path.isfile(exe):
         tail = (r.stdout + r.stderr).strip().splitlines()
-        return name, tail[-1][:160] if tail else "rc=%d" % r.returncode
+        return name, tail[-1][:160] if tail else "rc=%d" % r.returncode, True
     run_dir = os.path.join(PRGEXE, name + ".run")
     os.makedirs(run_dir, exist_ok=True)
     out = run_limited([exe], run_dir)
     os.makedirs(HBREF, exist_ok=True)
-    with open(os.path.join(HBREF, name + ".txt"), "w", encoding="utf-8", newline="\n") as fh:
+    with open(ref, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(out)
-    return name, None
+    write_stamp(stamp, inputs + digest(ref))
+    return name, None, True
 
 
 def stage_prg(names):
@@ -176,8 +226,10 @@ def stage_prg(names):
     os.makedirs(PRGEXE, exist_ok=True)
     with ThreadPoolExecutor(max_workers=4) as ex:
         res = list(ex.map(build_prg, names))
-    bad = [(n, e) for n, e in res if e]
-    print("hbmk2:  %d built and run, %d failed" % (len(names) - len(bad), len(bad)))
+    bad = [(n, e) for n, e, _ in res if e]
+    built = sum(1 for _, e, b in res if b and not e)
+    print("hbmk2:  %d built and run, %d as they were, %d failed"
+          % (built, len(names) - built - len(bad), len(bad)))
     for n, e in bad:
         print("   FAIL %-12s %s" % (n, e))
     return not bad
@@ -261,14 +313,72 @@ def triage(d, stdout, quarantined):
     return unattributed
 
 
-def build_cs(name):
+def runtime_surface():
+    """A hash of HbRuntime's reference assembly: what a module compiles
+    against. Deterministic builds give the same file for the same
+    surface, whatever changed inside a function. Every platform's that has
+    been built counts (vcvarsall's Platform names the folder): one this
+    run did not build is as it was."""
+    lib = os.path.join(CSEXE, "HbRuntime")
+    refs = sorted(glob.glob(os.path.join(lib, "obj", "**", "ref", "HbRuntime.dll"), recursive=True))
+    return digest(*refs) if refs else ""
+
+
+def take_runtime(d):
+    """Copy HbRuntime's built files into the module's output folders, as a
+    build would. False when the folder for the HbRuntime built last is
+    not there."""
+    lib = os.path.join(CSEXE, "HbRuntime")
+    built = sorted(glob.glob(os.path.join(lib, "bin", "**", "HbRuntime.dll"), recursive=True),
+                   key=os.path.getmtime)
+    if not built:
+        return False
+    for dll in built:
+        out = os.path.join(d, os.path.relpath(os.path.dirname(dll), lib))
+        if not os.path.isdir(out):
+            if dll == built[-1]:
+                return False
+            continue
+        for src in glob.glob(os.path.join(os.path.dirname(dll), "HbRuntime.*")):
+            if not runsuite.same_bytes(src, os.path.join(out, os.path.basename(src))):
+                shutil.copy2(src, os.path.join(out, os.path.basename(src)))
+    return True
+
+
+def cs_inputs(name, surface):
+    headers = sorted(glob.glob(os.path.join(HERE, "*.ch")))
+    return digest(os.path.join(GENERATED, name + ".prg"), HARNESS, TRANSPILER, PRELOAD,
+                  CSPROJ, surface, *headers)
+
+
+def build_cs(name, surface=""):
+    """(name, error or None, the quarantined assertions, how: "built",
+    "as it was")."""
     d = os.path.join(CSEXE, name)
+    stamp = os.path.join(d, "inputs.stamp")
+    inputs = cs_inputs(name, surface)
+    qpath = os.path.join(d, "quarantine.tsv")
+    if not FULL and surface and stamp_is(stamp, inputs) and os.path.isfile(qpath):
+        # nothing it is compiled from moved: it takes the new HbRuntime.dll
+        # into its output, by a copy, or by a build that compiles nothing
+        # where the output folder is not there to copy into
+        taken = take_runtime(d)
+        if not taken:
+            r = subprocess.run(["dotnet", "build", "--no-dependencies", "-v", "q", "--nologo"],
+                               cwd=d, capture_output=True, text=True)
+            taken = r.returncode == 0 and "error CS" not in r.stdout
+        if taken:
+            quarantined = {}
+            for line in open(qpath, encoding="utf-8"):
+                tid, why = line.rstrip("\n").split("\t", 1)
+                quarantined[tid] = why
+            return name, None, quarantined, "as it was"
     if os.path.isdir(d):
         shutil.rmtree(d)
     os.makedirs(d)
     err, log = transpile(name, d)
     if err:
-        return name, err, {}
+        return name, err, {}, "built"
     with open(os.path.join(d, name + ".csproj"), "w") as fh:
         fh.write(CSPROJ % (name, name))
     quarantined = {}
@@ -276,18 +386,19 @@ def build_cs(name):
         r = subprocess.run(["dotnet", "build", "--no-dependencies", "-v", "q", "--nologo"],
                            cwd=d, capture_output=True, text=True)
         if r.returncode == 0 and "error CS" not in r.stdout:
-            with open(os.path.join(d, "quarantine.tsv"), "w", encoding="utf-8", newline="\n") as fh:
+            with open(qpath, "w", encoding="utf-8", newline="\n") as fh:
                 for tid in sorted(quarantined):
                     fh.write("%s\t%s\n" % (tid, quarantined[tid]))
-            return name, None, quarantined
+            write_stamp(stamp, inputs)
+            return name, None, quarantined, "built"
         before = len(quarantined)
         unattributed = triage(d, r.stdout, quarantined)
         if unattributed:
-            return name, "unattributed: " + "; ".join(unattributed[:3]), quarantined
+            return name, "unattributed: " + "; ".join(unattributed[:3]), quarantined, "built"
         if len(quarantined) == before:
             errs = [l.strip() for l in r.stdout.splitlines() if "error" in l]
-            return name, (errs[0][:200] if errs else "rc=%d" % r.returncode), quarantined
-    return name, "compile triage did not converge", quarantined
+            return name, (errs[0][:200] if errs else "rc=%d" % r.returncode), quarantined, "built"
+    return name, "compile triage did not converge", quarantined, "built"
 
 
 def stage_cs(names):
@@ -299,11 +410,12 @@ def stage_cs(names):
     r = subprocess.run(["dotnet", "build", "-v", "q", "--nologo"], cwd=lib, capture_output=True, text=True)
     if r.returncode:
         sys.exit("HbRuntime does not build:\n" + r.stdout[-2000:])
+    surface = runtime_surface()
     with ThreadPoolExecutor(max_workers=4) as ex:
-        res = list(ex.map(build_cs, names))
+        res = list(ex.map(lambda name: build_cs(name, surface), names))
     ok = True
-    for name, err, quarantined in res:
-        print("   %-12s %s%s" % (name, "built" if not err else "NOT BUILT: " + err,
+    for name, err, quarantined, how in res:
+        print("   %-12s %s%s" % (name, how if not err else "NOT BUILT: " + err,
                                   ", %d quarantined" % len(quarantined) if quarantined else ""))
         ok &= not err
     return ok
@@ -467,7 +579,11 @@ def stage_report(names, needed_path, full=True):
 
 
 def main():
+    global FULL
     args = sys.argv[1:]
+    if "--full" in args:
+        FULL = True
+        args.remove("--full")
     stage = args.pop(0) if args and args[0] in ("all", "prg", "cs", "run", "report") else "all"
     needed = DEFAULT_NEEDED
     if "--needed" in args:

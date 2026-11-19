@@ -2125,6 +2125,7 @@ cd src\transpiler\rtltest
 py extract.py                 rem hbtest + own/ -> generated/, manifest.tsv
 runrtl.bat                    rem Harbour and C# builds, run, compare
 runrtl.bat all date own_bits  rem just these modules
+runrtl.bat --full             rem every module built from nothing
 ```
 
 - [`extract.py`](rtltest/extract.py) runs each `utils/hbtest/rt_*.prg`
@@ -2169,7 +2170,15 @@ runrtl.bat all date own_bits  rem just these modules
   before it — the report names the exception, since a statement between
   assertions has no guard, or the hang: a program still running after
   120 s is killed with its process tree, the output so far kept) or
-  `harbour`. The reference is what the
+  `harbour`. A module is built again only when what it is built from
+  changed, by a stamp of its inputs under `work/`: the Harbour program
+  when its source, the harness or hbmk2 did; the C# one when its
+  source, the harness, the transpiler or HbRuntime's surface did, the
+  surface being HbRuntime's reference assembly, which a change inside a
+  function leaves as it was. After such a change each module takes the
+  new `HbRuntime.dll` by a copy and its quarantine stands; every C#
+  program runs every time. `--full` builds everything from nothing. The
+  reference is what the
   Harbour 9.0 ships with (`%USERPROFILE%\dev\harbour-3.2.0dev`) *does*:
   where it misses hbtest's own expectation, C# matching it is a pass.
   `status.tsv` sums it per function with the application's call counts;
