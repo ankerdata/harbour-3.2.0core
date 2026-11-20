@@ -679,6 +679,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0045 | reconcile | Two builds of one program give a parameter of a routine both compile types that do not merge (two classes with no common ancestor, a scalar and a class): one C# signature serves both builds, so the slot falls back to USUAL (dynamic). Reported by `--reconcile` (see [Two builds, one signature](#two-builds-one-signature---reconcile)), which then exits 1. The fix is in the callers, or a declared type on the parameter (tests/errors/reconcile_*.prg) |
 | W0046 | scan  | A record read as an array: a subscript that is not a constant (a whole-number literal or a `#define` of one) or is past the last field; Len(), AScan(), AEval(), ACopy(), AClone(), ASort(), ATail(), AAdd(), ASize(), hb_ADel(), hb_AIns() or AFill() given one; FOR EACH over one. A record is a plain C# class of its fields, so the fix is the position by name, the FIXED array that holds the rows, or a declaration on the holder (tests/errors/fixed_record.prg) |
 | W0047 | scan  | A member read off an element of a list of a class (`aBuffer[i]:iFlags`, aBuffer a `List<TranLine>`) that neither that class nor an ancestor declares: a subclass's member, which the element in C# has not. Give the element to a variable named or declared for the subclass first, which is the cast, or read it through a function that returns it as one (tests/errors/class_list_member.prg) |
+| W0049 | scan  | A call that leaves out, or passes NIL for, a parameter that is a type parameter by itself (`xDefault AS T`): that argument says what type the call answers, and without it C# has none for T. Pass the default the caller wants: `""`, `0`, `0.00`, `.F.`, `{}` (tests/errors/generic.prg) |
 | W0048 | scan  | A local, static, parameter or member named `h<X>` (a static's `sh<X>`): the name does not say what the hash is keyed by. Fix: `hc<X>` for strings, `hn<X>` for numbers (Alex, 2026-11-18). The variable is still taken as keyed by strings. |
 
 **One error of the transpiler's own, E0100: a single `=`.** Harbour
@@ -1198,6 +1199,20 @@ strongest. Later rungs override earlier ones.
    a method's class declares no type parameters (hb_astFuncTypeParams).
    A generic function cannot be reached by name at run time (FuncPtr, a
    macro), as .NET cannot invoke an open generic method.
+   **T by itself** (plan C22, test184): `AS T` on a parameter and on the
+   return, `FUNCTION AAccess( aArray AS ARRAY OF T, iIndex, xDefault AS
+   T ) AS T`, is `T AAccess<T>( List<T> aArray, long iIndex, T xDefault
+   )`: the function answers a value of the type its caller's default
+   has. A call binds T by that argument's own type, a whole literal to
+   INTEGER, and the emitter writes it `0L`, since C# would make T an int
+   of `0`. What the function returns that is not a T of its own (a
+   hash's value, a plain array's element) goes through
+   `HbRuntime.HbAs<T>()`: a T as it is, NIL the type's zero for a
+   number or a logical, a whole decimal for a whole T, and an
+   InvalidCastException for a fraction there, so a caller that reads
+   money passes `0.00`. The default is always passed: left out or NIL it
+   is W0049, C# having no type for T. Harbour sees no declaration
+   (astype.ch's `AS T`).
    **A downcast** (test137): a name or a declaration of a subclass given a
    value of its parent keeps its class. That is the typed view, `oItemTranLine
    := oLine` after `oLine:nType == ITEM`, in every position: a local, its
@@ -2034,6 +2049,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 179       | `@Name()` names its function to the C# compiler: `nameof()` for the program's own, the class and `nameof()` for a runtime function (`@Upper()`), called through `:exec()` from a local and a parameter |
 | 180       | A function pointer declared `AS FUNCTION Name` is a delegate of Name's signature, a parameter and a local: `@Other()` given to it is a lambda, `f:exec()` a direct call with a left-out parameter passed as its blank, a procedure an `Action<>`; an undeclared pointer is the untyped one |
 | 183       | Ordering two values the program leaves untyped (`x` parameters, elements of a plain array, a block's result against an `x` member, a function that answers any type): `HbRuntime.Cmp( a, b ) <op> 0`, which orders strings, logicals, numbers and dates as Harbour does. EasiPOS's ORM compared a string scope with `<=` through `dynamic` and stopped with an argument error |
+| 184       | A function that answers a value of its default's type: `xDefault AS T` and `AS T` make `T Pick184<T>( …, T xDefault )`. The type by the default (a string, a whole number as `0L`, a decimal, a logical, a list), the default itself for a missing key, a whole decimal taken for a whole T, NIL as the type's zero, and T bound by a list and a default together |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

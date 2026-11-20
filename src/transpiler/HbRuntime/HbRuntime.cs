@@ -278,6 +278,31 @@ public static partial class HbRuntime
     // semantics — an equal prefix compares equal when EXACT is OFF,
     // trailing blanks are ignored when it is ON — are not reproduced;
     // EasiPOS writes `==` and runs with SET EXACT ON. "Lisbon" > "Lis".
+    // What a generic function answers as its T (`FUNCTION f( hc, cKey,
+    // xDefault AS T ) AS T`): x as a T. A T already is itself; NIL is the
+    // type's zero for a number or a logical, which is never NIL, and NIL
+    // for the rest. A decimal for a whole T converts when it is whole and
+    // throws when it has a fraction: a caller that reads money says so by
+    // its default, `0.00`. Anything else is the runtime binder's cast.
+    public static T HbAs<T>(object? x)
+    {
+        if (x is T t)
+            return t;
+        if (x is null)
+            return default!;
+        Type want = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+        if (want == typeof(long) && x is decimal n)
+        {
+            if (n != Math.Truncate(n))
+                throw new InvalidCastException(
+                    $"{n.ToString(System.Globalization.CultureInfo.InvariantCulture)} where a whole number is expected: the caller's default says so");
+            return (T) (object) (long) n;
+        }
+        if (want == typeof(decimal) && x is long or int)
+            return (T) (object) Convert.ToDecimal(x, System.Globalization.CultureInfo.InvariantCulture);
+        return (T) (dynamic) x;
+    }
+
     // `a < b` and kin where the program does not say what a and b are (two
     // `x` values, a block's result against a member): less than zero, zero
     // or more, as StrCmp() answers. Two strings by StrCmp(), two logicals

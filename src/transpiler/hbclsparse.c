@@ -184,6 +184,14 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
    if( fFixed )
       return NULL;
    *piUsed = 1;
+   /* `AS T`: a type parameter by itself, one letter (hb_astIsTypeParam) */
+   if( pTok->len == 1 && HB_ISALPHA( ( HB_UCHAR ) pTok->value[ 0 ] ) )
+   {
+      char szParam[ 2 ];
+      szParam[ 0 ] = ( char ) HB_TOUPPER( ( HB_UCHAR ) pTok->value[ 0 ] );
+      szParam[ 1 ] = '\0';
+      return hb_compIdentifierNew( HB_COMP_PARAM, szParam, HB_IDENT_COPY );
+   }
    return hb_clsScalarType( pTok );
 }
 

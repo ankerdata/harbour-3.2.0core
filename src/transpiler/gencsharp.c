@@ -2587,9 +2587,13 @@ static void hb_csCallBind( const char * szFunc, PHB_EXPR pArg, const char ** asz
       const HB_REFPARAM * pP = hb_csCallParam( szFunc, iPos );
       PHB_EXPR pEffective = pArg->ExprType == HB_ET_REFERENCE ?
                             pArg->value.asReference : pArg;
-      if( pP && pP->fDeclType && hb_astTypeParamOf( pP->szType ) && pEffective &&
-          pEffective->ExprType != HB_ET_NONE && pEffective->ExprType != HB_ET_ARRAY )
-         hb_astTypeParamBindArg( pP->szType, hb_csExprHbType( pEffective ), aszBind );
+      if( pP && pP->fDeclType && hb_astTypeParamIn( pP->szType ) && pEffective &&
+          pEffective->ExprType != HB_ET_NONE && pEffective->ExprType != HB_ET_NIL &&
+          pEffective->ExprType != HB_ET_ARRAY )
+         hb_astTypeParamBindArg( pP->szType,
+                                 hb_astIsTypeParam( pP->szType ) &&
+                                 hb_astIsWholeLiteral( pEffective ) ? "INTEGER" :
+                                 hb_csExprHbType( pEffective ), aszBind );
    }
 }
 
@@ -2978,6 +2982,21 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                pItem = pItem->pNext;
                continue;
             }
+            /* a whole literal for a parameter that is T itself is a long,
+               as the program's whole numbers are: C# would make T an int
+               of `0` */
+            if( pP && pP->fDeclType && hb_astIsTypeParam( pP->szType ) &&
+                hb_astIsWholeLiteral( pArg ) )
+            {
+               PHB_EXPR pNum = pArg->ExprType == HB_EO_NEGATE ?
+                               pArg->value.asOperator.pLeft : pArg;
+               {
+                  fprintf( yyc, "%s%" HB_PF64 "dL", pNum == pArg ? "" : "-",
+                           pNum->value.asNum.val.l );
+                  pItem = pItem->pNext;
+                  continue;
+               }
+            }
             /* a parameter named or declared a subclass given its parent
                (by value only: a `ref` slot cannot take a cast) */
             if( pP && ! pP->fByRef )
@@ -3240,6 +3259,16 @@ static const char * hb_csTypeMap( const char * szHbType )
       char * szBuf = s_aFixed[ s_iFixed++ & 3 ];
       hb_snprintf( szBuf, sizeof( s_aFixed[ 0 ] ), "%s[]",
                    hb_csTypeMap( hb_astArrayElemType( szHbType ) ) );
+      return szBuf;
+   }
+   if( hb_astIsTypeParam( szHbType ) )
+   {
+      /* a generic function's T by itself */
+      static char s_aBare[ 4 ][ 2 ];
+      static int  s_iBare = 0;
+      char * szBuf = s_aBare[ s_iBare++ & 3 ];
+      szBuf[ 0 ] = szHbType[ 0 ];
+      szBuf[ 1 ] = '\0';
       return szBuf;
    }
    if( hb_astTypeParamOf( szHbType ) )
@@ -4737,7 +4766,7 @@ static const char * hb_csCallHbType( PHB_EXPR pCall )
 {
    const char * szFn = pCall->value.asFunCall.pFunName->value.asSymbol.name;
    const char * szRet = hb_csFuncHbType( szFn );
-   if( hb_astTypeParamOf( szRet ) )
+   if( hb_astTypeParamIn( szRet ) )
    {
       const char * aszBind[ HB_AST_TYPEPARAMS ];
       PHB_EXPR pParms = pCall->value.asFunCall.pParms;
@@ -9500,13 +9529,21 @@ static void hb_csEmitNodeBody( PHB_AST_NODE pNode, FILE * yyc, int iIndent )
                HB_BOOL fIntCast = s_szRetHbType &&
                   hb_stricmp( s_szRetHbType, "INTEGER" ) == 0 &&
                   hb_csNeedsIntCast( pNode->value.asReturn.pExpr );
-               if( fIntCast )
+               /* a function that returns its T: anything but a T of its
+                  own (its default, a T local) is converted, a whole
+                  decimal for a whole T and nothing with a fraction */
+               HB_BOOL fAsParam = hb_astIsTypeParam( s_szRetHbType ) &&
+                  ! hb_csCsTypeIs( hb_csExprCsType( pNode->value.asReturn.pExpr ),
+                                   s_szRetHbType );
+               if( fAsParam )
+                  fprintf( yyc, "%s<%s>(", hb_csRuntime( "HbAs" ), s_szRetHbType );
+               else if( fIntCast )
                   fprintf( yyc, "(long)(" );
                else if( szDown )
                   fprintf( yyc, "(%s)", szDown );
                hb_csExpectLiteral( s_szRetHbType, pNode->value.asReturn.pExpr );
                hb_csEmitExpr( pNode->value.asReturn.pExpr, yyc, HB_FALSE );
-               if( fIntCast )
+               if( fAsParam || fIntCast )
                   fprintf( yyc, ")" );
             }
             fprintf( yyc, ";\n" );

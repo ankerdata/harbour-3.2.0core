@@ -58,6 +58,11 @@
    kind for the transpiler; a pointer to Harbour. */
 #xtranslate AS HANDLE OF <!kind!> =>
 
+/* `AS T`: a generic function's type parameter by itself (`xDefault AS T`,
+   `FUNCTION f( ... ) AS T`), the type of whatever the caller passes there.
+   Nothing to Harbour. */
+#xtranslate AS T =>
+
 /* Function pointers: `AS FUNCTION Name` says the pointer has Name's
    signature, a delegate to the transpiler; a pointer to Harbour. */
 #xtranslate AS FUNCTION <!name!> =>

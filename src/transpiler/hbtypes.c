@@ -768,6 +768,13 @@ char hb_astTypeParamOf( const char * szType )
    return hb_astIsTypeParam( szElem ) ? szElem[ 0 ] : 0;
 }
 
+/* T of a declaration that is a type parameter, by itself (`AS T`) or as a
+   list's element (`AS ARRAY OF T`); else 0 */
+char hb_astTypeParamIn( const char * szType )
+{
+   return hb_astIsTypeParam( szType ) ? szType[ 0 ] : hb_astTypeParamOf( szType );
+}
+
 /* What an argument of type szArgType binds the T of an ARRAY<T> parameter
    to: a typed list its element type, the caller's own ARRAY<U> its U, any
    other List (a plain array, an array of a class) USUAL, as C# binds T to
@@ -782,6 +789,16 @@ const char * hb_astTypeParamArg( const char * szArgType )
    return NULL;
 }
 
+/* A whole number literal, signed or not: what binds a T of its own to
+   INTEGER, the long the emitter writes it as (`0L`) */
+HB_BOOL hb_astIsWholeLiteral( PHB_EXPR pExpr )
+{
+   if( pExpr && pExpr->ExprType == HB_EO_NEGATE )
+      pExpr = pExpr->value.asOperator.pLeft;
+   return pExpr && pExpr->ExprType == HB_ET_NUMERIC &&
+          pExpr->value.asNum.NumType == HB_ET_LONG;
+}
+
 /* One argument's part in its call's bindings: when the parameter is an
    ARRAY<T> and nothing bound T yet, what the argument's type says. The
    parameter's T, or 0. A literal argument is typed by the binding, so the
@@ -789,20 +806,25 @@ const char * hb_astTypeParamArg( const char * szArgType )
 char hb_astTypeParamBindArg( const char * szParamType, const char * szArgType,
                              const char ** aszBind )
 {
-   char c = hb_astTypeParamOf( szParamType );
+   char c = hb_astTypeParamIn( szParamType );
    if( c && ! aszBind[ c - 'A' ] )
-      aszBind[ c - 'A' ] = hb_astTypeParamArg( szArgType );
+      /* a parameter that is T itself is bound by its argument's own type */
+      aszBind[ c - 'A' ] = hb_astIsTypeParam( szParamType ) ? szArgType :
+                           hb_astTypeParamArg( szArgType );
    return c;
 }
 
 const char * hb_astTypeParamSubst( const char * szType, const char * const * aszBind )
 {
-   char c = hb_astTypeParamOf( szType );
+   char c = hb_astTypeParamIn( szType );
    const char * szBound;
    char szBuf[ 160 ];
    if( ! c )
       return szType;
    szBound = aszBind ? aszBind[ c - 'A' ] : NULL;
+   /* T itself: what the call binds it to, any type when nothing does */
+   if( hb_astIsTypeParam( szType ) )
+      return szBound ? szBound : "USUAL";
    if( ! szBound || hb_stricmp( szBound, "USUAL" ) == 0 )
       return "ARRAY";
    hb_snprintf( szBuf, sizeof( szBuf ), "ARRAY<%s>", szBound );
@@ -832,9 +854,9 @@ const char * hb_astFuncTypeParams( PHB_AST_NODE pFunc, int nParams, char * szBuf
    memset( aHas, 0, sizeof( aHas ) );
    for( pVar = pFunc->value.asFunc.pParams, i = 0;
         pVar && ( nParams < 0 || i < nParams ); pVar = pVar->pNext, i++ )
-      if( ( c = hb_astTypeParamOf( pVar->szDeclType ) ) != 0 )
+      if( ( c = hb_astTypeParamIn( pVar->szDeclType ) ) != 0 )
          aHas[ c - 'A' ] = HB_TRUE;
-   if( ( c = hb_astTypeParamOf( pFunc->value.asFunc.szDeclType ) ) != 0 )
+   if( ( c = hb_astTypeParamIn( pFunc->value.asFunc.szDeclType ) ) != 0 )
       aHas[ c - 'A' ] = HB_TRUE;
    for( i = 0; i < HB_AST_TYPEPARAMS; i++ )
       if( aHas[ i ] )
@@ -910,7 +932,7 @@ static HB_BOOL hb_astDeclKnownAt( void * pRefTab, const char * szDecl, HB_BOOL f
 {
    const char * szElem = hb_astArrayElemType( szDecl );
    const char * szClass;
-   char c = hb_astTypeParamOf( szDecl );
+   char c = hb_astTypeParamIn( szDecl );
    /* `AS FUNCTION Name` (FUNC<Name>): known when Name is a function the
       program defines */
    if( szDecl && strncmp( szDecl, "FUNC<", 5 ) == 0 )
@@ -1662,6 +1684,8 @@ static const char * hb_typeEnvFuncReturnType( HB_TYPEENV * pEnv,
                                               const char * szFunc )
 {
    const char * szRet = hb_typeEnvFuncRetDecl( pEnv, szFunc );
+   if( hb_astIsTypeParam( szRet ) )
+      return "USUAL";
    return hb_astTypeParamOf( szRet ) ? "ARRAY" : szRet;
 }
 
@@ -1691,10 +1715,14 @@ static void hb_typeEnvCallBind( HB_TYPEENV * pEnv, const char * szRow,
       const HB_REFPARAM * pP = hb_refTabParam( pEnv->pRefTab, szRow, iPos );
       PHB_EXPR pEffective = pArg->ExprType == HB_ET_REFERENCE ?
                             pArg->value.asReference : pArg;
-      if( pP && pP->fDeclType && hb_astTypeParamOf( pP->szType ) &&
+      if( pP && pP->fDeclType && hb_astTypeParamIn( pP->szType ) &&
           pEffective && pEffective->ExprType != HB_ET_NONE &&
+          pEffective->ExprType != HB_ET_NIL &&
           pEffective->ExprType != HB_ET_ARRAY )
-         hb_astTypeParamBindArg( pP->szType, hb_astInferExprType( pEffective, pEnv ),
+         hb_astTypeParamBindArg( pP->szType,
+                                 hb_astIsTypeParam( pP->szType ) &&
+                                 hb_astIsWholeLiteral( pEffective ) ? "INTEGER" :
+                                 hb_astInferExprType( pEffective, pEnv ),
                                  aszBind );
    }
 }
@@ -2425,8 +2453,9 @@ static const char * hb_astInferExprType( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
             if( szRet )
                return szRet;
             szRet = hb_typeEnvFuncRetDecl( pEnv, szFunc );
-            /* a generic function's ARRAY<T>: the list this call binds T to */
-            if( hb_astTypeParamOf( szRet ) )
+            /* a generic function's ARRAY<T>, or its T: what this call
+               binds T to */
+            if( hb_astTypeParamIn( szRet ) )
             {
                const char * aszBind[ HB_AST_TYPEPARAMS ];
                char szRow[ 256 ];
@@ -4863,6 +4892,43 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
    /* the slots this call leaves empty, a call with no arguments too */
    szRow = hb_astCallRowKey( szCallee, pEnv, szRowBuf, sizeof( szRowBuf ) );
    hb_astNoteOmitted( szRow, pParms, pEnv );
+
+   /* W0049: a parameter that is a type parameter by itself (`xDefault AS
+      T`) says what the call's result is, so the call passes it: left out
+      or NIL, C# has no type for T and Harbour answers a NIL nothing
+      expects. */
+   {
+      int nDecl = hb_refTabParamCount( pEnv->pRefTab, szCallee );
+      int iSlot;
+      for( iSlot = 0; iSlot < nDecl; iSlot++ )
+      {
+         const HB_REFPARAM * pP = hb_refTabParam( pEnv->pRefTab, szCallee, iSlot );
+         PHB_EXPR pGiven = pParms;
+         int i;
+         if( ! pP || ! pP->fDeclType || ! hb_astIsTypeParam( pP->szType ) )
+            continue;
+         if( pGiven && ( pGiven->ExprType == HB_ET_LIST ||
+                         pGiven->ExprType == HB_ET_ARGLIST ||
+                         pGiven->ExprType == HB_ET_MACROARGLIST ) )
+            pGiven = pGiven->value.asList.pExprList;
+         for( i = 0; pGiven && i < iSlot; i++ )
+            pGiven = pGiven->pNext;
+         if( ! pGiven || pGiven->ExprType == HB_ET_NONE || pGiven->ExprType == HB_ET_NIL )
+         {
+            char szDedup[ 192 ];
+            hb_snprintf( szDedup, sizeof( szDedup ), "W0049 %s:%d", szCallee, iSlot );
+            if( ! hb_astOrmSeen( iLine, szDedup ) )
+               fprintf( stderr,
+                        "hbtranspiler: %s(%d): warning W0049  the call to '%s' "
+                        "passes %s for '%s', which says what type it answers: "
+                        "pass the default the caller wants (\"\", 0, 0.00, .F., "
+                        "{})\n",
+                        pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                        iLine, szCallee, pGiven && pGiven->ExprType == HB_ET_NIL ?
+                        "NIL" : "nothing", pP->szName ? pP->szName : "?" );
+         }
+      }
+   }
    if( ! pParms )
       return;
 

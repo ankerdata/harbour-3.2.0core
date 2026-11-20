@@ -18,7 +18,16 @@ FUNCTION Use41g( nValue )
    Join41g( aIds, aPlain )                          // fires W0041: a plain array beside a List<long>
    Join41g( aIds, aFixed )                          // fires W0041: a C# array is no List
    Join41g( aIds, { nValue } )                      // fires W0041: a decimal into a List<long>
+   Pick49g( { => }, "a", "" )                       // quiet
+   Pick49g( { => }, "a" )                           // fires W0049: nothing for xDefault
+   Pick49g( { => }, "a", NIL )                      // fires W0049: NIL for xDefault
 RETURN Len( aIds )
+
+FUNCTION Pick49g( hcData, cKey, xDefault AS T ) AS T
+   IF hb_HHasKey( hcData, cKey )
+      RETURN hcData[ cKey ]
+   ENDIF
+RETURN xDefault
 
 FUNCTION Join41g( aInto AS ARRAY OF T, aFrom AS ARRAY OF T ) AS ARRAY OF T
    LOCAL aSeen AS ARRAY OF T := {}                  // quiet: the function's own T

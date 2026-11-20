@@ -1597,7 +1597,10 @@ hb_comp_yylex_restart:
                   HB_BOOL fHandle = pTypeTok && ( hb_stricmp( pTypeTok->value, "HANDLE" ) == 0 ||
                                                   /* and a function pointer (`AS FUNCTION Name`) */
                                                   hb_stricmp( pTypeTok->value, "FUNCTION" ) == 0 );
-                  if( szHash && iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray || fHandle ) )
+                  /* and a type parameter by itself (`xDefault AS T`, `AS T`
+                     a function's return): one letter */
+                  HB_BOOL fParam = iUsed == 1 && hb_astIsTypeParam( szHash );
+                  if( szHash && ( fParam || ( iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray || fHandle ) ) ) )
                   {
                      int i;
                      pLex->iState = DECLARE_TYPE;

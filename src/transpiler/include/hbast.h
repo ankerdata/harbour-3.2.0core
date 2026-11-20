@@ -377,6 +377,8 @@ extern const char * hb_astHandleNameType( const char * szName );
    all. hb_astFuncTypeParams gives a function's letters, none for a method. */
 extern HB_BOOL      hb_astIsTypeParam( const char * szType );
 extern char         hb_astTypeParamOf( const char * szType );
+extern char         hb_astTypeParamIn( const char * szType );
+extern HB_BOOL      hb_astIsWholeLiteral( PHB_EXPR pExpr );
 extern const char * hb_astTypeParamArg( const char * szArgType );
 extern char         hb_astTypeParamBindArg( const char * szParamType, const char * szArgType,
                                             const char ** aszBind );
