@@ -412,6 +412,24 @@ public static partial class HbRuntime
         return true;
     }
 
+    // hb_socketSetNoDelay( <pSocket>, <lValue> ): TCP_NODELAY, each send
+    // going out at once (.T.) or gathered by Nagle's algorithm (.F.)
+    public static bool hb_socketSetNoDelay(object? pSocket, bool lValue)
+    {
+        Socket sd = SockParam(pSocket, "HB_SOCKETSETNODELAY").sd!;
+        try
+        {
+            sd.NoDelay = lValue;
+            SetSockOsError(0);
+            return true;
+        }
+        catch (SocketException e)
+        {
+            SetSockOsError(e);
+            return false;
+        }
+    }
+
     // hb_socketShutdown( <pSocket>, [<nMode>] ): HB_SOCKET_SHUT_RD, _WR or
     // _RDWR (the default)
     public static bool hb_socketShutdown(object? pSocket, decimal? nMode = null)

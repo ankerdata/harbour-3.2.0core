@@ -5290,6 +5290,66 @@ static HB_BOOL hb_csEmitDateArith( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
    unresolved (a flag value, a dynamic member): Harbour raises on
    anything but a string there. `==` stays `==`; `=` never gets here,
    the grammar refuses it (E0100). */
+
+/* An operand the program leaves untyped (an `x` name, an element of a
+   plain array, a function that answers any type) against another such
+   or one of no known type may be two strings when the line runs, so
+   they go to `HbRuntime.Cmp( a, b ) <op> 0`, which orders strings as
+   StrCmp does and leaves the rest to the runtime binder (EasiPOS's ORM
+   compared a string scope, `xValue <= ::xBottomScope`, and stopped with
+   Harbour's argument error for `<=`). Two operands the emitter merely
+   cannot name (a record's member, an assignment's value) keep the
+   operator: C# knows their types. */
+static HB_BOOL hb_csExprIsUntyped( PHB_EXPR pExpr )
+{
+   const char * szName = NULL;
+
+   if( ! pExpr )
+      return HB_FALSE;
+   switch( pExpr->ExprType )
+   {
+      case HB_ET_VARIABLE:
+      {
+         /* an `x` local, which C# declares dynamic, and a block's parameter
+            of no type; a name all in capitals is a #define's constant,
+            typed where it is declared */
+         const char * szCs = hb_csExprCsType( pExpr );
+         const char * sz = pExpr->value.asSymbol.name;
+         if( hb_csCsTypeIs( szCs, "dynamic" ) )
+            return HB_TRUE;
+         if( szCs || ! sz )
+            return HB_FALSE;
+         for( ; *sz; sz++ )
+            if( *sz >= 'a' && *sz <= 'z' )
+               return HB_TRUE;
+         return HB_FALSE;
+      }
+
+      case HB_ET_ARRAYAT:
+         return hb_csCsTypeIs( hb_csExprCsType( pExpr->value.asList.pExprList ), "List<dynamic>" );
+
+      case HB_ET_FUNCALL:
+      {
+         /* a function that answers any type, Eval() among them */
+         const char * szHb = hb_csExprHbType( pExpr );
+         return szHb && hb_stricmp( szHb, "USUAL" ) == 0;
+      }
+
+      case HB_ET_SEND:
+         /* an `x` member, and what a block or a function pointer answers */
+         szName = pExpr->value.asMessage.szMessage;
+         if( ! szName )
+            return HB_FALSE;
+         if( pExpr->value.asMessage.pParms )
+            return hb_stricmp( szName, "exec" ) == 0 || hb_stricmp( szName, "eval" ) == 0;
+         return ( szName[ 0 ] == 'x' || szName[ 0 ] == 'X' ) &&
+                szName[ 1 ] >= 'A' && szName[ 1 ] <= 'Z';
+
+      default:
+         return HB_FALSE;
+   }
+}
+
 static HB_BOOL hb_csEmitStrOrder( PHB_EXPR pExpr, FILE * yyc )
 {
    PHB_EXPR pL = pExpr->value.asOperator.pLeft;
@@ -5299,8 +5359,21 @@ static HB_BOOL hb_csEmitStrOrder( PHB_EXPR pExpr, FILE * yyc )
    HB_BOOL fLStr = hb_csCsTypeIs( szL, "string" );
    HB_BOOL fRStr = hb_csCsTypeIs( szR, "string" );
 
+   HB_BOOL fLUntyped, fRUntyped;
+
    if( ! pL || ! pR )
       return HB_FALSE;
+   fLUntyped = hb_csExprIsUntyped( pL );
+   fRUntyped = hb_csExprIsUntyped( pR );
+   if( ( fLUntyped && ( fRUntyped || ! szR ) ) || ( fRUntyped && ! szL ) )
+   {
+      fprintf( yyc, "%s(", hb_csRuntime( "Cmp" ) );
+      hb_csEmitExpr( pL, yyc, HB_FALSE );
+      fprintf( yyc, ", " );
+      hb_csEmitExpr( pR, yyc, HB_FALSE );
+      fprintf( yyc, ")%s0", hb_csOperatorStr( pExpr->ExprType ) );
+      return HB_TRUE;
+   }
    if( ! ( ( fLStr && ( fRStr || ! szR ) ) || ( fRStr && ! szL ) ) )
       return HB_FALSE;
    fprintf( yyc, "%s(", hb_csRuntime( "StrCmp" ) );

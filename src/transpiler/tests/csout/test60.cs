@@ -26,7 +26,7 @@ public static partial class Program
 
         QOut("len_hash=" + LTrim(Str(Len(hcData))));
 
-        ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((x, y) => x < y)));
+        ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((x, y) => Cmp(x, y) < 0)));
         string cOut = "";
         for (long i = 1; i <= Len(aNums); i++)
         {

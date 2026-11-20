@@ -44,7 +44,7 @@ public static partial class Program
         QOut(nSum);
         QOut(cTrail);
 
-        ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return a < b; })));
+        ASort(aNums, null, null, ((Func<dynamic, dynamic, bool>)((a, b) => { nCalls++; return Cmp(a, b) < 0; })));
         QOut(aNums[I(1)], aNums[I(2)], aNums[I(3)]);
         QOut(nCalls > 0);
 

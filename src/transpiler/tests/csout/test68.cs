@@ -19,12 +19,12 @@ public static partial class Program
         xHi = aData[I(1)];
         for (long i = 2; i <= Len(aData); i++)
         {
-            if (aData[I(i)] < xLo)
+            if (Cmp(aData[I(i)], xLo) < 0)
             {
                 xLo = aData[I(i)];
             }
 
-            if (aData[I(i)] > xHi)
+            if (Cmp(aData[I(i)], xHi) > 0)
             {
                 xHi = aData[I(i)];
             }

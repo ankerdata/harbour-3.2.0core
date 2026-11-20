@@ -90,6 +90,7 @@ Bin2I	INTEGER	HbRuntime
 Bin2L	INTEGER	HbRuntime
 BIN2U	NUMERIC	-
 Bin2W	INTEGER	HbRuntime
+BlockAs	-	HbRuntime
 BOF	LOGICAL	-
 BOM	DATE	-
 BOQ	DATE	-
@@ -377,6 +378,7 @@ GT_STRRIGHT	NUMERIC	-
 HARDCR	STRING	-
 HbEnumPairs	-	HbRuntime
 HbEnumValues	-	HbRuntime
+HbHiddenText	STRING	HbRuntime
 HbIn	LOGICAL	HbRuntime
 HBMISC_DAYSINMONTH	NUMERIC	-
 hb_ADel	ARRAY	HbRuntime
@@ -518,6 +520,7 @@ hb_MilliSeconds	INTEGER	HbRuntime
 hb_mutexCreate	-	HbRuntime
 hb_mutexLock	LOGICAL	HbRuntime
 hb_mutexNotify	-	HbRuntime
+hb_mutexQueueInfo	LOGICAL	HbRuntime
 hb_mutexSubscribe	LOGICAL	HbRuntime
 hb_mutexUnlock	LOGICAL	HbRuntime
 HB_NTOC	STRING	-
@@ -546,6 +549,7 @@ hb_socketOpen	-	HbRuntime
 hb_socketRecv	INTEGER	HbRuntime
 hb_socketSelectRead	INTEGER	HbRuntime
 hb_socketSend	INTEGER	HbRuntime
+hb_socketSetNoDelay	LOGICAL	HbRuntime
 hb_socketShutdown	LOGICAL	HbRuntime
 hb_SToD	DATE	HbRuntime
 hb_SToT	TIMESTAMP	HbRuntime

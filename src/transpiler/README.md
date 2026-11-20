@@ -1496,6 +1496,7 @@ fraction" so anything fractional flowing into one needs `Int()` or
 | `Foo(a, b, extra)` against `PROCEDURE Foo(a, b)` | `Foo(a, b)` — the extras are dropped as Harbour drops them at run time; the scan's W0018 is what stops the pipeline (test104) |
 | `PCount()` / `hb_AParams()` in a function that reads them | `hbva.Length` / `hbva` — the signature widens to `params dynamic[] hbva` and the named parameters are re-bound from it, file-static functions included (test102) |
 | `d1 - d2`, `d + n`, `n + d`, `d - n`, `d += n` on DATE operands | `(decimal)(d1.DayNumber - d2.DayNumber)` (decimal, so a later `/` stays float), `d.AddDays((int)(n))`, `d = d.AddDays(...)` — `DateOnly` has no operators; TIMESTAMP is left alone (test101) |
+| `x1 < x2` (`<=`, `>`, `>=`), both operands untyped | `Cmp(x1, x2) < 0` — an `x` name, an element of a plain array, a function that answers any type, a block's or a function pointer's result, against another such or an operand of no known type: either may hold a string when the line runs, and C# has no ordering operator for two strings, through `dynamic` either. `HbRuntime.Cmp()` orders two strings as StrCmp does and two logicals .F. first, and leaves numbers, dates and what cannot be ordered (Harbour's argument error) to the runtime binder. An operand the emitter merely cannot name (a record's member, a `#define`) keeps the operator (test183) |
 | `c1 < c2` (`<=`, `>`, `>=`) on string operands | `StrCmp(c1, c2) < 0` — a concatenation counts as a string when its parts do, an IIF when both branches do (buffcons.prg's sort key ends `+ iif( l, "1", "0" )`); an exact, ordinal comparison; Harbour's SET EXACT OFF rule (a longer LEFT operand with an equal prefix is EQUAL) is deliberately not reproduced (Alex, 2026-09-19); `==` stays `==`, and `=` is refused (E0100) (test101) |
 | `METHOD ToString()`              | `public override string ToString()` — it is object.ToString (test103) |
 | `METHOD M(...)` in a class, and a subclass that redeclares it | `public virtual ... M(...)` on every class method; `public override ... M(...)` when the nearest ancestor declaring `M` has the identical signature — arity, varargs spread, per-slot ref / nilable / type and return type. Harbour dispatches on the receiver's own class, so a hide would call the base method through a base-typed reference (CS0108, the test suites' parameterless `New()`); a redeclaration with different parameters is an overload and gets neither (test49's `Speak()`) |
@@ -1598,9 +1599,8 @@ to hold the reasoning.
 ```csharp
 public static class HbDiscard<T>
 {
-    [System.ThreadStatic] static T t_value;
-    public static ref T Value { get { t_value = default!; return ref t_value; } }
-    public static ref T Seed(T v) { t_value = v; return ref t_value; }
+    public static ref T Value => ref new StrongBox<T>().Value!;
+    public static ref T Seed(T v) => ref new StrongBox<T>(v).Value!;
 }
 ```
 
@@ -1610,34 +1610,26 @@ Callers who never wrote `@` have no such thing — and Harbour says
 their variable must stay untouched anyway. `HbDiscard<T>` is that
 storage location:
 
-- **Why generic.** Each closed type gets its own static field, so
-  `HbDiscard<decimal>.Value` and `HbDiscard<string>.Value` are
-  distinct typed locations. `ref` is invariant, so the throwaway must
-  match the parameter exactly, nullable included
-  (`HbDiscard<decimal?>`).
+- **Why generic.** `ref` is invariant, so the throwaway must match the
+  parameter exactly, nullable included (`HbDiscard<decimal?>`).
 - **`Value`** serves an omitted slot or a literal:
   `Foo(a, ref HbDiscard<decimal>.Value)`. The callee's input is
-  Harbour's NIL, C#'s default, fresh each time the slot is passed; the
-  write-back lands in the throwaway. It was a plain field until
-  2026-10-07, so a callee that reads the parameter before writing it
-  read what the last call through the slot had written back: EasiPOS's
-  Plu(), whose `DEFAULT nRFOrVoidIndex TO 0` is NIL's reading, took a
-  line index an earlier call had left (test146).
+  Harbour's NIL, C#'s default; the write-back lands in the throwaway
+  (test146).
 - **`Seed`** serves a bare variable passed without `@`:
   `Foo(ref HbDiscard<decimal>.Seed(nX))`. It is a ref-returning
   method, so the whole expression is a legal `ref` argument: the
   callee sees `nX`'s value as input, its write goes to the throwaway,
   and the caller's `nX` is untouched — Harbour's by-value semantics in
   one expression, with no brace block.
-- **`[ThreadStatic]`** because the product builds `-DMULTITHREAD` and
-  the slot is shared.
-- **The trade-off.** The slot is shared per type: two `Seed` calls of
-  the same type nested inside one call expression would overwrite
-  each other before the outer callee reads its input, and two omitted
-  slots of one call are the same storage (easipos-transpiled's plan,
-  D21). The emitter
-  does not produce that shape; the ref shim, with its own temps, is
-  the fallback if it ever must.
+- **A variable of its own for each use.** `Value` and `Seed` each make
+  a new `StrongBox<T>` and hand out a ref to its field, which lives as
+  long as the callee holds the ref. One shared slot per type, which it
+  was, made two by-value arguments of one type in one call the same
+  variable (EasiPOS's Plu() read the paid PLU's number as the paid sale
+  type, and the free happy hour item lost its sale type), and let
+  anything the callee called change the parameter it still held. The
+  price is one small allocation per such argument.
 
 In the easipos corpus: 616 `Value` sites, 15 `Seed` sites, five closed
 types.
@@ -2041,6 +2033,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 178       | Directory()'s entries are the runtime's record DirectoryEntry: `aDir[ i ][ F_NAME ]` is the name field in a plain `a` local, a FOR EACH, a codeblock's parameter and an untyped parameter the list is passed to |
 | 179       | `@Name()` names its function to the C# compiler: `nameof()` for the program's own, the class and `nameof()` for a runtime function (`@Upper()`), called through `:exec()` from a local and a parameter |
 | 180       | A function pointer declared `AS FUNCTION Name` is a delegate of Name's signature, a parameter and a local: `@Other()` given to it is a lambda, `f:exec()` a direct call with a left-out parameter passed as its blank, a procedure an `Action<>`; an undeclared pointer is the untyped one |
+| 183       | Ordering two values the program leaves untyped (`x` parameters, elements of a plain array, a block's result against an `x` member, a function that answers any type): `HbRuntime.Cmp( a, b ) <op> 0`, which orders strings, logicals, numbers and dates as Harbour does. EasiPOS's ORM compared a string scope with `<=` through `dynamic` and stopped with an argument error |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

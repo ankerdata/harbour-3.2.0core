@@ -278,6 +278,21 @@ public static partial class HbRuntime
     // semantics — an equal prefix compares equal when EXACT is OFF,
     // trailing blanks are ignored when it is ON — are not reproduced;
     // EasiPOS writes `==` and runs with SET EXACT ON. "Lisbon" > "Lis".
+    // `a < b` and kin where the program does not say what a and b are (two
+    // `x` values, a block's result against a member): less than zero, zero
+    // or more, as StrCmp() answers. Two strings by StrCmp(), two logicals
+    // .F. before .T., as Harbour orders them; anything else is the
+    // runtime binder's, which orders numbers and dates and raises
+    // Harbour's argument error for what cannot be ordered.
+    public static int Cmp(dynamic a, dynamic b)
+    {
+        if (a is string cA && b is string cB)
+            return StrCmp(cA, cB);
+        if (a is bool lA && b is bool lB)
+            return lA.CompareTo(lB);
+        return a < b ? -1 : a > b ? 1 : 0;
+    }
+
     public static int StrCmp(string a, string b)
     {
         a ??= "";
@@ -540,13 +555,12 @@ public static partial class HbRuntime
 //     by-value semantics for an un-@'d argument (in-out and out-only
 //     both correct).
 //
-// [ThreadStatic] so concurrent calls (the app builds with
-// -DMULTITHREAD) don't race on the shared slot; Value and Seed both
-// assign before the ref is read within the same call expression. Two
-// omitted ref slots of one call still share the slot.
+// Each use hands out a variable of its own (a new StrongBox<T>), which
+// lives as long as the callee holds the ref: two by-value arguments of
+// one type in one call are two variables, and nothing the callee calls
+// can change the one it holds.
 public static class HbDiscard<T>
 {
-   [System.ThreadStatic] static T t_value;
-   public static ref T Value { get { t_value = default!; return ref t_value; } }
-   public static ref T Seed(T v) { t_value = v; return ref t_value; }
+   public static ref T Value => ref new System.Runtime.CompilerServices.StrongBox<T>().Value!;
+   public static ref T Seed(T v) => ref new System.Runtime.CompilerServices.StrongBox<T>(v).Value!;
 }

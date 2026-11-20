@@ -47,6 +47,7 @@ public sealed class HbMutex
     internal Thread? owner;
     internal int nCount;                        // how often the owner holds it
     internal readonly Queue<object?> events = new();
+    internal int nWaiters;                      // threads waiting in hb_mutexSubscribe()
 
     public override string ToString() => "HbMutex";
 }
@@ -288,8 +289,16 @@ public static partial class HbRuntime
             }
             try
             {
-                if (!WaitUntil(m.sync, () => m.events.Count > 0, TimeoutMs(nTimeout)))
-                    return false;
+                m.nWaiters++;
+                try
+                {
+                    if (!WaitUntil(m.sync, () => m.events.Count > 0, TimeoutMs(nTimeout)))
+                        return false;
+                }
+                finally
+                {
+                    m.nWaiters--;
+                }
                 object? xEvent = m.events.Dequeue();
                 xValue = xEvent switch
                 {
@@ -320,5 +329,40 @@ public static partial class HbRuntime
     {
         object? xIgnored = null;
         return hb_mutexSubscribe(pMtx, nTimeout, ref xIgnored);
+    }
+
+    // hb_mutexQueueInfo( <pMtx>, [@<nWaiters>], [@<nEvents>] ): how many
+    // threads wait in hb_mutexSubscribe() and how many notifications nobody
+    // has taken yet. .T. for a mutex; for anything else .F., with both
+    // left as they were (thread.c HB_MUTEXQUEUEINFO answers NIL there).
+    public static bool hb_mutexQueueInfo(object? pMtx, ref long nWaiters, ref long nEvents)
+    {
+        if (pMtx is not HbMutex m)
+            return false;
+        lock (m.sync)
+        {
+            nWaiters = m.nWaiters;
+            nEvents = m.events.Count;
+        }
+        return true;
+    }
+
+    // the waiters left out: hb_mutexQueueInfo( pMtx, , @nEvents )
+    public static bool hb_mutexQueueInfo(object? pMtx, object? xNoWaiters, ref long nEvents)
+    {
+        long nIgnored = 0;
+        return hb_mutexQueueInfo(pMtx, ref nIgnored, ref nEvents);
+    }
+
+    public static bool hb_mutexQueueInfo(object? pMtx, ref long nWaiters)
+    {
+        long nIgnored = 0;
+        return hb_mutexQueueInfo(pMtx, ref nWaiters, ref nIgnored);
+    }
+
+    public static bool hb_mutexQueueInfo(object? pMtx)
+    {
+        long nWaiters = 0, nEvents = 0;
+        return hb_mutexQueueInfo(pMtx, ref nWaiters, ref nEvents);
     }
 }
