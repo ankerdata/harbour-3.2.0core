@@ -5045,6 +5045,13 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
                                "a plain array's elements" : szBound );
                   hb_astDeclWarn( "W0041", pEnv->szFile, iLine, pDecl->szName, szMsg );
                }
+               /* a parameter that is T itself, with T bound to nothing (a
+                  list literal as the default, an `x` value): any argument
+                  is its T */
+               else if( hb_astIsTypeParam( pDecl->szType ) &&
+                        hb_stricmp( hb_astTypeParamSubst( pDecl->szType, aszBind ),
+                                    "USUAL" ) == 0 )
+                  ;
                else
                {
                   hb_snprintf( szWhat, sizeof( szWhat ), "passing %%s as '%s' to '%s'",

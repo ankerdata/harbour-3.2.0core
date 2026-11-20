@@ -19,6 +19,8 @@ FUNCTION Use41g( nValue )
    Join41g( aIds, aFixed )                          // fires W0041: a C# array is no List
    Join41g( aIds, { nValue } )                      // fires W0041: a decimal into a List<long>
    Pick49g( { => }, "a", "" )                       // quiet
+   Pick49g( { => }, "a", {} )                       // quiet: a list as the default
+   Pick49g( { => }, "a", aPlain )                   // quiet
    Pick49g( { => }, "a" )                           // fires W0049: nothing for xDefault
    Pick49g( { => }, "a", NIL )                      // fires W0049: NIL for xDefault
 RETURN Len( aIds )
