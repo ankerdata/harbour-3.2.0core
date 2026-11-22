@@ -37,3 +37,4 @@ HbThread	X	HbThread	0
 HbMutex	X	HbMutex	0
 Sqlite3Db	X	HbSqlit3.Sqlite3Db	0
 Sqlite3Stmt	X	HbSqlit3.Sqlite3Stmt	0
+HbShape	X	HbShape	0

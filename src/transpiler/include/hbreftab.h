@@ -325,6 +325,12 @@ extern void    hb_refTabMarkRecord( PHB_REFTAB pTab, const char * szName,
                                     int nFields, const char ** ppNames,
                                     const char ** ppTypes );
 extern HB_BOOL hb_refTabIsRecord( PHB_REFTAB pTab, const char * szName );
+/* A shape (`SHAPE X( Key AS …, … )`): a class row flagged H whose
+   parameters are the keys, in order, each with its type. */
+extern void    hb_refTabMarkShape( PHB_REFTAB pTab, const char * szName,
+                                   int nKeys, const char ** ppNames,
+                                   const char ** ppTypes );
+extern HB_BOOL hb_refTabIsShape( PHB_REFTAB pTab, const char * szName );
 extern HB_BOOL hb_refTabIsListClass( PHB_REFTAB pTab, const char * szName );
 
 /* Mark szName as a PUBLIC variable. szOwnerBase is the basename of the

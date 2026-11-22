@@ -677,7 +677,7 @@ can reach zero. Things that are merely *type debt* go to the
 | W0043 | scan  | A value parameter with no default of its own, which some caller leaves out (past its last argument, a gap, NIL), handed on to a parameter that declares one: Harbour passes NIL and the callee's default applies, C# passes the type's zero, 0, .F. or an empty date (EasiPOS's MCNameNumber() made the receipt say POS 00). Silent when the callee's default is 0 or .F. itself, or the routine reassigns or NIL-tests the parameter. The fix is the same default declared on the parameter. A send to a receiver of unknown class is not checked: there is no callee row to read. Decided by the scan's last pass, since the omissions gather over every caller (reftab pflags `O`, `Z`; tests/errors/omitted_default.prg) |
 | W0044 | scan  | An `x` name, which may hold NIL, passed to a value parameter whose declared default is a C# constant on the signature (by value, after the last by-ref parameter; pflag `L`): NIL cannot be converted to it, a run-time error in C#, where Harbour's default took it (EasiPOS's FnOpenTable() handed FSMTender() a NIL panel). The fix is to pass the value meant. Decided by the scan's last pass (tests/errors/omitted_default.prg) |
 | W0045 | reconcile | Two builds of one program give a parameter of a routine both compile types that do not merge (two classes with no common ancestor, a scalar and a class): one C# signature serves both builds, so the slot falls back to USUAL (dynamic). Reported by `--reconcile` (see [Two builds, one signature](#two-builds-one-signature---reconcile)), which then exits 1. The fix is in the callers, or a declared type on the parameter (tests/errors/reconcile_*.prg) |
-| W0046 | scan  | A record read as an array: a subscript that is not a constant (a whole-number literal or a `#define` of one) or is past the last field; Len(), AScan(), AEval(), ACopy(), AClone(), ASort(), ATail(), AAdd(), ASize(), hb_ADel(), hb_AIns() or AFill() given one; FOR EACH over one. A record is a plain C# class of its fields, so the fix is the position by name, the FIXED array that holds the rows, or a declaration on the holder (tests/errors/fixed_record.prg) |
+| W0046 | scan  | A shape read by a string literal key it does not declare. A record read as an array: a subscript that is not a constant (a whole-number literal or a `#define` of one) or is past the last field; Len(), AScan(), AEval(), ACopy(), AClone(), ASort(), ATail(), AAdd(), ASize(), hb_ADel(), hb_AIns() or AFill() given one; FOR EACH over one. A record is a plain C# class of its fields, so the fix is the position by name, the FIXED array that holds the rows, or a declaration on the holder (tests/errors/fixed_record.prg) |
 | W0047 | scan  | A member read off an element of a list of a class (`aBuffer[i]:iFlags`, aBuffer a `List<TranLine>`) that neither that class nor an ancestor declares: a subclass's member, which the element in C# has not. Give the element to a variable named or declared for the subclass first, which is the cast, or read it through a function that returns it as one (tests/errors/class_list_member.prg) |
 | W0049 | scan  | A call that leaves out, or passes NIL for, a parameter that is a type parameter by itself (`xDefault AS T`): that argument says what type the call answers, and without it C# has none for T. Pass the default the caller wants: `""`, `0`, `0.00`, `.F.`, `{}` (tests/errors/generic.prg) |
 | W0048 | scan  | A local, static, parameter or member named `h<X>` (a static's `sh<X>`): the name does not say what the hash is keyed by. Fix: `hc<X>` for strings, `hn<X>` for numbers (Alex, 2026-11-18). The variable is still taken as keyed by strings. |
@@ -923,6 +923,7 @@ Tests: [test83.prg](tests/test83.prg), [test85.prg](tests/test85.prg).
 | `ARRAY`           | `aLines`               | `List<dynamic>` — one object every holder shares, grown and shrunk in place (test125) |
 | `FIXED<T>`        | *(`AS FIXED ARRAY OF …`)* | `T[]` — an array fixed in length, its elements a record's class or a scalar: built once, read by position, never grown (test155) |
 | *a record* `X`    | *(`RECORD X( … )`, `AS RECORD X`)* | `X`, a plain sealed class of the record's fields with a positional constructor; a constant subscript is the field (test155) |
+| *a shape* `X`     | *(`SHAPE X( … )`, `AS SHAPE X`; `AS SHAPE` is `HbShape`)* | `X`, a sealed class of a field per key on `HbShape`; a string literal subscript is the field (test186) |
 | `HASHC<T>` / `HASHN<T>` | *(`AS HASH OF …`, `AS INTEGER HASH OF …`)* | `OrderedDictionary<string, T>` / `OrderedDictionary<long, T>` — a hash whose values are typed in storage (a record, a class, a scalar, an array); `AS STRING HASH` / `AS INTEGER HASH` alone declare the keys, values dynamic (test156) |
 | `HASH` / `HASHC`  | `hConfig`              | `OrderedDictionary<string, dynamic>` (keyed by strings, what an `h` name declares; .NET 9's, which keeps Harbour's insertion order across deletes — test113) |
 | `HASHN`           | `hnByRecNo`            | `OrderedDictionary<long, dynamic>` — keyed by numbers, what an `hn` / `shn` name declares (Alex, 2026-09-27; test127): integer ids, the subscript casts the key `(long)`. A key of the other kind is W0035. The keys an `x` or untyped name's hash is used with still decide it (test76) |
@@ -1285,6 +1286,36 @@ strongest. Later rungs override earlier ones.
    by the constructor's parameters; test170), and the audit's LIST-SLOT
    names a record put into an element of a plain array or a hash's
    value, where a reader that subscripts it would throw.
+   **`SHAPE X( Key AS …, … )`, `AS SHAPE X` and `AS SHAPE`** (test186)
+   declare a hash that is a message: its keys named and typed once, in a
+   line read as RECORD's is. A key is the name on the wire, exact in its
+   case, and takes its type from its `AS` and nothing else (a key with
+   none is W0021). The reftab keeps a shape as a class row flagged `H`
+   whose parameters are the keys, in order. In C# it is a sealed class of
+   a public field per key, in the declaration's order, on HbRuntime's
+   `HbShape`; a key C# keeps as a word is written behind `@`. A
+   `{ "Key" => v, … }` literal going into a declared slot (an
+   initialiser, an assignment, a RETURN, a declared argument, another
+   shape's key) is `new X { Key = v, … }`, one key to a line, each value
+   under its key's type, nested as deep as the declarations go; `{ => }`
+   is `new X()`, built key by key after. A subscript by a string literal
+   is the field, `hcFlags[ "FullScreen" ]` → `hcFlags.FullScreen`, read
+   or written, typed by the scan and checked by C#. `AS ARRAY OF SHAPE X`
+   is a `List<X>`, `AS HASH OF SHAPE X` a dictionary of them. `AS SHAPE`
+   with no name is `HbShape`, which takes any shape and nothing else.
+   W0041 checks a literal key by key: a key the shape has not, a key that
+   is not a string constant, a value of another type (a decimal into a
+   whole number), and a key of the shape the literal leaves out, since
+   Harbour's hash has the keys its literal names and the class has them
+   all; it checks a value put under a key the same way, and refuses a
+   plain hash for a shape. W0046 is a string literal subscript the shape
+   does not declare. Where a shape leaves typed code it is still a hash:
+   HbShape is an IDictionary of the fields by name, so hb_jsonEncode()
+   writes it as the object Harbour's hash is, key for key in the declared
+   order, and ValType(), Empty(), Len(), the hb_H*() functions and a
+   subscript by a variable read it as one; a key cannot be added or
+   removed. Harbour sees hashes: astype.ch removes the SHAPE line and the
+   declarations (tests/errors/shape.prg has the warnings).
    **`AS HASH OF …`, `AS INTEGER HASH [OF …]`, `AS STRING HASH [OF …]`**
    (2026-10-17; test156) type a hash as the arrays are typed: the keys by
    kind (`INTEGER` whole numbers, `STRING` or nothing strings, what an
@@ -2056,6 +2087,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 183       | Ordering two values the program leaves untyped (`x` parameters, elements of a plain array, a block's result against an `x` member, a function that answers any type): `HbRuntime.Cmp( a, b ) <op> 0`, which orders strings, logicals, numbers and dates as Harbour does. EasiPOS's ORM compared a string scope with `<=` through `dynamic` and stopped with an argument error |
 | 184       | A function that answers a value of its default's type: `xDefault AS T` and `AS T` make `T Pick184<T>( …, T xDefault )`. The type by the default (a string, a whole number as `0L`, a decimal, a logical, a list), the default itself for a missing key, a whole decimal taken for a whole T, NIL as the type's zero, and T bound by a list and a default together |
 | 185       | A method that answers a value of its default's type: `METHOD Take185( cKey, xDefault AS T ) AS T` is `T Take185<T>( … )` in a class that is not generic, called through Self and through an object, with a string, a whole number, a decimal, a list and a logical as the default |
+| 186       | A shape: `SHAPE X( Key AS … )` is a class of a field per key, a literal under the declaration `new X { … }`, nested shapes, a list of them and a typed hash as keys' values, `{ => }` built key by key, a string literal subscript the field; `AS SHAPE` holds any; held untyped it is still a hash to ValType(), hb_HHasKey(), hb_HGetDef(), Len(), a subscript by a variable and hb_jsonEncode(), on its own and inside a plain hash |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |
@@ -2113,6 +2145,7 @@ the errors, where the file fails and the test asserts the error line:
 | `x_subscript.prg`             | `W0036` | An `x` name subscripted by a number; the same value through an `a` name, and by a string, quiet |
 | `fixed_record.prg`            | `W0041` `W0046` | A record's literal by count and field, a string into an integer field, a plain array into a record or a FIXED array, a FIXED array grown or cut; a record read by a variable or an out-of-range subscript, given to Len(), walked by FOR EACH; the quiet lines quiet |
 | `typed_hash.prg`              | `W0041` `W0035` | A value of another type into `AS HASH OF RECORD X`, a plain hash into a typed one; a key of the other kind, a literal keyed the other way, a declaration whose key kind contradicts the name; the quiet lines quiet |
+| `shape.prg`                   | `W0041` `W0046` `W0021` | A shape's literal without a key, with one the shape has not, with a value of another type; a plain hash into a shape and into `AS SHAPE`; text and a decimal under a whole-number key; a key read that the shape does not declare; a key declared with no type; the quiet lines quiet |
 | `typed_list.prg`              | `W0041`         | A number into a list of strings, by literal and by AAdd(); a plain array into a typed list and into a list of lists; a decimal into a `List<long>`, ASize() and ADel() on one (hb_ADel/hb_AIns with `.T.` quiet); a number into a local inference made a `List<string>`, by a statement and by an assignment inside a condition; a plain array, a literal holding a number and an untyped value for a parameter another call made a `List<string>`, an untyped value for one its name declares; a literal of strings and NIL quiet |
 | `list_escape.prg`             | `W0041`         | AClone() of a `List<string>` given to a file static C# holds as a `List<dynamic>`; the same list given to a `dynamic` local quiet |
 | `generic.prg`                 | `W0041` `W0040` | A generic function's call: a list of strings, a plain array and a FIXED array beside a `List<long>`, a decimal in a literal bound to one; T nested, on a member and on a method's parameter; a plain array with a literal, an empty literal bound by the other argument and a local of the function's own T quiet |

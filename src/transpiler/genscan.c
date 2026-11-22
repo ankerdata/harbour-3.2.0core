@@ -224,6 +224,25 @@ static void hb_csCheckHungarian( HB_COMP_DECL, PHB_REFTAB pTab )
                   work) rather than data-like, so exempt them from
                   the Hungarian rule. Only plain DATA / VAR /
                   CLASSDATA / CLASSVAR slots are checked. */
+               /* a shape's key is the name on the wire, typed by its
+                  `AS` and by nothing else: one without says nothing */
+               if( pStmt->value.asClass.fShape )
+               {
+                  if( pMember->type == HB_AST_CLASSDATA &&
+                      ! pMember->value.asClassData.szType )
+                  {
+                     char buffer[ 256 ];
+                     hb_snprintf( buffer, sizeof( buffer ),
+                        "hbtranspiler: %s(%d): warning W0021  "
+                        "Key '%s' of SHAPE %s declares no type: a key is typed by its AS\n",
+                        HB_COMP_PARAM->szFile, pMember->iLine,
+                        pMember->value.asClassData.szName ?
+                           pMember->value.asClassData.szName : "",
+                        pStmt->value.asClass.szName );
+                     hb_compOutErr( HB_COMP_PARAM, buffer );
+                  }
+               }
+               else
                if( pMember->type == HB_AST_CLASSDATA &&
                    pMember->value.asClassData.iKind != HB_AST_DATA_ACCESS &&
                    pMember->value.asClassData.iKind != HB_AST_DATA_ASSIGN )

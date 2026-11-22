@@ -225,6 +225,9 @@ struct _HB_AST_NODE
                                           positions are named and typed, a C# class of
                                           its fields; the members are its fields, in
                                           order (plan C12) */
+         HB_BOOL        fShape;        /* `SHAPE X( Key AS …, … )`: a hash whose keys
+                                          are declared, a C# class of a field per key;
+                                          the members are its keys, in order */
       } asClass;
 
       /* HB_AST_CLASSDATA */
@@ -395,6 +398,15 @@ extern HB_BOOL      hb_astIsRecordType( void * pRefTab, const char * szType );
 extern int          hb_astRecordFieldCount( void * pRefTab, const char * szRecord );
 extern const char * hb_astRecordFieldName( void * pRefTab, const char * szRecord, int iPos );
 extern const char * hb_astRecordFieldType( void * pRefTab, const char * szRecord, int iPos );
+/* Shapes: a class row the reftab flags S, its keys the row's parameters
+   in order. hb_astShapeIndexPos is the position of the key a subscript
+   names, 1 the first: 0 for a subscript that is not a string literal or
+   names a key the shape has not. The position's name and type are the
+   record functions' (hb_astRecordFieldName, hb_astRecordFieldType).
+   "HbShape" is `AS SHAPE` with no name: any shape. */
+extern HB_BOOL      hb_astIsShapeType( void * pRefTab, const char * szType );
+extern int          hb_astShapeKeyPos( void * pRefTab, const char * szShape, const char * szKey );
+extern int          hb_astShapeIndexPos( void * pRefTab, const char * szShape, PHB_EXPR pIdx );
 extern void         hb_astSetFileDecls( PHB_AST_NODE pDecls );
 extern long         hb_astConstIndex( PHB_EXPR pIdx );
 /* W0040 when szDecl names a class nothing defines (szName declared at
@@ -541,7 +553,7 @@ extern HB_BOOL      hb_astReturnsSelfOrNil( PHB_AST_NODE pBody );
 
 /* Class pre-parser (hbclsparse.c) */
 extern HB_BOOL      hb_compClassParse( HB_COMP_DECL );
-extern HB_BOOL      hb_compRecordParse( HB_COMP_DECL );
+extern HB_BOOL      hb_compRecordParse( HB_COMP_DECL, HB_BOOL fShape );
 extern HB_BOOL      hb_compMethodParse( HB_COMP_DECL, HB_BOOL fProcedure );
 
 /* The type the tokens after an `AS` declare, in the transpiler's type

@@ -221,6 +221,7 @@ static const HB_LEX_KEY s_typetable[] =
    { "OBJECT",    4, 6, _AS_OBJECT    },
    { "POINTER",   4, 7, _AS_POINTER   },
    { "RECORD",    4, 6, _AS_CLASS     },   /* `AS RECORD X`: a class to the grammar (plan C12) */
+   { "SHAPE",     5, 5, _AS_CLASS     },   /* `AS SHAPE X`: the same */
    { "STRING",    4, 6, _AS_CHARACTER },
    { "SYMBOL",    4, 6, _AS_SYMBOL    },
    { "TIMESTAMP", 4, 8, _AS_DATETIME  },
@@ -1038,13 +1039,15 @@ hb_comp_yylex_restart:
             begin with a name, another name and a parenthesis, so a
             function or variable called Record is not taken. */
          if( iType == IDENTIFIER && pLex->iState == LOOKUP &&
-             hb_stricmp( pToken->value, "RECORD" ) == 0 &&
+             ( hb_stricmp( pToken->value, "RECORD" ) == 0 ||
+               hb_stricmp( pToken->value, "SHAPE" ) == 0 ) &&
              pToken->pNext &&
              HB_PP_TOKEN_TYPE( pToken->pNext->type ) == HB_PP_TOKEN_KEYWORD &&
              pToken->pNext->pNext &&
              HB_PP_TOKEN_TYPE( pToken->pNext->pNext->type ) == HB_PP_TOKEN_LEFT_PB )
          {
-            if( hb_compRecordParse( HB_COMP_PARAM ) )
+            if( hb_compRecordParse( HB_COMP_PARAM,
+                                    hb_stricmp( pToken->value, "SHAPE" ) == 0 ) )
             {
                HB_COMP_PARAM->currLine =
                   hb_pp_line( pLex->pPP ) + 1;
@@ -1600,6 +1603,9 @@ hb_comp_yylex_restart:
                   /* and a type parameter by itself (`xDefault AS T`, `AS T`
                      a function's return): one letter */
                   HB_BOOL fParam = iUsed == 1 && hb_astIsTypeParam( szHash );
+                  /* and `AS SHAPE` with no name: any shape */
+                  if( iUsed == 1 && szHash && strcmp( szHash, "HbShape" ) == 0 )
+                     fParam = HB_TRUE;
                   if( szHash && ( fParam || ( iUsed > 1 && ( hb_astIsHashFamily( szHash ) || fArray || fHandle ) ) ) )
                   {
                      int i;

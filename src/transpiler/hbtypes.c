@@ -624,6 +624,7 @@ HB_BOOL hb_astIsTypedList( const char * szType )
                       hb_stricmp( szElem, "LOGICAL" ) == 0 ||
                       hb_astIsTypedList( szElem ) ||
                       hb_astIsRecordType( s_pPropRefTab, szElem ) ||
+                      hb_astIsShapeType( s_pPropRefTab, szElem ) ||
                       ( s_pPropRefTab && ! hb_astIsArrayType( szElem ) &&
                         hb_refTabIsListClass( ( PHB_REFTAB ) s_pPropRefTab, szElem ) ) );
 }
@@ -962,6 +963,38 @@ HB_BOOL hb_astIsRecordType( void * pRefTab, const char * szType )
 {
    return pRefTab && szType && ! hb_astIsArrayType( szType ) &&
           hb_refTabIsRecord( ( PHB_REFTAB ) pRefTab, szType );
+}
+
+/* Shapes: a class row the reftab flags H, its keys the row's parameters
+   in order; "HbShape" is any shape and has no keys of its own. */
+HB_BOOL hb_astIsShapeType( void * pRefTab, const char * szType )
+{
+   return pRefTab && szType && ! hb_astIsArrayType( szType ) &&
+          hb_refTabIsShape( ( PHB_REFTAB ) pRefTab, szType );
+}
+
+int hb_astShapeKeyPos( void * pRefTab, const char * szShape, const char * szKey )
+{
+   int n = pRefTab && szShape && szKey ?
+           hb_refTabParamCount( ( PHB_REFTAB ) pRefTab, szShape ) : 0;
+   int i;
+   for( i = 0; i < n; i++ )
+   {
+      const HB_REFPARAM * pP = hb_refTabParam( ( PHB_REFTAB ) pRefTab, szShape, i );
+      if( pP && pP->szName && strcmp( pP->szName, szKey ) == 0 )   /* a key is exact in its case */
+         return i + 1;
+   }
+   return 0;
+}
+
+int hb_astShapeIndexPos( void * pRefTab, const char * szShape, PHB_EXPR pIdx )
+{
+   while( pIdx && ( pIdx->ExprType == HB_ET_LIST || pIdx->ExprType == HB_ET_ARGLIST ) &&
+          pIdx->value.asList.pExprList && ! pIdx->value.asList.pExprList->pNext )
+      pIdx = pIdx->value.asList.pExprList;
+   if( ! pIdx || pIdx->ExprType != HB_ET_STRING )
+      return 0;
+   return hb_astShapeKeyPos( pRefTab, szShape, pIdx->value.asString.string );
 }
 
 int hb_astRecordFieldCount( void * pRefTab, const char * szRecord )
@@ -2034,6 +2067,11 @@ static const char * hb_astSubscriptType( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
       long l = hb_astConstIndex( pExpr->value.asList.pIndex );
       return l > 0 ? hb_astRecordFieldType( pEnv->pRefTab, szBase, ( int ) l ) : NULL;
    }
+   if( szBase && pEnv && hb_astIsShapeType( pEnv->pRefTab, szBase ) )
+   {
+      int iPos = hb_astShapeIndexPos( pEnv->pRefTab, szBase, pExpr->value.asList.pIndex );
+      return iPos ? hb_astRecordFieldType( pEnv->pRefTab, szBase, iPos ) : NULL;
+   }
    if( hb_astHashValueType( szBase ) )
       return hb_astHashValueType( szBase );   /* a typed hash's value, by any key */
    return hb_astArrayElemType( szBase );
@@ -2529,6 +2567,8 @@ static HB_BOOL hb_astDeclAccepts( const char * szDecl, const char * szActual )
          return HB_FALSE;
       return ! szActElem || hb_astDeclAccepts( szDeclElem, szActElem );
    }
+   if( strcmp( szDecl, "HbShape" ) == 0 )
+      return hb_astIsShapeType( s_pPropRefTab, szActual );
    if( hb_astIsClassType( szDecl ) )
    {
       if( ! hb_astIsClassType( szActual ) )
@@ -2762,6 +2802,81 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
             }
          }
          hb_astDeclCheckExpr( szElem, pItem, pEnv, szFile, iLine, szName, szInto );
+      }
+      return;
+   }
+   if( pExpr->ExprType == HB_ET_HASH && pEnv && hb_astIsShapeType( pEnv->pRefTab, szDecl ) )
+   {
+      /* `{ "Key" => v, … }` for a shape: every key one the shape declares,
+         a string literal, its value under the key's type, and every key
+         of the shape there, since Harbour's hash has the keys the literal
+         names and the C# class has them all. `{ => }` is the shape with
+         nothing set yet, built key by key after. */
+      HB_BOOL afSeen[ 64 ];
+      int nKeys = hb_astRecordFieldCount( pEnv->pRefTab, szDecl );
+      int i, nMissing = 0;
+      const char * szFirst = NULL;
+      char szMsg[ 320 ];
+      memset( afSeen, 0, sizeof( afSeen ) );
+      if( ! pExpr->value.asList.pExprList )
+         return;
+      for( pItem = pExpr->value.asList.pExprList; pItem && pItem->pNext;
+           pItem = pItem->pNext->pNext )
+      {
+         PHB_EXPR pKey = pItem;
+         int iPos = hb_astShapeIndexPos( pEnv->pRefTab, szDecl, pKey );
+         const char * szType;
+         char szInto[ 192 ];
+         if( ! iPos )
+         {
+            if( pKey->ExprType == HB_ET_STRING )
+               hb_snprintf( szMsg, sizeof( szMsg ), "a literal with the key \"%s\", which SHAPE %s has not",
+                            pKey->value.asString.string, szDecl );
+            else
+               hb_snprintf( szMsg, sizeof( szMsg ),
+                            "a literal with a key that is not a string constant, for SHAPE %s", szDecl );
+            hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+            continue;
+         }
+         if( iPos <= 64 )
+            afSeen[ iPos - 1 ] = HB_TRUE;
+         szType = hb_astRecordFieldType( pEnv->pRefTab, szDecl, iPos );
+         if( ! szType )
+            continue;
+         if( hb_stricmp( szType, "INTEGER" ) == 0 && ! hb_astIsWholeValue( pItem->pNext, pEnv ) )
+         {
+            const char * szT = hb_astInferExprType( pItem->pNext, pEnv );
+            if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )
+            {
+               hb_snprintf( szMsg, sizeof( szMsg ),
+                            "putting NUMERIC, a decimal, into \"%s\" of '%s', a whole number",
+                            pKey->value.asString.string, szDecl );
+               hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+               continue;
+            }
+         }
+         hb_snprintf( szInto, sizeof( szInto ), "putting %%s into \"%s\" of '%s'",
+                      pKey->value.asString.string, szDecl );
+         hb_astDeclCheckExpr( szType, pItem->pNext, pEnv, szFile, iLine, szName, szInto );
+      }
+      for( i = 1; i <= nKeys && i <= 64; i++ )
+         if( ! afSeen[ i - 1 ] )
+         {
+            if( ! nMissing++ )
+               szFirst = hb_astRecordFieldName( pEnv->pRefTab, szDecl, i );
+         }
+      if( nMissing == 1 )
+      {
+         hb_snprintf( szMsg, sizeof( szMsg ), "a literal without the key \"%s\" of SHAPE %s",
+                      szFirst ? szFirst : "?", szDecl );
+         hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+      }
+      else if( nMissing > 1 )
+      {
+         hb_snprintf( szMsg, sizeof( szMsg ),
+                      "a literal without %d keys of SHAPE %s, the first \"%s\"",
+                      nMissing, szDecl, szFirst ? szFirst : "?" );
+         hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
       }
       return;
    }
@@ -3896,6 +4011,26 @@ static void hb_astObserveExpr( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
                            szTarget ? "'" : "", szRec, n, l );
                   }
                }
+            }
+         }
+         /* W0046 for a shape: a key it does not declare has no field to
+            go to, and Harbour's hash would not have it either */
+         if( pBase && pIdx && pIdx->ExprType == HB_ET_STRING && pEnv->pRefTab )
+         {
+            const char * szShape = hb_astLeanArrayType( pBase, pEnv, 0 );
+            if( szShape && hb_astIsShapeType( pEnv->pRefTab, szShape ) &&
+                ! hb_astShapeIndexPos( pEnv->pRefTab, szShape, pIdx ) )
+            {
+               char szKey[ 200 ];
+               hb_snprintf( szKey, sizeof( szKey ), "W0046:%s:%s", szShape,
+                            pIdx->value.asString.string );
+               if( ! hb_astOrmSeen( s_iObserveLine, szKey ) )
+                  fprintf( stderr,
+                     "hbtranspiler: %s(%d): warning W0046  %s%s%s is a %s, a shape "
+                     "that declares no key \"%s\"\n",
+                     pEnv->szFile ? hb_strCollapsePath( pEnv->szFile ) : "?",
+                     s_iObserveLine, szTarget ? "'" : "", szTarget ? szTarget : "a value",
+                     szTarget ? "'" : "", szShape, pIdx->value.asString.string );
             }
          }
          if( pBase && pBase->ExprType == HB_ET_VARIABLE && pIdx &&
@@ -7918,6 +8053,10 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
       for the numeric family: INTEGER is a refinement of NUMERIC. */
    if( hb_astHashFamilyMerge( szLhs, szRhs ) )
       return;
+   /* a shape is a hash to Harbour and to the name */
+   if( hb_astIsHashFamily( szLhs ) &&
+       ( strcmp( szRhs, "HbShape" ) == 0 || hb_astIsShapeType( s_pPropRefTab, szRhs ) ) )
+      return;
    /* An `i` name promises a whole number, and the emitter's (long) cast
       would drop what Harbour keeps: a division, a power or a literal
       with decimals may hold a fraction, so the source says Int() (or
@@ -8004,6 +8143,31 @@ static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
          return;
       hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into '%s' of '%s'",
                    szField ? szField : "?", szName ? szName : szArr );
+      hb_astDeclCheckExpr( szElem, pVal, pEnv, szFile, iLine, szName, szWhat );
+      return;
+   }
+   if( pEnv && hb_astIsShapeType( pEnv->pRefTab, szArr ) )
+   {
+      int iPos = hb_astShapeIndexPos( pEnv->pRefTab, szArr, pIdx );
+      const char * szKey = iPos ? hb_astRecordFieldName( pEnv->pRefTab, szArr, iPos ) : NULL;
+      szElem = iPos ? hb_astRecordFieldType( pEnv->pRefTab, szArr, iPos ) : NULL;
+      if( ! szElem )
+         return;
+      if( hb_stricmp( szElem, "INTEGER" ) == 0 && ! hb_astIsWholeValue( pVal, pEnv ) )
+      {
+         const char * szT = hb_astInferExprType( pVal, pEnv );
+         if( szT && hb_stricmp( szT, "NUMERIC" ) == 0 )
+         {
+            char szMsg[ 256 ];
+            hb_snprintf( szMsg, sizeof( szMsg ),
+                         "putting NUMERIC, a decimal, into \"%s\" of '%s', a whole number",
+                         szKey ? szKey : "?", szName ? szName : szArr );
+            hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+            return;
+         }
+      }
+      hb_snprintf( szWhat, sizeof( szWhat ), "putting %%s into \"%s\" of '%s'",
+                   szKey ? szKey : "?", szName ? szName : szArr );
       hb_astDeclCheckExpr( szElem, pVal, pEnv, szFile, iLine, szName, szWhat );
       return;
    }

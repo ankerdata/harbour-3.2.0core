@@ -37,6 +37,7 @@ typedef struct HB_REFENTRY_
    HB_BOOL               fIsClass;     /* this is a CLASS marker, not a function */
    HB_BOOL               fClassDynamic;/* fIsClass + class uses ::&(name) — emit as `dynamic` */
    HB_BOOL               fRecord;      /* fIsClass + a RECORD: pParams are its fields, in order (flag R) */
+   HB_BOOL               fShape;       /* fIsClass + a SHAPE: pParams are its keys, in order (flag H) */
    HB_BOOL               fIsPublic;    /* this is a PUBLIC variable marker */
    HB_BOOL               fPublicArrayDim; /* PUBLIC declared with [size] — emit `new dynamic[N]` at runtime */
    HB_BOOL               fExtern;      /* loaded from the --extern= table: a .NET
@@ -1437,7 +1438,31 @@ void hb_refTabMarkRecord( PHB_REFTAB pTab, const char * szName,
    hb_refTabAddFunc( pTab, szName, nFields, ppNames, ppTypes, HB_FALSE );
    hb_refTabMarkClass( pTab, szName, NULL );
    e->fRecord   = HB_TRUE;
+   e->fShape    = HB_FALSE;
    e->fVariadic = HB_FALSE;
+}
+
+/* A shape's row: a record's, its parameters the keys, flagged H */
+void hb_refTabMarkShape( PHB_REFTAB pTab, const char * szName,
+                         int nKeys, const char ** ppNames,
+                         const char ** ppTypes )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return;
+   hb_refTabMarkRecord( pTab, szName, nKeys, ppNames, ppTypes );
+   e = hb_refTabFindOrCreate( pTab, szName );
+   e->fRecord = HB_FALSE;
+   e->fShape  = HB_TRUE;
+}
+
+HB_BOOL hb_refTabIsShape( PHB_REFTAB pTab, const char * szName )
+{
+   PHB_REFENTRY e;
+   if( ! pTab || ! szName )
+      return HB_FALSE;
+   e = hb_refTabFindEntry( pTab, szName, NULL );
+   return e && e->fShape;
 }
 
 HB_BOOL hb_refTabIsRecord( PHB_REFTAB pTab, const char * szName )
@@ -1462,7 +1487,7 @@ HB_BOOL hb_refTabIsListClass( PHB_REFTAB pTab, const char * szName )
    if( ! pTab || ! szName )
       return HB_FALSE;
    e = hb_refTabFindEntry( pTab, szName, NULL );
-   return e && e->fIsClass && ! e->fRecord && ! e->fClassDynamic &&
+   return e && e->fIsClass && ! e->fRecord && ! e->fShape && ! e->fClassDynamic &&
           ! hb_fieldTypesClassParent( szName ) && ! hb_fieldTypesClassCanon( szName );
 }
 
@@ -1725,7 +1750,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
          if( e->fDefined )
          {
             int p;
-            char fnFlags[ 12 ];
+            char fnFlags[ 16 ];
             int  fnK = 0;
             const char * szRet;
             if( e->fVariadic )      fnFlags[ fnK++ ] = 'V';
@@ -1733,6 +1758,7 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
             if( e->fIsClass )       fnFlags[ fnK++ ] = 'K';
             if( e->fClassDynamic )  fnFlags[ fnK++ ] = 'D';
             if( e->fRecord )        fnFlags[ fnK++ ] = 'R';
+            if( e->fShape )         fnFlags[ fnK++ ] = 'H';
             if( e->fIsPublic )      fnFlags[ fnK++ ] = 'P';
             if( e->fPublicArrayDim) fnFlags[ fnK++ ] = 'A';
             if( e->fProcedure )     fnFlags[ fnK++ ] = 'N';
@@ -1847,6 +1873,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
       int    nParams;
       HB_BOOL fVariadic;
       HB_BOOL fRecord;
+      HB_BOOL fShape;
       const char * names[ HB_REFTAB_MAXPARAM ];
       const char * types[ HB_REFTAB_MAXPARAM ];
       HB_BOOL refs[ HB_REFTAB_MAXPARAM ];
@@ -1898,6 +1925,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          HB_BOOL fPubArr    = HB_FALSE;
          HB_BOOL fProc      = HB_FALSE;
          fRecord   = HB_FALSE;
+         fShape    = HB_FALSE;
          fVariadic = HB_FALSE;
          for( c = fields[ 1 ]; *c; c++ )
          {
@@ -1909,6 +1937,8 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
                fIsClass = HB_TRUE;
             else if( *c == 'R' || *c == 'r' )
                fRecord = HB_TRUE;
+            else if( *c == 'H' || *c == 'h' )
+               fShape = HB_TRUE;
             else if( *c == 'D' || *c == 'd' )
                fClassDyn = HB_TRUE;
             else if( *c == 'P' || *c == 'p' )
@@ -1933,7 +1963,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          }
          if( fClassDyn )
             hb_refTabMarkClassDynamic( pTab, fields[ 0 ] );
-         else if( ( fIsClass || fExtClass ) && ! fRecord )
+         else if( ( fIsClass || fExtClass ) && ! fRecord && ! fShape )
             hb_refTabMarkClass( pTab, fields[ 0 ], NULL );
          if( fExtClass && fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
          {
@@ -2015,6 +2045,8 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
          /* a record's fields are its parameters (flag R): the class mark
             after them, so the row is not merged as a second arity */
          hb_refTabMarkRecord( pTab, fields[ 0 ], nParams, names, types );
+      else if( fShape )
+         hb_refTabMarkShape( pTab, fields[ 0 ], nParams, names, types );
       else
          hb_refTabAddFunc( pTab, fields[ 0 ], nParams, names, types, fVariadic );
       if( ! fExtClass && fields[ 2 ][ 0 ] && strcmp( fields[ 2 ], "-" ) != 0 )
@@ -2978,6 +3010,8 @@ static void hb_refTabCollectRecord( PHB_REFTAB pTab, PHB_AST_NODE pRecord )
          continue;
       if( pMember->value.asClassData.szType )
          szType = hb_astDeclCanon( pTab, pMember->value.asClassData.szType );
+      else if( pRecord->value.asClass.fShape )
+         szType = NULL;    /* a key is the name on the wire, not a Hungarian one */
       else
       {
          szType = hb_astInferType( szName, NULL );
@@ -2989,7 +3023,10 @@ static void hb_refTabCollectRecord( PHB_REFTAB pTab, PHB_AST_NODE pRecord )
       apTypes[ n ] = szType ? szType : "USUAL";
       n++;
    }
-   hb_refTabMarkRecord( pTab, pRecord->value.asClass.szName, n, apNames, apTypes );
+   if( pRecord->value.asClass.fShape )
+      hb_refTabMarkShape( pTab, pRecord->value.asClass.szName, n, apNames, apTypes );
+   else
+      hb_refTabMarkRecord( pTab, pRecord->value.asClass.szName, n, apNames, apTypes );
 }
 
 void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
@@ -3028,7 +3065,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
          for( ; p; p = p->pNext )
             if( p->type == HB_AST_CLASS && p->value.asClass.szName )
             {
-               if( p->value.asClass.fRecord )
+               if( p->value.asClass.fRecord || p->value.asClass.fShape )
                   hb_refTabCollectRecord( pTab, p );
                else
                   hb_refTabMarkClass( pTab, p->value.asClass.szName,

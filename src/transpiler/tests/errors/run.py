@@ -165,6 +165,14 @@ CASES_B = [
     ('typed_hash.prg', 'W0041', "putting STRING into 'hcRows', declared Row41h"),
     ('typed_hash.prg', 'W0035', "'hcRows' takes a number as a key, but its name declares a hash keyed by strings"),
     ('typed_hash.prg', 'W0035', "'hnById' takes a string as a key, but its name declares a hash keyed by numbers"),
+    ('shape.prg', 'W0041', 'a literal without the key "Lit" of SHAPE Lamp41z'),
+    ('shape.prg', 'W0041', 'a literal with the key "Colour", which SHAPE Lamp41z has not'),
+    ('shape.prg', 'W0041', "putting NUMERIC into \"Name\" of 'Lamp41z', declared STRING"),
+    ('shape.prg', 'W0041', "assigning HASH to 'hcLamp', declared Lamp41z"),
+    ('shape.prg', 'W0041', "putting STRING into \"Watts\" of 'hcLamp', declared INTEGER"),
+    ('shape.prg', 'W0041', "putting NUMERIC, a decimal, into \"Watts\" of 'hcLamp', a whole number"),
+    ('shape.prg', 'W0041', "assigning HASH to 'hcAny', declared HbShape"),
+    ('shape.prg', 'W0046', "'hcLamp' is a Lamp41z, a shape that declares no key \"Colour\""),
     ('member_named_class.prg', 'W0025', "member 'oW25Tally' is name-typed as class W25Tally but its call to 'Add' doesn't match"),
     ('typed_list.prg', 'W0041', "putting NUMERIC into 'aNames', declared STRING"),
     ('typed_list.prg', 'W0041', "assigning ARRAY to 'aNames', declared ARRAY<STRING>"),
@@ -219,6 +227,14 @@ def main():
 
     # typed hashes: values by type, keys by kind
     count_of("typed_hash.prg", "warning W00[34][15]", 7)
+    # shapes: a literal's keys and values, what goes under a key, a key the
+    # shape has not; and, the scan's, a key declared with no type
+    count_of("shape.prg", "warning W", 8)
+    out = scan_twice("shape.tab", "shape.prg")
+    found = lines_matching(out, "warning W0021")
+    result(len(found) == 1 and "Key 'Loose' of SHAPE Bare41z declares no type" in found[0],
+           "shape (W0021 for the key with no type, no other)",
+           "shape (expected one W0021, for Loose of Bare41z)", out)
     # records and fixed arrays, and no more
     count_of("fixed_record.prg", "warning W004[16]", 14)
     # typed lists: no plain array, no value of another type; a List<long> no

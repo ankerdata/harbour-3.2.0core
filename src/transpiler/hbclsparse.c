@@ -76,7 +76,17 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
    *piUsed = 0;
    if( ! pTok || HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_KEYWORD )
       return NULL;
-   if( ( hb_clsTokenIs( pTok, "CLASS" ) || hb_clsTokenIs( pTok, "RECORD" ) ) &&
+   /* `SHAPE` with no name: any shape, the runtime's base class of them.
+      The CLASS of `METHOD m() AS SHAPE CLASS X` is not a shape's name. */
+   if( hb_clsTokenIs( pTok, "SHAPE" ) &&
+       ( ! pTok->pNext || HB_PP_TOKEN_TYPE( pTok->pNext->type ) != HB_PP_TOKEN_KEYWORD ||
+         hb_clsTokenIs( pTok->pNext, "CLASS" ) ) )
+   {
+      *piUsed = 1;
+      return "HbShape";
+   }
+   if( ( hb_clsTokenIs( pTok, "CLASS" ) || hb_clsTokenIs( pTok, "RECORD" ) ||
+         hb_clsTokenIs( pTok, "SHAPE" ) ) &&
        pTok->pNext && HB_PP_TOKEN_TYPE( pTok->pNext->type ) == HB_PP_TOKEN_KEYWORD )
    {
       *piUsed = 2;
@@ -143,7 +153,8 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
    {
       PHB_PP_TOKEN pElem = pTok->pNext->pNext;
       const char * szElem = NULL;
-      if( ( hb_clsTokenIs( pElem, "CLASS" ) || hb_clsTokenIs( pElem, "RECORD" ) ) &&
+      if( ( hb_clsTokenIs( pElem, "CLASS" ) || hb_clsTokenIs( pElem, "RECORD" ) ||
+            hb_clsTokenIs( pElem, "SHAPE" ) ) &&
           pElem->pNext &&
           HB_PP_TOKEN_TYPE( pElem->pNext->type ) == HB_PP_TOKEN_KEYWORD )
       {
@@ -655,6 +666,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                      the legacy `as int`) */
                   if( hb_clsTokenIs( pToken, "CLASS" ) ||
                       hb_clsTokenIs( pToken, "RECORD" ) ||
+                      hb_clsTokenIs( pToken, "SHAPE" ) ||
                       hb_clsTokenIs( pToken, "FIXED" ) ||
                       ( hb_clsTokenIs( pToken, "ARRAY" ) &&
                         hb_clsTokenIs( pToken->pNext, "OF" ) ) ||
@@ -959,9 +971,14 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
  * a class of its fields in C#; the scan registers it as a class the
  * reftab flags, its fields the row's parameters (hb_refTabMarkRecord).
  *
+ * `SHAPE X( Key AS …, … )` (fShape) is read the same way: a hash whose
+ * keys are declared, each with its type, and a C# class of a field per
+ * key (flag S, hb_refTabMarkShape). A key takes its type from its `AS`
+ * and from nothing else: it is the name on the wire, not a Hungarian one.
+ *
  * Returns HB_TRUE when a record was read.
  */
-HB_BOOL hb_compRecordParse( HB_COMP_DECL )
+HB_BOOL hb_compRecordParse( HB_COMP_DECL, HB_BOOL fShape )
 {
    PHB_PP_TOKEN pToken;
    PHB_AST_NODE pRecord;
@@ -983,7 +1000,8 @@ HB_BOOL hb_compRecordParse( HB_COMP_DECL )
    pRecord->value.asClass.pMembersLast = NULL;
    pRecord->value.asClass.szDestructor = NULL;
    pRecord->value.asClass.fFriendly    = HB_FALSE;
-   pRecord->value.asClass.fRecord      = HB_TRUE;
+   pRecord->value.asClass.fRecord      = ! fShape;
+   pRecord->value.asClass.fShape       = fShape;
 
    pToken = hb_clsNextToken( HB_COMP_PARAM );
    while( pToken && HB_PP_TOKEN_TYPE( pToken->type ) != HB_PP_TOKEN_RIGHT_PB &&
@@ -1014,8 +1032,9 @@ HB_BOOL hb_compRecordParse( HB_COMP_DECL )
             for( i = 0; i < iUsed; i++ )
                pToken = hb_clsNextToken( HB_COMP_PARAM );
          }
-         /* an array name declares its elements, as a declaration does */
-         if( ! pField->value.asClassData.fDeclType &&
+         /* an array name declares its elements, as a declaration does; a
+            shape's key is the name on the wire and declares nothing */
+         if( ! fShape && ! pField->value.asClassData.fDeclType &&
              hb_astArrayNameType( pField->value.asClassData.szName ) )
          {
             pField->value.asClassData.szType =

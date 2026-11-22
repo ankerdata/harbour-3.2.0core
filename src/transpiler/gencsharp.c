@@ -503,6 +503,8 @@ static const char * hb_csExprCsType( PHB_EXPR pExpr );
 static const char * hb_csExprElemType( PHB_EXPR pArr );
 static const char * hb_csExprHbType( PHB_EXPR pExpr );
 static HB_BOOL hb_csIsRecordType( const char * szType );
+static HB_BOOL hb_csIsShapeType( const char * szType );
+static const char * hb_csShapeKeyName( const char * szKey );
 static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr );
 static HB_BOOL hb_csCsTypeIs( const char * szCs, const char * szWant );
 static const char * hb_csTypeParamList( PHB_AST_NODE pFunc, int nParams );
@@ -4822,6 +4824,13 @@ static const char * hb_csExprHbType( PHB_EXPR pExpr )
             return pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 ?
                    pP->szType : NULL;
          }
+         if( hb_csIsShapeType( szBase ) )
+         {
+            int iPos = hb_astShapeIndexPos( s_pRefTab, szBase, pExpr->value.asList.pIndex );
+            const HB_REFPARAM * pP = iPos ? hb_refTabParam( s_pRefTab, szBase, iPos - 1 ) : NULL;
+            return pP && pP->szType && hb_stricmp( pP->szType, "USUAL" ) != 0 ?
+                   pP->szType : NULL;
+         }
          if( hb_astHashValueType( szBase ) )
             return hb_astHashValueType( szBase );   /* a typed hash's value */
          return hb_astArrayElemType( szBase );
@@ -4829,6 +4838,39 @@ static const char * hb_csExprHbType( PHB_EXPR pExpr )
       default:
          return NULL;
    }
+}
+
+/* a shape's name: a class the reftab flags H */
+static HB_BOOL hb_csIsShapeType( const char * szType )
+{
+   return szType && s_pRefTab && hb_astIsShapeType( s_pRefTab, szType );
+}
+
+/* A shape's key as the C# field: the key itself, behind `@` when C# keeps
+   the word for itself */
+static const char * hb_csShapeKeyName( const char * szKey )
+{
+   static const char * s_aWords[] = {
+      "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char",
+      "checked", "class", "const", "continue", "decimal", "default", "delegate",
+      "do", "double", "else", "enum", "event", "explicit", "extern", "false",
+      "finally", "fixed", "float", "for", "foreach", "goto", "if", "implicit",
+      "in", "int", "interface", "internal", "is", "lock", "long", "namespace",
+      "new", "null", "object", "operator", "out", "override", "params",
+      "private", "protected", "public", "readonly", "ref", "return", "sbyte",
+      "sealed", "short", "sizeof", "stackalloc", "static", "string", "struct",
+      "switch", "this", "throw", "true", "try", "typeof", "uint", "ulong",
+      "unchecked", "unsafe", "ushort", "using", "virtual", "void", "volatile",
+      "while" };
+   static char s_szBuf[ 96 ];
+   HB_SIZE i;
+   for( i = 0; i < HB_SIZEOFARRAY( s_aWords ); i++ )
+      if( strcmp( szKey, s_aWords[ i ] ) == 0 )
+      {
+         hb_snprintf( s_szBuf, sizeof( s_szBuf ), "@%s", szKey );
+         return s_szBuf;
+      }
+   return szKey;
 }
 
 /* a record's name (plan C12): a class the reftab flags R */
@@ -4850,7 +4892,8 @@ static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr )
       pExpr && szHbType &&
       ( ( pExpr->ExprType == HB_ET_ARRAY &&
           ( hb_astArrayElemType( szHbType ) || hb_csIsRecordType( szHbType ) ) ) ||
-        ( pExpr->ExprType == HB_ET_HASH && hb_astHashValueType( szHbType ) ) ) ?
+        ( pExpr->ExprType == HB_ET_HASH &&
+          ( hb_astHashValueType( szHbType ) || hb_csIsShapeType( szHbType ) ) ) ) ?
       szHbType : NULL;
    s_szArrayOfHbType = hb_astIsArrayOfCall( pExpr, szHbType ) ? szHbType : NULL;
    s_szIifHbType = pExpr && pExpr->ExprType == HB_ET_IIF ? szHbType : NULL;
@@ -6608,6 +6651,20 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                   break;
                }
             }
+            /* a shape's key: `hcFlags[ "FullScreen" ]` is the field,
+               `hcFlags.FullScreen`; a key that is not a string literal
+               goes through the shape's indexer below, as a hash's does */
+            if( hb_csIsShapeType( szRec ) )
+            {
+               int iPos = hb_astShapeIndexPos( s_pRefTab, szRec, pExpr->value.asList.pIndex );
+               const HB_REFPARAM * pP = iPos ? hb_refTabParam( s_pRefTab, szRec, iPos - 1 ) : NULL;
+               if( pP && pP->szName && pP->szName[ 0 ] )
+               {
+                  hb_csEmitExpr( pExpr->value.asList.pExprList, yyc, HB_TRUE );
+                  fprintf( yyc, ".%s", hb_csShapeKeyName( pP->szName ) );
+                  break;
+               }
+            }
          }
          hb_csEmitExpr( pExpr->value.asList.pExprList, yyc, HB_TRUE );
          {
@@ -6827,6 +6884,45 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
             const char * szValType = hb_astHashValueType( szExpect );
             const char * szValCs = szValType ? hb_csTypeMap( szValType ) : "dynamic";
             s_szLiteralHbType = NULL;
+            /* a shape's literal: the class with each key's field set, one
+               to a line, each value under its key's type; `{ => }` is the
+               shape with nothing set */
+            if( hb_csIsShapeType( szExpect ) )
+            {
+               if( ! pExpr->value.asList.pExprList )
+               {
+                  fprintf( yyc, "new %s()", hb_csTypeMap( szExpect ) );
+                  break;
+               }
+               if( iInd <= 0 )
+                  iInd = hb_csLiteralColumn();
+               fprintf( yyc, "new %s\n%*s{\n", hb_csTypeMap( szExpect ), iInd - 4, "" );
+               s_iExprIndent = iInd + 4;
+               for( pItem = pExpr->value.asList.pExprList; pItem && pItem->pNext; )
+               {
+                  int iPos = hb_astShapeIndexPos( s_pRefTab, szExpect, pItem );
+                  const HB_REFPARAM * pP = iPos ? hb_refTabParam( s_pRefTab, szExpect, iPos - 1 ) : NULL;
+                  fprintf( yyc, "%*s", iInd, "" );
+                  if( pP && pP->szName )
+                     fprintf( yyc, "%s = ", hb_csShapeKeyName( pP->szName ) );
+                  else
+                  {
+                     /* a key the shape has not (W0041): written as it
+                        stands, for the C# compiler to refuse too */
+                     fprintf( yyc, "[" );
+                     hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                     fprintf( yyc, "] = " );
+                  }
+                  pItem = pItem->pNext;
+                  hb_csExpectLiteral( pP ? pP->szType : NULL, pItem );
+                  hb_csEmitExpr( pItem, yyc, HB_FALSE );
+                  pItem = pItem->pNext;
+                  fprintf( yyc, "%s\n", pItem ? "," : "" );
+               }
+               s_iExprIndent = iEntryInd;
+               fprintf( yyc, "%*s}", iInd - 4, "" );
+               break;
+            }
             /* C# key type for this literal: its own literal keys win
                (any numeric key → long); an empty/unlabeled literal
                inherits s_szHashKeyCs, which decl-init emission points
@@ -11623,6 +11719,16 @@ static void hb_csEmitRecord( PHB_AST_NODE pRecord, FILE * yyc )
       n++;
    }
 
+   /* a shape: the runtime's HbShape and a field for each key, in order,
+      set by the literal's initialiser or one by one */
+   if( pRecord->value.asClass.fShape )
+   {
+      fprintf( yyc, "public sealed class %s : HbShape\n{\n", szName );
+      for( i = 0; i < n; i++ )
+         fprintf( yyc, "    public %s %s;\n", aszCs[ i ], hb_csShapeKeyName( aszField[ i ] ) );
+      fprintf( yyc, "}\n" );
+      return;
+   }
    fprintf( yyc, "public sealed class %s\n{\n", szName );
    for( i = 0; i < n; i++ )
       fprintf( yyc, "    public %s %s;\n", aszCs[ i ], aszField[ i ] );
@@ -11641,7 +11747,7 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
    PHB_AST_NODE pMember;
    HB_CS_METHOD * pMethod;
 
-   if( pClassNode->value.asClass.fRecord )
+   if( pClassNode->value.asClass.fRecord || pClassNode->value.asClass.fShape )
    {
       hb_csEmitRecord( pClassNode, yyc );
       return;

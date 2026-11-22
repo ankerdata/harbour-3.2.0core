@@ -66,3 +66,15 @@
 /* Function pointers: `AS FUNCTION Name` says the pointer has Name's
    signature, a delegate to the transpiler; a pointer to Harbour. */
 #xtranslate AS FUNCTION <!name!> =>
+
+/* Shapes: `SHAPE X( Key AS ..., ... )` declares a hash's keys and their
+   types, `AS SHAPE X` holds one, `AS SHAPE` any. Hashes to Harbour: the
+   declarations go and the SHAPE line with them. A method's `AS SHAPE CLASS
+   X` keeps its CLASS. */
+#xtranslate AS SHAPE                    =>
+#xtranslate AS SHAPE <!name!>           =>
+#xtranslate AS SHAPE CLASS              => CLASS
+#xtranslate AS ARRAY OF SHAPE <!name!>  =>
+#xtranslate AS HASH OF SHAPE <!name!>   =>
+#xtranslate AS <k: INTEGER, STRING> HASH OF SHAPE <!name!> =>
+#xcommand SHAPE <!name!>( <*rest*> =>
