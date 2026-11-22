@@ -741,7 +741,8 @@ void hb_refTabSetNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
       return;
 
    e = hb_refTabFindOrCreate( pTab, szFunc );
-   if( e->pParams && iPos < e->nParams &&
+   /* a shape's key is no Hungarian name, and its N is OPTIONAL */
+   if( ! e->fShape && e->pParams && iPos < e->nParams &&
        hb_refTabIsValueTypeHungarian( e->pParams[ iPos ].szName ) )
       return;
    e->nilbits |= ( ( HB_U64 ) 1 ) << iPos;
@@ -1454,6 +1455,14 @@ void hb_refTabMarkShape( PHB_REFTAB pTab, const char * szName,
    e = hb_refTabFindOrCreate( pTab, szName );
    e->fRecord = HB_FALSE;
    e->fShape  = HB_TRUE;
+   /* the optional keys (a slot's N) are the declaration's: set after this */
+   e->nilbits = 0;
+   if( e->pParams )
+   {
+      int i;
+      for( i = 0; i < e->nParams; i++ )
+         e->pParams[ i ].fNilable = HB_FALSE;
+   }
 }
 
 HB_BOOL hb_refTabIsShape( PHB_REFTAB pTab, const char * szName )
@@ -2998,6 +3007,7 @@ static void hb_refTabCollectRecord( PHB_REFTAB pTab, PHB_AST_NODE pRecord )
 {
    const char * apNames[ HB_REFTAB_MAXPARAM ];
    const char * apTypes[ HB_REFTAB_MAXPARAM ];
+   HB_BOOL afOptional[ HB_REFTAB_MAXPARAM ];
    int n = 0;
    PHB_AST_NODE pMember;
 
@@ -3021,10 +3031,17 @@ static void hb_refTabCollectRecord( PHB_REFTAB pTab, PHB_AST_NODE pRecord )
       }
       apNames[ n ] = szName;
       apTypes[ n ] = szType ? szType : "USUAL";
+      afOptional[ n ] = pMember->value.asClassData.fOptional;
       n++;
    }
    if( pRecord->value.asClass.fShape )
+   {
+      int i;
       hb_refTabMarkShape( pTab, pRecord->value.asClass.szName, n, apNames, apTypes );
+      for( i = 0; i < n; i++ )
+         if( afOptional[ i ] )
+            hb_refTabSetNilable( pTab, pRecord->value.asClass.szName, i );
+   }
    else
       hb_refTabMarkRecord( pTab, pRecord->value.asClass.szName, n, apNames, apTypes );
 }
@@ -3091,6 +3108,12 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                {
                   const char * szTag = NULL;
                   const char * szT;
+
+                  /* a shape's keys are read by subscript, never sent: a
+                     `Shape::Key` row would only make the key's name a
+                     member's for a send to a receiver of unknown class */
+                  if( p->value.asClass.fShape )
+                     break;
 
                   if( pMember->type == HB_AST_CLASSMETHOD &&
                       pMember->value.asClassMethod.szName &&

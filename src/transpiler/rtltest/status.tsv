@@ -2,9 +2,9 @@
 # it is the subject of (their outermost call), and how many other
 # failing assertions it takes part in.
 # function	state	app calls	pass	fail	quarantine	missing	harbour	also in
-Empty	implemented	2551	41	0	0	0	0	0
+Empty	implemented	2553	41	0	0	0	0	0
 RTrim	implemented	2501	15	0	0	0	0	0
-Len	implemented	2394	41	0	0	0	0	0
+Len	implemented	2398	41	0	0	0	0	0
 AAdd	implemented	1605	5	0	0	0	0	0
 Str	implemented	985	172	0	0	0	0	0
 Chr	implemented	972	60	0	0	0	0	0
@@ -28,7 +28,7 @@ hb_BLen	implemented	286	6	0	0	0	0	0
 hb_bitOr	implemented	274	5	0	0	0	0	0
 Time	implemented	264	0	0	0	0	0	0
 File	implemented	261	14	0	0	0	0	0
-ValType	implemented	233	33	0	0	0	0	0
+ValType	implemented	237	33	0	0	0	0	0
 hb_bitNot	implemented	226	3	0	0	0	0	0
 hb_HHasKey	implemented	193	6	0	0	0	0	0
 FWrite	implemented	190	26	0	0	0	0	0
@@ -42,7 +42,7 @@ Seconds	implemented	138	1	0	0	0	0	0
 CToD	implemented	137	3	0	0	0	0	0
 AScan	implemented	115	27	0	0	0	0	0
 Transform	implemented	112	528	0	0	0	0	0
-hb_jsonEncode	implemented	109	17	0	0	0	0	0
+hb_jsonEncode	implemented	111	17	0	0	0	0	0
 hb_mutexUnlock	implemented	98	0	0	0	0	0	0
 FOpen	implemented	97	3	0	0	0	0	0
 FSeek	implemented	94	42	0	0	0	0	0
@@ -78,8 +78,8 @@ hb_mutexCreate	implemented	34	10	0	0	0	0	0
 Lower	implemented	33	13	0	0	0	0	0
 hb_idleSleep	implemented	32	0	0	0	0	0	0
 hb_eol	implemented	31	1	0	0	0	0	0
+hb_jsonDecode	implemented	31	13	0	0	0	0	0
 AEval	implemented	30	4	0	0	0	0	0
-hb_jsonDecode	implemented	29	13	0	0	0	0	0
 hb_MemoRead	implemented	29	2	0	0	0	0	0
 hb_BCode	implemented	28	2	0	0	0	0	0
 hb_DToC	implemented	27	3	0	0	0	0	0
@@ -120,6 +120,7 @@ hb_BRight	implemented	12	1	0	0	0	0	0
 hb_comMCR	implemented	12	0	0	0	0	0	0
 hb_Date	implemented	12	1	0	0	0	0	0
 hb_HDel	implemented	12	0	0	0	0	0	0
+hb_HKeyAt	implemented	12	2	0	0	0	0	0
 hb_mutexNotify	implemented	12	0	0	0	0	0	0
 hb_mutexSubscribe	implemented	12	1	0	0	0	0	0
 hb_SToD	implemented	12	43	0	0	0	0	0
@@ -136,7 +137,6 @@ hb_argv	implemented	9	4	0	0	0	0	0
 hb_base64Encode	implemented	9	7	0	0	0	0	0
 hb_socketConnect	implemented	9	0	0	0	0	0	0
 hb_FCreate	implemented	8	1	0	0	0	0	0
-hb_HKeyAt	implemented	8	2	0	0	0	0	0
 MemoRead	implemented	8	7	0	0	0	0	0
 __SetCentury	implemented	8	0	0	0	0	0	0
 ATail	implemented	7	7	0	0	0	0	0

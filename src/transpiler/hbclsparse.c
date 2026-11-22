@@ -80,7 +80,8 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
       The CLASS of `METHOD m() AS SHAPE CLASS X` is not a shape's name. */
    if( hb_clsTokenIs( pTok, "SHAPE" ) &&
        ( ! pTok->pNext || HB_PP_TOKEN_TYPE( pTok->pNext->type ) != HB_PP_TOKEN_KEYWORD ||
-         hb_clsTokenIs( pTok->pNext, "CLASS" ) ) )
+         hb_clsTokenIs( pTok->pNext, "CLASS" ) ||
+         hb_clsTokenIs( pTok->pNext, "OPTIONAL" ) ) )
    {
       *piUsed = 1;
       return "HbShape";
@@ -1031,6 +1032,12 @@ HB_BOOL hb_compRecordParse( HB_COMP_DECL, HB_BOOL fShape )
                iUsed = 1;     /* a type word the declaration ignores (OBJECT) */
             for( i = 0; i < iUsed; i++ )
                pToken = hb_clsNextToken( HB_COMP_PARAM );
+         }
+         /* `Key AS … OPTIONAL`: a key a message may go without */
+         if( fShape && hb_clsTokenIs( pToken, "OPTIONAL" ) )
+         {
+            pField->value.asClassData.fOptional = HB_TRUE;
+            pToken = hb_clsNextToken( HB_COMP_PARAM );
          }
          /* an array name declares its elements, as a declaration does; a
             shape's key is the name on the wire and declares nothing */

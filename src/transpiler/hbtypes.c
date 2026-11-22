@@ -987,6 +987,13 @@ int hb_astShapeKeyPos( void * pRefTab, const char * szShape, const char * szKey 
    return 0;
 }
 
+HB_BOOL hb_astShapeKeyOptional( void * pRefTab, const char * szShape, int iPos )
+{
+   const HB_REFPARAM * pP = pRefTab && szShape && iPos > 0 ?
+      hb_refTabParam( ( PHB_REFTAB ) pRefTab, szShape, iPos - 1 ) : NULL;
+   return pP && pP->fNilable;
+}
+
 int hb_astShapeIndexPos( void * pRefTab, const char * szShape, PHB_EXPR pIdx )
 {
    while( pIdx && ( pIdx->ExprType == HB_ET_LIST || pIdx->ExprType == HB_ET_ARGLIST ) &&
@@ -2840,6 +2847,17 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
          }
          if( iPos <= 64 )
             afSeen[ iPos - 1 ] = HB_TRUE;
+         /* an optional key with no value is one the literal leaves out:
+            Harbour would send the NIL, and C# has nothing to send */
+         if( pItem->pNext->ExprType == HB_ET_NIL &&
+             hb_astShapeKeyOptional( pEnv->pRefTab, szDecl, iPos ) )
+         {
+            hb_snprintf( szMsg, sizeof( szMsg ),
+                         "NIL for \"%s\", an OPTIONAL key of SHAPE %s: a key with no value is left out",
+                         pKey->value.asString.string, szDecl );
+            hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+            continue;
+         }
          szType = hb_astRecordFieldType( pEnv->pRefTab, szDecl, iPos );
          if( ! szType )
             continue;
@@ -2860,7 +2878,7 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
          hb_astDeclCheckExpr( szType, pItem->pNext, pEnv, szFile, iLine, szName, szInto );
       }
       for( i = 1; i <= nKeys && i <= 64; i++ )
-         if( ! afSeen[ i - 1 ] )
+         if( ! afSeen[ i - 1 ] && ! hb_astShapeKeyOptional( pEnv->pRefTab, szDecl, i ) )
          {
             if( ! nMissing++ )
                szFirst = hb_astRecordFieldName( pEnv->pRefTab, szDecl, i );
@@ -8151,6 +8169,16 @@ static void hb_astCheckElemWrite( PHB_EXPR pArr, PHB_EXPR pIdx, PHB_EXPR pVal,
       int iPos = hb_astShapeIndexPos( pEnv->pRefTab, szArr, pIdx );
       const char * szKey = iPos ? hb_astRecordFieldName( pEnv->pRefTab, szArr, iPos ) : NULL;
       szElem = iPos ? hb_astRecordFieldType( pEnv->pRefTab, szArr, iPos ) : NULL;
+      if( iPos && pVal->ExprType == HB_ET_NIL &&
+          hb_astShapeKeyOptional( pEnv->pRefTab, szArr, iPos ) )
+      {
+         char szMsg[ 256 ];
+         hb_snprintf( szMsg, sizeof( szMsg ),
+                      "NIL for \"%s\", an OPTIONAL key of '%s': a key with no value is left out",
+                      szKey ? szKey : "?", szName ? szName : szArr );
+         hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
+         return;
+      }
       if( ! szElem )
          return;
       if( hb_stricmp( szElem, "INTEGER" ) == 0 && ! hb_astIsWholeValue( pVal, pEnv ) )

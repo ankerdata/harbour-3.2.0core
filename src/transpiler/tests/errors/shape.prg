@@ -1,10 +1,12 @@
 // W0041, W0046 and W0021 for shapes: a literal with a key the shape has
 // not, without one it has, or with a value of another type; a plain hash
 // into a shape; a value of another type put under a key; a key read that
-// the shape does not declare; and a key declared with no type. The lines
-// marked "quiet" must not warn.
+// the shape does not declare; NIL for an OPTIONAL key, which is left out
+// instead; and a key declared with no type. The lines marked "quiet" must
+// not warn.
 
 SHAPE Lamp41z( Name AS STRING, Watts AS INTEGER, Lit AS LOGICAL )
+SHAPE Some41z( Name AS STRING, Count AS INTEGER OPTIONAL, Note AS STRING OPTIONAL )
 SHAPE Bare41z( Name AS STRING, Loose )                                              // fires W0021: a key with no type
 
 FUNCTION Use41z( xAnything, hcPlain, nRate )
@@ -14,6 +16,8 @@ FUNCTION Use41z( xAnything, hcPlain, nRate )
    LOCAL hcType AS SHAPE Lamp41z := { "Name" => 5, "Watts" => 1, "Lit" => .T. }     // fires W0041: a number is no name
    LOCAL hcEmpty AS SHAPE Lamp41z := { => }                                         // quiet: built key by key
    LOCAL hcBare AS SHAPE Bare41z := { => }                                          // quiet
+   LOCAL hcSome AS SHAPE Some41z := { "Name" => "a" }                               // quiet: the optional keys left out
+   LOCAL hcNil AS SHAPE Some41z := { "Name" => "a", "Note" => NIL }                 // fires W0041: NIL for an optional key
    LOCAL hcAny AS SHAPE
    hcLamp := xAnything                               // quiet: its type is unknown
    hcLamp := hcPlain                                 // fires W0041: a plain hash into a shape
@@ -23,5 +27,8 @@ FUNCTION Use41z( xAnything, hcPlain, nRate )
    hcEmpty[ "Name" ] := "b"                          // quiet
    hcAny := hcLamp                                   // quiet: any shape
    hcAny := hcPlain                                  // fires W0041: a plain hash is no shape
+   hcSome[ "Count" ] := 3                            // quiet
+   hcSome[ "Count" ] := NIL                          // fires W0041: NIL for an optional key
+   hcNil[ "Note" ] := "b"                            // quiet
    ? hcLamp[ "Colour" ]                              // fires W0046: no such key
 RETURN hcLamp[ "Name" ] + hcShort[ "Name" ] + hcMore[ "Name" ] + hcType[ "Name" ] + hcBare[ "Name" ]

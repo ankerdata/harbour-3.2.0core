@@ -243,6 +243,9 @@ struct _HB_AST_NODE
          HB_BOOL        fReadOnly;     /* READONLY flag */
          HB_BOOL        fDeclType;     /* szType is a declaration's: `AS CLASS X`
                                           ("X") or `AS ARRAY OF …` ("ARRAY<…>") */
+         HB_BOOL        fOptional;     /* a shape's key declared OPTIONAL: a literal
+                                          may leave it out, and it is not on the wire
+                                          while it has no value */
       } asClassData;
 
       /* HB_AST_CLASSMETHOD */
@@ -407,6 +410,7 @@ extern const char * hb_astRecordFieldType( void * pRefTab, const char * szRecord
 extern HB_BOOL      hb_astIsShapeType( void * pRefTab, const char * szType );
 extern int          hb_astShapeKeyPos( void * pRefTab, const char * szShape, const char * szKey );
 extern int          hb_astShapeIndexPos( void * pRefTab, const char * szShape, PHB_EXPR pIdx );
+extern HB_BOOL      hb_astShapeKeyOptional( void * pRefTab, const char * szShape, int iPos );
 extern void         hb_astSetFileDecls( PHB_AST_NODE pDecls );
 extern long         hb_astConstIndex( PHB_EXPR pIdx );
 /* W0040 when szDecl names a class nothing defines (szName declared at

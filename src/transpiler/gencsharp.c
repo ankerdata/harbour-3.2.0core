@@ -11697,6 +11697,7 @@ static void hb_csEmitRecord( PHB_AST_NODE pRecord, FILE * yyc )
    const char * szName = pRecord->value.asClass.szName;
    const char * aszField[ 64 ];
    char         aszCs[ 64 ][ 96 ];
+   HB_BOOL      afOptional[ 64 ];
    PHB_AST_NODE pMember;
    int n = 0, i;
 
@@ -11715,17 +11716,36 @@ static void hb_csEmitRecord( PHB_AST_NODE pRecord, FILE * yyc )
       else
          szHb = hb_astInferType( pMember->value.asClassData.szName, NULL );
       aszField[ n ] = pMember->value.asClassData.szName;
+      afOptional[ n ] = pMember->value.asClassData.fOptional;
       hb_strncpy( aszCs[ n ], hb_csTypeMap( szHb ), sizeof( aszCs[ 0 ] ) - 1 );
       n++;
    }
 
    /* a shape: the runtime's HbShape and a field for each key, in order,
-      set by the literal's initialiser or one by one */
+      set by the literal's initialiser or one by one. An OPTIONAL key is
+      there once it has a value: a reference is marked [HbOptionalKey] and
+      is absent while null; a value (a number, a logical, a date) is a
+      property of the key's type over a nullable field `_Key`, which
+      HbShape reads, and reading it unset is the bound error Harbour's
+      missing key is. */
    if( pRecord->value.asClass.fShape )
    {
       fprintf( yyc, "public sealed class %s : HbShape\n{\n", szName );
       for( i = 0; i < n; i++ )
-         fprintf( yyc, "    public %s %s;\n", aszCs[ i ], hb_csShapeKeyName( aszField[ i ] ) );
+      {
+         const char * szKey = hb_csShapeKeyName( aszField[ i ] );
+         HB_BOOL fValue = strcmp( aszCs[ i ], "long" ) == 0 || strcmp( aszCs[ i ], "decimal" ) == 0 ||
+                          strcmp( aszCs[ i ], "bool" ) == 0 || strcmp( aszCs[ i ], "DateOnly" ) == 0 ||
+                          strcmp( aszCs[ i ], "DateTime" ) == 0;
+         if( afOptional[ i ] && fValue )
+            fprintf( yyc, "    %s? _%s;\n"
+                          "    public %s %s { get => Set( _%s ); set => _%s = value; }\n",
+                     aszCs[ i ], aszField[ i ], aszCs[ i ], szKey, aszField[ i ], aszField[ i ] );
+         else if( afOptional[ i ] )
+            fprintf( yyc, "    [HbOptionalKey] public %s %s;\n", aszCs[ i ], szKey );
+         else
+            fprintf( yyc, "    public %s %s;\n", aszCs[ i ], szKey );
+      }
       fprintf( yyc, "}\n" );
       return;
    }

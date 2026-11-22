@@ -173,6 +173,8 @@ CASES_B = [
     ('shape.prg', 'W0041', "putting NUMERIC, a decimal, into \"Watts\" of 'hcLamp', a whole number"),
     ('shape.prg', 'W0041', "assigning HASH to 'hcAny', declared HbShape"),
     ('shape.prg', 'W0046', "'hcLamp' is a Lamp41z, a shape that declares no key \"Colour\""),
+    ('shape.prg', 'W0041', 'NIL for "Note", an OPTIONAL key of SHAPE Some41z: a key with no value is left out'),
+    ('shape.prg', 'W0041', "NIL for \"Count\", an OPTIONAL key of 'hcSome': a key with no value is left out"),
     ('member_named_class.prg', 'W0025', "member 'oW25Tally' is name-typed as class W25Tally but its call to 'Add' doesn't match"),
     ('typed_list.prg', 'W0041', "putting NUMERIC into 'aNames', declared STRING"),
     ('typed_list.prg', 'W0041', "assigning ARRAY to 'aNames', declared ARRAY<STRING>"),
@@ -229,7 +231,7 @@ def main():
     count_of("typed_hash.prg", "warning W00[34][15]", 7)
     # shapes: a literal's keys and values, what goes under a key, a key the
     # shape has not; and, the scan's, a key declared with no type
-    count_of("shape.prg", "warning W", 8)
+    count_of("shape.prg", "warning W", 10)
     out = scan_twice("shape.tab", "shape.prg")
     found = lines_matching(out, "warning W0021")
     result(len(found) == 1 and "Key 'Loose' of SHAPE Bare41z declares no type" in found[0],
