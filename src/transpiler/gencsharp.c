@@ -505,6 +505,7 @@ static const char * hb_csExprHbType( PHB_EXPR pExpr );
 static HB_BOOL hb_csIsRecordType( const char * szType );
 static void hb_csExpectLiteral( const char * szHbType, PHB_EXPR pExpr );
 static HB_BOOL hb_csCsTypeIs( const char * szCs, const char * szWant );
+static const char * hb_csTypeParamList( PHB_AST_NODE pFunc, int nParams );
 
 static HB_BOOL hb_csExprIsCsIntegral( PHB_EXPR pExpr )
 {
@@ -11358,7 +11359,8 @@ static void hb_csEmitMethodBody( PHB_AST_NODE pFunc, PHB_HFUNC pCompFunc,
          s_fVoidFunc = HB_FALSE;
          s_szRetHbType = szRetType;
       }
-      fprintf( yyc, " %s(", szDeclName ? szDeclName : pFunc->value.asFunc.szName );
+      fprintf( yyc, " %s%s(", szDeclName ? szDeclName : pFunc->value.asFunc.szName,
+               hb_csTypeParamList( pFunc, ( int ) pCompFunc->wParamCount ) );
    }
 
    /* Parameters */

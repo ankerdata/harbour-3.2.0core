@@ -187,7 +187,6 @@ CASES_B = [
     ('generic.prg', 'W0049', "the call to 'Pick49g' passes nothing for 'xDefault'"),
     ('generic.prg', 'W0049', "the call to 'Pick49g' passes NIL for 'xDefault'"),
     ('generic.prg', 'W0040', "'aItems' is declared ARRAY<T>: a type parameter"),
-    ('generic.prg', 'W0040', "'aList' is declared ARRAY<T>: a type parameter"),
     ('array_names.prg', 'W0035', "'acNames' is declared ARRAY<INTEGER>, but its name declares ARRAY<STRING>"),
     ('array_names.prg', 'W0041', "assigning ARRAY to 'aiIds', declared ARRAY<INTEGER>"),
     ('array_names.prg', 'W0041', "putting NUMERIC, a decimal, into 'aiIds', a List<long>"),
@@ -229,7 +228,7 @@ def main():
     count_of("list_escape.prg", "warning W", 2)
     # generic functions: a call's arguments bind T one way, and T is only a
     # function's own ARRAY OF T
-    count_of("generic.prg", "warning W", 9)
+    count_of("generic.prg", "warning W", 8)
     # array names: a declaration its name contradicts, and what such an
     # array cannot take
     count_of("array_names.prg", "warning W", 5)

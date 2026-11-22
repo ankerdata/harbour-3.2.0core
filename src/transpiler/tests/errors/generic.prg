@@ -1,7 +1,8 @@
 // Generic functions (plan C12): `AS ARRAY OF T` is bound at each call by
 // the arguments. W0041 for an argument that would bind T otherwise, for a
 // FIXED array (a C# array, no List) and for a literal element the binding
-// refuses; W0040 for T anywhere but a function's own ARRAY OF T. The lines
+// refuses; W0040 for T nested or on a member (a method declares T as a
+// function does); W0049 for a default left out or NIL. The lines
 // marked "quiet" must not warn.
 
 #include "hbclass.ch"
@@ -48,6 +49,6 @@ CLASS Box41g
    METHOD Put41g( aList AS ARRAY OF T )
 ENDCLASS
 
-METHOD Put41g( aList AS ARRAY OF T ) CLASS Box41g    // fires W0040: a method's parameter
+METHOD Put41g( aList AS ARRAY OF T ) CLASS Box41g    // quiet: the method's own T
    ::aItems := aList
 RETURN Self

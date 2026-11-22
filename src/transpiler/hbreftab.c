@@ -1582,6 +1582,12 @@ const char * hb_refTabReturnType( PHB_REFTAB pTab, const char * szFunc )
    if( ! pTab || ! szFunc )
       return NULL;
    e = hb_refTabFindEntry( pTab, szFunc, NULL );
+   /* a method that answers its own type parameter (`METHOD M( xDefault AS
+      T ) AS T`): what a send of it answers is the caller's argument's
+      type, which C# works out; here it is any type. A function's T is
+      bound call by call (hb_astTypeParamSubst). */
+   if( e && e->szReturnType && strstr( szFunc, "::" ) && hb_astIsTypeParam( e->szReturnType ) )
+      return "USUAL";
    return e ? e->szReturnType : NULL;
 }
 

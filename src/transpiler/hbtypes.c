@@ -834,11 +834,10 @@ const char * hb_astTypeParamSubst( const char * szType, const char * const * asz
 /* The letters (A to Z, each once) a function's parameters (the first
    nParams of its variable records, which list its locals after them; all of
    them when nParams is negative) and its return declare as type
-   parameters, in szBuf (27 bytes); "" for a method, whose class declares
-   no type parameters */
+   parameters, in szBuf (27 bytes). A method declares its own as a function
+   does: the method is generic, its class is not. */
 const char * hb_astFuncTypeParams( PHB_AST_NODE pFunc, int nParams, char * szBuf )
 {
-   PHB_AST_NODE pFirst = NULL;
    PHB_HVAR pVar;
    HB_BOOL aHas[ HB_AST_TYPEPARAMS ];
    int i, n = 0;
@@ -846,10 +845,6 @@ const char * hb_astFuncTypeParams( PHB_AST_NODE pFunc, int nParams, char * szBuf
 
    szBuf[ 0 ] = '\0';
    if( ! pFunc || pFunc->type != HB_AST_FUNCTION )
-      return szBuf;
-   if( pFunc->value.asFunc.pBody && pFunc->value.asFunc.pBody->type == HB_AST_BLOCK )
-      pFirst = pFunc->value.asFunc.pBody->value.asBlock.pFirst;
-   if( pFirst && pFirst->type == HB_AST_CLASSMETHOD && pFirst->value.asClassMethod.szClass )
       return szBuf;
    memset( aHas, 0, sizeof( aHas ) );
    for( pVar = pFunc->value.asFunc.pParams, i = 0;

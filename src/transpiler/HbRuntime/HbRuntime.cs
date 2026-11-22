@@ -291,12 +291,14 @@ public static partial class HbRuntime
         if (x is null)
             return default!;
         Type want = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
-        if (want == typeof(long) && x is decimal n)
+        // a whole T of any width: an int where the call wrote `0`, a long
+        // where the emitter wrote `0L`
+        if (x is decimal n && (want == typeof(long) || want == typeof(int) || want == typeof(short)))
         {
             if (n != Math.Truncate(n))
                 throw new InvalidCastException(
                     $"{n.ToString(System.Globalization.CultureInfo.InvariantCulture)} where a whole number is expected: the caller's default says so");
-            return (T) (object) (long) n;
+            return (T) Convert.ChangeType(n, want, System.Globalization.CultureInfo.InvariantCulture);
         }
         if (want == typeof(decimal) && x is long or int)
             return (T) (object) Convert.ToDecimal(x, System.Globalization.CultureInfo.InvariantCulture);
