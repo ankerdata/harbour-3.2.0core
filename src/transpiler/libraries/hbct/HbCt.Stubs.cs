@@ -8,6 +8,4 @@ using System;
 
 public static partial class HbCt
 {
-    public static dynamic DoY(params dynamic[] args) => throw new NotImplementedException(nameof(DoY));
-    public static dynamic IsLeap(params dynamic[] args) => throw new NotImplementedException(nameof(IsLeap));
 }

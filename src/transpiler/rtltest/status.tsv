@@ -9,15 +9,15 @@ AAdd	implemented	1616	5	0	0	0	0	0
 Str	implemented	985	172	0	0	0	0	0
 Chr	implemented	972	60	0	0	0	0	0
 Left	implemented	741	7	0	0	0	0	0
-Val	implemented	664	0	0	0	0	0	0
 LTrim	implemented	662	15	0	0	0	0	0
 hb_bitAnd	implemented	612	9	0	0	0	0	0
 AllTrim	implemented	567	20	0	0	0	0	0
 SubStr	implemented	530	30	0	0	0	0	0
 Space	implemented	525	6	0	0	0	0	0
-Int	implemented	459	15	0	0	0	0	0
+Int	implemented	511	15	0	0	0	0	0
+Val	implemented	505	0	0	0	0	0	0
 StrZero	implemented	456	69	0	0	0	0	0
-Round	implemented	414	94	0	0	0	0	0
+Round	implemented	418	94	0	0	0	0	0
 Date	implemented	392	0	0	0	0	0	0
 StrTran	implemented	381	7	0	0	0	0	0
 PadR	implemented	368	10	0	0	0	0	0
@@ -65,9 +65,9 @@ hb_HKeys	implemented	55	2	0	0	0	0	0
 hb_AIns	implemented	52	3	0	0	0	0	0
 hb_ADel	implemented	51	3	0	0	0	0	0
 hb_socketGetError	implemented	50	0	0	0	0	0	0
-Array	implemented	49	7	0	0	0	0	0
 hb_socketClose	implemented	47	0	0	0	0	0	0
 hb_MilliSeconds	implemented	46	1	0	0	0	0	0
+Array	implemented	45	7	0	0	0	0	0
 hb_jsonDecode	implemented	45	13	0	0	0	0	0
 hb_utf8Chr	implemented	45	0	0	0	0	0	0
 hb_DateTime	implemented	42	0	0	0	0	0	0
@@ -101,6 +101,7 @@ hb_Translate	implemented	22	0	0	0	0	0	0
 Directory	implemented	21	7	0	0	0	0	0
 hb_defaultValue	implemented	21	8	0	0	0	0	0
 hb_StrToHex	implemented	21	44	0	0	0	0	0
+SToD	implemented	21	2	0	0	0	0	0
 L2Bin	implemented	20	10	0	0	0	0	0
 DoW	implemented	18	14	0	0	0	0	0
 hb_socketSend	implemented	18	0	0	0	0	0	0
@@ -116,7 +117,6 @@ hb_threadWait	implemented	15	0	0	0	0	0	0
 hb_NumToHex	implemented	13	4	0	0	0	0	0
 hb_socketOpen	implemented	13	12	0	0	0	0	0
 hb_socketRecv	implemented	13	0	0	0	0	0	0
-SToD	implemented	13	2	0	0	0	0	0
 hb_BRight	implemented	12	1	0	0	0	0	0
 hb_comMCR	implemented	12	0	0	0	0	0	0
 hb_Date	implemented	12	1	0	0	0	0	0
