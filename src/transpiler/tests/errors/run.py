@@ -406,6 +406,7 @@ def main():
     audit_case("audit_int_conflict.prg", "INT-CONFLICT")
     audit_case("audit_list_slot.prg", "LIST-SLOT")
     audit_case("audit_hash_any.prg", "HASH-ANY")
+    audit_case("audit_whole_n_typed.prg", "WHOLE-N-TYPED")
 
     print("")
     print("Results: %d passed, %d failed" % (passed, failed))

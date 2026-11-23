@@ -1323,6 +1323,10 @@ strongest. Later rungs override earlier ones.
    audit's HASH-ANY lists every hash variable, by name or declaration,
    given such a value, a FOR EACH variable over a plain array among
    them (tests/errors, audit_hash_any.prg).
+   The audit's WHOLE-N and its kin list the `n` locals C# keeps decimal;
+   one the scan has already made whole (every write a whole number, so a
+   `long` in C#) is WHOLE-N-TYPED: the type is right and the name is not
+   (tests/errors, audit_whole_n_typed.prg).
    W0041 checks a literal key by key: a key the shape has not, a key that
    is not a string constant, a value of another type (a decimal into a
    whole number), and a key of the shape the literal leaves out, since

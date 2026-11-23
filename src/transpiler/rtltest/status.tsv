@@ -4,7 +4,7 @@
 # function	state	app calls	pass	fail	quarantine	missing	harbour	also in
 Empty	implemented	2552	41	0	0	0	0	0
 RTrim	implemented	2501	15	0	0	0	0	0
-Len	implemented	2423	41	0	0	0	0	0
+Len	implemented	2425	41	0	0	0	0	0
 AAdd	implemented	1612	5	0	0	0	0	0
 Str	implemented	985	172	0	0	0	0	0
 Chr	implemented	972	60	0	0	0	0	0
@@ -80,11 +80,11 @@ hb_mutexCreate	implemented	34	10	0	0	0	0	0
 Lower	implemented	33	13	0	0	0	0	0
 hb_idleSleep	implemented	32	0	0	0	0	0	0
 hb_eol	implemented	31	1	0	0	0	0	0
-AEval	implemented	30	4	0	0	0	0	0
 hb_MemoRead	implemented	29	2	0	0	0	0	0
 hb_BCode	implemented	28	2	0	0	0	0	0
 hb_DToC	implemented	27	3	0	0	0	0	0
 hb_ps	implemented	27	1	0	0	0	0	0
+AEval	implemented	26	4	0	0	0	0	0
 DToS	implemented	26	17	0	0	0	0	0
 ErrorBlock	implemented	26	2	0	0	0	0	0
 hb_socketErrorString	implemented	26	5	0	0	0	0	0

@@ -388,6 +388,9 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 name (scripts/rename_locals.py).\n"
 "#   WHOLE-N       an `n` local every write to which is a whole number,\n"
 "#                 never passed by @. Fix: an `i` name (rename_locals.py).\n"
+"#   WHOLE-N-TYPED an `n` local the scan has already made a whole number, a\n"
+"#                 long in C#: the type is right and the name is not. Fix: an\n"
+"#                 `i` name; the C# does not change.\n"
 "#   WHOLE-N-BLOCKED  an `n` local given a whole number and no fraction, but\n"
 "#                 one value the scan cannot prove whole: that value, the\n"
 "#                 source fix to make (AS INTEGER, IntVal(), an `i` name).\n"
@@ -6304,6 +6307,24 @@ static void hb_astWidenEmit( PHB_AST_NODE pFunc, PHB_AST_NODE pBody, HB_TYPEENV 
       char         szDetail[ 400 ];
       int          iDecl = 0;
 
+      /* WHOLE-N-TYPED: an `n` local the scan has made a whole number
+         already, a long in C#. Its type is right and its name is not; the
+         rows below list only the `n` locals C# keeps decimal, so these
+         were on no list. */
+      if( szT && strcmp( szT, "INTEGER" ) == 0 &&
+          hb_astWidenLocal( pBody, szName, &iDecl ) )
+      {
+         const char * szPrefix = hb_astInferType( szName, NULL );
+         if( szPrefix && strcmp( szPrefix, "NUMERIC" ) == 0 )
+         {
+            hb_snprintf( szSym, sizeof( szSym ), "%s:%s", pEnv->szFuncKey, szName );
+            hb_snprintf( szDetail, sizeof( szDetail ),
+                         "%s is a whole number already, a long in C#, and named a decimal", szName );
+            hb_auditEmit( "WHOLE-N-TYPED", pEnv->szFile, iDecl, szSym, szDetail,
+                          "an i name (rename_locals.py)" );
+         }
+         continue;
+      }
       if( ! szT || strcmp( szT, "NUMERIC" ) != 0 ||
           ! hb_astWidenLocal( pBody, szName, &iDecl ) )
          continue;
