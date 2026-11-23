@@ -1316,6 +1316,13 @@ strongest. Later rungs override earlier ones.
    anything says so, `Key AS USUAL` (a message's payload; test189): a
    `dynamic` field, where a variable's `AS USUAL` declares nothing its
    prefix does not and a key with no `AS` at all is W0021.
+   A shape is a class in C# and a hash only to Harbour, so a shape that
+   reaches a hash-named variable through a value of no known type (an
+   element of a plain array, an untyped member's value) is converted to
+   a dictionary at run time and throws. The scan cannot see it; the
+   audit's HASH-ANY lists every hash variable, by name or declaration,
+   given such a value, a FOR EACH variable over a plain array among
+   them (tests/errors, audit_hash_any.prg).
    W0041 checks a literal key by key: a key the shape has not, a key that
    is not a string constant, a value of another type (a decimal into a
    whole number), and a key of the shape the literal leaves out, since

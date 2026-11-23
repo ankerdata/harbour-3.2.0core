@@ -419,6 +419,12 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 array, it throws.\n"
 "#                 Fix: check every reader takes it element by element, or\n"
 "#                 type the container.\n"
+"#   HASH-ANY      a variable that is a hash by its name or declaration,\n"
+"#                 given a value of no known type (an element of a plain\n"
+"#                 array, an untyped member's or parameter's value): C#\n"
+"#                 converts it to a dictionary at run time, and a shape in\n"
+"#                 it throws. Fix: type where the value comes from, or\n"
+"#                 declare the variable AS SHAPE.\n"
 "#   A-LOCAL       what each undeclared `a` local holds; audit.py moves the\n"
 "#                 rows to a-locals.tsv.\n"
 "#   EXACT-BLANKS  a string !=, <>, <, <=, >, >= or AScan() with a side that\n"
@@ -8036,6 +8042,52 @@ static HB_BOOL hb_astHungSeen( int iLine, const char * szName )
    return HB_FALSE;
 }
 
+/* HASH-ANY (audit only): a variable that is a hash by its name or its
+   declaration, given a value of no known type. C# holds the variable as a
+   dictionary and converts the value at run time: a shape in it (a class,
+   a hash only to Harbour) throws there and nowhere sooner. EasiWinLink's
+   held states came out of a plain array into `hcState` so. szRhs is the
+   value's type as far as the scan knows it, szFrom what the value is. A
+   hash by construction (a literal, hb_jsonDecode(), hb_HClone(), hb_Hash())
+   is no row. */
+static void hb_astAuditHashAny( const char * szName, const char * szRhs, PHB_EXPR pRHS,
+                                const char * szFrom, HB_TYPEENV * pEnv,
+                                const char * szFile, int iLine )
+{
+   const char * szLhs;
+   char szSym[ 320 ];
+   char szMsg[ 360 ];
+
+   if( ! hb_auditActive() || ! szName )
+      return;
+   if( szRhs && hb_stricmp( szRhs, "USUAL" ) != 0 )
+      return;
+   szLhs = hb_typeEnvIsDeclared( pEnv, szName ) ? hb_typeEnvGet( pEnv, szName ) :
+           hb_astInferType( szName, NULL );
+   if( ! szLhs || ! hb_astIsHashFamily( szLhs ) )
+      return;
+   if( pRHS )
+   {
+      if( pRHS->ExprType == HB_ET_NIL || pRHS->ExprType == HB_ET_HASH )
+         return;
+      if( pRHS->ExprType == HB_ET_FUNCALL && pRHS->value.asFunCall.pFunName &&
+          pRHS->value.asFunCall.pFunName->ExprType == HB_ET_FUNNAME )
+      {
+         const char * szFunc = pRHS->value.asFunCall.pFunName->value.asSymbol.name;
+         if( hb_stricmp( szFunc, "HB_JSONDECODE" ) == 0 || hb_stricmp( szFunc, "HB_HCLONE" ) == 0 ||
+             hb_stricmp( szFunc, "HB_HASH" ) == 0 )
+            return;
+      }
+   }
+   hb_snprintf( szSym, sizeof( szSym ), "%s:%s", pEnv->szFuncKey, szName );
+   hb_snprintf( szMsg, sizeof( szMsg ), "%s, a hash by its %s, is given %s, of no known type: "
+                "a shape in it throws at run time", szName,
+                hb_typeEnvIsDeclared( pEnv, szName ) ? "declaration" : "name", szFrom );
+   hb_auditEmit( "HASH-ANY", szFile, iLine, szSym, szMsg,
+                 "type where the value comes from, or declare the variable AS SHAPE if it "
+                 "holds one" );
+}
+
 static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
                                   HB_TYPEENV * pEnv, const char * szFile,
                                   int iLine )
@@ -8045,6 +8097,13 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
 
    if( ! szName || ! pRHS )
       return;
+   if( hb_auditActive() )
+   {
+      char szLabel[ 140 ];
+      hb_astValueLabel( pRHS, szLabel, sizeof( szLabel ) );
+      hb_astAuditHashAny( szName, hb_astInferExprType( pRHS, pEnv ), pRHS, szLabel,
+                          pEnv, szFile, iLine );
+   }
    /* A declared variable's contract is its declaration, not its prefix:
       what is assigned must be what it declares (W0041). */
    if( hb_typeEnvIsDeclared( pEnv, szName ) )
@@ -8380,6 +8439,34 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
             hb_astCheckHungarianMismatch( pStmt->value.asFor.pBody, pEnv, szFile );
             break;
          case HB_AST_FOREACH:
+            /* one variable over one collection: what the collection's
+               elements are, as far as the scan knows, is what it is given */
+            if( hb_auditActive() )
+            {
+               PHB_EXPR pVar = pStmt->value.asForEach.pVar;
+               PHB_EXPR pEnum = pStmt->value.asForEach.pEnum;
+               while( pVar && ( pVar->ExprType == HB_ET_LIST || pVar->ExprType == HB_ET_ARGLIST ) &&
+                      pVar->value.asList.pExprList && ! pVar->value.asList.pExprList->pNext )
+                  pVar = pVar->value.asList.pExprList;
+               while( pEnum && ( pEnum->ExprType == HB_ET_LIST || pEnum->ExprType == HB_ET_ARGLIST ) &&
+                      pEnum->value.asList.pExprList && ! pEnum->value.asList.pExprList->pNext )
+                  pEnum = pEnum->value.asList.pExprList;
+               /* the variable is a reference there */
+               if( pVar && ( pVar->ExprType == HB_ET_VARIABLE || pVar->ExprType == HB_ET_VARREF ) &&
+                   pEnum && pEnum->ExprType != HB_ET_LIST && pEnum->ExprType != HB_ET_ARGLIST )
+               {
+               const char * szColl = hb_astInferExprType( pEnum, pEnv );
+               const char * szElem = ! szColl ? NULL :
+                                     hb_astIsTypedList( szColl ) ? hb_astArrayElemType( szColl ) :
+                                     hb_astIsHashFamily( szColl ) ? hb_astHashValueType( szColl ) : NULL;
+               char szLabel[ 140 ];
+               char szFrom[ 180 ];
+               hb_astValueLabel( pEnum, szLabel, sizeof( szLabel ) );
+               hb_snprintf( szFrom, sizeof( szFrom ), "each element of %s", szLabel );
+               hb_astAuditHashAny( pVar->value.asSymbol.name, szElem, NULL,
+                                   szFrom, pEnv, szFile, pStmt->iLine );
+               }
+            }
             hb_astCheckHungarianMismatch( pStmt->value.asForEach.pBody, pEnv, szFile );
             break;
          case HB_AST_DOWHILE:

@@ -40,7 +40,7 @@ DToC	implemented	154	2	0	0	0	0	0
 hb_default	implemented	147	0	0	0	0	0	0
 Seconds	implemented	138	1	0	0	0	0	0
 CToD	implemented	133	3	0	0	0	0	0
-hb_jsonEncode	implemented	128	17	0	0	0	0	0
+hb_jsonEncode	implemented	129	17	0	0	0	0	0
 AScan	implemented	115	27	0	0	0	0	0
 Transform	implemented	112	528	0	0	0	0	0
 hb_mutexUnlock	implemented	98	0	0	0	0	0	0
@@ -52,7 +52,7 @@ hb_mutexLock	implemented	92	0	0	0	0	0	0
 PadC	implemented	92	10	0	0	0	0	0
 Eval	implemented	84	4	0	0	0	0	0
 hb_BSubStr	implemented	82	2	0	0	0	0	0
-Right	implemented	80	10	0	0	0	0	0
+Right	implemented	81	10	0	0	0	0	0
 FErase	implemented	72	10	0	0	0	0	0
 hb_cdpSelect	implemented	70	1	0	0	0	0	0
 RAt	implemented	67	20	0	0	0	0	0
@@ -71,10 +71,10 @@ hb_MilliSeconds	implemented	46	1	0	0	0	0	0
 hb_jsonDecode	implemented	45	13	0	0	0	0	0
 hb_utf8Chr	implemented	45	0	0	0	0	0	0
 hb_DateTime	implemented	42	0	0	0	0	0	0
+Set	implemented	42	28	0	0	0	0	0
 AFill	implemented	41	3	0	0	0	0	0
 FRead	implemented	41	7	0	0	0	0	0
 PadL	implemented	40	9	0	0	0	0	0
-Set	implemented	40	28	0	0	0	0	0
 ASort	implemented	37	46	0	0	0	0	0
 hb_mutexCreate	implemented	34	10	0	0	0	0	0
 Lower	implemented	33	13	0	0	0	0	0
@@ -137,6 +137,7 @@ hb_argv	implemented	9	4	0	0	0	0	0
 hb_base64Encode	implemented	9	7	0	0	0	0	0
 hb_socketConnect	implemented	9	0	0	0	0	0	0
 hb_FCreate	implemented	8	1	0	0	0	0	0
+hb_HGet	implemented	8	2	0	0	0	0	0
 MemoRead	implemented	8	7	0	0	0	0	0
 __SetCentury	implemented	8	0	0	0	0	0	0
 ATail	implemented	7	7	0	0	0	0	0
@@ -150,7 +151,6 @@ hb_comRecv	implemented	6	2	0	0	0	0	0
 hb_DirExists	implemented	6	4	0	0	0	0	0
 hb_DirSepAdd	implemented	6	4	0	0	0	0	0
 hb_HexToStr	implemented	6	2	0	0	0	0	0
-hb_HGet	implemented	6	2	0	0	0	0	0
 HB_ISARRAY	implemented	6	6	0	0	0	0	0
 hb_socketShutdown	implemented	6	0	0	0	0	0	0
 hb_StrToUTF8	implemented	6	1	0	0	0	0	0
