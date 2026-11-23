@@ -2,21 +2,21 @@
 # it is the subject of (their outermost call), and how many other
 # failing assertions it takes part in.
 # function	state	app calls	pass	fail	quarantine	missing	harbour	also in
-Empty	implemented	2552	41	0	0	0	0	0
-RTrim	implemented	2501	15	0	0	0	0	0
-Len	implemented	2425	41	0	0	0	0	0
-AAdd	implemented	1612	5	0	0	0	0	0
+Empty	implemented	2550	41	0	0	0	0	0
+RTrim	implemented	2503	15	0	0	0	0	0
+Len	implemented	2431	41	0	0	0	0	0
+AAdd	implemented	1616	5	0	0	0	0	0
 Str	implemented	985	172	0	0	0	0	0
 Chr	implemented	972	60	0	0	0	0	0
 Left	implemented	741	7	0	0	0	0	0
-Val	implemented	710	0	0	0	0	0	0
+Val	implemented	664	0	0	0	0	0	0
 LTrim	implemented	662	15	0	0	0	0	0
 hb_bitAnd	implemented	612	9	0	0	0	0	0
 AllTrim	implemented	567	20	0	0	0	0	0
 SubStr	implemented	530	30	0	0	0	0	0
 Space	implemented	525	6	0	0	0	0	0
+Int	implemented	459	15	0	0	0	0	0
 StrZero	implemented	456	69	0	0	0	0	0
-Int	implemented	439	15	0	0	0	0	0
 Round	implemented	414	94	0	0	0	0	0
 Date	implemented	392	0	0	0	0	0	0
 StrTran	implemented	381	7	0	0	0	0	0
@@ -41,8 +41,8 @@ hb_default	implemented	147	0	0	0	0	0	0
 Seconds	implemented	138	1	0	0	0	0	0
 CToD	implemented	133	3	0	0	0	0	0
 hb_jsonEncode	implemented	129	17	0	0	0	0	0
-AScan	implemented	115	27	0	0	0	0	0
 Transform	implemented	112	528	0	0	0	0	0
+AScan	implemented	107	27	0	0	0	0	0
 hb_mutexUnlock	implemented	98	0	0	0	0	0	0
 FOpen	implemented	97	3	0	0	0	0	0
 FSeek	implemented	94	42	0	0	0	0	0
@@ -56,16 +56,16 @@ Right	implemented	81	10	0	0	0	0	0
 FErase	implemented	72	10	0	0	0	0	0
 hb_cdpSelect	implemented	70	1	0	0	0	0	0
 RAt	implemented	67	20	0	0	0	0	0
-AClone	implemented	66	4	0	0	0	0	0
 ASize	implemented	66	8	0	0	0	0	0
+AClone	implemented	64	4	0	0	0	0	0
 hb_HSet	implemented	64	0	0	0	0	0	0
 hb_HGetDef	implemented	60	4	0	0	0	0	0
 hb_BLeft	implemented	59	2	0	0	0	0	0
 hb_HKeys	implemented	55	2	0	0	0	0	0
 hb_AIns	implemented	52	3	0	0	0	0	0
-Array	implemented	51	7	0	0	0	0	0
 hb_ADel	implemented	51	3	0	0	0	0	0
 hb_socketGetError	implemented	50	0	0	0	0	0	0
+Array	implemented	49	7	0	0	0	0	0
 hb_socketClose	implemented	47	0	0	0	0	0	0
 hb_MilliSeconds	implemented	46	1	0	0	0	0	0
 hb_jsonDecode	implemented	45	13	0	0	0	0	0
@@ -84,13 +84,13 @@ hb_MemoRead	implemented	29	2	0	0	0	0	0
 hb_BCode	implemented	28	2	0	0	0	0	0
 hb_DToC	implemented	27	3	0	0	0	0	0
 hb_ps	implemented	27	1	0	0	0	0	0
-AEval	implemented	26	4	0	0	0	0	0
 DToS	implemented	26	17	0	0	0	0	0
 ErrorBlock	implemented	26	2	0	0	0	0	0
 hb_socketErrorString	implemented	26	5	0	0	0	0	0
 Year	implemented	26	4	0	0	0	0	0
 hb_HKeyAt	implemented	25	2	0	0	0	0	0
 hb_ntos	implemented	25	2	0	0	0	0	0
+AEval	implemented	24	4	0	0	0	0	0
 Asc	implemented	23	8	0	0	0	0	0
 hb_TToC	implemented	23	27	0	0	0	0	0
 Max	implemented	23	1	0	0	0	0	0
@@ -143,7 +143,6 @@ __SetCentury	implemented	8	0	0	0	0	0	0
 ATail	implemented	7	7	0	0	0	0	0
 hb_BAt	implemented	7	6	0	0	0	0	0
 hb_UTF8ToStr	implemented	7	1	0	0	0	0	0
-ACopy	implemented	6	36	0	0	0	0	0
 hb_comFlowControl	implemented	6	0	0	0	0	0	0
 hb_comFlowSet	implemented	6	1	0	0	0	0	0
 hb_comGetError	implemented	6	2	0	0	0	0	0
@@ -156,6 +155,7 @@ hb_socketShutdown	implemented	6	0	0	0	0	0	0
 hb_StrToUTF8	implemented	6	1	0	0	0	0	0
 hb_ZCompress	implemented	6	0	0	0	0	0	0
 hb_bitShift	implemented	5	5	0	0	0	0	0
+ACopy	implemented	4	36	0	0	0	0	0
 Bin2W	implemented	4	9	0	0	0	0	0
 DiskSpace	implemented	4	1	0	0	0	0	0
 FRename	implemented	4	5	0	0	0	0	0
