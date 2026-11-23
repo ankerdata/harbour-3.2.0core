@@ -404,6 +404,7 @@ def main():
     # the audit's categories: each on the lines its file marks, no other
     audit_case("audit_exact_blanks.prg", "EXACT-BLANKS")
     audit_case("audit_int_conflict.prg", "INT-CONFLICT")
+    audit_case("audit_list_slot.prg", "LIST-SLOT")
 
     print("")
     print("Results: %d passed, %d failed" % (passed, failed))

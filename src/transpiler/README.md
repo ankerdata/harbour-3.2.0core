@@ -1160,6 +1160,10 @@ strongest. Later rungs override earlier ones.
    or parameter holds a typed list as it is (ToString() reads it so); an
    element of a plain array or a hash's value is the audit's LIST-SLOT,
    since it throws only where something reads it back as a plain array.
+   A value in a shape's literal goes to its key's declared type, so a
+   typed list under a key declared as that list is no row, and one under
+   a key declared a plain `ARRAY` is W0041 (tests/errors,
+   audit_list_slot.prg).
    An assignment inside an expression (`Len( a := f() )`, `IF ( n := At(
    … ) ) > 0`) types its variable as the same assignment made a statement
    does. `Array( n )` given to a typed list, and `LOCAL acNames[ n ]`, is

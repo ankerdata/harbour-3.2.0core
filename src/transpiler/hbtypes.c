@@ -6747,8 +6747,9 @@ static const char * hb_astFileStaticFieldType( const char * szName, PHB_REFTAB p
    walks), but only where it is: LIST-SLOT, audit only. A `{ … }` literal
    is checked element by element against where it goes, as the generator
    types it (hb_csExpectLiteral): a record's field by its type, a list's
-   element by the list's, a plain array's element or a hash's value as a
-   dynamic slot. A typed destination is the declared checks' (W0041). */
+   element by the list's, a shape's value by its key's, a plain array's
+   element or a hash's value as a dynamic slot. A typed destination is the
+   declared checks' (W0041). */
 static void hb_astEscapeCheckExpr( const char * szDest, HB_BOOL fSlot, PHB_EXPR pExpr,
                                    HB_TYPEENV * pEnv, int iLine, const char * szWhere )
 {
@@ -6781,14 +6782,29 @@ static void hb_astEscapeCheckExpr( const char * szDest, HB_BOOL fSlot, PHB_EXPR 
    }
    if( pExpr->ExprType == HB_ET_HASH )
    {
-      const char * szVal = hb_astHashValueType( szDest );
+      /* a shape's literal: each value goes to its key's declared type */
+      HB_BOOL      fShape = szDest && pEnv->pRefTab &&
+                            hb_astIsShapeType( pEnv->pRefTab, szDest );
+      const char * szVal = fShape ? NULL : hb_astHashValueType( szDest );
       PHB_EXPR     pItem;
-      HB_BOOL      fValue = HB_FALSE;   /* keys and values alternate */
+      PHB_EXPR     pKey = NULL;         /* keys and values alternate */
       for( pItem = pExpr->value.asList.pExprList; pItem; pItem = pItem->pNext )
       {
-         if( fValue )
+         if( ! pKey )
+         {
+            pKey = pItem;
+            continue;
+         }
+         if( fShape )
+         {
+            int iPos = hb_astShapeIndexPos( pEnv->pRefTab, szDest, pKey );
+            if( iPos )
+               hb_astEscapeCheckExpr( hb_astRecordFieldType( pEnv->pRefTab, szDest, iPos ),
+                                      HB_FALSE, pItem, pEnv, iLine, "given to a shape's key" );
+         }
+         else
             hb_astEscapeCheckExpr( szVal, HB_TRUE, pItem, pEnv, iLine, "put into a hash" );
-         fValue = ! fValue;
+         pKey = NULL;
       }
       return;
    }
