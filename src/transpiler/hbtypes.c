@@ -416,6 +416,10 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 the parameter is no whole number.\n"
 "#   NARROW-RET    a decimal returned from a function declared AS INTEGER,\n"
 "#                 cast to long the same way.\n"
+"#   NARROW-ASSIGN a decimal written into a whole-number (`i`) local, static\n"
+"#                 or parameter, by := or a compound assignment: cast to\n"
+"#                 long the same way. Fix: the value whole at its source\n"
+"#                 (IntVal(), Int(), an i name), or the name is an n name.\n"
 "#   LIST-SLOT     a typed list (a List<string>, List<long> or List<decimal>)\n"
 "#                 or a record put into an element of a plain array or a\n"
 "#                 hash's value, a dynamic slot: read back as a plain\n"
@@ -8109,6 +8113,25 @@ static void hb_astAuditHashAny( const char * szName, const char * szRhs, PHB_EXP
                  "holds one" );
 }
 
+/* NARROW-ASSIGN: a decimal the scan cannot prove whole, written into an `i`
+   name. The emitter casts it (long), and a fraction it holds is lost
+   without a word from C#. */
+static void hb_astAuditNarrowAssign( const char * szName, PHB_EXPR pRHS,
+                                     HB_TYPEENV * pEnv, const char * szFile,
+                                     int iLine )
+{
+   const char * szRhs;
+
+   if( ! hb_auditActive() || ! szName || ! pRHS || ! hb_astIsIntegerName( szName ) )
+      return;
+   szRhs = hb_astInferExprType( pRHS, pEnv );
+   if( ! szRhs || hb_stricmp( szRhs, "NUMERIC" ) != 0 || hb_astIsWholeValue( pRHS, pEnv ) )
+      return;
+   hb_auditEmit( "NARROW-ASSIGN", szFile, iLine, szName,
+                 "a decimal written into a whole-number name, cast (long)",
+                 "make the value whole (IntVal(), Int(), an i name), or the name n" );
+}
+
 static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
                                   HB_TYPEENV * pEnv, const char * szFile,
                                   int iLine )
@@ -8118,6 +8141,7 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
 
    if( ! szName || ! pRHS )
       return;
+   hb_astAuditNarrowAssign( szName, pRHS, pEnv, szFile, iLine );
    if( hb_auditActive() )
    {
       char szLabel[ 140 ];
@@ -8206,8 +8230,8 @@ static void hb_astCheckOneAssign( const char * szName, PHB_EXPR pRHS,
    right side may hold one (`iX *= 1.5`). C#'s `long /= long` is integer
    division, so without this `iX /= 2` would truncate where Harbour keeps
    the half. */
-static void hb_astCheckIntegerCompound( PHB_EXPR pExpr, const char * szFile,
-                                        int iLine )
+static void hb_astCheckIntegerCompound( PHB_EXPR pExpr, HB_TYPEENV * pEnv,
+                                        const char * szFile, int iLine )
 {
    /* spelt in the order of the HB_EO_PLUSEQ .. HB_EO_EXPEQ enum */
    static const char * s_szOp[] = { "+=", "-=", "*=", "/=", "%=", "^=" };
@@ -8217,6 +8241,7 @@ static void hb_astCheckIntegerCompound( PHB_EXPR pExpr, const char * szFile,
 
    if( ! hb_astIsIntegerName( szName ) )
       return;
+   hb_astAuditNarrowAssign( szName, pExpr->value.asOperator.pRight, pEnv, szFile, iLine );
    if( ! fDivides && ! hb_astMayHoldFraction( pExpr->value.asOperator.pRight ) )
       return;
    if( hb_astHungSeen( iLine, szName ) )
@@ -8438,7 +8463,7 @@ static void hb_astCheckHungarianMismatch( PHB_AST_NODE pBlock,
                         pExpr->ExprType <= HB_EO_EXPEQ &&
                         pExpr->value.asOperator.pLeft &&
                         pExpr->value.asOperator.pLeft->ExprType == HB_ET_VARIABLE )
-                  hb_astCheckIntegerCompound( pExpr, szFile, pStmt->iLine );
+                  hb_astCheckIntegerCompound( pExpr, pEnv, szFile, pStmt->iLine );
             }
             break;
          case HB_AST_FOR:
