@@ -2570,6 +2570,12 @@ static const char * hb_csSendRefKey( PHB_EXPR pObj, const char * szMethod,
    entry, as the ref-shim map is, so nested calls do not inherit it. */
 static const char * s_szGapNameKey = NULL;
 
+/* Set with it when that row is a method of the class being emitted: the
+   receiver is something else that answers the same message (a connector's
+   proxy called from its wrapper's method of that name), so the row names
+   the gaps but does not type the arguments. Consumed with the key. */
+static HB_BOOL s_fGapOwnMethod = HB_FALSE;
+
 /* Set by a function call (HB_ET_FUNCALL) just before its arguments:
    only a function has a short overload a call can bind, a method has
    none. Consumed on entry, as the ref-shim map is, so a nested send's
@@ -2615,6 +2621,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    const HB_BOOL * aShim = s_aRefShim;
    int            iShimBase = s_iRefShimBase;
    const char *   szGapKey = s_szGapNameKey;
+   HB_BOOL        fGapOwn = s_fGapOwnMethod;
    HB_BOOL        fFuncCall = s_fCallArgsFunc;
    /* The callee's reftab row: a file-static function's own
       `file::func`, else the bare name (resolved below). */
@@ -2622,6 +2629,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
    char           szRowKey[ 256 ];
    s_aRefShim = NULL;
    s_szGapNameKey = NULL;
+   s_fGapOwnMethod = HB_FALSE;
    s_fCallArgsFunc = HB_FALSE;
 
    if( ! pParms )
@@ -2935,7 +2943,7 @@ static void hb_csEmitCallArgs( const char * szFunc, PHB_EXPR pParms, FILE * yyc 
                model, `oTableIndexTable:GoTo( nRecNo )`) leaves szFunc ""
                — the row every class declaring the method shares types
                the slot, as it names a gap */
-            const HB_REFPARAM * pCast = ( ! pP && szGapKey )
+            const HB_REFPARAM * pCast = ( ! pP && szGapKey && ! fGapOwn )
                ? hb_refTabParam( s_pRefTab, szGapKey, iPos ) : pP;
             if( pP && ! pP->fByRef && pP->szNetType )
             {
@@ -6609,7 +6617,13 @@ static void hb_csEmitExpr( PHB_EXPR pExpr, FILE * yyc, HB_BOOL fParen )
                s_aRefShim = aSendShim;
                s_iRefShimBase = iSendShimBase;
                if( szKey && ! szKey[ 0 ] && szMsgIn && s_pRefTab )
+               {
+                  HB_SIZE nOwn = strlen( s_szCurrentClass );
                   s_szGapNameKey = hb_refTabUniformMethodKey( s_pRefTab, szMsgIn );
+                  s_fGapOwnMethod = s_szGapNameKey && nOwn > 0 &&
+                     hb_strnicmp( s_szGapNameKey, s_szCurrentClass, nOwn ) == 0 &&
+                     s_szGapNameKey[ nOwn ] == ':' && s_szGapNameKey[ nOwn + 1 ] == ':';
+               }
                hb_csEmitCallArgs( szKey, pExpr->value.asMessage.pParms, yyc );
                fprintf( yyc, ")" );
             }
