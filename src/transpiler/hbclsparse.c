@@ -154,6 +154,15 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
    {
       PHB_PP_TOKEN pElem = pTok->pNext->pNext;
       const char * szElem = NULL;
+      if( hb_clsTokenIs( pElem, "SHAPE" ) &&
+          ( ! pElem->pNext || HB_PP_TOKEN_TYPE( pElem->pNext->type ) != HB_PP_TOKEN_KEYWORD ||
+            hb_clsTokenIs( pElem->pNext, "CLASS" ) || hb_clsTokenIs( pElem->pNext, "OPTIONAL" ) ) )
+      {
+         /* `ARRAY OF SHAPE` with no name: a list of shapes of any kind */
+         szElem = "HbShape";
+         *piUsed = 3;
+      }
+      else
       if( ( hb_clsTokenIs( pElem, "CLASS" ) || hb_clsTokenIs( pElem, "RECORD" ) ||
             hb_clsTokenIs( pElem, "SHAPE" ) ) &&
           pElem->pNext &&

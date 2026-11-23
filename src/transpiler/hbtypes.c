@@ -625,6 +625,7 @@ HB_BOOL hb_astIsTypedList( const char * szType )
                       hb_astIsTypedList( szElem ) ||
                       hb_astIsRecordType( s_pPropRefTab, szElem ) ||
                       hb_astIsShapeType( s_pPropRefTab, szElem ) ||
+                      strcmp( szElem, "HbShape" ) == 0 ||
                       ( s_pPropRefTab && ! hb_astIsArrayType( szElem ) &&
                         hb_refTabIsListClass( ( PHB_REFTAB ) s_pPropRefTab, szElem ) ) );
 }
@@ -2819,7 +2820,7 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
          of the shape there, since Harbour's hash has the keys the literal
          names and the C# class has them all. `{ => }` is the shape with
          nothing set yet, built key by key after. */
-      HB_BOOL afSeen[ 64 ];
+      HB_BOOL afSeen[ 160 ];
       int nKeys = hb_astRecordFieldCount( pEnv->pRefTab, szDecl );
       int i, nMissing = 0;
       const char * szFirst = NULL;
@@ -2845,7 +2846,7 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
             hb_astDeclWarn( "W0041", szFile, iLine, szName, szMsg );
             continue;
          }
-         if( iPos <= 64 )
+         if( iPos <= 160 )
             afSeen[ iPos - 1 ] = HB_TRUE;
          /* an optional key with no value is one the literal leaves out:
             Harbour would send the NIL, and C# has nothing to send */
@@ -2877,7 +2878,7 @@ static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
                       pKey->value.asString.string, szDecl );
          hb_astDeclCheckExpr( szType, pItem->pNext, pEnv, szFile, iLine, szName, szInto );
       }
-      for( i = 1; i <= nKeys && i <= 64; i++ )
+      for( i = 1; i <= nKeys && i <= 160; i++ )
          if( ! afSeen[ i - 1 ] && ! hb_astShapeKeyOptional( pEnv->pRefTab, szDecl, i ) )
          {
             if( ! nMissing++ )

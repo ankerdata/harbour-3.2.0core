@@ -1594,7 +1594,9 @@ hb_comp_yylex_restart:
                      the grammar sees AS ARRAY */
                   HB_BOOL fArray = szElem && ( hb_stricmp( szElem, "INTEGER" ) == 0 ||
                                                hb_astArrayElemType( szElem ) != NULL ||
-                                               hb_astIsTypeParam( szElem ) );
+                                               hb_astIsTypeParam( szElem ) ||
+                                               /* `AS ARRAY OF SHAPE`, no name */
+                                               strcmp( szElem, "HbShape" ) == 0 );
                   /* and a handle (`AS HANDLE OF SOCKET`), a class the
                      words name */
                   HB_BOOL fHandle = pTypeTok && ( hb_stricmp( pTypeTok->value, "HANDLE" ) == 0 ||

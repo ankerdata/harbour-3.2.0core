@@ -16,7 +16,12 @@
 #include "hbfunctab.h"        /* hb_funcTabSiblingPath: hbclasses.tab beside hbfuncs.tab */
 
 #define HB_REFTAB_BUCKETS  1024  /* power of two */
-#define HB_REFTAB_MAXPARAM 64    /* hard cap; matches the by-ref bitmap width */
+#define HB_REFTAB_MAXPARAM 160   /* hard cap: a routine's parameters, a record's
+                                     fields, a shape's keys */
+/* The by-ref, nilable and call-arity bitmaps are 64 wide, which no
+   routine's parameters pass. A shape's keys may: one past the 64th has no
+   bit, and its OPTIONAL is kept on the slot itself (fNilable). */
+#define HB_REFBIT( i )     ( ( i ) >= 0 && ( i ) < 64 ? ( ( HB_U64 ) 1 ) << ( i ) : ( HB_U64 ) 0 )
 
 typedef struct HB_REFENTRY_
 {
@@ -480,9 +485,9 @@ void hb_refTabAddFunc( PHB_REFTAB    pTab,
 
          /* Carry forward any byref / nilable / conflict flags. */
          e->pParams[ i ].fByRef =
-            ( e->bitmap  & ( ( ( HB_U64 ) 1 ) << i ) ) != 0;
+            ( e->bitmap  & HB_REFBIT( i ) ) != 0;
          e->pParams[ i ].fNilable =
-            ( e->nilbits & ( ( ( HB_U64 ) 1 ) << i ) ) != 0;
+            ( e->nilbits & HB_REFBIT( i ) ) != 0;   /* past the bitmap: set again by its declaration */
          e->pParams[ i ].fConflict = fOldConflict[ i ];
          e->pParams[ i ].fReassigned = fOldReassigned[ i ];
          e->pParams[ i ].fDeclDefault = fOldDeclDefault[ i ];
@@ -514,7 +519,7 @@ void hb_refTabMark( PHB_REFTAB pTab, const char * szFunc, int iPos )
       return;
 
    e = hb_refTabFindOrCreate( pTab, szFunc );
-   e->bitmap |= ( ( HB_U64 ) 1 ) << iPos;
+   e->bitmap |= HB_REFBIT( iPos );
    /* If we already have the parameter list, sync the per-slot flag too */
    if( e->pParams && iPos < e->nParams )
       e->pParams[ iPos ].fByRef = HB_TRUE;
@@ -745,7 +750,7 @@ void hb_refTabSetNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
    if( ! e->fShape && e->pParams && iPos < e->nParams &&
        hb_refTabIsValueTypeHungarian( e->pParams[ iPos ].szName ) )
       return;
-   e->nilbits |= ( ( HB_U64 ) 1 ) << iPos;
+   e->nilbits |= HB_REFBIT( iPos );
    if( e->pParams && iPos < e->nParams )
       e->pParams[ iPos ].fNilable = HB_TRUE;
 }
@@ -1156,7 +1161,7 @@ HB_BOOL hb_refTabIsRef( PHB_REFTAB pTab, const char * szFunc, int iPos )
    e = hb_refTabFindEntry( pTab, szFunc, NULL );
    if( ! e )
       return HB_FALSE;
-   return ( e->bitmap & ( ( ( HB_U64 ) 1 ) << iPos ) ) != 0;
+   return ( e->bitmap & HB_REFBIT( iPos ) ) != 0;
 }
 
 HB_BOOL hb_refTabIsNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
@@ -1168,7 +1173,7 @@ HB_BOOL hb_refTabIsNilable( PHB_REFTAB pTab, const char * szFunc, int iPos )
    e = hb_refTabFindEntry( pTab, szFunc, NULL );
    if( ! e )
       return HB_FALSE;
-   return ( e->nilbits & ( ( ( HB_U64 ) 1 ) << iPos ) ) != 0;
+   return ( e->nilbits & HB_REFBIT( iPos ) ) != 0;
 }
 
 void hb_refTabMarkClass( PHB_REFTAB pTab, const char * szName,
@@ -1784,9 +1789,10 @@ HB_BOOL hb_refTabSave( PHB_REFTAB pTab, const char * szPath )
             for( p = 0; p < e->nParams; p++ )
             {
                HB_BOOL fByRef =
-                  ( e->bitmap  & ( ( ( HB_U64 ) 1 ) << p ) ) != 0;
+                  ( e->bitmap  & HB_REFBIT( p ) ) != 0;
                HB_BOOL fNilable =
-                  ( e->nilbits & ( ( ( HB_U64 ) 1 ) << p ) ) != 0;
+                  ( e->nilbits & HB_REFBIT( p ) ) != 0 ||
+                  ( p >= 64 && e->pParams[ p ].fNilable );
                HB_BOOL fConflict = e->pParams[ p ].fConflict;
                HB_BOOL fReassigned = e->pParams[ p ].fReassigned;
                HB_BOOL fDeclDefault = e->pParams[ p ].fDeclDefault;
@@ -1865,7 +1871,7 @@ static HB_BOOL hb_refTabLoadFile( PHB_REFTAB pTab, const char * szPath,
                                   HB_BOOL fExtern )
 {
    FILE * fp;
-   char   line[ 4096 ];
+   char   line[ 32768 ];   /* a shape's row: a slot for each of its keys */
 
    if( ! pTab || ! szPath )
       return HB_FALSE;
@@ -2494,7 +2500,7 @@ static void hb_refTabScanArgList( PHB_REFTAB pTab, const char * szFunc,
    if( szFunc && iLastReal + 1 < HB_REFTAB_MAXPARAM )
    {
       PHB_REFENTRY e = hb_refTabFindOrCreate( pTab, szFunc );
-      e->bitCallArities |= ( ( HB_U64 ) 1 ) << ( iLastReal + 1 );
+      e->bitCallArities |= HB_REFBIT( iLastReal + 1 );
    }
 }
 
@@ -3729,7 +3735,7 @@ int hb_refTabReconcileRun( void )
          {
             HB_REFPARAM * pE = &e->pParams[ k ];
             const HB_REFPARAM * pP = &p->pParams[ k ];
-            HB_U64 bit = ( ( HB_U64 ) 1 ) << k;
+            HB_U64 bit = HB_REFBIT( k );
 
             if( ( p->bitmap & bit ) && ! ( e->bitmap & bit ) )
             {

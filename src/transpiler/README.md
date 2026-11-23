@@ -1302,7 +1302,13 @@ strongest. Later rungs override earlier ones.
    is the field, `hcFlags[ "FullScreen" ]` → `hcFlags.FullScreen`, read
    or written, typed by the scan and checked by C#. `AS ARRAY OF SHAPE X`
    is a `List<X>`, `AS HASH OF SHAPE X` a dictionary of them. `AS SHAPE`
-   with no name is `HbShape`, which takes any shape and nothing else.
+   with no name is `HbShape`, which takes any shape and nothing else, and
+   `AS ARRAY OF SHAPE` with no name a `List<HbShape>`, a list of shapes of
+   several kinds (test188): a literal that goes into one is given to a
+   variable of its own shape first, since the list does not say which it
+   is. A shape has 160 keys at most, a reftab row's slots; the by-ref and
+   nilable bitmaps stay 64 wide, which no routine's parameters pass, and a
+   key past the 64th keeps its OPTIONAL on its slot.
    W0041 checks a literal key by key: a key the shape has not, a key that
    is not a string constant, a value of another type (a decimal into a
    whole number), and a key of the shape the literal leaves out, since
@@ -2104,6 +2110,7 @@ limitations rather than just adding more coverage. Notable test IDs:
 | 185       | A method that answers a value of its default's type: `METHOD Take185( cKey, xDefault AS T ) AS T` is `T Take185<T>( … )` in a class that is not generic, called through Self and through an object, with a string, a whole number, a decimal, a list and a logical as the default |
 | 186       | A shape: `SHAPE X( Key AS … )` is a class of a field per key, a literal under the declaration `new X { … }`, nested shapes, a list of them and a typed hash as keys' values, `{ => }` built key by key, a string literal subscript the field; `AS SHAPE` holds any; held untyped it is still a hash to ValType(), hb_HHasKey(), hb_HGetDef(), Len(), a subscript by a variable and hb_jsonEncode(), on its own and inside a plain hash |
 | 187       | A shape's OPTIONAL keys: left out of a literal, set by a subscript and inside an IF; a number and a logical (a property over a nullable field) and text (`[HbOptionalKey]`); there to hb_HHasKey(), Len(), hb_HGetDef(), hb_HKeys() and hb_jsonEncode() once they have a value, typed and through an untyped value |
+| 188       | A shape of 70 keys, the last OPTIONAL: every key a field, the optional one there once set, the keys past the 64th written and read; `AS ARRAY OF SHAPE` with no name, a `List<HbShape>` of shapes of two kinds as a local and as another shape's key, written as JSON in their order and read back through hb_HGet() |
 | 116       | A core function whose hbfuncs.tab return type is `-` (its C# returns dynamic, void or a class) says nothing about the local it initialises, so the Hungarian prefix decides: `hb_HClone` a hash, `hb_HKeys` an array, `hb_HGetDef` into an `n` name a number and into an `x` name dynamic; a typed row (`hb_ntos`, STRING) still types the call |
 | 117       | A method that returns only Self, or Self and NIL, is typed as its own class rather than dynamic (`New()`, `Init()`, the chaining methods): the C# signature and the reftab row both say the class, a child that redeclares it overrides covariantly, an inherited New() still types its caller through the constructor cast, and a method that returns Self among other kinds stays dynamic |
 | 135       | A FOR EACH's C# temporary takes its loop variable's type: a string, an array, a hash, a decimal, and an integer that takes a whole decimal (`10 / 2`), which the `dynamic` temporary's implicit conversion refused |

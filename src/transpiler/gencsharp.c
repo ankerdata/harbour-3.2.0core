@@ -11695,13 +11695,13 @@ static HB_BOOL hb_csClassExtendedByBlock( const char * szName )
 static void hb_csEmitRecord( PHB_AST_NODE pRecord, FILE * yyc )
 {
    const char * szName = pRecord->value.asClass.szName;
-   const char * aszField[ 64 ];
-   char         aszCs[ 64 ][ 96 ];
-   HB_BOOL      afOptional[ 64 ];
+   const char * aszField[ 160 ];
+   char         aszCs[ 160 ][ 96 ];
+   HB_BOOL      afOptional[ 160 ];
    PHB_AST_NODE pMember;
    int n = 0, i;
 
-   for( pMember = pRecord->value.asClass.pMembers; pMember && n < 64;
+   for( pMember = pRecord->value.asClass.pMembers; pMember && n < 160;
         pMember = pMember->pNext )
    {
       const HB_REFPARAM * pP;
