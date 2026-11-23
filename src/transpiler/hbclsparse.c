@@ -1035,6 +1035,12 @@ HB_BOOL hb_compRecordParse( HB_COMP_DECL, HB_BOOL fShape )
             pToken = hb_clsNextToken( HB_COMP_PARAM );
             pField->value.asClassData.szType =
                hb_compDeclTypeTokens( HB_COMP_PARAM, pToken, &iUsed );
+            /* a shape's key that takes anything says so: `Key AS USUAL`
+               (a message's payload), where a variable's `AS USUAL`
+               declares nothing its prefix does not */
+            if( fShape && ! pField->value.asClassData.szType &&
+                ( hb_clsTokenIs( pToken, "USUAL" ) || hb_clsTokenIs( pToken, "ANYTYPE" ) ) )
+               pField->value.asClassData.szType = "USUAL";
             pField->value.asClassData.fDeclType =
                pField->value.asClassData.szType != NULL;
             if( iUsed == 0 )
