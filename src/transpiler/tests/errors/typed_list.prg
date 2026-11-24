@@ -3,8 +3,8 @@
 // another type. The lines marked "quiet" must not warn.
 
 FUNCTION Use41l( xAnything, aPlain, nCount )
-   LOCAL aNames AS ARRAY OF CHARACTER := { "a", 5 }   // fires W0041: a number is no string
-   LOCAL aRows AS ARRAY OF ARRAY OF CHARACTER := {}   // quiet
+   LOCAL aNames AS ARRAY OF STRING := { "a", 5 }   // fires W0041: a number is no string
+   LOCAL aRows AS ARRAY OF ARRAY OF STRING := {}   // quiet
    aNames := xAnything                              // quiet: its type is unknown
    aNames := aPlain                                 // fires W0041: a plain array into a typed list
    aRows := { aNames, { "b" } }                     // quiet
@@ -33,8 +33,8 @@ FUNCTION Use41k( cText )
    aParts[ 1 ] := Val( aParts[ 1 ] )                // fires W0041: a number into a List<string>
 RETURN Len( aParts )
 
-FUNCTION Split41k( cText ) AS ARRAY OF CHARACTER
-   LOCAL aOut AS ARRAY OF CHARACTER := {}
+FUNCTION Split41k( cText ) AS ARRAY OF STRING
+   LOCAL aOut AS ARRAY OF STRING := {}
    AAdd( aOut, cText )
 RETURN aOut
 
@@ -42,7 +42,7 @@ RETURN aOut
 // given one becomes one): a plain array passed to it is W0041, as C# takes
 // none
 FUNCTION Use41p( aPlain )
-   LOCAL aNames AS ARRAY OF CHARACTER := { "a" }
+   LOCAL aNames AS ARRAY OF STRING := { "a" }
    Count41p( aNames )                               // quiet: makes aItems a List<string>
    Count41p( aPlain )                               // fires W0041: a plain array for it
    Count41p( { "c", "d" } )                         // quiet: the literal is emitted a List<string>
@@ -56,7 +56,7 @@ RETURN Len( aItems )
 // C# converts it at run time, and throws unless it holds a List<string>,
 // which a plain array, what an untyped one nearly always is, is not
 FUNCTION Use41q( hcRows )
-   LOCAL aNames AS ARRAY OF CHARACTER := { "b" }
+   LOCAL aNames AS ARRAY OF STRING := { "b" }
    Count41q( aNames )                               // quiet: makes aItems a List<string>
    Count41q( hcRows[ "x" ] )                         // fires W0041: an untyped value for it
    Count41q( NIL )                                  // quiet: NIL is null

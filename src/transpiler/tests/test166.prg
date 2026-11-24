@@ -4,7 +4,7 @@
 // INTEGER and CHARACTER declare one: a List<decimal>, a List<long> and a
 // List<string>, on a local, a static, a parameter, a member and a
 // record's field, and a literal given one is built as it. AS ARRAY OF
-// STRING is AS ARRAY OF CHARACTER. AAdd() puts a whole literal into a
+// STRING is AS ARRAY OF STRING. AAdd() puts a whole literal into a
 // List<long>, hb_AIns() and hb_ADel() with lAutoSize work on a value
 // list, which never holds NIL, and the literal default of hb_default() and
 // hb_defaultValue() is the value's own type, a static left NIL included.

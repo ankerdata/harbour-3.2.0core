@@ -50,6 +50,6 @@ FUNCTION Objects160()
 
 FUNCTION Fixed160()
 
-   LOCAL aNone AS FIXED ARRAY OF CHARACTER := {}
+   LOCAL aNone AS FIXED ARRAY OF STRING := {}
 
    RETURN Str( Len( aNone ), 2 )

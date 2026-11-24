@@ -3,7 +3,7 @@
 # failing assertions it takes part in.
 # function	state	app calls	pass	fail	quarantine	missing	harbour	also in
 Empty	implemented	2550	41	0	0	0	0	0
-RTrim	implemented	2503	15	0	0	0	0	0
+RTrim	implemented	2511	15	0	0	0	0	0
 Len	implemented	2429	41	0	0	0	0	0
 AAdd	implemented	1618	5	0	0	0	0	0
 Str	implemented	989	172	0	0	0	0	0
@@ -50,9 +50,9 @@ Upper	implemented	93	12	0	0	0	0	0
 FCreate	implemented	92	1	0	0	0	0	0
 hb_mutexLock	implemented	92	0	0	0	0	0	0
 PadC	implemented	92	10	0	0	0	0	0
-Eval	implemented	84	4	0	0	0	0	0
 hb_BSubStr	implemented	82	2	0	0	0	0	0
 Right	implemented	81	10	0	0	0	0	0
+Eval	implemented	80	4	0	0	0	0	0
 FErase	implemented	72	10	0	0	0	0	0
 hb_cdpSelect	implemented	70	1	0	0	0	0	0
 RAt	implemented	67	20	0	0	0	0	0

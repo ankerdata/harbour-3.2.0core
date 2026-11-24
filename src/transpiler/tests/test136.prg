@@ -64,7 +64,7 @@ PROCEDURE Main()
    LOCAL oCrate := Crate136():New()
    LOCAL oAny AS CLASS Gizmo136
    LOCAL oBigizmo136
-   LOCAL aNames AS ARRAY OF CHARACTER := {}
+   LOCAL aNames AS ARRAY OF STRING := {}
    LOCAL oItem
    LOCAL iPos
 
@@ -106,8 +106,8 @@ FUNCTION Biggest136( aList AS ARRAY OF CLASS Gizmo136 ) AS CLASS Gizmo136
    NEXT
    RETURN oBest
 
-STATIC FUNCTION Names136( aList AS ARRAY OF CLASS Gizmo136 ) AS ARRAY OF CHARACTER
-   LOCAL aOut AS ARRAY OF CHARACTER := {}
+STATIC FUNCTION Names136( aList AS ARRAY OF CLASS Gizmo136 ) AS ARRAY OF STRING
+   LOCAL aOut AS ARRAY OF STRING := {}
    LOCAL iPos
    FOR iPos := 1 TO Len( aList )
       AAdd( aOut, aList[ iPos ]:cName )

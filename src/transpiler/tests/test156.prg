@@ -17,7 +17,7 @@
 #define FLD_LEN  3
 
 RECORD FieldRow156( cName, cType, iLen, iDec )
-RECORD Table156( cAlias, hcFields AS HASH OF RECORD FieldRow156, hnNames AS INTEGER HASH OF CHARACTER )
+RECORD Table156( cAlias, hcFields AS HASH OF RECORD FieldRow156, hnNames AS INTEGER HASH OF STRING )
 
 STATIC shcByName AS HASH OF RECORD FieldRow156 := { ;
    "PLUNO" => { "PLUNO", "N", 16, 0 }, ;
@@ -25,7 +25,7 @@ STATIC shcByName AS HASH OF RECORD FieldRow156 := { ;
 
 PROCEDURE Main()
    LOCAL aTable := MakeTable156()
-   LOCAL hnNames AS INTEGER HASH OF CHARACTER := { 1 => "one", 2 => "two" }
+   LOCAL hnNames AS INTEGER HASH OF STRING := { 1 => "one", 2 => "two" }
    LOCAL aRow AS RECORD FieldRow156
    LOCAL cKey
 

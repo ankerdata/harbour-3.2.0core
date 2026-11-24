@@ -9,7 +9,7 @@
 
 FUNCTION Use41g( nValue )
    LOCAL aIds AS ARRAY OF INTEGER := { 1, 2 }
-   LOCAL aNames AS ARRAY OF CHARACTER := { "a" }
+   LOCAL aNames AS ARRAY OF STRING := { "a" }
    LOCAL aFixed AS FIXED ARRAY OF INTEGER := { 3 }
    LOCAL aPlain := { 1, "b" }
    Join41g( aIds, { 3, 4 } )                        // quiet

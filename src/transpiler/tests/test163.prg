@@ -1,7 +1,7 @@
 // Test 163: arrays of whole numbers and arrays of arrays, declared. `AS
 // ARRAY OF INTEGER` (a type Harbour has not, so the lexer composes it as it
 // does a typed hash) is a List<long>, an element a long; `AS ARRAY OF ARRAY
-// OF CHARACTER`, sqlite3_get_table()'s rows of text, reads a row as an
+// OF STRING`, sqlite3_get_table()'s rows of text, reads a row as an
 // array of strings and a value as a string. On a member, a local, a
 // parameter and a FIXED array.
 
@@ -33,7 +33,7 @@ RETURN iLast
 PROCEDURE Main()
 
    LOCAL oOrder163 := Order163():New()
-   LOCAL aTable AS ARRAY OF ARRAY OF CHARACTER := { { "nId", "cName" }, { "7", "seven" }, { "9", "nine" } }
+   LOCAL aTable AS ARRAY OF ARRAY OF STRING := { { "nId", "cName" }, { "7", "seven" }, { "9", "nine" } }
    LOCAL aFixed AS FIXED ARRAY OF INTEGER := { 3, 4 }
 
    oOrder163:Add163( 5 ):Add163( 6 )
@@ -53,8 +53,8 @@ FUNCTION Sum163( aIds AS ARRAY OF INTEGER )
 
 RETURN iSum
 
-FUNCTION Name163( aRows AS ARRAY OF ARRAY OF CHARACTER, iRow )
+FUNCTION Name163( aRows AS ARRAY OF ARRAY OF STRING, iRow )
 
-   LOCAL aRow AS ARRAY OF CHARACTER := aRows[ iRow ]
+   LOCAL aRow AS ARRAY OF STRING := aRows[ iRow ]
 
 RETURN aRow[ 2 ] + "/" + aRows[ iRow ][ 1 ]

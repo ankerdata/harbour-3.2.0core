@@ -7,7 +7,7 @@ RECORD Row41h( cName, iLen )
 
 FUNCTION Use41h( xAnything, hcPlain, nPos )
    LOCAL hcRows AS HASH OF RECORD Row41h := { "a" => { "a", 1 }, "b" => 5 }   // fires W0041: a number is no Row41h
-   LOCAL hnById AS INTEGER HASH OF CHARACTER := { "k" => "v" }               // fires W0035: a hash keyed by strings
+   LOCAL hnById AS INTEGER HASH OF STRING := { "k" => "v" }               // fires W0035: a hash keyed by strings
    LOCAL hnWrong AS STRING HASH                                             // fires W0035: the name says numbers
    hcRows := xAnything                               // quiet: its type is unknown
    hcRows := hcPlain                                  // fires W0041: a plain hash into a typed one

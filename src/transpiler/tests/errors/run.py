@@ -227,6 +227,17 @@ def main():
            "hash_key_name (W0048 for the two bare h names, no other)",
            "hash_key_name (expected W0048 for hByName and hWrong only)", out)
 
+    # W0050: CHARACTER in a declaration, once on each line marked "fires"
+    _, out = trans("-o" + HERE + os.sep, here("character_decl.prg"), "-GS")
+    remove("character_decl.cs")
+    want = [i for i, l in enumerate(open(here("character_decl.prg")), 1)
+            if l.rstrip().endswith("// fires")]
+    got = [int(m.group(1)) for m in
+           (re.search(r"\((\d+)\): warning W0050", l) for l in out.splitlines()) if m]
+    result(got == want and not lines_matching(out, "warning W00(?!50)|Error"),
+           "character_decl (W0050 on its %d marked lines, no other warning)" % len(want),
+           "character_decl (expected W0050 on lines %s, got %s)" % (want, got), out)
+
     # typed hashes: values by type, keys by kind
     count_of("typed_hash.prg", "warning W00[34][15]", 7)
     # shapes: a literal's keys and values, what goes under a key, a key the

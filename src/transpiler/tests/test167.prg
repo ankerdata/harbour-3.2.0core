@@ -12,7 +12,7 @@ PROCEDURE Main()
    LOCAL anAmounts
    LOCAL aiCounts
    LOCAL acLabels[ 3 ]
-   LOCAL aWords AS ARRAY OF CHARACTER
+   LOCAL aWords AS ARRAY OF STRING
    LOCAL aPlain
    LOCAL i
 

@@ -10,13 +10,13 @@
 #include "hbclass.ch"
 
 CLASS Store164
-   VAR aRows AS ARRAY OF ARRAY OF CHARACTER INIT {}
-   METHOD Fetch164( cWhere ) AS ARRAY OF ARRAY OF CHARACTER
+   VAR aRows AS ARRAY OF ARRAY OF STRING INIT {}
+   METHOD Fetch164( cWhere ) AS ARRAY OF ARRAY OF STRING
 ENDCLASS
 
 METHOD Fetch164( cWhere ) CLASS Store164
 
-   LOCAL aResult AS ARRAY OF ARRAY OF CHARACTER := { { "cName" } }
+   LOCAL aResult AS ARRAY OF ARRAY OF STRING := { { "cName" } }
    LOCAL aRow
 
    FOR EACH aRow IN ::aRows
@@ -33,7 +33,7 @@ PROCEDURE Main()
    LOCAL aTable
    LOCAL aRow
    LOCAL aCopy
-   LOCAL aNames AS ARRAY OF CHARACTER := {}
+   LOCAL aNames AS ARRAY OF STRING := {}
 
    AAdd( oStore164:aRows, { "red", "apple" } )
    AAdd( oStore164:aRows, { "green", "pear" } )
@@ -55,7 +55,7 @@ PROCEDURE Main()
 
    RETURN
 
-FUNCTION Rows164( lAny ) AS ARRAY OF ARRAY OF CHARACTER
+FUNCTION Rows164( lAny ) AS ARRAY OF ARRAY OF STRING
 
    IF ! lAny
       RETURN {}

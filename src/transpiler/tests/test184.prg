@@ -14,7 +14,7 @@ PROCEDURE Main()
    LOCAL hcData184 := { "name" => "Ann", "age" => 41, "price" => 12.50, ;
                         "open" => .T., "whole" => 7.00, "none" => NIL, ;
                         "tags" => { "a", "b" } }
-   LOCAL acWords184 AS ARRAY OF CHARACTER := { "one", "two" }
+   LOCAL acWords184 AS ARRAY OF STRING := { "one", "two" }
    LOCAL aiIds184 AS ARRAY OF INTEGER := { 10, 20 }
    LOCAL cName184
    LOCAL iAge184

@@ -9,8 +9,8 @@
 PROCEDURE Main()
 
    LOCAL aIds AS ARRAY OF INTEGER := { 1, 2 }
-   LOCAL aNames AS ARRAY OF CHARACTER := { "one" }
-   LOCAL aRows AS ARRAY OF ARRAY OF CHARACTER := { { "nId", "cName" } }
+   LOCAL aNames AS ARRAY OF STRING := { "one" }
+   LOCAL aRows AS ARRAY OF ARRAY OF STRING := { { "nId", "cName" } }
    LOCAL aMixed := { 1, "two" }
    LOCAL aAll
    LOCAL aCopy
@@ -41,6 +41,6 @@ FUNCTION Join165( aInto AS ARRAY OF T, aFrom AS ARRAY OF T ) AS ARRAY OF T
 
 RETURN aInto
 
-FUNCTION Words165() AS ARRAY OF CHARACTER
+FUNCTION Words165() AS ARRAY OF STRING
 
 RETURN { "two", "three" }

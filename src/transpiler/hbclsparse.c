@@ -38,6 +38,41 @@ static HB_BOOL hb_clsTokenIsEOL( PHB_PP_TOKEN pToken )
           HB_PP_TOKEN_TYPE( pToken->type ) == HB_PP_TOKEN_EOC;
 }
 
+/* W0050: text is declared STRING, never CHARACTER (Alex, 2026-11-24).
+   Harbour reads CHARACTER, and its abbreviations down to CHAR, as STRING,
+   so the declaration means what it says; the warning is for the word.
+   Every declaration's type is read here (hb_compDeclTypeTokens, a
+   member's one word): once a line, as a line's type may be read twice. */
+static void hb_clsCheckCharacter( HB_COMP_DECL, PHB_PP_TOKEN pTok )
+{
+   static char s_szFile[ 260 ];
+   static int  s_aiLines[ 16 ];
+   static int  s_iLines = 0;
+   char buffer[ 320 ];
+   int iLine, i;
+
+   if( ! pTok || HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_KEYWORD ||
+       pTok->len < 4 || pTok->len > 9 ||
+       hb_strnicmp( pTok->value, "CHARACTER", pTok->len ) != 0 )
+      return;
+   /* the line's tokens are read: the preprocessor is past its end */
+   iLine = hb_pp_line( HB_COMP_PARAM->pLex->pPP );
+   if( ! HB_COMP_PARAM->szFile || strcmp( s_szFile, HB_COMP_PARAM->szFile ) != 0 )
+   {
+      hb_strncpy( s_szFile, HB_COMP_PARAM->szFile ? HB_COMP_PARAM->szFile : "",
+                  sizeof( s_szFile ) - 1 );
+      s_iLines = 0;
+   }
+   for( i = 0; i < s_iLines && i < ( int ) HB_SIZEOFARRAY( s_aiLines ); i++ )
+      if( s_aiLines[ i ] == iLine )
+         return;
+   s_aiLines[ s_iLines++ % HB_SIZEOFARRAY( s_aiLines ) ] = iLine;
+   hb_snprintf( buffer, sizeof( buffer ),
+      "hbtranspiler: %s(%d): warning W0050  '%s' declares text: write STRING\n",
+      HB_COMP_PARAM->szFile, iLine, pTok->value );
+   hb_compOutErr( HB_COMP_PARAM, buffer );
+}
+
 /* Save a token value as an identifier */
 static const char * hb_clsSaveId( HB_COMP_DECL, PHB_PP_TOKEN pToken )
 {
@@ -76,6 +111,7 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
    *piUsed = 0;
    if( ! pTok || HB_PP_TOKEN_TYPE( pTok->type ) != HB_PP_TOKEN_KEYWORD )
       return NULL;
+   hb_clsCheckCharacter( HB_COMP_PARAM, pTok );
    /* `SHAPE` with no name: any shape, the runtime's base class of them.
       The CLASS of `METHOD m() AS SHAPE CLASS X` is not a shape's name. */
    if( hb_clsTokenIs( pTok, "SHAPE" ) &&
@@ -192,6 +228,7 @@ const char * hb_compDeclTypeTokens( HB_COMP_DECL, PHB_PP_TOKEN pTok, int * piUse
       }
       else if( pElem && HB_PP_TOKEN_TYPE( pElem->type ) == HB_PP_TOKEN_KEYWORD )
       {
+         hb_clsCheckCharacter( HB_COMP_PARAM, pElem );
          szElem = hb_clsScalarType( pElem );
          *piUsed = 3;
       }
@@ -695,6 +732,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                   }
                   else
                   {
+                     hb_clsCheckCharacter( HB_COMP_PARAM, pToken );
                      szType = hb_clsSaveId( HB_COMP_PARAM, pToken );
                      pToken = hb_clsNextToken( HB_COMP_PARAM );
                   }

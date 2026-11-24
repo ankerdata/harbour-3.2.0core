@@ -27,7 +27,7 @@
 #define FLD_DEC  4
 
 RECORD FieldRow( cName, cType, iLen, iDec )
-RECORD IndexRows( aNames AS FIXED ARRAY OF CHARACTER, aExpressions AS FIXED ARRAY OF CHARACTER, aUnique AS FIXED ARRAY OF CHARACTER )
+RECORD IndexRows( aNames AS FIXED ARRAY OF STRING, aExpressions AS FIXED ARRAY OF STRING, aUnique AS FIXED ARRAY OF STRING )
 RECORD TableDef( cAlias, aFields AS FIXED ARRAY OF RECORD FieldRow, aIndexes AS RECORD IndexRows, hcHash, cDatabase )
 
 STATIC saFields AS FIXED ARRAY OF RECORD FieldRow := { ;
