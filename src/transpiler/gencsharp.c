@@ -12041,6 +12041,21 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
          const char * szRetCs = pMember->value.asClassMethod.szDeclType ?
             hb_csTypeMap( hb_astDeclCanon( s_pRefTab, pMember->value.asClassMethod.szDeclType ) ) : "dynamic";
 
+         if( ! pMember->value.asClassMethod.szDeclType &&
+             pMember->value.asClassMethod.szAliasOf )
+         {
+            /* `MESSAGE Len METHOD StackLen`: what the method returns */
+            char szTKey[ 256 ];
+            const char * szTRet;
+            hb_snprintf( szTKey, sizeof( szTKey ), "%s::%s__%s",
+                         pClassNode->value.asClass.szName,
+                         pClassNode->value.asClass.szName,
+                         pMember->value.asClassMethod.szAliasOf );
+            szTRet = hb_refTabReturnType( s_pRefTab, szTKey );
+            if( szTRet )
+               szRetCs = hb_csTypeMap( szTRet );
+         }
+
          if( pMember->value.asClassMethod.fMessageAlias &&
              ( ! szParms || ! *szParms ) )
          {

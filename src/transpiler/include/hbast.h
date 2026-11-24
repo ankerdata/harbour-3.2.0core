@@ -259,6 +259,7 @@ struct _HB_AST_NODE
          int            iScope;        /* HB_AST_SCOPE_* */
          HB_BOOL        fProcedure;    /* PROCEDURE (no return value) vs METHOD */
          HB_BOOL        fMessageAlias; /* from `MESSAGE name METHOD target` */
+         const char *   szAliasOf;     /* that alias's target method, or NULL */
          const char *   szDeclType;    /* `METHOD M( … ) AS <type>` in the class body:
                                           the declared return type, or NULL */
       } asClassMethod;

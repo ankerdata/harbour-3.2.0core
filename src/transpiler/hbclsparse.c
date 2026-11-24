@@ -938,6 +938,7 @@ HB_BOOL hb_compClassParse( HB_COMP_DECL )
                pMethod->value.asClassMethod.iScope       = iScope;
                pMethod->value.asClassMethod.fProcedure   = HB_FALSE;
                pMethod->value.asClassMethod.fMessageAlias = HB_TRUE;
+               pMethod->value.asClassMethod.szAliasOf     = szTarget;
                hb_clsAddMember( pClass, pMethod );
             }
          }

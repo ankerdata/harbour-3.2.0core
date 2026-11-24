@@ -3173,6 +3173,20 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                      if( pMember->value.asClassMethod.szDeclType )
                         hb_refTabSetReturnType( pTab, szMKey,
                            hb_astDeclCanon( pTab, pMember->value.asClassMethod.szDeclType ) );
+                     else if( pMember->value.asClassMethod.szAliasOf )
+                     {
+                        /* `MESSAGE Len METHOD StackLen`: the alias answers
+                           what its method does, as the method's row says
+                           (a body's row, so from the pass that read it) */
+                        char szTKey[ 256 ];
+                        const char * szTRet;
+                        hb_snprintf( szTKey, sizeof( szTKey ), "%s::%s__%s",
+                                     p->value.asClass.szName, p->value.asClass.szName,
+                                     pMember->value.asClassMethod.szAliasOf );
+                        szTRet = hb_refTabReturnType( pTab, szTKey );
+                        if( szTRet )
+                           hb_refTabSetReturnType( pTab, szMKey, szTRet );
+                     }
                      continue;
                   }
 

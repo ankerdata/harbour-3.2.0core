@@ -4,12 +4,12 @@
 # function	state	app calls	pass	fail	quarantine	missing	harbour	also in
 Empty	implemented	2550	41	0	0	0	0	0
 RTrim	implemented	2503	15	0	0	0	0	0
-Len	implemented	2431	41	0	0	0	0	0
+Len	implemented	2429	41	0	0	0	0	0
 AAdd	implemented	1616	5	0	0	0	0	0
-Str	implemented	985	172	0	0	0	0	0
+Str	implemented	989	172	0	0	0	0	0
 Chr	implemented	972	60	0	0	0	0	0
 Left	implemented	741	7	0	0	0	0	0
-LTrim	implemented	662	15	0	0	0	0	0
+LTrim	implemented	666	15	0	0	0	0	0
 hb_bitAnd	implemented	612	9	0	0	0	0	0
 AllTrim	implemented	567	20	0	0	0	0	0
 Round	implemented	536	94	0	0	0	0	0

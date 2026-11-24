@@ -7,8 +7,10 @@
 // parser now reads it as `METHOD Len INLINE ::StackLen()`, with or
 // without the parentheses hbclass.ch allows on either name, and an
 // INLINE method gets a reftab row like any other, so a cross-file send
-// resolves it. A method sent WITHOUT parentheses — `oShelf:Len`, legal
-// Harbour — is emitted as the call it is. (An ACCESS is a property and
+// resolves it. The alias answers what its method does: `Len` and
+// `Size` are a `long`, as StackLen() is. A method sent WITHOUT
+// parentheses — `oShelf:Len`, legal Harbour — is emitted as the call
+// it is. (An ACCESS is a property and
 // gets no parentheses; its body is a known gap — see gencsharp.c — so
 // none is exercised here.)
 #include "hbclass.ch"

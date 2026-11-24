@@ -18,7 +18,7 @@ public class Bin : IHbObject
     protected List<dynamic> aItems = new List<dynamic>();
     public dynamic Peak { get { return Last(); } set { dynamic xNew = value; Pop(); Push( xNew ) ; } }
     
-    public dynamic Len => Heft();
+    public long Len => Heft();
     public virtual dynamic Push(dynamic xItem = default)
     {
         AAdd(aItems, xItem);
