@@ -412,8 +412,10 @@ void hb_auditEmit( const char * szCat, const char * szFile, int iLine,
 "#                 Fix: type where it goes first.\n"
 "#   NARROW-ARG    a decimal passed to a whole-number (`i`) parameter: the\n"
 "#                 call casts it to long, and a fraction it holds is lost\n"
-"#                 without a word. Fix: an i name or Int() at the caller, or\n"
-"#                 the parameter is no whole number.\n"
+"#                 without a word. Fix: an i name, Int() or Round( x, 0 ) at\n"
+"#                 the caller, or the parameter is no whole number. A Round()\n"
+"#                 to no decimals (or fewer) is whole in all three NARROW\n"
+"#                 rows: C#'s cast of it loses nothing.\n"
 "#   NARROW-RET    a decimal returned from a function declared AS INTEGER,\n"
 "#                 cast to long the same way.\n"
 "#   NARROW-ASSIGN a decimal written into a whole-number (`i`) local, static\n"
@@ -2737,6 +2739,64 @@ static HB_BOOL hb_astIsWholeValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
              hb_astIsWholeValue( pExpr->value.asList.pExprList->pNext->pNext, pEnv );
    szT = hb_astInferExprType( pExpr, pEnv );
    return szT && hb_stricmp( szT, "INTEGER" ) == 0;
+}
+
+/* Round( x, n ) with n a literal of 0 or less: a whole number by value,
+   though a decimal in C# (HbRuntime.Round), so the (long) the emitter
+   writes for it loses nothing. Not the program's own function of the
+   name. */
+static HB_BOOL hb_astIsRoundToWhole( PHB_EXPR pExpr )
+{
+   PHB_EXPR pArg;
+   PHB_EXPR pDec;
+
+   if( ! pExpr || pExpr->ExprType != HB_ET_FUNCALL || ! pExpr->value.asFunCall.pFunName ||
+       pExpr->value.asFunCall.pFunName->ExprType != HB_ET_FUNNAME ||
+       hb_stricmp( pExpr->value.asFunCall.pFunName->value.asSymbol.name, "ROUND" ) != 0 ||
+       hb_refTabIsDefinedFunc( s_pPropRefTab, "ROUND" ) )
+      return HB_FALSE;
+   pArg = pExpr->value.asFunCall.pParms;
+   if( pArg && ( pArg->ExprType == HB_ET_LIST || pArg->ExprType == HB_ET_ARGLIST ) )
+      pArg = pArg->value.asList.pExprList;
+   if( ! pArg || pArg->ExprType == HB_ET_NONE || ! pArg->pNext || pArg->pNext->pNext )
+      return HB_FALSE;
+   pDec = pArg->pNext;
+   if( ! hb_astNumericConstant( pDec ) || hb_astConstantHasFraction( pDec ) )
+      return HB_FALSE;
+   if( pDec->ExprType == HB_EO_NEGATE )
+      return HB_TRUE;
+   return pDec->value.asNum.NumType == HB_ET_LONG ? pDec->value.asNum.val.l <= 0
+                                                  : pDec->value.asNum.val.d <= 0;
+}
+
+/* What a whole-number name or parameter may be given without losing a
+   fraction to C#'s (long): a whole value (hb_astIsWholeValue), a Round()
+   to no decimals, or a sum, difference, product or remainder of such.
+   The NARROW audits' test; a value C# itself must hold as a long (a
+   typed list's element) is hb_astIsWholeValue()'s. */
+static HB_BOOL hb_astIsWholeByValue( PHB_EXPR pExpr, HB_TYPEENV * pEnv )
+{
+   while( pExpr && ( pExpr->ExprType == HB_ET_LIST || pExpr->ExprType == HB_ET_ARGLIST ) &&
+          pExpr->value.asList.pExprList && ! pExpr->value.asList.pExprList->pNext )
+      pExpr = pExpr->value.asList.pExprList;
+   if( ! pExpr )
+      return HB_FALSE;
+   if( hb_astIsRoundToWhole( pExpr ) )
+      return HB_TRUE;
+   if( pExpr->ExprType == HB_EO_PLUS || pExpr->ExprType == HB_EO_MINUS ||
+       pExpr->ExprType == HB_EO_MULT || pExpr->ExprType == HB_EO_MOD )
+      return hb_astIsWholeByValue( pExpr->value.asOperator.pLeft, pEnv ) &&
+             hb_astIsWholeByValue( pExpr->value.asOperator.pRight, pEnv );
+   if( pExpr->ExprType == HB_EO_NEGATE )
+      return hb_astIsWholeByValue( pExpr->value.asOperator.pLeft, pEnv );
+   /* an `i` or `si` name is a long in C# whatever was last given it (the
+      scan's type of `siDecs := 1` is NUMERIC, the literal's), unless it
+      is declared otherwise */
+   if( pExpr->ExprType == HB_ET_VARIABLE && hb_astIsIntegerName( pExpr->value.asSymbol.name ) &&
+       ( ! hb_typeEnvIsDeclared( pEnv, pExpr->value.asSymbol.name ) ||
+         hb_stricmp( hb_typeEnvGet( pEnv, pExpr->value.asSymbol.name ), "INTEGER" ) == 0 ) )
+      return HB_TRUE;
+   return hb_astIsWholeValue( pExpr, pEnv );
 }
 
 static void hb_astDeclCheckExpr( const char * szDecl, PHB_EXPR pExpr,
@@ -5167,7 +5227,7 @@ static void hb_astRefineArgList( const char * szCallee, PHB_EXPR pParms,
             if( pDecl && pDecl->szType && pDecl->szName && ! pDecl->fByRef &&
                 hb_stricmp( pDecl->szType, "INTEGER" ) == 0 &&
                 szArgType && hb_stricmp( szArgType, "NUMERIC" ) == 0 &&
-                ! hb_astIsWholeValue( pEffective, pEnv ) )
+                ! hb_astIsWholeByValue( pEffective, pEnv ) )
             {
                char szSym[ 192 ];
                hb_snprintf( szSym, sizeof( szSym ), "%s:%s", szCallee, pDecl->szName );
@@ -8125,7 +8185,7 @@ static void hb_astAuditNarrowAssign( const char * szName, PHB_EXPR pRHS,
    if( ! hb_auditActive() || ! szName || ! pRHS || ! hb_astIsIntegerName( szName ) )
       return;
    szRhs = hb_astInferExprType( pRHS, pEnv );
-   if( ! szRhs || hb_stricmp( szRhs, "NUMERIC" ) != 0 || hb_astIsWholeValue( pRHS, pEnv ) )
+   if( ! szRhs || hb_stricmp( szRhs, "NUMERIC" ) != 0 || hb_astIsWholeByValue( pRHS, pEnv ) )
       return;
    hb_auditEmit( "NARROW-ASSIGN", szFile, iLine, szName,
                  "a decimal written into a whole-number name, cast (long)",
@@ -9163,7 +9223,7 @@ static void hb_astCheckDeclReturns( PHB_AST_NODE pBlock, HB_TYPEENV * pEnv,
                {
                   const char * szRet = hb_astInferExprType( pStmt->value.asReturn.pExpr, pEnv );
                   if( szRet && hb_stricmp( szRet, "NUMERIC" ) == 0 &&
-                      ! hb_astIsWholeValue( pStmt->value.asReturn.pExpr, pEnv ) )
+                      ! hb_astIsWholeByValue( pStmt->value.asReturn.pExpr, pEnv ) )
                      hb_auditEmit( "NARROW-RET", szFile, pStmt->iLine, szFunc ? szFunc : "?",
                                    "a decimal returned from a function declared AS INTEGER, cast (long)",
                                    "make the value whole (an i name, Int()), or declare AS NUMERIC" );

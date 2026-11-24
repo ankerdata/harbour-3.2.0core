@@ -408,6 +408,7 @@ def main():
     audit_case("audit_hash_any.prg", "HASH-ANY")
     audit_case("audit_whole_n_typed.prg", "WHOLE-N-TYPED")
     audit_case("audit_narrow_assign.prg", "NARROW-ASSIGN")
+    audit_case("audit_narrow_arg.prg", "NARROW-ARG")
 
     print("")
     print("Results: %d passed, %d failed" % (passed, failed))

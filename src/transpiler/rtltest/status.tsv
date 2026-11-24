@@ -12,12 +12,12 @@ Left	implemented	741	7	0	0	0	0	0
 LTrim	implemented	662	15	0	0	0	0	0
 hb_bitAnd	implemented	612	9	0	0	0	0	0
 AllTrim	implemented	567	20	0	0	0	0	0
+Round	implemented	536	94	0	0	0	0	0
 SubStr	implemented	530	30	0	0	0	0	0
+Int	implemented	527	15	0	0	0	0	0
 Space	implemented	525	6	0	0	0	0	0
-Int	implemented	515	15	0	0	0	0	0
-Val	implemented	505	0	0	0	0	0	0
+Val	implemented	481	0	0	0	0	0	0
 StrZero	implemented	456	69	0	0	0	0	0
-Round	implemented	418	94	0	0	0	0	0
 Date	implemented	392	0	0	0	0	0	0
 StrTran	implemented	381	7	0	0	0	0	0
 PadR	implemented	368	10	0	0	0	0	0

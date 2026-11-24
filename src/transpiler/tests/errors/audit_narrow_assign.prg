@@ -1,7 +1,7 @@
 // The audit's NARROW-ASSIGN: a decimal written into a whole-number (`i`)
 // name, which the C# casts to long. A line marked `row` must give one, and
-// no other line may: a whole number, text read with Int(), another `i`
-// name and a write into an `n` name are none.
+// no other line may: a whole number, text read with Int(), a Round() to no
+// decimals, another `i` name and a write into an `n` name are none.
 
 FUNCTION Price49n() AS NUMERIC
 RETURN 2.5
@@ -24,5 +24,8 @@ FUNCTION Narrow49n( nGiven, cText )
    iSum := iPlace + iCut                            // quiet: whole numbers
    siLast := Price49n()                             // row: a static too
    iTaken := Len( cText )                           // quiet: a length
+   iCut := Round( nGiven / 0.01, 0 )                // quiet: rounded to no decimals
+   iCut := Round( nGiven, -2 ) * 3                  // quiet: to hundreds, then a whole product
+   iCut := Round( nGiven, 2 )                       // row: rounded to two decimals
 
 RETURN iSum + iTaken + iRead + nKept + siLast
