@@ -811,6 +811,7 @@ wapi_QueryPerformanceCounter	LOGICAL	-
 wapi_QueryPerformanceFrequency	LOGICAL	-
 wapi_Sleep	NUMERIC	-
 WEEK	NUMERIC	-
+win_oleErrorText	STRING	-
 win_UuidCreateString	STRING	-
 WORD	NUMERIC	-
 WORDONE	STRING	-

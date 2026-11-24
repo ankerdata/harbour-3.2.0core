@@ -74,6 +74,67 @@ public static partial class HbWin
     // wapi_GetLastError(): that error
     public static decimal wapi_GetLastError() => t_lastError;
 
+    // The OLE error of the last object created, per thread, as hbwin keeps
+    // it (hb_oleSetError): S_OK once one is created. The C# program creates
+    // its connectors itself, by name (ConnectorCreate()), and sets it as
+    // win_oleCreateObject() would: CO_E_CLASSSTRING for a name it has no
+    // connector for, E_FAIL for one that throws while it is made.
+    [System.ThreadStatic] static int t_oleError;
+
+    public static int OleError { get => t_oleError; set => t_oleError = value; }
+
+    public const int S_OK = 0;
+    public const int CO_E_CLASSSTRING = unchecked((int)0x800401F3);
+    public const int E_FAIL = unchecked((int)0x80004005);
+
+    static readonly Dictionary<int, string> s_oleErrorNames = new()
+    {
+        [unchecked((int)0x800401F3)] = "CO_E_CLASSSTRING",
+        [unchecked((int)0x8004000E)] = "OLE_E_WRONGCOMPOBJ",
+        [unchecked((int)0x80040154)] = "REGDB_E_CLASSNOTREG",
+        [unchecked((int)0x80040151)] = "REGDB_E_WRITEREGDB",
+        [unchecked((int)0x8000000A)] = "E_PENDING",
+        [unchecked((int)0x80004001)] = "E_NOTIMPL",
+        [unchecked((int)0x80004002)] = "E_NOINTERFACE",
+        [unchecked((int)0x80004003)] = "E_POINTER",
+        [unchecked((int)0x80004004)] = "E_ABORT",
+        [unchecked((int)0x80004005)] = "E_FAIL",
+        [unchecked((int)0x8000FFFF)] = "E_UNEXPECTED",
+        [unchecked((int)0x80070005)] = "E_ACCESSDENIED",
+        [unchecked((int)0x80070006)] = "E_HANDLE",
+        [unchecked((int)0x8007000E)] = "E_OUTOFMEMORY",
+        [unchecked((int)0x80070057)] = "E_INVALIDARG",
+        [unchecked((int)0x80020001)] = "DISP_E_UNKNOWNINTERFACE",
+        [unchecked((int)0x80020003)] = "DISP_E_MEMBERNOTFOUND",
+        [unchecked((int)0x80020004)] = "DISP_E_PARAMNOTFOUND",
+        [unchecked((int)0x80020005)] = "DISP_E_TYPEMISMATCH",
+        [unchecked((int)0x80020006)] = "DISP_E_UNKNOWNNAME",
+        [unchecked((int)0x80020007)] = "DISP_E_NONAMEDARGS",
+        [unchecked((int)0x80020008)] = "DISP_E_BADVARTYPE",
+        [unchecked((int)0x80020009)] = "DISP_E_EXCEPTION",
+        [unchecked((int)0x8002000A)] = "DISP_E_OVERFLOW",
+        [unchecked((int)0x8002000B)] = "DISP_E_BADINDEX",
+        [unchecked((int)0x8002000C)] = "DISP_E_UNKNOWNLCID",
+        [unchecked((int)0x8002000D)] = "DISP_E_ARRAYISLOCKED",
+        [unchecked((int)0x8002000E)] = "DISP_E_BADPARAMCOUNT",
+        [unchecked((int)0x8002000F)] = "DISP_E_PARAMNOTOPTIONAL",
+        [unchecked((int)0x80020010)] = "DISP_E_BADCALLEE",
+        [unchecked((int)0x80020011)] = "DISP_E_NOTACOLLECTION",
+        [unchecked((int)0x80020012)] = "DISP_E_DIVBYZERO",
+        [unchecked((int)0x80020013)] = "DISP_E_BUFFERTOOSMALL",
+    };
+
+    // win_oleErrorText( [<nError>] ) (olecore.c): the name of nError, or of
+    // the last OLE error; "" for S_OK, and an error it has no name for as
+    // 0x and eight hex digits.
+    public static string win_oleErrorText(decimal? nError = null)
+    {
+        int iError = nError.HasValue ? unchecked((int)(long)nError.Value) : t_oleError;
+        if (iError == S_OK)
+            return "";
+        return s_oleErrorNames.TryGetValue(iError, out string? cName) ? cName : "0x" + unchecked((uint)iError).ToString("x8");
+    }
+
     // wapi_CreateMutex( [<pSecurity>], [<lInitialOwner>], [<cName>] ): a
     // Windows mutex, named when cName is given. .NET's named Mutex is that
     // kernel object, so another process — the installer, a second EasiPOS,
