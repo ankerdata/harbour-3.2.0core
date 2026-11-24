@@ -1097,9 +1097,10 @@ strongest. Later rungs override earlier ones.
    class body, or on its own line before its class, `METHOD M() AS CLASS
    X CLASS Y`, which wins: test171), and nothing in the body moves them: an assignment, a
    caller's argument (pflag `T`), a RETURN. `AS ARRAY OF CLASS X` (not `AS
-   ARRAY OF X`: Harbour's syntax) and `AS ARRAY OF CHARACTER` (NUMERIC,
+   ARRAY OF X`: Harbour's syntax) and `AS ARRAY OF STRING` (NUMERIC,
    INTEGER, LOGICAL, DATE, ARRAY, and an array of arrays, `AS ARRAY OF
-   ARRAY OF CHARACTER`: sqlite3_get_table()'s rows) type an array's
+   ARRAY OF STRING`: sqlite3_get_table()'s rows; CHARACTER, Harbour's
+   other name for STRING, reads the same) type an array's
    elements; INTEGER and the nested form are no Harbour type, so the lexer
    composes them as it does a typed hash (test163). A list of a class
    of the program is a `List<X>`, typed storage as a list of records is
@@ -1116,8 +1117,8 @@ strongest. Later rungs override earlier ones.
    untyped array would leave a name claiming X.
    **Typed lists** (plan C12, test163, test164, test166) are the exception:
    an array of strings, of whole numbers or of numbers, or of such arrays
-   (`AS ARRAY OF CHARACTER` or `STRING`, `AS ARRAY OF INTEGER`, `AS ARRAY
-   OF NUMERIC`, `AS ARRAY OF ARRAY OF CHARACTER`), is stored typed, a
+   (`AS ARRAY OF STRING`, `AS ARRAY OF INTEGER`, `AS ARRAY OF NUMERIC`,
+   `AS ARRAY OF ARRAY OF STRING`), is stored typed, a
    `List<string>`, a `List<long>`, a `List<decimal>` or a
    `List<List<string>>`, so C# checks what goes in as well as what comes
    out. **An array name declares one**: `an`, `ai`, `ac` and `al` (logicals,
