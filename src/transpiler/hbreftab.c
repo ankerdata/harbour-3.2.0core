@@ -3129,12 +3129,14 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                         function body for Pass 1 to register, so its row
                         comes from here: a cross-file `o:Len` then
                         resolves and, sent bare, is emitted as the call
-                        it is. Parameters from the declaration's list;
-                        the return type stays unknown. A body definition
+                        it is. Parameters from the declaration's list,
+                        each typed by its name as a method's is; the
+                        return type stays unknown. A body definition
                         of the same name (a previous pass) is left alone. */
                      char szMKey[ 256 ];
                      char szPBuf[ 256 ];
                      const char * apNames[ HB_REFTAB_MAXPARAM ];
+                     const char * apTypes[ HB_REFTAB_MAXPARAM ];
                      int nP = 0;
                      const char * szP = pMember->value.asClassMethod.szParams;
                      if( szP && *szP )
@@ -3154,6 +3156,11 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                               *q++ = '\0';
                         }
                      }
+                     {
+                        int iP;
+                        for( iP = 0; iP < nP; iP++ )
+                           apTypes[ iP ] = hb_astInferType( apNames[ iP ], NULL );
+                     }
                      if( pMember->value.asClassMethod.fMessageAlias && nP == 0 )
                         /* a parameterless MESSAGE alias emits as a C#
                            property (`o:Len` bare is its use), so its row
@@ -3167,7 +3174,7 @@ void hb_refTabCollect( PHB_REFTAB pTab, HB_COMP_DECL )
                                      pMember->value.asClassMethod.szName );
                      if( hb_refTabParamCount( pTab, szMKey ) < 0 )
                         hb_refTabAddFunc( pTab, szMKey, nP, nP ? apNames : NULL,
-                                          NULL, HB_FALSE );
+                                          nP ? apTypes : NULL, HB_FALSE );
                      /* `METHOD M() AS <type> INLINE ...`: the declared return
                         is the row's, as a body's RETURN would have been */
                      if( pMember->value.asClassMethod.szDeclType )

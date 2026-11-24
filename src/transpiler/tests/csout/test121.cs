@@ -21,7 +21,7 @@ public class Tally121 : IHbObject
     public string cName = "";
 
     public dynamic Label121() => cName + "=" + hb_ntos( iCount );
-    public dynamic Relabel121(dynamic cName = default) => this.cName = cName;
+    public dynamic Relabel121(string cName = default) => this.cName = cName;
     public virtual Tally121 Add121(long iStep = default)
     {
         iCount += iStep;

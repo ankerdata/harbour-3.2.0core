@@ -14,9 +14,9 @@ public class Test75Dialog : IHbObject
 {
     public OrderedDictionary<string, dynamic> hcResultData;
 
-    public dynamic ResultValue(dynamic cKey = default, dynamic xDefault = default) => ((hcResultData != null && hb_HHasKey(hcResultData, cKey)) ? ( hcResultData[cKey]) : ( xDefault));
-    public dynamic GetOrEmpty(dynamic cKey = default) => hb_HGetDef(hcResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
-    public dynamic IsEmptyish(dynamic nVal = default) => nVal == 0 || ! (nVal != -1);
+    public dynamic ResultValue(string cKey = default, dynamic xDefault = default) => ((hcResultData != null && hb_HHasKey(hcResultData, cKey)) ? ( hcResultData[cKey]) : ( xDefault));
+    public dynamic GetOrEmpty(string cKey = default) => hb_HGetDef(hcResultData, cKey, new OrderedDictionary<dynamic, dynamic>());
+    public dynamic IsEmptyish(decimal nVal = default) => nVal == 0 || ! (nVal != -1);
 }
 
 public static partial class Program

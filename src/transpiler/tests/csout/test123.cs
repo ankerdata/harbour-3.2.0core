@@ -20,12 +20,12 @@ public class Shelf123 : IHbObject
 
     public dynamic First123() => aSlots123[I(1)];
     public dynamic Last123() => aSlots123[I(Len(aSlots123))];
-    public dynamic At123(dynamic nAt = default) => aSlots123[I(nAt)];
+    public dynamic At123(decimal nAt = default) => aSlots123[I(nAt)];
     public dynamic Current123() => aSlots123[I(nPos123)];
-    public dynamic Cell123(dynamic nRow = default, dynamic nCol = default) => aGrid123[I(nRow)][I(nCol)];
-    public dynamic Tag123(dynamic cKey = default) => hcTags123[cKey];
+    public dynamic Cell123(decimal nRow = default, decimal nCol = default) => aGrid123[I(nRow)][I(nCol)];
+    public dynamic Tag123(string cKey = default) => hcTags123[cKey];
     public dynamic Red123() => hcTags123["red"];
-    public dynamic Put123(dynamic nAt = default, dynamic cVal = default) => aSlots123[I(nAt)] = cVal;
+    public dynamic Put123(decimal nAt = default, string cVal = default) => aSlots123[I(nAt)] = cVal;
     public virtual Shelf123 Fill123()
     {
         aSlots123 = new List<dynamic> { "first", "second", "third" };

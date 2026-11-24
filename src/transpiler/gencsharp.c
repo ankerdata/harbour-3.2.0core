@@ -12072,13 +12072,15 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
          fprintf( yyc, "%s %s %s(", szScope, szRetCs, szName );
          if( szParms && *szParms )
          {
-            /* szParams is a comma-separated bare identifier list; emit
-               each as `dynamic name = default`. */
+            /* szParams is a comma-separated bare identifier list; each
+               is typed by its name, as a method's parameter is
+               (`cCondition` a string, `xDefault` dynamic) */
             const char * q = szParms;
             HB_BOOL fFirst = HB_TRUE;
             while( *q )
             {
                const char * pStart;
+               char szPName[ 64 ];
                while( *q == ' ' || *q == ',' )
                   q++;
                if( ! *q )
@@ -12086,10 +12088,12 @@ static void hb_csEmitClass( HB_CS_CLASS * pClass, FILE * yyc )
                pStart = q;
                while( *q && *q != ',' && *q != ' ' )
                   q++;
+               hb_strncpy( szPName, pStart,
+                           HB_MIN( ( HB_SIZE ) ( q - pStart ), sizeof( szPName ) - 1 ) );
                if( ! fFirst )
                   fprintf( yyc, ", " );
-               fprintf( yyc, "dynamic %.*s = default",
-                        ( int ) ( q - pStart ), pStart );
+               fprintf( yyc, "%s %s = default",
+                        hb_csTypeMap( hb_astInferType( szPName, NULL ) ), szPName );
                fFirst = HB_FALSE;
             }
          }

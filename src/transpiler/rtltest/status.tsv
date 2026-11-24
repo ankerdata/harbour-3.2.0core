@@ -5,7 +5,7 @@
 Empty	implemented	2550	41	0	0	0	0	0
 RTrim	implemented	2503	15	0	0	0	0	0
 Len	implemented	2429	41	0	0	0	0	0
-AAdd	implemented	1616	5	0	0	0	0	0
+AAdd	implemented	1618	5	0	0	0	0	0
 Str	implemented	989	172	0	0	0	0	0
 Chr	implemented	972	60	0	0	0	0	0
 Left	implemented	741	7	0	0	0	0	0
@@ -16,7 +16,7 @@ Round	implemented	536	94	0	0	0	0	0
 SubStr	implemented	530	30	0	0	0	0	0
 Int	implemented	527	15	0	0	0	0	0
 Space	implemented	525	6	0	0	0	0	0
-Val	implemented	481	0	0	0	0	0	0
+Val	implemented	479	0	0	0	0	0	0
 StrZero	implemented	456	69	0	0	0	0	0
 Date	implemented	392	0	0	0	0	0	0
 StrTran	implemented	381	7	0	0	0	0	0
@@ -28,7 +28,7 @@ hb_BLen	implemented	286	6	0	0	0	0	0
 hb_bitOr	implemented	274	5	0	0	0	0	0
 Time	implemented	264	0	0	0	0	0	0
 File	implemented	261	14	0	0	0	0	0
-ValType	implemented	237	33	0	0	0	0	0
+ValType	implemented	230	33	0	0	0	0	0
 hb_bitNot	implemented	226	3	0	0	0	0	0
 hb_HHasKey	implemented	195	6	0	0	0	0	0
 FWrite	implemented	190	26	0	0	0	0	0
@@ -58,7 +58,7 @@ hb_cdpSelect	implemented	70	1	0	0	0	0	0
 RAt	implemented	67	20	0	0	0	0	0
 ASize	implemented	66	8	0	0	0	0	0
 AClone	implemented	64	4	0	0	0	0	0
-hb_HSet	implemented	64	0	0	0	0	0	0
+hb_HSet	implemented	62	0	0	0	0	0	0
 hb_HGetDef	implemented	60	4	0	0	0	0	0
 hb_BLeft	implemented	59	2	0	0	0	0	0
 hb_HKeys	implemented	55	2	0	0	0	0	0
