@@ -315,11 +315,11 @@ STATIC FUNCTION NoSuchVar()
 STATIC FUNCTION HashMiss()
 
    LOCAL oError
-   LOCAL hList := { "a" => 1 }
+   LOCAL hcList := { "a" => 1 }
    LOCAL nValue
 
    BEGIN SEQUENCE WITH {| oErr | Break( oErr ) }
-      nValue := hList[ "b" ]
+      nValue := hcList[ "b" ]
    RECOVER USING oError
    end
 

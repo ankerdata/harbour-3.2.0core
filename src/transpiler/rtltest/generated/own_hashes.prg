@@ -4,30 +4,30 @@
 
 PROCEDURE Main_HASHES()
 
-   LOCAL hAges := { "ann" => 31, "bob" => 42, "cy" => 7 }
-   LOCAL hIds := { 10 => "ten", 20 => "twenty" }
+   LOCAL hcAges := { "ann" => 31, "bob" => 42, "cy" => 7 }
+   LOCAL hcIds := { 10 => "ten", 20 => "twenty" }
 
 
-   TEST_CALL( "own_hashes:18", 'hb_HHasKey( hAges, "bob" )', {|| hb_HHasKey( hAges, "bob" ) }, .T., .F., NIL )
-   TEST_CALL( "own_hashes:19", 'hb_HHasKey( hAges, "Bob" )', {|| hb_HHasKey( hAges, "Bob" ) }, .F., .F., NIL )
-   TEST_CALL( "own_hashes:20", 'hb_HHasKey( hAges, "bo" )', {|| hb_HHasKey( hAges, "bo" ) }, .F., .F., NIL )
-   TEST_CALL( "own_hashes:21", 'hb_HGetDef( hAges, "cy", 0 )', {|| hb_HGetDef( hAges, "cy", 0 ) }, 7, .F., NIL )
-   TEST_CALL( "own_hashes:22", 'hb_HGetDef( hAges, "dee", 0 )', {|| hb_HGetDef( hAges, "dee", 0 ) }, 0, .F., NIL )
-   TEST_CALL( "own_hashes:23", 'hb_HGetDef( hAges, "dee" )', {|| hb_HGetDef( hAges, "dee" ) }, NIL, .F., NIL )
-   TEST_CALL( "own_hashes:24", 'hb_HGet( hAges, "ann" )', {|| hb_HGet( hAges, "ann" ) }, 31, .F., NIL )
-   TEST_CALL( "own_hashes:25", 'hb_HPos( hAges, "cy" )', {|| hb_HPos( hAges, "cy" ) }, 3, .F., NIL )
-   TEST_CALL( "own_hashes:26", 'hb_HPos( hAges, "dee" )', {|| hb_HPos( hAges, "dee" ) }, 0, .F., NIL )
-   TEST_CALL( "own_hashes:27", "hb_HKeyAt( hAges, 2 )", {|| hb_HKeyAt( hAges, 2 ) }, "bob", .F., NIL )
-   TEST_CALL( "own_hashes:28", "Len( hAges )", {|| Len( hAges ) }, 3, .F., NIL )
-   TEST_CALL( "own_hashes:29", '"ann" $ hAges', {|| "ann" $ hAges }, .T., .F., NIL )
-   TEST_CALL( "own_hashes:30", '"dee" $ hAges', {|| "dee" $ hAges }, .F., .F., NIL )
+   TEST_CALL( "own_hashes:18", 'hb_HHasKey( hcAges, "bob" )', {|| hb_HHasKey( hcAges, "bob" ) }, .T., .F., NIL )
+   TEST_CALL( "own_hashes:19", 'hb_HHasKey( hcAges, "Bob" )', {|| hb_HHasKey( hcAges, "Bob" ) }, .F., .F., NIL )
+   TEST_CALL( "own_hashes:20", 'hb_HHasKey( hcAges, "bo" )', {|| hb_HHasKey( hcAges, "bo" ) }, .F., .F., NIL )
+   TEST_CALL( "own_hashes:21", 'hb_HGetDef( hcAges, "cy", 0 )', {|| hb_HGetDef( hcAges, "cy", 0 ) }, 7, .F., NIL )
+   TEST_CALL( "own_hashes:22", 'hb_HGetDef( hcAges, "dee", 0 )', {|| hb_HGetDef( hcAges, "dee", 0 ) }, 0, .F., NIL )
+   TEST_CALL( "own_hashes:23", 'hb_HGetDef( hcAges, "dee" )', {|| hb_HGetDef( hcAges, "dee" ) }, NIL, .F., NIL )
+   TEST_CALL( "own_hashes:24", 'hb_HGet( hcAges, "ann" )', {|| hb_HGet( hcAges, "ann" ) }, 31, .F., NIL )
+   TEST_CALL( "own_hashes:25", 'hb_HPos( hcAges, "cy" )', {|| hb_HPos( hcAges, "cy" ) }, 3, .F., NIL )
+   TEST_CALL( "own_hashes:26", 'hb_HPos( hcAges, "dee" )', {|| hb_HPos( hcAges, "dee" ) }, 0, .F., NIL )
+   TEST_CALL( "own_hashes:27", "hb_HKeyAt( hcAges, 2 )", {|| hb_HKeyAt( hcAges, 2 ) }, "bob", .F., NIL )
+   TEST_CALL( "own_hashes:28", "Len( hcAges )", {|| Len( hcAges ) }, 3, .F., NIL )
+   TEST_CALL( "own_hashes:29", '"ann" $ hcAges', {|| "ann" $ hcAges }, .T., .F., NIL )
+   TEST_CALL( "own_hashes:30", '"dee" $ hcAges', {|| "dee" $ hcAges }, .F., .F., NIL )
 
 
-   TEST_CALL( "own_hashes:33", "hb_HHasKey( hIds, 10 )", {|| hb_HHasKey( hIds, 10 ) }, .T., .F., NIL )
-   TEST_CALL( "own_hashes:34", "hb_HHasKey( hIds, 10.0 )", {|| hb_HHasKey( hIds, 10.0 ) }, .T., .F., NIL )
-   TEST_CALL( "own_hashes:35", "hb_HHasKey( hIds, 15 )", {|| hb_HHasKey( hIds, 15 ) }, .F., .F., NIL )
-   TEST_CALL( "own_hashes:36", 'hb_HGetDef( hIds, 20.0, "" )', {|| hb_HGetDef( hIds, 20.0, "" ) }, "twenty", .F., NIL )
-   TEST_CALL( "own_hashes:37", "hb_HKeyAt( hIds, 1 ) + 5", {|| hb_HKeyAt( hIds, 1 ) + 5 }, 15, .F., NIL )
+   TEST_CALL( "own_hashes:33", "hb_HHasKey( hcIds, 10 )", {|| hb_HHasKey( hcIds, 10 ) }, .T., .F., NIL )
+   TEST_CALL( "own_hashes:34", "hb_HHasKey( hcIds, 10.0 )", {|| hb_HHasKey( hcIds, 10.0 ) }, .T., .F., NIL )
+   TEST_CALL( "own_hashes:35", "hb_HHasKey( hcIds, 15 )", {|| hb_HHasKey( hcIds, 15 ) }, .F., .F., NIL )
+   TEST_CALL( "own_hashes:36", 'hb_HGetDef( hcIds, 20.0, "" )', {|| hb_HGetDef( hcIds, 20.0, "" ) }, "twenty", .F., NIL )
+   TEST_CALL( "own_hashes:37", "hb_HKeyAt( hcIds, 1 ) + 5", {|| hb_HKeyAt( hcIds, 1 ) + 5 }, 15, .F., NIL )
 
 
    TEST_CALL( "own_hashes:40", 'KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) )', {|| KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) ) }, "a c d", .F., NIL )
@@ -43,40 +43,40 @@ PROCEDURE Main_HASHES()
 
    RETURN
 
-STATIC FUNCTION KeyList( hIn )
+STATIC FUNCTION KeyList( hcIn )
 
    LOCAL cOut := ""
    LOCAL cKey
 
-   FOR EACH cKey IN hb_HKeys( hIn )
+   FOR EACH cKey IN hb_HKeys( hcIn )
       cOut += iif( Empty( cOut ), "", " " ) + cKey
    NEXT
 
    RETURN cOut
 
-STATIC FUNCTION DelAdd( hIn, cDel, cAdd )
+STATIC FUNCTION DelAdd( hcIn, cDel, cAdd )
 
-   hb_HDel( hIn, cDel )
-   hIn[ cAdd ] := 0
+   hb_HDel( hcIn, cDel )
+   hcIn[ cAdd ] := 0
 
-   RETURN hIn
+   RETURN hcIn
 
-STATIC FUNCTION SetOf( hIn, cKey, xValue )
+STATIC FUNCTION SetOf( hcIn, cKey, xValue )
 
-   hb_HSet( hIn, cKey, xValue )
+   hb_HSet( hcIn, cKey, xValue )
 
-   RETURN hIn
+   RETURN hcIn
 
 STATIC FUNCTION CloneApart()
 
-   LOCAL hSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
-   LOCAL hCopy := hb_HClone( hSrc )
+   LOCAL hcSrc := { "a" => { 1, 2 }, "b" => { "x" => 1 } }
+   LOCAL hcCopy := hb_HClone( hcSrc )
 
-   hCopy[ "a" ][ 1 ] := 9
-   hCopy[ "b" ][ "x" ] := 5
+   hcCopy[ "a" ][ 1 ] := 9
+   hcCopy[ "b" ][ "x" ] := 5
 
 
-   RETURN Str( hSrc[ "a" ][ 1 ], 1 ) + " " + Str( hSrc[ "b" ][ "x" ], 1 ) + " " +  Str( hCopy[ "a" ][ 1 ], 1 ) + " " + Str( hCopy[ "b" ][ "x" ], 1 )
+   RETURN Str( hcSrc[ "a" ][ 1 ], 1 ) + " " + Str( hcSrc[ "b" ][ "x" ], 1 ) + " " +  Str( hcCopy[ "a" ][ 1 ], 1 ) + " " + Str( hcCopy[ "b" ][ "x" ], 1 )
 
 
 PROCEDURE Main()

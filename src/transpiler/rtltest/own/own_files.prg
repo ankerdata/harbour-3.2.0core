@@ -222,6 +222,27 @@ PROCEDURE Main_FILES()
    HBTEST FClose( nHandle )                                IS .T.
    HBTEST FErase( cName )                                  IS 0
 
+   /* FOpen()'s FO_CREAT, and hb_FLock(): a byte-range lock on a handle,
+      the one EasiPOS takes beyond its lock file's end so that a second
+      EasiPOS on the same data folder is refused. Closing a handle releases
+      its locks. */
+   FErase( "_lock.tmp" )
+   nHandle := FOpen( "_lock.tmp", FO_READWRITE + FO_SHARED + FO_CREAT )
+   HBTEST FError()                                         IS 0
+   HBTEST File( "_lock.tmp" )                              IS .T.
+   HBTEST hb_FLock( nHandle, 0x7FFFFFFF, 1 )               IS .T.
+   HBTEST FError()                                         IS 0
+   nShared := FOpen( "_lock.tmp", FO_READWRITE + FO_SHARED )
+   HBTEST hb_FLock( nShared, 0x7FFFFFFF, 1 )               IS .F.
+   HBTEST FError()                                         IS 33
+   HBTEST hb_FLock( nShared, 0, 1 )                        IS .T.
+   HBTEST FClose( nHandle )                                IS .T.
+   HBTEST hb_FLock( nShared, 0x7FFFFFFF, 1 )               IS .T.
+   HBTEST FClose( nShared )                                IS .T.
+   HBTEST hb_FLock( nHandle, 0, 1 )                        IS .F.
+   HBTEST FError()                                         IS 6
+   HBTEST FErase( "_lock.tmp" )                            IS 0
+
    /* DiskSpace() and DosError() */
    HBTEST DiskSpace( 0 ) > 0                               IS .T.
    DosError( 0 )

@@ -4,7 +4,7 @@
 
 PROCEDURE Main_STRINGS()
 
-   LOCAL hRepl := { "/" => "\", "a" => "A" }
+   LOCAL hcRepl := { "/" => "\", "a" => "A" }
 
 
    TEST_CALL( "own_strings:15", 'Len( hb_ATokens( "a,b,c", "," ) )', {|| Len( hb_ATokens( "a,b,c", "," ) ) }, 3, .F., NIL )
@@ -22,7 +22,7 @@ PROCEDURE Main_STRINGS()
    TEST_CALL( "own_strings:27", 'Len( hb_ATokens( "l1" + Chr( 13 ) + Chr( 10 ) + "l2" + Chr( 10 ) + "l3", .T. ) )', {|| Len( hb_ATokens( "l1" + Chr( 13 ) + Chr( 10 ) + "l2" + Chr( 10 ) + "l3", .T. ) ) }, 3, .F., NIL )
 
 
-   TEST_CALL( "own_strings:30", 'hb_StrReplace( "a/b/c", hRepl )', {|| hb_StrReplace( "a/b/c", hRepl ) }, "A\b\c", .F., NIL )
+   TEST_CALL( "own_strings:30", 'hb_StrReplace( "a/b/c", hcRepl )', {|| hb_StrReplace( "a/b/c", hcRepl ) }, "A\b\c", .F., NIL )
    TEST_CALL( "own_strings:31", 'hb_StrReplace( "abcabc", "ab", "xy" )', {|| hb_StrReplace( "abcabc", "ab", "xy" ) }, "xycxyc", .F., NIL )
    TEST_CALL( "own_strings:32", 'hb_StrReplace( "abcabc", "ab", "x" )', {|| hb_StrReplace( "abcabc", "ab", "x" ) }, "xcxc", .F., NIL )
    TEST_CALL( "own_strings:33", 'hb_StrReplace( "abcabc", "ab" )', {|| hb_StrReplace( "abcabc", "ab" ) }, "cc", .F., NIL )

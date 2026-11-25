@@ -13,7 +13,7 @@ PROCEDURE Main_CODECS()
    LOCAL cEuro := hb_utf8Chr( 0x20AC )
    LOCAL cByte := hb_BChar( nE - 1 + 18 )
    LOCAL cMix := "a" + cE + cByte + "z"
-   LOCAL hOrder := { "Type" => "SALE", "Qty" => 2, "Price" => 19.95, "Paid" => .F. }
+   LOCAL hcOrder := { "Type" => "SALE", "Qty" => 2, "Price" => 19.95, "Paid" => .F. }
    LOCAL cBytes := Chr( 0 ) + Chr( 9 ) + Chr( 10 ) + Chr( 13 ) + Chr( 34 ) + Chr( 92 ) + Chr( 200 )
 
 
@@ -36,7 +36,7 @@ PROCEDURE Main_CODECS()
    TEST_CALL( "own_codecs:46", "hb_jsonEncode( {} )", {|| hb_jsonEncode( {} ) }, "[]", .F., NIL )
    TEST_CALL( "own_codecs:47", 'hb_jsonEncode( { 1, "two", .T., NIL } )', {|| hb_jsonEncode( { 1, "two", .T., NIL } ) }, '[1,"two",true,null]', .F., NIL )
    TEST_CALL( "own_codecs:48", "hb_jsonEncode( { => } )", {|| hb_jsonEncode( { => } ) }, "{}", .F., NIL )
-   TEST_CALL( "own_codecs:49", "hb_jsonEncode( hOrder )", {|| hb_jsonEncode( hOrder ) }, '{"Type":"SALE","Qty":2,"Price":19.95,"Paid":false}', .F., NIL )
+   TEST_CALL( "own_codecs:49", "hb_jsonEncode( hcOrder )", {|| hb_jsonEncode( hcOrder ) }, '{"Type":"SALE","Qty":2,"Price":19.95,"Paid":false}', .F., NIL )
    TEST_CALL( "own_codecs:50", 'hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } )', {|| hb_jsonEncode( { "a" => { 1, 2 }, "b" => { "c" => NIL } } ) }, '{"a":[1,2],"b":{"c":null}}', .F., NIL )
 
 
@@ -59,8 +59,8 @@ PROCEDURE Main_CODECS()
    TEST_CALL( "own_codecs:69", 'hb_jsonDecode( "" )', {|| hb_jsonDecode( "" ) }, NIL, .F., NIL )
 
 
-   TEST_CALL( "own_codecs:72", "RoundTrip( hOrder )", {|| RoundTrip( hOrder ) }, "SALE 2 19.95 .F.", .F., NIL )
-   TEST_CALL( "own_codecs:73", "DecodeLen( hb_jsonEncode( hOrder ) )", {|| DecodeLen( hb_jsonEncode( hOrder ) ) }, 4, .F., NIL )
+   TEST_CALL( "own_codecs:72", "RoundTrip( hcOrder )", {|| RoundTrip( hcOrder ) }, "SALE 2 19.95 .F.", .F., NIL )
+   TEST_CALL( "own_codecs:73", "DecodeLen( hb_jsonEncode( hcOrder ) )", {|| DecodeLen( hb_jsonEncode( hcOrder ) ) }, 4, .F., NIL )
 
 
    TEST_CALL( "own_codecs:76", 'hb_base64Encode( "" )', {|| hb_base64Encode( "" ) }, "", .F., NIL )
@@ -207,12 +207,12 @@ PROCEDURE Main_CODECS()
    RETURN
 
 
-STATIC FUNCTION RoundTrip( hValue )
+STATIC FUNCTION RoundTrip( hcValue )
 
-   LOCAL hBack := hb_jsonDecode( hb_jsonEncode( hValue ) )
+   LOCAL hcBack := hb_jsonDecode( hb_jsonEncode( hcValue ) )
 
 
-   RETURN hBack[ "Type" ] + " " + hb_ntos( hBack[ "Qty" ] ) + " " +  hb_ntos( hBack[ "Price" ] ) + " " + hb_ValToExp( hBack[ "Paid" ] )
+   RETURN hcBack[ "Type" ] + " " + hb_ntos( hcBack[ "Qty" ] ) + " " +  hb_ntos( hcBack[ "Price" ] ) + " " + hb_ValToExp( hcBack[ "Paid" ] )
 
 STATIC FUNCTION DecodeLen( cJSON )
    RETURN Len( hb_jsonDecode( cJSON ) )

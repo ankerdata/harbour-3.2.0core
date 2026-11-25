@@ -204,11 +204,32 @@ PROCEDURE Main_FILES()
    TEST_CALL( "own_files:223", "FErase( cName )", {|| FErase( cName ) }, 0, .F., NIL )
 
 
-   TEST_CALL( "own_files:226", "DiskSpace( 0 ) > 0", {|| DiskSpace( 0 ) > 0 }, .T., .F., NIL )
+
+
+
+   FErase( "_lock.tmp" )
+   nHandle := FOpen( "_lock.tmp", 2 + 64 + 0x0100 )
+   TEST_CALL( "own_files:231", "FError()", {|| FError() }, 0, .F., NIL )
+   TEST_CALL( "own_files:232", 'File( "_lock.tmp" )', {|| File( "_lock.tmp" ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:233", "hb_FLock( nHandle, 0x7FFFFFFF, 1 )", {|| hb_FLock( nHandle, 0x7FFFFFFF, 1 ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:234", "FError()", {|| FError() }, 0, .F., NIL )
+   nShared := FOpen( "_lock.tmp", 2 + 64 )
+   TEST_CALL( "own_files:236", "hb_FLock( nShared, 0x7FFFFFFF, 1 )", {|| hb_FLock( nShared, 0x7FFFFFFF, 1 ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:237", "FError()", {|| FError() }, 33, .F., NIL )
+   TEST_CALL( "own_files:238", "hb_FLock( nShared, 0, 1 )", {|| hb_FLock( nShared, 0, 1 ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:239", "FClose( nHandle )", {|| FClose( nHandle ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:240", "hb_FLock( nShared, 0x7FFFFFFF, 1 )", {|| hb_FLock( nShared, 0x7FFFFFFF, 1 ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:241", "FClose( nShared )", {|| FClose( nShared ) }, .T., .F., NIL )
+   TEST_CALL( "own_files:242", "hb_FLock( nHandle, 0, 1 )", {|| hb_FLock( nHandle, 0, 1 ) }, .F., .F., NIL )
+   TEST_CALL( "own_files:243", "FError()", {|| FError() }, 6, .F., NIL )
+   TEST_CALL( "own_files:244", 'FErase( "_lock.tmp" )', {|| FErase( "_lock.tmp" ) }, 0, .F., NIL )
+
+
+   TEST_CALL( "own_files:247", "DiskSpace( 0 ) > 0", {|| DiskSpace( 0 ) > 0 }, .T., .F., NIL )
    DosError( 0 )
-   TEST_CALL( "own_files:228", "DosError()", {|| DosError() }, 0, .F., NIL )
+   TEST_CALL( "own_files:249", "DosError()", {|| DosError() }, 0, .F., NIL )
    DosError( 7 )
-   TEST_CALL( "own_files:230", "DosError()", {|| DosError() }, 7, .F., NIL )
+   TEST_CALL( "own_files:251", "DosError()", {|| DosError() }, 7, .F., NIL )
    DosError( 0 )
 
    RETURN

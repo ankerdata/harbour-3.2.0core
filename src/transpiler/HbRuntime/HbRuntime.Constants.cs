@@ -25,6 +25,9 @@ public static partial class HbRuntime
     public const decimal FO_DENYREAD = 48;
     public const decimal FO_DENYNONE = 64;
     public const decimal FO_SHARED = 64;
+    public const decimal FO_CREAT = 256;
+    public const decimal FO_TRUNC = 512;
+    public const decimal FO_EXCL = 1024;
     public const decimal FS_SET = 0;
     public const decimal FS_RELATIVE = 1;
     public const decimal FS_END = 2;

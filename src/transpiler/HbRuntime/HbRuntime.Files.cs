@@ -174,6 +174,32 @@ public static partial class HbRuntime
         return FsOpen(cFile, ((int) nFlags & ~3) | HB_FO_READWRITE | HB_FO_CREAT | HB_FO_TRUNC, (int) nAttr);
     }
 
+    // hb_FLock( <nHandle>, <nStart>, <nLength> ): an exclusive lock on a
+    // byte range of an open file, refused at once when another handle
+    // holds any of it (ERROR_LOCK_VIOLATION), and released when the handle
+    // is closed. The range may lie beyond the file's end. Harbour's fourth
+    // parameter, HB_FLX_SHARED or HB_FLX_WAIT, has no FileStream form and
+    // is not taken.
+    public static bool hb_FLock(decimal nHandle, decimal nStart, decimal nLength)
+    {
+        if (!TryGetFile(nHandle, out FileStream fs))
+        {
+            FsError(6);
+            return false;
+        }
+        try
+        {
+            fs.Lock((long) nStart, (long) nLength);
+            FsError(0);
+            return true;
+        }
+        catch (Exception e) when (IsFsFailure(e))
+        {
+            FsError(OsError(e));
+            return false;
+        }
+    }
+
     // FClose( <nHandle> ): .T. when it closed. An unknown handle is
     // ERROR_INVALID_HANDLE, as closing a closed handle is in Harbour.
     public static bool FClose(decimal nHandle)
