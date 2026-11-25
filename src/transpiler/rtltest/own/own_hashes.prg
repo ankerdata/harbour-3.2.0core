@@ -12,7 +12,7 @@
 PROCEDURE Main_HASHES()
 
    LOCAL hcAges := { "ann" => 31, "bob" => 42, "cy" => 7 }
-   LOCAL hcIds := { 10 => "ten", 20 => "twenty" }
+   LOCAL hnIds := { 10 => "ten", 20 => "twenty" }
 
    /* lookup; string keys compare exactly */
    HBTEST hb_HHasKey( hcAges, "bob" )                 IS .T.
@@ -30,11 +30,11 @@ PROCEDURE Main_HASHES()
    HBTEST "dee" $ hcAges                              IS .F.
 
    /* numeric keys compare by value */
-   HBTEST hb_HHasKey( hcIds, 10 )                     IS .T.
-   HBTEST hb_HHasKey( hcIds, 10.0 )                   IS .T.
-   HBTEST hb_HHasKey( hcIds, 15 )                     IS .F.
-   HBTEST hb_HGetDef( hcIds, 20.0, "" )               IS "twenty"
-   HBTEST hb_HKeyAt( hcIds, 1 ) + 5                   IS 15
+   HBTEST hb_HHasKey( hnIds, 10 )                     IS .T.
+   HBTEST hb_HHasKey( hnIds, 10.0 )                   IS .T.
+   HBTEST hb_HHasKey( hnIds, 15 )                     IS .F.
+   HBTEST hb_HGetDef( hnIds, 20.0, "" )               IS "twenty"
+   HBTEST hb_HKeyAt( hnIds, 1 ) + 5                   IS 15
 
    /* order: kept as added, deletes included; a replaced key stays put */
    HBTEST KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) ) IS "a c d"

@@ -470,11 +470,11 @@ own_hashes:27	run-fn	HB_HKEYAT	HB_HKEYAT	hb_HKeyAt( hcAges, 2 )
 own_hashes:28	run-fn	LEN	LEN	Len( hcAges )
 own_hashes:29	run-op			"ann" $ hcAges
 own_hashes:30	run-op			"dee" $ hcAges
-own_hashes:33	run-fn	HB_HHASKEY	HB_HHASKEY	hb_HHasKey( hcIds, 10 )
-own_hashes:34	run-fn	HB_HHASKEY	HB_HHASKEY	hb_HHasKey( hcIds, 10.0 )
-own_hashes:35	run-fn	HB_HHASKEY	HB_HHASKEY	hb_HHasKey( hcIds, 15 )
-own_hashes:36	run-fn	HB_HGETDEF	HB_HGETDEF	hb_HGetDef( hcIds, 20.0, "" )
-own_hashes:37	run-fn	HB_HKEYAT	HB_HKEYAT	hb_HKeyAt( hcIds, 1 ) + 5
+own_hashes:33	run-fn	HB_HHASKEY	HB_HHASKEY	hb_HHasKey( hnIds, 10 )
+own_hashes:34	run-fn	HB_HHASKEY	HB_HHASKEY	hb_HHasKey( hnIds, 10.0 )
+own_hashes:35	run-fn	HB_HHASKEY	HB_HHASKEY	hb_HHasKey( hnIds, 15 )
+own_hashes:36	run-fn	HB_HGETDEF	HB_HGETDEF	hb_HGetDef( hnIds, 20.0, "" )
+own_hashes:37	run-fn	HB_HKEYAT	HB_HKEYAT	hb_HKeyAt( hnIds, 1 ) + 5
 own_hashes:40	run-fn	HB_HKEYS	EMPTY,HB_HDEL,HB_HKEYS	KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) )
 own_hashes:41	run-fn	HB_HKEYS	EMPTY,HB_HKEYS,HB_HSET	KeyList( SetOf( { "a" => 1, "b" => 2 }, "a", 9 ) )
 own_hashes:42	run-fn	HB_HGET	HB_HGET,HB_HSET	hb_HGet( SetOf( { "a" => 1 }, "a", 9 ), "a" )

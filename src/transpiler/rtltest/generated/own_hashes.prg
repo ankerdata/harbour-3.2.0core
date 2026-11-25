@@ -5,7 +5,7 @@
 PROCEDURE Main_HASHES()
 
    LOCAL hcAges := { "ann" => 31, "bob" => 42, "cy" => 7 }
-   LOCAL hcIds := { 10 => "ten", 20 => "twenty" }
+   LOCAL hnIds := { 10 => "ten", 20 => "twenty" }
 
 
    TEST_CALL( "own_hashes:18", 'hb_HHasKey( hcAges, "bob" )', {|| hb_HHasKey( hcAges, "bob" ) }, .T., .F., NIL )
@@ -23,11 +23,11 @@ PROCEDURE Main_HASHES()
    TEST_CALL( "own_hashes:30", '"dee" $ hcAges', {|| "dee" $ hcAges }, .F., .F., NIL )
 
 
-   TEST_CALL( "own_hashes:33", "hb_HHasKey( hcIds, 10 )", {|| hb_HHasKey( hcIds, 10 ) }, .T., .F., NIL )
-   TEST_CALL( "own_hashes:34", "hb_HHasKey( hcIds, 10.0 )", {|| hb_HHasKey( hcIds, 10.0 ) }, .T., .F., NIL )
-   TEST_CALL( "own_hashes:35", "hb_HHasKey( hcIds, 15 )", {|| hb_HHasKey( hcIds, 15 ) }, .F., .F., NIL )
-   TEST_CALL( "own_hashes:36", 'hb_HGetDef( hcIds, 20.0, "" )', {|| hb_HGetDef( hcIds, 20.0, "" ) }, "twenty", .F., NIL )
-   TEST_CALL( "own_hashes:37", "hb_HKeyAt( hcIds, 1 ) + 5", {|| hb_HKeyAt( hcIds, 1 ) + 5 }, 15, .F., NIL )
+   TEST_CALL( "own_hashes:33", "hb_HHasKey( hnIds, 10 )", {|| hb_HHasKey( hnIds, 10 ) }, .T., .F., NIL )
+   TEST_CALL( "own_hashes:34", "hb_HHasKey( hnIds, 10.0 )", {|| hb_HHasKey( hnIds, 10.0 ) }, .T., .F., NIL )
+   TEST_CALL( "own_hashes:35", "hb_HHasKey( hnIds, 15 )", {|| hb_HHasKey( hnIds, 15 ) }, .F., .F., NIL )
+   TEST_CALL( "own_hashes:36", 'hb_HGetDef( hnIds, 20.0, "" )', {|| hb_HGetDef( hnIds, 20.0, "" ) }, "twenty", .F., NIL )
+   TEST_CALL( "own_hashes:37", "hb_HKeyAt( hnIds, 1 ) + 5", {|| hb_HKeyAt( hnIds, 1 ) + 5 }, 15, .F., NIL )
 
 
    TEST_CALL( "own_hashes:40", 'KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) )', {|| KeyList( DelAdd( { "a" => 1, "b" => 2, "c" => 3 }, "b", "d" ) ) }, "a c d", .F., NIL )
