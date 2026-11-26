@@ -13,13 +13,25 @@
     <AssemblyName>HbSqlit3</AssemblyName>
   </PropertyGroup>
 
-  <!-- SQLite3 Multiple Ciphers, one DLL per architecture (native\build.bat
-       builds them from harbour-core's contrib\3rd\sqlite3): copied to
-       native\<arch>\ in the output of every project that references this
-       one, where HbSqlit3 loads the one for the process's architecture. -->
-  <ItemGroup>
+  <!-- SQLite3 Multiple Ciphers, one library per architecture (native\build.bat
+       builds them from harbour-core's contrib\3rd\sqlite3; native/build.sh on
+       macOS and Linux): copied to native\<arch>\ in the output of every
+       project that references this one, where HbSqlit3 loads the one for
+       the process's architecture. Windows has all three; another system
+       the architecture of the machine that builds. -->
+  <PropertyGroup>
+    <Sqlite3mcOnWindows>$([MSBuild]::IsOSPlatform('Windows'))</Sqlite3mcOnWindows>
+    <Sqlite3mcArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</Sqlite3mcArch>
+    <Sqlite3mcName Condition="$([MSBuild]::IsOSPlatform('OSX'))">libsqlite3mc.dylib</Sqlite3mcName>
+    <Sqlite3mcName Condition="'$(Sqlite3mcName)' == ''">libsqlite3mc.so</Sqlite3mcName>
+    <Sqlite3mcHere>native\$(Sqlite3mcArch)\$(Sqlite3mcName)</Sqlite3mcHere>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Sqlite3mcOnWindows)' == 'true'">
     <None Include="native\x86\sqlite3mc.dll;native\x64\sqlite3mc.dll;native\arm64\sqlite3mc.dll"
           CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Sqlite3mcOnWindows)' != 'true'">
+    <None Include="$(Sqlite3mcHere)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,8 +39,10 @@
   </ItemGroup>
 
   <Target Name="CheckSqlite3mc" BeforeTargets="BeforeBuild">
-    <Error Condition="!Exists('native\x86\sqlite3mc.dll') Or !Exists('native\x64\sqlite3mc.dll') Or !Exists('native\arm64\sqlite3mc.dll')"
+    <Error Condition="'$(Sqlite3mcOnWindows)' == 'true' And (!Exists('native\x86\sqlite3mc.dll') Or !Exists('native\x64\sqlite3mc.dll') Or !Exists('native\arm64\sqlite3mc.dll'))"
            Text="sqlite3mc.dll is missing: run $(MSBuildThisFileDirectory)native\build.bat" />
+    <Error Condition="'$(Sqlite3mcOnWindows)' != 'true' And !Exists('$(Sqlite3mcHere)')"
+           Text="$(Sqlite3mcHere) is missing: run $(MSBuildThisFileDirectory)native/build.sh" />
   </Target>
 
 </Project>

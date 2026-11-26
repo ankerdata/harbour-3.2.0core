@@ -292,7 +292,8 @@ public static partial class HbSqlit3
         const string Lib = "sqlite3mc";
 
         // native\<arch>\sqlite3mc.dll beside the assembly, the architecture
-        // the process runs as (native\build.bat builds all three)
+        // the process runs as (native\build.bat builds all three); on macOS
+        // libsqlite3mc.dylib and on Linux libsqlite3mc.so (native/build.sh)
         static Native()
         {
             NativeLibrary.SetDllImportResolver(typeof(Native).Assembly, (cName, oAssembly, _) =>
@@ -306,7 +307,10 @@ public static partial class HbSqlit3
                     Architecture.Arm64 => "arm64",
                     var a => throw new PlatformNotSupportedException("sqlite3mc: no build for " + a),
                 };
-                string cPath = Path.Combine(AppContext.BaseDirectory, "native", cArch, Lib + ".dll");
+                string cFile = OperatingSystem.IsWindows() ? Lib + ".dll"
+                             : OperatingSystem.IsMacOS() ? "lib" + Lib + ".dylib"
+                             : "lib" + Lib + ".so";
+                string cPath = Path.Combine(AppContext.BaseDirectory, "native", cArch, cFile);
                 return NativeLibrary.Load(cPath);
             });
         }
