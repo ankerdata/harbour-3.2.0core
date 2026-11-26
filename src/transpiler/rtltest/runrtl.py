@@ -193,7 +193,7 @@ def run_limited(args, cwd):
 def build_prg(name):
     """(name, error or None, built). The reference is tracked, so one that
     was edited or restored since is written again."""
-    exe = os.path.join(PRGEXE, name + ".exe")
+    exe = os.path.join(PRGEXE, name + runsuite.EXE)
     ref = os.path.join(HBREF, name + ".txt")
     stamp = os.path.join(PRGEXE, name + ".stamp")
     opts = ["-w3", "-es0", "-ku", "-gtcgi", "-q"] + (["-mt"] if name.endswith("_mt") else [])

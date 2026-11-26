@@ -40,7 +40,7 @@ change. Without a reftab yet, gen does the whole suite first.
 Usage: runsuite.py [all|gen|prg|cs|run] [--full] [--test testNNN[,...]]
 
 Environment:
-  HBTRANSPILER  transpiler binary (default <root>/bin/hbtranspiler.exe)
+  HBTRANSPILER  transpiler binary (default <root>/bin/hbtranspiler[.exe])
 """
 import hashlib
 import os
@@ -63,8 +63,11 @@ REFTAB = os.path.join(ROOT, "src", "transpiler", "hbreftab.tab")
 GENDEFINES = os.path.join(ROOT, "src", "transpiler", "tools", "gendefines.py")
 TEST_GENDEFINES = os.path.join(ROOT, "src", "transpiler", "tools", "test_gendefines.py")
 
+# a program's file name: .exe on Windows, bare elsewhere
+EXE = ".exe" if os.name == "nt" else ""
+
 TRANSPILER = os.environ.get("HBTRANSPILER") or \
-    os.path.join(ROOT, "bin", "hbtranspiler.exe")
+    os.path.join(ROOT, "bin", "hbtranspiler" + EXE)
 
 # Multi-file tests: testNNa + testNNb build as one project named testNN.
 PAIRS = ["19", "20", "22", "41", "45", "46", "131", "138"]
@@ -323,7 +326,7 @@ def build_prg(name):
     srcs = sources(name, ".prg", ".")
     if not srcs:
         return name, "no source", False
-    exe = os.path.join(PRGEXE, name + ".exe")
+    exe = os.path.join(PRGEXE, name + EXE)
     if not FULL and os.path.isfile(exe):
         t = os.path.getmtime(exe)
         if all(os.path.getmtime(p) <= t for p in prg_deps(srcs)):
@@ -564,7 +567,7 @@ def stage_cs():
 def suite_command():
     """How to start the suite's assembly: its apphost beside the dll, else
     the dll through dotnet. None when it was not built."""
-    exe = newest_file(os.path.join(SUITE, "bin"), "suite.exe")
+    exe = newest_file(os.path.join(SUITE, "bin"), "suite" + EXE)
     if exe:
         return [exe]
     dll = newest_file(os.path.join(SUITE, "bin"), "suite.dll")
@@ -576,7 +579,7 @@ def run_one(name, cmd):
     relative to cwd, and the tests/ tree is not a scratch area. The C# side
     is the suite's assembly, told which test to run."""
     out_p = out_c = None
-    exe = os.path.join(PRGEXE, name + ".exe")
+    exe = os.path.join(PRGEXE, name + EXE)
     if os.path.isfile(exe):
         r = subprocess.run([exe], cwd=PRGEXE, capture_output=True, text=True)
         out_p = r.stdout + r.stderr
