@@ -324,9 +324,9 @@ public static partial class HbRuntime
                 if (lMatch && cAttr.Contains('D'))
                     aResult.Add(aFile);
                 if (cName != "." && cName != ".." && cName != "")
-                    foreach (DirectoryEntry aSub in DirScan(cPath + cName + "\\", cMask, cAttr))
+                    foreach (DirectoryEntry aSub in DirScan(cPath + cName + Ps, cMask, cAttr))
                     {
-                        aSub.cName = cName + "\\" + aSub.cName;
+                        aSub.cName = cName + Ps + aSub.cName;
                         aResult.Add(aSub);
                     }
             }
@@ -390,7 +390,7 @@ public static partial class HbRuntime
 
         if (cFileName.Length > 0 && (cName != null || cExt != null) &&
             !(cFileName[^1] is '\\' or '/' or ':'))
-            cFileName.Append('\\');
+            cFileName.Append(PsChar);
 
         if (cName != null)
             cFileName.Append(cName);
@@ -460,9 +460,15 @@ public static partial class HbRuntime
 
     // ---- Paths and directories ----
 
-    public static string hb_ps() => "\\";
+    // The system's path separator, as Harbour's HB_OS_PATH_DELIM_CHR is:
+    // "\" on Windows, "/" elsewhere. What HbRuntime builds, it builds with
+    // this; what it reads, it reads with either.
+    static readonly char PsChar = Path.DirectorySeparatorChar;
+    static readonly string Ps = PsChar.ToString();
 
-    public static string hb_osDriveSeparator() => ":";
+    public static string hb_ps() => Ps;
+
+    public static string hb_osDriveSeparator() => OperatingSystem.IsWindows() ? ":" : "";
 
     public static string hb_osFileMask() => "*.*";
 
@@ -473,8 +479,8 @@ public static partial class HbRuntime
     {
         if (cDir == null)
             return "";
-        if (!Empty(cDir) && !IsDriveSpec(cDir) && !cDir.EndsWith('\\'))
-            cDir += "\\";
+        if (!Empty(cDir) && !IsDriveSpec(cDir) && !cDir.EndsWith(PsChar))
+            cDir += Ps;
         return cDir;
     }
 
@@ -483,7 +489,8 @@ public static partial class HbRuntime
     {
         if (cDir == null)
             return "";
-        while (cDir.Length > 1 && cDir.EndsWith('\\') && cDir != "\\\\" && !cDir.EndsWith(":\\"))
+        while (cDir.Length > 1 && cDir.EndsWith(PsChar) &&
+               !(OperatingSystem.IsWindows() && (cDir == "\\\\" || cDir.EndsWith(":\\"))))
             cDir = cDir.Substring(0, cDir.Length - 1);
         return cDir;
     }
@@ -497,7 +504,7 @@ public static partial class HbRuntime
         if (Empty(cPath))
             return cPath;
 
-        var aDir = new List<string>(cPath.Split('\\'));
+        var aDir = new List<string>(cPath.Split(PsChar));
 
         for (int i = aDir.Count - 1; i >= 0; i--)
         {
@@ -517,8 +524,8 @@ public static partial class HbRuntime
             }
         }
 
-        cPath = string.Join("\\", aDir);
-        return cPath.Length == 0 ? ".\\" : cPath;
+        cPath = string.Join(Ps, aDir);
+        return cPath.Length == 0 ? "." + Ps : cPath;
     }
 
     // hb_DirBuild(): create every directory the path names that is not
@@ -542,24 +549,24 @@ public static partial class HbRuntime
                 cDirTemp = cDir.Substring(0, nPos + 1);
                 cDir = cDir.Substring(nPos + 1);
             }
-            else if (cDir.StartsWith("\\\\"))    // UNC path, network share
+            else if (OperatingSystem.IsWindows() && cDir.StartsWith("\\\\"))    // UNC path, network share
             {
                 int nShare = cDir.IndexOf('\\', 2);
                 cDirTemp = nShare < 0 ? "" : cDir.Substring(0, nShare + 1);
                 cDir = cDir.Substring(cDirTemp.Length);
             }
-            else if (cDir.StartsWith("\\"))
+            else if (cDir.StartsWith(Ps))
             {
-                cDirTemp = "\\";
+                cDirTemp = Ps;
                 cDir = cDir.Substring(1);
             }
             else
                 cDirTemp = "";
 
-            foreach (string cDirItem in cDir.Split('\\'))
+            foreach (string cDirItem in cDir.Split(PsChar))
             {
-                if (!cDirTemp.EndsWith('\\') && cDirTemp != "")
-                    cDirTemp += "\\";
+                if (!cDirTemp.EndsWith(PsChar) && cDirTemp != "")
+                    cDirTemp += Ps;
                 if (cDirItem != "")      // skip the root path, if any
                 {
                     cDirTemp += cDirItem;
@@ -669,7 +676,7 @@ public static partial class HbRuntime
         catch (Exception e) when (IsFsFailure(e)) { cDir = ""; }
 
         if (cDir.Length > 0 && !(cDir[^1] is '\\' or '/' or ':'))
-            cDir += "\\";
+            cDir += Ps;
 
         if (cNewDir != null)
             DirChange(cNewDir);

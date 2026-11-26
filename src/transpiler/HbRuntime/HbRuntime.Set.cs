@@ -85,7 +85,7 @@ public static partial class HbRuntime
         [101] = true,               // _SET_IDLEREPEAT
         [102] = 0m,                 // _SET_FILECASE, mixed
         [103] = 0m,                 // _SET_DIRCASE, mixed
-        [104] = "\\",               // _SET_DIRSEPARATOR
+        [104] = Ps,                 // _SET_DIRSEPARATOR
         [105] = true,               // _SET_EOF
         [106] = true,               // _SET_HARDCOMMIT
         [107] = false,              // _SET_FORCEOPT
