@@ -11,7 +11,23 @@ mkdir -p "$(dirname "$OUTPUT")"
 
 cd "$REPO_ROOT"
 
-clang -Isrc/transpiler/include -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
+# hbcommon and hbnortl, wherever this system's Harbour build put them
+# (lib/darwin/clang, lib/linux/gcc ...): `HB_BUILD_PARTS=compiler make`
+# at the root builds them. HB_LIBDIR names another place.
+if [ -z "$HB_LIBDIR" ]; then
+   HB_LIBDIR="$(dirname "$(ls lib/*/*/libhbnortl.a 2>/dev/null | head -1)")"
+fi
+if [ ! -f "$HB_LIBDIR/libhbnortl.a" ] || [ ! -f "$HB_LIBDIR/libhbcommon.a" ]; then
+   echo "Build FAILED: libhbnortl.a and libhbcommon.a not found (run: HB_BUILD_PARTS=compiler make)"
+   exit 1
+fi
+
+# clang on macOS, as Harbour's own build there; the system's compiler elsewhere
+if [ -z "$CC" ]; then
+   if [ "$(uname -s)" = "Darwin" ]; then CC=clang; else CC=cc; fi
+fi
+
+$CC -Isrc/transpiler/include -I./include -Isrc/transpiler -DHB_TRANSPILER -fno-common -w -O3 \
   -o "$OUTPUT" \
   src/transpiler/cmdcheck.c src/transpiler/complex.c \
   src/transpiler/expropta.c \
@@ -32,7 +48,7 @@ clang -Isrc/transpiler/include -I./include -Isrc/transpiler -DHB_TRANSPILER -fno
   src/compiler/hbgenerr.c src/compiler/hbident.c \
   src/transpiler/src/compiler/hbusage.c \
   src/main/harbour.c src/transpiler/src/pp/ppcore.c \
-  -L./lib/darwin/clang -lhbnortl -lhbcommon -lm
+  -L"$HB_LIBDIR" -lhbnortl -lhbcommon -lm
 
 if [ $? -ne 0 ]; then
    echo "Build FAILED"
