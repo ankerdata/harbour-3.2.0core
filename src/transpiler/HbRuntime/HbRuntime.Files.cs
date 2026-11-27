@@ -56,6 +56,9 @@ public static partial class HbRuntime
     // HbError.From gives an Error object the same osCode.
     internal static int OsError(Exception e) => WinToDosError(
         (e.HResult & unchecked((int) 0xFFFF0000)) == unchecked((int) 0x80070000) ? e.HResult & 0xFFFF
+        // off Windows a file another FileStream holds is EWOULDBLOCK from
+        // .NET's flock(), carried bare: Windows's ERROR_SHARING_VIOLATION
+        : e is IOException && !OperatingSystem.IsWindows() && e.HResult == (OperatingSystem.IsMacOS() ? 35 : 11) ? 32
         : e is FileNotFoundException ? 2
         : e is DirectoryNotFoundException ? 3
         : e is UnauthorizedAccessException or NotSupportedException ? 5
@@ -180,6 +183,11 @@ public static partial class HbRuntime
     // is closed. The range may lie beyond the file's end. Harbour's fourth
     // parameter, HB_FLX_SHARED or HB_FLX_WAIT, has no FileStream form and
     // is not taken.
+    //
+    // Windows and Linux lock through FileStream; on Linux the lock is the
+    // process's, not the handle's (a second handle of the same process is
+    // not refused). macOS, where .NET has no FileStream.Lock(), locks the
+    // whole file (MacLockFile()).
     public static bool hb_FLock(decimal nHandle, decimal nStart, decimal nLength)
     {
         if (!TryGetFile(nHandle, out FileStream fs))
@@ -189,7 +197,15 @@ public static partial class HbRuntime
         }
         try
         {
+            if (OperatingSystem.IsMacOS())
+            {
+                int nError = MacLockFile(fs);
+                FsError(nError);
+                return nError == 0;
+            }
+#pragma warning disable CA1416     // macOS went the other way just above
             fs.Lock((long) nStart, (long) nLength);
+#pragma warning restore CA1416
             FsError(0);
             return true;
         }
@@ -198,6 +214,31 @@ public static partial class HbRuntime
             FsError(OsError(e));
             return false;
         }
+    }
+
+    // macOS has no byte-range lock a .NET program can use on a file it
+    // has open: FileStream holds a shared flock() on every file it opens
+    // (how .NET gives FileShare a meaning between processes, which
+    // FO_EXCLUSIVE relies on), and there a range lock (fcntl(), lockf())
+    // is refused against the process's own flock(), and held, makes every
+    // other FileStream's open fail. So the lock is that flock() made
+    // exclusive, i.e., the whole file, whatever the range. Another process 
+    // then fails to open the file at all (a sharing violation, 32) rather 
+    // than to lock it. Returns the DOS error: 0, 33 when it is held, else 5.
+    static int MacLockFile(FileStream fs)
+    {
+        const int LOCK_EX = 2, LOCK_NB = 4, EWOULDBLOCK = 35;
+
+        int fd = (int) fs.SafeFileHandle.DangerousGetHandle();
+        if (MacLibc.flock(fd, LOCK_EX | LOCK_NB) == 0)
+            return 0;
+        return System.Runtime.InteropServices.Marshal.GetLastPInvokeError() == EWOULDBLOCK ? 33 : 5;
+    }
+
+    static class MacLibc
+    {
+        [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+        internal static extern int flock(int fd, int operation);
     }
 
     // FClose( <nHandle> ): .T. when it closed. An unknown handle is
