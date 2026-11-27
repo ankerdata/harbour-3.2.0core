@@ -211,7 +211,10 @@ public static partial class HbRuntime
         }
         catch (Exception e) when (IsFsFailure(e))
         {
-            FsError(OsError(e));
+            // Linux refuses a held range with EAGAIN, which OsError() reads
+            // as a file that is held (32): here it is the range, 33
+            int nError = OsError(e);
+            FsError(nError == 32 && !OperatingSystem.IsWindows() ? 33 : nError);
             return false;
         }
     }
