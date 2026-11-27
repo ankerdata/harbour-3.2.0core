@@ -43,7 +43,7 @@ public static partial class HbRuntime
         if (nYear >= 0 && nYear < 100)
         {
             long nEpoch = s_sets.TryGetValue((int)_SET_EPOCH, out var e) && IsNumeric((object)e)
-                ? (long)Convert.ToDecimal((object)e, INV) : 1900;
+                ? (long)Dec((object)e) : 1900;
             long nCentury = nEpoch / 100;
             if (nYear < nEpoch % 100)
                 nCentury++;

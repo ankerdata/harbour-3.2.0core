@@ -239,7 +239,7 @@ public static partial class HbRuntime
         if (v is null || t == typeof(object) || t.IsInstanceOfType(v))
             return v;
         if (t == typeof(decimal) && IsNumeric(v))
-            return Convert.ToDecimal(v, INV);
+            return Dec(v);
         if (t == typeof(long) && IsNumeric(v))
             return v is decimal m ? (long)m : Convert.ToInt64(v, INV);
         return v;
@@ -250,7 +250,7 @@ public static partial class HbRuntime
     public static bool Empty(dynamic val)
     {
         if (val == null) return true;
-        if (IsNumeric(val)) return Convert.ToDecimal(val, INV) == 0;
+        if (IsNumeric(val)) return Dec(val) == 0;
         if (val is string s) return s.Trim().Length == 0;
         // Harbour's empty date (CToD("")) is DateOnly's default here.
         if (val is DateOnly dt) return dt == default;
@@ -536,7 +536,7 @@ public static partial class HbRuntime
                         // through unchanged.
                         if (val != null && !parms[i].ParameterType.IsAssignableFrom(val.GetType()))
                         {
-                            try { val = Convert.ChangeType(val, parms[i].ParameterType, INV); }
+                            try { val = ToType(val, parms[i].ParameterType); }
                             catch { /* leave as-is; Invoke may still accept via boxing */ }
                         }
                         invokeArgs[i] = val;

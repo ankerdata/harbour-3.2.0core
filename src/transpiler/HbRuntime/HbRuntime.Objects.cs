@@ -217,8 +217,7 @@ public sealed class HbMemberSlot
     {
         if (xValue == null || oType == typeof(object) || oType.IsInstanceOfType(xValue))
             return xValue;
-        return System.Convert.ChangeType(xValue, Nullable.GetUnderlyingType(oType) ?? oType,
-                                         CultureInfo.InvariantCulture);
+        return HbRuntime.ToType(xValue, Nullable.GetUnderlyingType(oType) ?? oType);
     }
 
     public void Set(object oObject, object? xValue)

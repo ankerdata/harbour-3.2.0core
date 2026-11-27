@@ -559,7 +559,7 @@ public static partial class HbRuntime
             {
                 case 'c':
                 {
-                    char c = HbBytes.Char(IsNumeric(xItem) ? (int)Math.Truncate(Convert.ToDecimal(xItem, INV)) & 0xFF : 0);
+                    char c = HbBytes.Char(IsNumeric(xItem) ? (int)Math.Truncate(Dec(xItem)) & 0xFF : 0);
                     if (fLeft)
                         sb.Append(c);
                     if (iWidth > 1)
@@ -576,7 +576,7 @@ public static partial class HbRuntime
                     bool fSign = false;
                     if (IsNumeric(xItem))
                     {
-                        decimal v = Convert.ToDecimal(xItem, INV);
+                        decimal v = Dec(xItem);
                         cDigits = cType == 'd' ? NumToStr(v, 25, 0).TrimStart(' ')
                                                : hb_NumToHex(v);
                         if (cType == 'x')
@@ -610,7 +610,7 @@ public static partial class HbRuntime
                     string cNum = "0";
                     if (IsNumeric(xItem))
                     {
-                        decimal v = Convert.ToDecimal(xItem, INV);
+                        decimal v = Dec(xItem);
                         int iD = iDec >= 0 ? Math.Min(iDec, 253) : StrDefault(v).iDec;
                         cNum = NumToStr(v, 255, iD).TrimStart(' ');
                     }
@@ -819,7 +819,7 @@ public static partial class HbRuntime
             Delegate => "{|| ... }",
             System.Collections.IDictionary h => "{ Hash of " + h.Count + " Items }",
             System.Collections.IList a when IsHbArray(a) => "{ Array of " + a.Count + " Items }",
-            _ when IsNumeric(x) => Str(Convert.ToDecimal(x, INV)),
+            _ when IsNumeric(x) => Str(Dec(x)),
             _ => "{ " + CLASSNAME(x) + " Object }",
         };
     }
@@ -845,7 +845,7 @@ public static partial class HbRuntime
             case Delegate: return "{|| ... }";
         }
         if (IsNumeric(x))
-            return hb_ntos(Convert.ToDecimal(x, INV));
+            return hb_ntos(Dec(x));
         if (x is not System.Collections.IDictionary && !IsHbArray(x))
             throw new NotSupportedException("hb_ValToExp() of an object needs __objGetIVars(), part of the deferred object reflection");
         if (!seen.Add(x))

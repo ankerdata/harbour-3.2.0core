@@ -307,7 +307,7 @@ public static partial class HbRuntime
                     // a number in another CLR type: hb_threadID()'s long
                     // for a decimal variable
                     _ when IsNumeric(xEvent) && IsNumericType(typeof(T)) =>
-                        (T) Convert.ChangeType(xEvent, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T), INV),
+                        (T) ToType(xEvent, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T)),
                     _ => (T) xEvent,
                 };
                 return true;

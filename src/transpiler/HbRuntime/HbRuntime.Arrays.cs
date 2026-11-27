@@ -139,7 +139,7 @@ public static partial class HbRuntime
                 int i => (decimal)i,
                 long l => (decimal)l,
                 short s => (decimal)s,
-                double d => (decimal)d,
+                double d => FromDouble(d),
                 _ => val,
             };
         return val;
@@ -266,7 +266,7 @@ public static partial class HbRuntime
             case DateTime t: return fExact ? x is DateTime xt && xt == t : DayOf(x) is DateOnly tday && tday == DateOnly.FromDateTime(t);
         }
         if (IsNumeric(v))
-            return IsNumeric(x) && Convert.ToDecimal(x, INV) == Convert.ToDecimal(v, INV);
+            return IsNumeric(x) && Dec(x) == Dec(v);
         return fExact && ReferenceEquals(x, v);
     }
 
@@ -445,7 +445,7 @@ public static partial class HbRuntime
             ? (x, y) => x < a.Count && y < a.Count && Eval(bOrder, a[x], a[y]) switch
             {
                 bool l => l,
-                object v when IsNumeric(v) => Convert.ToDecimal(v, INV) != 0,
+                object v when IsNumeric(v) => Dec(v) != 0,
                 _ => true,
             }
             : (x, y) => SortLess(a[x], a[y]);
@@ -517,7 +517,7 @@ public static partial class HbRuntime
         if (x is string sx && y is string sy)
             return StrCmp(sx, sy) < 0;
         if (IsNumeric(x) && IsNumeric(y))
-            return Convert.ToDecimal(x, INV) < Convert.ToDecimal(y, INV);
+            return Dec(x) < Dec(y);
         if (x is DateTime tx && y is DateTime ty)
             return tx < ty;
         if (DayOf(x) is DateOnly dx && DayOf(y) is DateOnly dy)

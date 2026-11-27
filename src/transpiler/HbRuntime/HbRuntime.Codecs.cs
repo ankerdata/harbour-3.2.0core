@@ -90,7 +90,7 @@ public static partial class HbRuntime
                 // Harbour prints "%.*f" with the value's own decimals. A
                 // C# decimal carries its scale, so ToString gives exactly
                 // that: 2.50 stays "2.50", 42 is "42".
-                sb.Append(Convert.ToDecimal(x, INV).ToString(INV));
+                sb.Append(Dec(x).ToString(INV));
                 break;
             case System.Collections.IDictionary hValues:
                 JsonEncodeHash(hValues, sb, nLevel, nIndent, aPath);
@@ -357,7 +357,7 @@ public static partial class HbRuntime
             while (i < c.Length && c[i] >= '0' && c[i] <= '9')
                 nExp = nExp * 10 + (c[i++] - '0');
             double dValue = (nInt + (double) nFrac) * Math.Pow(10, nSign * nExp);
-            return (decimal) (fNeg ? -dValue : dValue);
+            return FromDouble(fNeg ? -dValue : dValue);
         }
         if (nDec == 0)
             return fNeg ? -nInt : nInt;

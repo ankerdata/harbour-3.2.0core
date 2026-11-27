@@ -121,7 +121,7 @@ public static partial class HbRuntime
                     s_sets[key] = cNew;
             }
             else if (IsNumeric(xNew))
-                s_sets[key] = Convert.ToDecimal(xNew, INV);
+                s_sets[key] = Dec(xNew);
             // A date format turns century on when its (first) year has
             // four digits, off otherwise (vm/set.c)
             if (key == (int)_SET_DATEFORMAT && xNew is string cFormat)

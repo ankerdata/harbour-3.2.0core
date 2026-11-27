@@ -100,7 +100,7 @@ public static partial class HbRuntime
                 result = TransformTimeStamp(t, flags);
                 break;
             case decimal or int or long or double or float or short or byte or uint or ulong:
-                result = TransformNumber(Convert.ToDecimal(value, INV), cPic, ref flags, out nOffset);
+                result = TransformNumber(Dec(value), cPic, ref flags, out nOffset);
                 break;
             default:
                 throw new ArgumentException("Argument error (TRANSFORM)");
@@ -142,7 +142,7 @@ public static partial class HbRuntime
             case bool l:
                 return l ? "T" : "F";
             case decimal or int or long or double or float or short or byte or uint or ulong:
-                decimal n = Convert.ToDecimal(value, INV);
+                decimal n = Dec(value);
                 if (!SetFixed())
                     return Str(n);
                 if (IsHbInteger(n))

@@ -62,7 +62,7 @@ public static partial class HbRuntime
         // m-suffixes floating literals), so give them the same padding
         // a decimal would get.
         a is bool l ? (l ? ".T." : ".F.") :
-        IsNumeric(a) ? Str(Convert.ToDecimal(a, INV)) :
+        IsNumeric(a) ? Str(Dec(a)) :
         Convert.ToString(a, INV);
 
     // A Harbour number in any of the CLR's numeric types: a decimal as a

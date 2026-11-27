@@ -188,7 +188,7 @@ public static partial class HbSqlit3
 
     // sqlite3_column_*( <pStmt>, <nColumn> ): the current row's value
     public static decimal sqlite3_column_double(object? pStmt, object? nColumn) =>
-        (decimal) Native.sqlite3_column_double(Stmt(pStmt, "SQLITE3_COLUMN_DOUBLE"), Int(nColumn) - 1);
+        HbRuntime.FromDouble(Native.sqlite3_column_double(Stmt(pStmt, "SQLITE3_COLUMN_DOUBLE"), Int(nColumn) - 1));
 
     public static long sqlite3_column_int(object? pStmt, object? nColumn) =>
         Native.sqlite3_column_int(Stmt(pStmt, "SQLITE3_COLUMN_INT"), Int(nColumn) - 1);

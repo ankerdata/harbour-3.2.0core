@@ -329,7 +329,7 @@ public static partial class HbRuntime
         {
             string cAddress = a[1] as string ?? "";
             long nPort = a.Count > 2 && a[2] is object xPort && IsNumeric(xPort)
-                ? (long) Math.Truncate(Convert.ToDecimal(xPort, INV)) : 0;
+                ? (long) Math.Truncate(Dec(xPort)) : 0;
             IPAddress? ip = cAddress.Length == 0 ? IPAddress.Any
                 : s_dottedQuad.IsMatch(cAddress) && IPAddress.TryParse(cAddress, out var parsed) ? parsed
                 : null;

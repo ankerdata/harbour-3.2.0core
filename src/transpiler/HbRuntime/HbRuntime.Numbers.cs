@@ -91,11 +91,27 @@ public static partial class HbRuntime
         return s.Length > iSize ? new string('*', iSize) : s.PadLeft(iSize);
     }
 
-    // A double result as a decimal with all of its round-trip digits (17
-    // significant), which Str() cuts to the 16 Harbour shows; (decimal)d
-    // would keep only 15, and Str( Sqrt( 3 ), 21, 18 ) would lose a digit.
-    static decimal FromDouble(double d) =>
-        decimal.Parse(d.ToString("R", INV), NumberStyles.Float, INV);
+    // A double as a decimal: the shortest digits that read back as the
+    // same double (up to 17 significant), which Str() cuts to the 16
+    // Harbour shows. This is the one way a double becomes a number here.
+    // The cast is not: (decimal) d kept 15 digits through .NET 10, where
+    // Str( Sqrt( 3 ), 21, 18 ) would lose a digit, and is exact from .NET
+    // 11, where 3.95 is 3.9500000000000001776... and does not equal 3.95.
+    public static decimal FromDouble(double d)
+    {
+        if (!double.IsFinite(d))
+            throw new OverflowException("Value was either too large or too small for a Decimal.");
+        decimal n = decimal.Parse(d.ToString("R", INV), NumberStyles.Float, INV);
+        return n == 0 ? 0m : n;      // 1E-30 reads as zero with a scale
+    }
+
+    // A number of any CLR type as a decimal
+    static decimal Dec(object x) =>
+        x is double d ? FromDouble(d) : Convert.ToDecimal(x, INV);
+
+    // Convert.ChangeType(), a double to a decimal by FromDouble()
+    internal static object ToType(object x, Type t) =>
+        x is double d && t == typeof(decimal) ? FromDouble(d) : Convert.ChangeType(x, t, INV);
 
     // Would Harbour hold n as an integer rather than a double? Written
     // without decimals and within 64 bits. Harbour prints an integer
@@ -237,8 +253,8 @@ public static partial class HbRuntime
     public static decimal Pow(decimal a, decimal b) => FromDouble(Math.Pow((double)a, (double)b));
     // Harbour's Sqrt() of 0 or less is 0 (rtl/math.c)
     public static decimal Sqrt(decimal n) => n <= 0 ? 0 : FromDouble(Math.Sqrt((double)n));
-    public static decimal Log(decimal n) => (decimal)Math.Log((double)n);
-    public static decimal Exp(decimal n) => (decimal)Math.Exp((double)n);
+    public static decimal Log(decimal n) => FromDouble(Math.Log((double)n));
+    public static decimal Exp(decimal n) => FromDouble(Math.Exp((double)n));
 
     // Harbour bit ops (rtl/hbbit.c). hb_bitAnd / hb_bitOr / hb_bitXor are
     // variadic; every operand is a number truncated to 64 bits (hb_parnint:
@@ -252,7 +268,7 @@ public static partial class HbRuntime
         int i => i,
         decimal d => (long)Math.Truncate(d),
         double d => (long)Math.Truncate(d),
-        _ when IsNumeric(x) => (long)Math.Truncate(Convert.ToDecimal(x, INV)),
+        _ when IsNumeric(x) => (long)Math.Truncate(Dec(x)),
         _ => throw new ArgumentException("Argument error (" + cFunc + ")")
     };
 

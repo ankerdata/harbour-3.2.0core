@@ -103,7 +103,7 @@ public abstract class HbShape : IDictionary
         if (oType == typeof(long) && value is decimal n && n != Math.Truncate(n))
             throw new ArgumentException("A whole number's key takes no fraction: " + n);
         if (oType == typeof(long) || oType == typeof(decimal))
-            return Convert.ChangeType(value, oType, System.Globalization.CultureInfo.InvariantCulture);
+            return HbRuntime.ToType(value, oType);
         return value;
     }
 

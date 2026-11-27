@@ -48,7 +48,7 @@ public static partial class HbRuntime
         if (key is null || !IsNumeric(key))
             return key;
         Type t = s_hashKeyTypes.GetOrAdd(d.GetType(), HashKeyType);
-        decimal n = Convert.ToDecimal(key, INV);
+        decimal n = Dec(key);
         if (t == typeof(long))
         {
             if (n != Math.Truncate(n))
