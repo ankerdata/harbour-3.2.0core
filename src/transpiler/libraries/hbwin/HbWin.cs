@@ -38,6 +38,44 @@ public static partial class HbWin
         return true;
     }
 
+    // wapi_GetCommandLine() (wapi_winbase_1.c): the line this process was
+    // started with, the program first. .NET keeps the arguments and not
+    // the line, so it is written again from them. The program and any
+    // argument with a blank or a quote in it quoted as CommandLineToArgvW()
+    // reads them back: the same arguments, not always the same text.
+    public static string wapi_GetCommandLine()
+    {
+        string[] aArgs = System.Environment.GetCommandLineArgs();
+        var oLine = new System.Text.StringBuilder();
+        oLine.Append('"').Append(System.Environment.ProcessPath ?? (aArgs.Length > 0 ? aArgs[0] : "")).Append('"');
+        for (int i = 1; i < aArgs.Length; i++)
+        {
+            string cArg = aArgs[i];
+            oLine.Append(' ');
+            if (cArg.Length > 0 && cArg.IndexOfAny(new[] { ' ', '\t', '\n', '\r', '"' }) < 0)
+            {
+                oLine.Append(cArg);
+                continue;
+            }
+            oLine.Append('"');
+            int nSlashes = 0;
+            foreach (char c in cArg)
+            {
+                if (c == '\\')
+                {
+                    nSlashes++;
+                    continue;
+                }
+                // backslashes before a quote are doubled, the quote escaped
+                oLine.Append('\\', c == '"' ? nSlashes * 2 + 1 : nSlashes);
+                nSlashes = 0;
+                oLine.Append(c);
+            }
+            oLine.Append('\\', nSlashes * 2).Append('"');
+        }
+        return oLine.ToString();
+    }
+
     // wapi_GetCurrentProcessId() (wapi_winbase_2.c): this process's id, which
     // EasiPOS keeps as POSStatus's cPID
     public static long wapi_GetCurrentProcessId() => System.Environment.ProcessId;
